@@ -31,6 +31,9 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 - **Mutation testing finds missing tests.** A surviving mutation showed, for example, that a shipped default was tested only after the harness had already changed it.
 - **A GUI that did not change does not prove a write failed.** FontLab caches editor numbers per tab ([topics/fonts-and-sync.md](topics/fonts-and-sync.md), §8f).
 - **Stale tool descriptions:** after a server update Claude may show old tool texts until Claude Desktop has been fully restarted a second time.
+- **Test the oracle's own method.** The KERNING panel filter was assumed to ignore group members, and conclusions about zeros rested on that for a whole session; two filters (tests 166–167) showed it does match members ([topics/kerning.md](topics/kerning.md), §8). Check what a GUI filter matches before reading anything into a missing row.
+- **A name can mean a glyph or a class.** FontLab names a class after its first member, and `get` then reads that name as the class (defect B, [topics/kerning.md](topics/kerning.md) §9). Test with class names that cannot collide with glyph names, and change only the name to check.
+- **An error message can document the API.** `get` refused a documented pair object, and its `TypeError` named the form it does accept (test 183); one more probe then settled it.
 - **Big payloads** (for example 990-node drawings) are generated and checked by a script before sending, because `nodes_match` only compares against what was sent.
 
 ## Migration day (2026-11-01)

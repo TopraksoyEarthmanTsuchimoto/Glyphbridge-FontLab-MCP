@@ -15,12 +15,11 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 
 | # | Scenario | Status |
 |---|---|---|
-| 70 | K6: special characters in `text` | TODO |
-| 72 | K8: approval flow at 250 / 251 / 324 pairs | TODO |
-| 73 | K9: exact pair overriding a class value | TODO |
+| 73a | Defect A: `get_kerning` misses kerning made in FontLab's GUI (reads the legacy table) | TODO (P0.8), found by K9 |
+| 73b | Defect B: an exception on a glyph whose name is also a class name reads as the class value | TODO (P0.8), right side proven, left side untested; fix path found (exact glyph pair via (name, False) tuples, 186), design open |
 | 74 | K10: `font.kerning` versus kerning applied to text | TODO, high value |
 | 75 | K11: GPOS / contextual kerning, names-only probe | TODO |
-| 76 | K12: new font, test font, two fonts | TODO |
+| 76 | K12: new font, test font, two fonts | PARTLY: (a) `table_size` 0 proven (168) |
 | 77 | K13: no font open | TODO |
 | 78 | K14: timings at 250 and 2000 pairs | TODO |
 | 80 | K16: encoding end to end | TODO |
@@ -79,4 +78,4 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 |---|---|---|
 | 17, 42, 64 | Large glyphs: 1980-node request, 2001-node refusal, read 1000+ nodes, time of `Update` against the 5 s timeout | POSTPONED |
 
-Closed on 2026-11-01: row 33 (tests refreshed and passing on the user's machine), row 65 (K1 deployment check), row 66 (K2 listener route), row 67 (K3 POST equals GET), row 68 (K4 three pairs through the agent), row 69 (K5 `text` mode against the KERNING panel), row 71 (K7 error cases).
+Closed on 2026-11-01: row 33 (tests refreshed and passing on the user's machine), row 65 (K1 deployment check), row 66 (K2 listener route), row 67 (K3 POST equals GET), row 68 (K4 three pairs through the agent), row 69 (K5 `text` mode against the KERNING panel), row 70 (K6 special characters in `text`), row 71 (K7 error cases), row 72 (K8 approval flow at 250 / 251 / 324 pairs), row 73 (K9: the exception wins over the class value when names are unambiguous).

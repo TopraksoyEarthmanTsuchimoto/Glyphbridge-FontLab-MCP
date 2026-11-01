@@ -1,6 +1,6 @@
 [glyphbridge] Connected at HH:MM:SS - an AI agent (Claude) has checked in and is talking to this FontLab session.
 /health ('200', {'status': 'ok'})
-/version ('200', {'version': '0.96'})
+/version ('200', {'version': '0.100'})
 /font/current ('200', {'open': True, 'path': 'x', 'glyph_count': 3, 'family_name': 'F', 'style_name': 'R', 'postscript_font_name': '', 'postscript_full_name': '', 'units_per_em': 1000, 'ascender': 800, 'descender': -200, 'cap_height': 700, 'x_height': 500, 'weight_class': 400})
 /font/glyphs ('200', {'open': True, 'count': 3, 'names': ['A', 'empty', 'B']})
 /glyph/width?name=A ('200', {'open': True, 'found': True, 'name': 'A', 'width': 500.0})
@@ -264,7 +264,7 @@ shape_count in outline: 1
 207 bad route       : unknown route 'bogus': use rou
 208 unknown tri glyph: False no glyph named 'trinope'
 209 no font open    : {'open': False}
-210 version         : {'version': '0.96'}
+210 version         : {'version': '0.100'}
 220 legacy lsb refused: True refused: the legacy setters glyph.leftMargin / glyph.rightMa | leftMargin 0.0 | calls []
 221 legacy rsb refused: True | rightMargin -500.0
 222 legacy width still allowed: glyph.width = 600.0 | width 600.0
@@ -369,7 +369,7 @@ shape_count in outline: 1
 339 negative width   : 400 "width" must not be negative
 340 unknown glyph    : {'open': True, 'found': False, 'set': False, 'reason': "no glyph named 'nope'", 'before': None, 'after': None}
 341 no font          : {'open': False}
-342 version          : {'version': '0.96'}
+342 version          : {'version': '0.100'}
 343 state            : 200 {'is_none': True} 0 | findLayer {'is_none': True} | nocreate {'is_none': True} | ref True | calls [('findLayer', 'Master'), ('getLayerByName', 'Master', False)]
 344 create without go: 200 refused: stage=create can change the fon | calls []
 345 findLayerCreate  : 200 w.findLayerCreate('Master') | returned {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | same {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | rebuilt built {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
@@ -386,14 +386,14 @@ shape_count in outline: 1
 356 no name          : 400
 357 unknown glyph    : {'open': True, 'found': False, 'reason': "no glyph named 'nope'", 'font_master': {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}}
 358 no font          : {'open': False}
-359 version          : {'version': '0.96'}
+359 version          : {'version': '0.100'}
 360 font_master      : 200 {'is_none': False, 'type': 'FmLayer', 'public_names': ['id', 'isBodyLayer', 'isMasterLayer', 'mutate', 'name'], 'name': 'test_font', 'id': 7, 'isMasterLayer': True, 'isBodyLayer': False}
 361 master, no glyph : False test_font
 362 create has no section: False
 363 master is None   : {'is_none': True}
 364 master raises    : {'error': 'RuntimeError: no master'}
 365 no master member : {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}
-366 version          : {'version': '0.96'}
+366 version          : {'version': '0.100'}
 400 width, new glyph  : 200 {'set': True, 'route': 'modern', 'layer_created': 'test_font', 'before': 0.0, 'after': 600.0} | calls [('findLayerCreate', 'fresh', 'test_font'), ('advanceWidth', 'fresh', 600.0)]
 401 width again       : True modern | layer_created None | creates 1
 402 names disagree    : True legacy_empty_glyph | the glyphs of this font have different layer names (['Alpha' | creates [] | legacy width 600.0
@@ -430,7 +430,7 @@ shape_count in outline: 1
 434 reader, agree     : 3 | modern_check {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True}
 435 reader, modern=no : False
 436 reader, no modern : 3 | modern_check {'available': True, 'modern_layer': False}
-437 version           : {'version': '0.96'}
+437 version           : {'version': '0.100'}
 440 stage=layer       : 200 1 | getContours {'type': 'list', 'python_sequence': True, 'len': 1} | getShapes {'type': 'list', 'python_sequence': True, 'len': 1} | shapes {'type': 'R73Native', 'python_sequence': False, 'len': 2} | shapesCount 1
 441 stage=contour     : 1 True False 4 {'type': 'list', 'python_sequence': True, 'len': 4}
 442 node via getNodeAt: {'type': 'R73Node', 'x': 400, 'y': 300, 'isOn': True, 'isOff': False, 'isCurve': False, 'smooth': False, 'index': 2} | calls [('getNodeAt', 2)]
@@ -453,7 +453,7 @@ shape_count in outline: 1
 459 no modern layer    : this glyph has no modern active layer, so there is nothing to read
 460 no font            : {'open': False}
 461 read-only          : calls [] | shapes still 1
-462 version           : {'version': '0.96'}
+462 version           : {'version': '0.100'}
 470 modern_outline    : True | nodes 5 of 5 | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0} | check agree False
 471 contour 0         : {'index': 0, 'closed': True, 'clockwise': True, 'nodesCount': 5}
 472 nodes             : [(10.0, 20.0, True), (410.0, 20.0, True), (410.0, 220.0, True), (210.0, 320.0, True), (10.0, 220.0, True)]
@@ -469,7 +469,7 @@ shape_count in outline: 1
 482 count mismatch    : {'available': False, 'error': 'read 5 nodes but the layer reports 6: the outline is not trusted'}
 483 too many nodes    : {'available': False, 'error': 'the layer has 5 nodes, more than the 3 that are read'}
 484 no QTransform     : margins key False | available True
-485 version           : {'version': '0.96'}
+485 version           : {'version': '0.100'}
 490 two contours      : 200 {'drawn': True, 'points': 8, 'contours': 2, 'contour_sizes': [4, 4], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': True}, 'layer_created': 'test_font'} | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 8, 'components': 0}
 491 calls             : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'flContour', 'addShape']
 492 read back         : True | contours 2 [4, 4]
@@ -489,7 +489,7 @@ shape_count in outline: 1
 506 second contour dropped: False | after drawing, the layer reads 1 shape(s), 4 node(s) and 1 contour(s); expected 1, 8 and 2 | changed True | checks {'shapes_ok': True, 'nodes_ok': False, 'contours_ok': False}
 507 getContours unreadable: True | checks {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': None}
 508 not empty         : False | the glyph's layer is not KNOWN to be empty (needs  | calls []
-509 version           : {'version': '0.96'}
+509 version           : {'version': '0.100'}
 510 curve probe        : 200 curve | call node(index 1).convertToCurve(False) | returned True | nodes_added 2 | may_change False
     before             : 4 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '2: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '3: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
     after              : 6 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '2: (268.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '3: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '4: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '5: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
@@ -507,7 +507,7 @@ shape_count in outline: 1
 520 bogus stage        : unknown stage 'bogus' for route=modern: use stage=names or stage=build or stage=attach or stage=refresh
 521 bogus variant      : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
 522 curve without go   : 200 refused: this probe can change the font 
-523 version           : {'version': '0.96'}
+523 version           : {'version': '0.100'}
 524 curve2 normal | may_change False | keys []
     A plan: convertToCurve(False) on node 1; setPoint(1, QPointF(100, 60 | error: None | note: None | final_as_expected: True
       step getNodeAt(1).convertToCurve(False) | returned True | error None | as_expected None | n 6
@@ -592,7 +592,7 @@ shape_count in outline: 1
 537 QPointF missing    : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 538 curve2 without go  : 200 refused: this probe can change the font 
 539 variant=curve still works: 2 1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False
-540 version           : {'version': '0.96'}
+540 version           : {'version': '0.100'}
 541 build (dry run)   : 200 curve3 | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | may_change False | layer shapes/nodes 0 0
     calls             : ['flContour([5 QPointF])', 'contour.closed = True', 'getNodeAt(2).convertToCurve(False)', 'setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))', 'flShape()', 'shape.shapeData', 'shapeData.addContour(contour)']
     notes             : ['detached nodes before attach: 0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 1: (300.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 2: (355.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 3: (400.0, 45.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 4: (400.0, 100.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 5: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 6: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', "after adding the contour, the detached shape reads {'contoursCount': 1, 'hasContours': True, 'isEmpty': False}"]
@@ -617,7 +617,7 @@ shape_count in outline: 1
 557 attach without go : 200 refused: this probe can change the font 
 558 second attach refused: True | layer 1 7
 559 variant=single unchanged: single {'nodesCount': 3, 'closed': True, 'clockwise': False}
-560 version           : {'version': '0.96'}
+560 version           : {'version': '0.100'}
 561 curve3 whole-number handles: None | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | calls ['setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))']
 562 curve3 attach     : True {'shapes': 1, 'nodes': 7} | layer 1 7
 563 curve3, FontLab rounds everything: None | layer 1 7
@@ -684,7 +684,7 @@ shape_count in outline: 1
 573 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 574 curve4 without go : 200 refused: this probe can change the font 
 575 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-576 version           : {'version': '0.96'}
+576 version           : {'version': '0.100'}
 577 curve5, everything works (stub assumptions) | may_change False | error None
      T1 closing segment: convertToCurve(False) on node 0 of a square | {'returned': True, 'handle_indices': [4, 5], 'nodesCount': 6}
      T2a convertToCurve(True) on node 1 of a square | {'returned': True, 'smooth_flags': [False, False, False, True, False, False]}
@@ -740,7 +740,7 @@ shape_count in outline: 1
 586 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 587 curve5 without go : 200 refused: this probe can change the font 
 588 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-589 version           : {'version': '0.96'}
+589 version           : {'version': '0.100'}
 600 one curved segment       : {'drawn': True, 'nodes_match': True, 'points': 4, 'segments_curved': 1, 'contour_sizes': [6], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 601 nodes read back       : [[(0.0, 0.0, 'on', False), (400.0, 0.0, 'on', False), (500.0, 100.0, 'h', False), (500.0, 300.0, 'h', False), (400.0, 400.0, 'on', False), (0.0, 400.0, 'on', False)]] | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 6, 'components': 0} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
 602 calls                 : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'convertToCurve', 'addShape'] | layer_created test_font
@@ -800,7 +800,7 @@ shape_count in outline: 1
 667 second draw refused   : False | the glyph's layer is not KNOWN to be empty (needs 
 668 plain triangle via path : {'drawn': True, 'nodes_match': True, 'points': 3, 'segments_curved': 0, 'contour_sizes': [3], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 669 no convert calls      : 0
-671 version               : {'version': '0.96'}
+671 version               : {'version': '0.100'}
 672 pure helpers          : 3.0 -2.0 0.0 0.0 0.0 -3.0
 700 first draw             : True | layer_created test_font | layer (1, 6, 1) | creates 1
 701 legacy view lags       : True | wrapper activeLayer None
@@ -812,7 +812,7 @@ shape_count in outline: 1
 708 findLayer missing        : False | the glyph may already have a layer (the glyph has no findLayer to ask with), so no layer was created | creates 0 | layer None
 709 glyph without layer, nobody answers yes: True | layer_created test_font | creates 1
 710 width on a glyph with no layer still works: True modern | layer_created test_font | creates 1
-711 version                : {'version': '0.96'}
+711 version                : {'version': '0.100'}
 720 state, nothing open        : 200 {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': None} | constructed False | attached False | calls []
 721 default stage is state     : 200 state
 722 construct without go       : 200 stage=construct constructs ONE native flPackage object (it is not attached to anything). Add &go=yes to run it. | calls []
@@ -834,7 +834,7 @@ shape_count in outline: 1
 738 no flPackage class         : 200 the fontlab module has no flPackage class; nothing was constructed | constructed False
 739 forbidden members called   : [] | calls ['flPackage()', 'addPackage']
 740 static scan of the probe   : forbidden call syntax found: [] | real addPackage calls: 1 | scanned chars > 3000: True
-741 version                    : {'version': '0.96'}
+741 version                    : {'version': '0.100'}
 750 first glyph of a new font, polygon    : {'drawn': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
 751 what was read             : ['cp', 'defaultMaster', 'glyphsCount', 'isNull', 'master', 'masters', 'mastersCount', 'packages', 'upm'] | reads 9
 752 first glyph, width               : {'set': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
@@ -882,7 +882,7 @@ shape_count in outline: 1
 797 other glyphs, with source    : ('test_font', None, 'other glyphs') | reads []
 798 forbidden members called, whole run: [] | addShape calls 1
 799 static scan of the fallback  : forbidden call syntax found: [] | scanned chars > 3000: True
-800 version                      : {'version': '0.96'}
+800 version                      : {'version': '0.100'}
 810 state, one font open               : 200 {'stage': 'state', 'state': {'package_isChanged': False, 'workspace_isChanged': False, 'package_glyphsCount': 1}, 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 811 default stage is state           : 200 {'stage': 'state', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 812 package_update without go        : 200 {'error': "stage=package_update calls flPackage.update() ONCE on the font's package. Add &go=yes to run it."} | calls []
@@ -913,7 +913,7 @@ shape_count in outline: 1
 842 the module has no CountFonts     : 200 {'error': 'the fontlab module has no CountFonts, so the number of open fonts is unknown', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 843 forbidden members called    : [] | calls ['flPackage.update()', 'flWorkspace.update()']
 844 static scan of the probe     : forbidden call syntax found: [] | real update calls: 1 | scanned chars > 3000: True
-845 version                      : {'version': '0.96'}
+845 version                      : {'version': '0.100'}
 850 no go                         : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 851 go must be exactly yes           : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 852 unknown how                      : 200 {'error': 'how must be "plain" (createGlyph only) or "legacy_update" (createGlyph, then font.update())'} | names ['.notdef', 'A'] | calls []
@@ -945,7 +945,7 @@ shape_count in outline: 1
 878 forbidden members called     : [] | calls ['createGlyph', 'createGlyph', 'update'] | names ['.notdef', 'A', 'P1', 'P2']
 879 static scan of the probe     : forbidden call syntax found: [] | real createGlyph calls: 1 | real font.update calls: 1 | scanned chars > 2000: True
 880 create_glyph itself unchanged: True | still calls font.update(): True
-881 version                      : {'version': '0.96'}
+881 version                      : {'version': '0.100'}
 890 nothing tracked: update runs       : 200 {'created': True} | calls ['createGlyph', 'font.update'] | layers ['ref'] | tracked []
 891 draw: reply says not synced         : 200 {'drawn': True, 'synced_with_fontlab': False} | calls [] | layers ['fresh', 'ref'] | tracked ['fresh']
 891b durability note present  : True | mentions create_glyph: True
@@ -978,7 +978,7 @@ shape_count in outline: 1
 913 no regression: duplicate name   : 200 {'created': False}
 914 static scan of the guard     : forbidden call syntax found: [] | scanned chars > 3000: True
 915 every legacy update is guarded: [(1, 1, 1), (1, 1, 1), (1, 1, 2), (1, 1, 2)]
-916 version                      : {'version': '0.96'}
+916 version                      : {'version': '0.100'}
 917 sidebearings change remembered: 200 {'set': True, 'changed': True, 'synced_with_fontlab': False} | tracked ['tri']
 918 same values again: not remembered: {'set': True, 'changed': False, 'synced_with_fontlab': None} | tracked []
 920 margins agree                    : 200 node_count 3 | check {'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True} | modern_outline None
@@ -1001,7 +1001,7 @@ shape_count in outline: 1
 936 margins argument not a dict  : {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True}
 937 direct compare, missing key  : {'margins_agree': None, 'margins_note': 'the legacy margins are not numbers, so they could not be compared'}
 938 static scan of the compare   : forbidden call syntax found: [] | getLSB / getRSB reads in the helper: 1 | scanned chars > 1500: True
-939 version                      : {'version': '0.96'}
+939 version                      : {'version': '0.100'}
 940 state, drawn glyph                  : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'components': 0}, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
 940b                              : {'found': True, 'legacy_layers': 0, 'modern': 'present', 'modern_nodes': 4, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'} | registry {'fresh': 'at_risk'} | counters {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}
 941 state, updatedFgGlyphs ids          : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'components': 0}, 'updated_fg_glyphs': {'count': 2, 'ids': [5, 7]}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
@@ -1089,7 +1089,7 @@ shape_count in outline: 1
 981 forbidden members called     : [] | pkg.update / other recorded package calls: []
 982 static scan of the probe     : forbidden call syntax found: [] | real calls: Update 2 UpdateAll 1 fillFgData 1 prepareFontGateData 1 addGlyph 1 flGlyph() 1 | scanned chars > 6000: True
 983 no other tool changed        : True | create_glyph still calls font.update(): True
-984 version                      : {'version': '0.96'}
+984 version                      : {'version': '0.100'}
 990 polygon, Update syncs           : 200 {'drawn': True} | synced_with_fontlab True | fontlab_sync {'attempted': True, 'verdict': 'synced', 'synced': True} | note Glyphbridge asked Font | calls [('Update', 'M88Mod')] | tracked []
 990b                              : unsynced note gone: True | layer kept: True | legacy layers: 1
 991 polygon, Update has no effect     : 200 {'drawn': True} | synced_with_fontlab False | fontlab_sync {'attempted': True, 'verdict': 'at_risk', 'synced': False} | note This change exists onl | calls [('Update', 'M88Mod')] | tracked ['fresh']
@@ -1114,7 +1114,7 @@ shape_count in outline: 1
 1005 calls over all cases        : UpdateAll called: False | forbidden: [] | Update calls: 10 | all Update args are the modern wrapper: True
 1006 static scan of the sync     : forbidden call syntax found: [] | upd(w) calls: 1 | scanned chars > 900: True
 1007 constants                   : shipped default ['True'] | synced note mentions legacy view: True
-1008 version                     : {'version': '0.96'}
+1008 version                     : {'version': '0.100'}
 
 ==== v0.90 /debug/fontdir ====
 1010 dir                     : 200 {'open': True, 'count_fonts': 1, 'stage': 'dir', 'font_type': 'FDFont'} | names ['boom', 'familyName', 'flag', 'kerning', 'lenboom', 'method', 'nolen', 'nothing', 'unitsPerEm'] | doc len None | touched [] | called []
@@ -1487,3 +1487,130 @@ shape_count in outline: 1
 1224 direct: text is a list        : {'bad_request': 'text: at least 2 characters are needed (got list)'} | gets 0
 1225 direct: text is a tuple of 2  : {'bad_request': 'text: at least 2 characters are needed (got tuple)'} | gets 0
 1220 POST route registered once   : True | spy: forbidden members touched: [] | members touched anywhere: ['get']
+
+==== v0.97 /debug/trypkgkern ====
+1230 no go: nothing runs         : 200 {'error': 'this probe calls flPackage.kerning(master) ONCE, then get((a, b)) once on it and once on font.kerning (reads); add &go=yes to run it', 'calls_so_far': 0, 'max_calls': 20} | kerning() args [] | gets []
+1231 go=maybe: nothing runs      : 200 {'error': 'this probe calls flPackage.kerning(master) ONCE, then get((a, b)) once on it and once on font.kerning (reads); add &go=yes to run it', 'calls_so_far': 0, 'max_calls': 20} | kerning() args [] | gets []
+1232 current master, kn1L:kn1R  : 200 {'open': True, 'a': 'kn1L', 'b': 'kn1R', 'mode': 'tuple', 'masters': ['Regular'], 'current_master': 'Regular', 'master_used': 'Regular', 'master_source': 'package.master', 'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'float', 'value': -100.0, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get((a, b))'}, 'calls_so_far': 1, 'max_calls': 20} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1232b note present                 : True
+1233 class member kn1L:kn1S    : 200 {'master_used': 'Regular', 'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'float', 'value': -100.0, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get((a, b))'}} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1S')), ('legacy', 'tuple', ('kn1L', 'kn1S'))]
+1234 master given              : 200 {'master_used': 'Regular', 'master_source': 'query', 'calls_so_far': 1} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1235 master not in masters     : 200 {'open': True, 'error': "master 'Bold' is not one of the package's masters", 'masters': ['Regular'], 'calls_so_far': 0} | kerning() args [] | gets []
+1236 master with control char  : 200 {'error': "master must be 1 to 63 characters without control characters (or left out: the package's current master)"} | kerning() args [] | gets []
+1236b master with U+0080       : 200 {'error': "master must be 1 to 63 characters without control characters (or left out: the package's current master)"} | kerning() args [] | gets []
+1237 master 64 characters      : 200 {'error': "master must be 1 to 63 characters without control characters (or left out: the package's current master)"} | kerning() args [] | gets []
+1238 master 63 characters      : 200 {'master_used': 'MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM', 'master_source': 'query'} | kerning() args [('MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1239 master with a space      : 200 {'masters': ['Light Italic'], 'master_used': 'Light Italic', 'error': None} | kerning() args [('Light Italic',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1240 bad name a ''             : 200 {'error': 'a must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | gets []
+1240 bad name a 'A%20V'        : 200 {'error': 'a must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | gets []
+1240 bad name a 'A:V'          : 200 {'error': 'a must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | gets []
+1240 bad name a '%C3%A9'       : 200 {'error': 'a must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | gets []
+1240 bad name a 'xxxxxxxxxxxx' : 200 {'error': 'a must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | gets []
+1241 unknown glyph             : 200 {'open': True, 'error': "no glyph with this name in the current font: 'Q'", 'calls_so_far': 0} | kerning() args [] | gets []
+1242 CurrentFont None          : 200 {'open': False} | kerning() args [] | gets []
+1243 masters is a tuple        : 200 {'masters': ['Regular'], 'master_used': 'Regular'} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1244 masters is a method       : 200 {'masters': ['Regular', 'Bold'], 'master_used': 'Bold'} | kerning() args [('Bold',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1245 masters not a plain list  : 200 {'open': True, 'error': "the package's masters are not a plain list of names (PKNative); nothing was called", 'calls_so_far': 0} | kerning() args [] | gets []
+1246 masters not all names     : 200 {'open': True, 'error': "the package's masters are not a plain list of names (list); nothing was called", 'calls_so_far': 0} | kerning() args [] | gets []
+1247 masters raises            : 200 {'open': True, 'error': 'masters could not be read (RuntimeError: masters boom)', 'calls_so_far': 0} | kerning() args [] | gets []
+1248 current master raises     : 200 {'open': True, 'error': "no master given and the package's current master could not be read as a name (master could not be read (RuntimeError: master boom))", 'masters': ['Regular'], 'calls_so_far': 0} | kerning() args [] | gets []
+1249 ... but master given      : 200 {'current_master': None, 'master_used': 'Regular', 'master_source': 'query'} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1250 current master native     : 200 {'open': True, 'error': "no master given and the package's current master could not be read as a name", 'masters': ['Regular'], 'calls_so_far': 0} | kerning() args [] | gets []
+1251 current master unlisted   : 200 {'open': True, 'error': "master 'Ghost' is not one of the package's masters", 'masters': ['Regular'], 'calls_so_far': 0} | kerning() args [] | gets []
+1252 kerning() raises (counted) : 200 {'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': 'RuntimeError: kerning() boom', 'object_type': None}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get((a, b))'}, 'calls_so_far': 1} | kerning() args [('Regular',)] | gets [('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1253 kerning() returns None   : 200 {'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': None, 'object_type': None}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get((a, b))'}, 'calls_so_far': 1} | kerning() args [('Regular',)] | gets [('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1254 kerning not reachable     : 200 {'open': True, 'error': 'flPackage.kerning not reachable: RuntimeError: attr boom', 'calls_so_far': 0} | kerning() args [] | gets []
+1255 kerning not callable      : 200 {'open': True, 'error': 'flPackage.kerning is not callable', 'calls_so_far': 0} | kerning() args [] | gets []
+1256 package get raises        : 200 {'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': 'RuntimeError: package get boom', 'value_type': 'NoneType', 'value': None, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get((a, b))'}} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1257 package get returns True  : 200 {'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'bool', 'value': None, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1258 package len changes      : 200 {'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'float', 'value': -100.0, 'len_before': 1, 'len_after': 2, 'side_effect_detected': True}} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1259 package len raises       : 200 {'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'float', 'value': -100.0, 'len_before': None, 'len_after': None, 'side_effect_detected': None}} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1259c package get not callable : 200 {'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': 'TypeError: get is not callable', 'value_type': 'NoneType', 'value': None, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get((a, b))'}} | kerning() args [('Regular',)] | gets [('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1260 font.kerning raises       : 200 {'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'float', 'value': -100.0, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}, 'legacy': {'kerning_call_error': 'RuntimeError: no legacy kerning', 'call': 'font.kerning.get((a, b))'}} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1R'))]
+1261 legacy get raises         : 200 {'legacy': {'call_error': 'RuntimeError: legacy get boom', 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get((a, b))'}} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1262 no font open         : 200 {'error': 'CountFonts() is 0; the probe runs only when exactly one font is open', 'calls_so_far': 0, 'max_calls': 20} | kerning() args [] | gets []
+1263 two fonts open       : 200 {'error': 'CountFonts() is 2; the probe runs only when exactly one font is open', 'calls_so_far': 0, 'max_calls': 20} | kerning() args [] | gets []
+1264 CountFonts True      : 200 {'error': 'CountFonts() is True; the probe runs only when exactly one font is open', 'calls_so_far': 0, 'max_calls': 20} | kerning() args [] | gets []
+1265 CountFonts raises    : 200 {'error': 'CountFonts() failed (RuntimeError: count boom)', 'calls_so_far': 0, 'max_calls': 20} | kerning() args [] | gets []
+1266 two packages         : 200 {'error': 'the workspace holds 2 packages, not exactly 1', 'calls_so_far': 0, 'max_calls': 20} | kerning() args [] | gets []
+1267 package is null      : 200 {'error': 'the current package is null or its state is unknown', 'calls_so_far': 0, 'max_calls': 20} | kerning() args [] | gets []
+1268 isNull raises        : 200 {'error': 'isNull could not be read (RuntimeError: null boom)', 'calls_so_far': 0, 'max_calls': 20} | kerning() args [] | gets []
+1269 request 20 allowed        : 200 {'calls_so_far': 20, 'max_calls': 20} | kerning() args [('Regular',)] | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1270 request 21 refused        : 200 {'open': True, 'error': 'the limit of 20 requests per listener run is used up; restart the listener to continue', 'calls_so_far': 20, 'max_calls': 20} | kerning() args [] | gets []
+1271 probe raises: HTTP 500     : 500 {'error': 'RuntimeError: probe boom'} | kerning() args [] | gets []
+1271b direct: master is a number   : {'error': "master must be 1 to 63 characters without control characters (or left out: the package's current master)"} | kerning() args []
+1271c direct: master is a list     : {'error': "master must be 1 to 63 characters without control characters (or left out: the package's current master)"} | kerning() args []
+1272 spy over all cases          : forbidden package members: [] | package members touched anywhere: ['isNull', 'kerning', 'master', 'masters'] | forbidden kerning members: [] | kerning members touched anywhere: ['get']
+1273 static scan                 : pkg members used: ['kerning'] | kerning members used: ['get'] | kerning_of( calls: 1 | getter( calls: 1 | forbidden syntax: [] | subscripts on other objects: [] | counter raised before the call: True | scanned chars > 3000: True
+1274 gate, cap, route, docstring  : True | max requests 20 | route registered once: True | listed in the module docstring: True
+
+==== v0.98 /debug/moddir ====
+1280 no parameters               : 200 {'error': 'give contains=a,b,c: the probe never lists every loaded module'} | touched []
+1281 modules containing fontgate : 200 {'modules': ['fontgate'], 'count': 1, 'cut': False, 'filter': ['fontgate']} | touched []
+1282 case-insensitive            : 200 {'modules': ['fontgate', 'mdbig'], 'count': 2, 'cut': False, 'filter': ['fontgate', 'mdbig']} | touched []
+1283 four tokens refused         : 200 {'error': 'contains: at most 3 tokens'} | touched []
+1284 token with a star refused   : 200 {'error': 'contains: tokens of A-Z a-z 0-9 _ . only'} | touched []
+1285 105 modules: cut at 100     : 200 {'count': 105, 'cut': True} | touched []
+1285b listed                       : 100
+1286 module not loaded           : 200 {'error': "'mdnotloaded' is not a loaded module; this probe never imports anything"} | touched []
+1286b still not loaded             : True
+1287 bad module 'a..b'         : 200 {'error': 'module must be a dotted name of plain identifiers, at most 64 characters'} | touched []
+1287 bad module '1abc'         : 200 {'error': 'module must be a dotted name of plain identifiers, at most 64 characters'} | touched []
+1287 bad module 'a-b'          : 200 {'error': 'module must be a dotted name of plain identifiers, at most 64 characters'} | touched []
+1287 bad module 'a.'           : 200 {'error': 'module must be a dotted name of plain identifiers, at most 64 characters'} | touched []
+1287 bad module 'mmmmmmmmmm'   : 200 {'error': 'module must be a dotted name of plain identifiers, at most 64 characters'} | touched []
+1287 bad module 'a%20b'        : 200 {'error': 'module must be a dotted name of plain identifiers, at most 64 characters'} | touched []
+1288 module without a filter     : 200 {'error': 'give contains=a,b,c or name=N: the probe never lists a whole module'} | touched []
+1289 names with kern or pair     : 200 {'module': 'fontgate', 'names': ['fgKerning', 'fgKerningObjectPair', 'kernBoom'], 'count': 3, 'cut': False, 'filter': ['kern', 'pair']} | touched []
+1290 205 names: cut at 200       : 200 {'count': 205, 'cut': True} | touched []
+1290b listed                       : 200
+1291 one entry                   : 200 {'name': 'fgKerningObjectPair', 'type': 'type', 'public_names': ['isGroup', 'left'], 'doc': 'fgKerningObjectPair(string left, string right [, int mode]) - FAKE docstring for', 'init_doc': None, 'module': 'fontgate'} | touched []
+1292 entry with members          : 200 {'member_docs': {'isGroup': 'bool isGroup(int side) - FAKE', 'left': "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate ", 'nope': '<not a public member of this class>', '_x': '<refused: not a plain identifier>'}} | touched []
+1293 a module function's doc     : 200 {'type': 'function', 'doc': 'boom() - FAKE module function that must never be called', 'module': 'fontgate'} | touched []
+1294 entry not in the module     : 200 {'error': "'fgNope' is not a name in the 'fontgate' module", 'module': 'fontgate'} | touched []
+1295 name and contains together  : 200 {'error': 'give either contains or name, not both'} | touched []
+1296 name without module         : 200 {'error': 'name and members need module=M'} | touched []
+1297 members without name        : 200 {'error': 'members need name=N'} | touched []
+1298 members without module      : 200 {'error': 'name and members need module=M'} | touched []
+1299 doc not a number            : 400 {'error': '"doc" must be an integer'} | touched []
+1300 unknown stage               : 200 {'error': 'stage must be "kerntype" (or left out)'} | touched []
+1301 kerntype                    : 200 {'stage': 'kerntype', 'type': 'PKKern', 'module': '__main__'} | touched []
+1302 kerntype with module        : 200 {'error': 'stage=kerntype takes no other parameters'} | touched []
+1302b kerntype with contains     : 200 {'error': 'stage=kerntype takes no other parameters'} | touched []
+1303 kerntype, no font open      : 200 {'stage': 'kerntype', 'error': 'CountFonts() is 0; the probe runs only when exactly one font is open'} | touched []
+1304 kerntype, two fonts         : 200 {'stage': 'kerntype', 'error': 'CountFonts() is 2; the probe runs only when exactly one font is open'} | touched []
+1305 kerntype, CurrentFont None  : 200 {'open': False} | touched []
+1306 kerntype, kerning raises   : 200 {'stage': 'kerntype', 'error': 'font.kerning not reachable: RuntimeError: no legacy kerning'} | touched []
+1307 probe raises: HTTP 500      : 500 {'error': 'RuntimeError: probe boom'} | touched []
+1308 nothing called or constructed : [] | sys.modules unchanged: True | kerning members touched: [] | package members touched: ['isNull']
+1309 static scan                 : import machinery: [] | calls on a module object: [] | getattr on the module: 0 | font members used: ['kerning'] | scanned chars > 2000: True
+1310 route and docstring          : True | listed in the module docstring: True | classdir default label unchanged: {'error': "'fgNope' is not a name in the fontlab module"}
+
+==== v0.100 /debug/trypkgkern mode=flags ====
+1311 flags FF, kn1L:kn1R         : 200 {'open': True, 'a': 'kn1L', 'b': 'kn1R', 'mode': 'flags', 'masters': ['Regular'], 'current_master': 'Regular', 'master_used': 'Regular', 'master_source': 'package.master', 'package': {'call': 'flPackage.kerning(master).get(((a, False), (b, False)))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'float', 'value': -50.0, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get(((a, False), (b, False)))'}, 'calls_so_far': 1, 'max_calls': 20, 'flags': 'FF'} | gets [('package', 'tuple', (('kn1L', False), ('kn1R', False))), ('legacy', 'tuple', (('kn1L', False), ('kn1R', False)))]
+1312 flags FT, kn1L:kn1R         : 200 {'mode': 'flags', 'flags': 'FT', 'package': {'call': 'flPackage.kerning(master).get(((a, False), (b, True)))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'float', 'value': -100.0, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get(((a, False), (b, True)))'}} | gets [('package', 'tuple', (('kn1L', False), ('kn1R', True))), ('legacy', 'tuple', (('kn1L', False), ('kn1R', True)))]
+1312 flags TF, kn1L:kn1R         : 200 {'mode': 'flags', 'flags': 'TF', 'package': {'call': 'flPackage.kerning(master).get(((a, True), (b, False)))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get(((a, True), (b, False)))'}} | gets [('package', 'tuple', (('kn1L', True), ('kn1R', False))), ('legacy', 'tuple', (('kn1L', True), ('kn1R', False)))]
+1312 flags TT, kn1L:kn1R         : 200 {'mode': 'flags', 'flags': 'TT', 'package': {'call': 'flPackage.kerning(master).get(((a, True), (b, True)))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get(((a, True), (b, True)))'}} | gets [('package', 'tuple', (('kn1L', True), ('kn1R', True))), ('legacy', 'tuple', (('kn1L', True), ('kn1R', True)))]
+1313 flags FF, kn1L:kn1S         : 200 {'package': {'call': 'flPackage.kerning(master).get(((a, False), (b, False)))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}} | gets [('package', 'tuple', (('kn1L', False), ('kn1S', False))), ('legacy', 'tuple', (('kn1L', False), ('kn1S', False)))]
+1314 tuple mode named            : 200 {'mode': 'tuple', 'flags': None, 'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'float', 'value': -100.0, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}} | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1315 mode left out = tuple       : 200 {'mode': 'tuple', 'flags': None, 'package': {'call': 'flPackage.kerning(master).get((a, b))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': None, 'value_type': 'float', 'value': -100.0, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}} | gets [('package', 'tuple', ('kn1L', 'kn1R')), ('legacy', 'tuple', ('kn1L', 'kn1R'))]
+1316 bad mode 'bogus'             : 200 {'error': 'mode must be "tuple" (get((a, b))) or "flags" (get(((a, flag), (b, flag))), with flags=FF, FT, TF or TT)', 'calls_so_far': None} | gets []
+1316 bad mode 'glyph'             : 200 {'error': 'mode must be "tuple" (get((a, b))) or "flags" (get(((a, flag), (b, flag))), with flags=FF, FT, TF or TT)', 'calls_so_far': None} | gets []
+1316 bad mode 'FLAGS'             : 200 {'error': 'mode must be "tuple" (get((a, b))) or "flags" (get(((a, flag), (b, flag))), with flags=FF, FT, TF or TT)', 'calls_so_far': None} | gets []
+1316 bad mode 'Tuple'             : 200 {'error': 'mode must be "tuple" (get((a, b))) or "flags" (get(((a, flag), (b, flag))), with flags=FF, FT, TF or TT)', 'calls_so_far': None} | gets []
+1317 bad flags 'ff'               : 200 {'error': 'mode=flags needs flags=FF, FT, TF or TT (F = False, T = True; first letter for a, second for b)', 'calls_so_far': None} | gets []
+1317 bad flags 'F'                : 200 {'error': 'mode=flags needs flags=FF, FT, TF or TT (F = False, T = True; first letter for a, second for b)', 'calls_so_far': None} | gets []
+1317 bad flags 'FFF'              : 200 {'error': 'mode=flags needs flags=FF, FT, TF or TT (F = False, T = True; first letter for a, second for b)', 'calls_so_far': None} | gets []
+1317 bad flags 'FX'               : 200 {'error': 'mode=flags needs flags=FF, FT, TF or TT (F = False, T = True; first letter for a, second for b)', 'calls_so_far': None} | gets []
+1317 bad flags '01'               : 200 {'error': 'mode=flags needs flags=FF, FT, TF or TT (F = False, T = True; first letter for a, second for b)', 'calls_so_far': None} | gets []
+1317 bad flags 'TrueFalse'        : 200 {'error': 'mode=flags needs flags=FF, FT, TF or TT (F = False, T = True; first letter for a, second for b)', 'calls_so_far': None} | gets []
+1318 mode=flags without flags    : 200 {'error': 'mode=flags needs flags=FF, FT, TF or TT (F = False, T = True; first letter for a, second for b)', 'calls_so_far': None} | gets []
+1319 flags without mode=flags    : 200 {'error': 'flags need mode=flags', 'calls_so_far': None} | gets []
+1320 flags without go            : 200 {'error': 'this probe calls flPackage.kerning(master) ONCE, then get((a, b)) once on it and once on font.kerning (reads); add &go=yes to run it', 'calls_so_far': 0, 'max_calls': 20} | gets []
+1321 flags, no font open         : 200 {'error': 'CountFonts() is 0; the probe runs only when exactly one font is open', 'calls_so_far': 0, 'max_calls': 20} | gets []
+1322 flags, cap used up          : 200 {'open': True, 'error': 'the limit of 20 requests per listener run is used up; restart the listener to continue', 'calls_so_far': 20, 'max_calls': 20} | gets []
+1323 flags, unknown glyph        : 200 {'open': True, 'error': "no glyph with this name in the current font: 'Q'", 'calls_so_far': 0} | gets []
+1324 flags, package get raises   : 200 {'package': {'call': 'flPackage.kerning(master).get(((a, False), (b, False)))', 'kerning_call_error': None, 'object_type': 'PKKern', 'call_error': 'RuntimeError: package get boom', 'value_type': 'NoneType', 'value': None, 'len_before': 1, 'len_after': 1, 'side_effect_detected': False}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get(((a, False), (b, False)))'}} | gets [('package', 'tuple', (('kn1L', False), ('kn1R', False))), ('legacy', 'tuple', (('kn1L', False), ('kn1R', False)))]
+1325 flags, kerning() raises     : 200 {'package': {'call': 'flPackage.kerning(master).get(((a, False), (b, False)))', 'kerning_call_error': 'RuntimeError: kerning() boom', 'object_type': None}, 'legacy': {'call_error': None, 'value_type': 'NoneType', 'value': None, 'len_before': 0, 'len_after': 0, 'side_effect_detected': False, 'call': 'font.kerning.get(((a, False), (b, False)))'}, 'calls_so_far': 1} | gets [('legacy', 'tuple', (('kn1L', False), ('kn1R', False)))]
+1326 direct call, flags given as a list: {'error': 'mode=flags needs flags=FF, FT, TF or TT (F = False, T = True; first letter for a, second for b)'} | gets []
+1327 static scan                 : fontgate or import machinery: [] | getter( calls: 1 | flag table: {'FF': (False, False), 'FT': (False, True), 'TF': (True, False), 'TT': (True, True)} | modes: ('tuple', 'flags')

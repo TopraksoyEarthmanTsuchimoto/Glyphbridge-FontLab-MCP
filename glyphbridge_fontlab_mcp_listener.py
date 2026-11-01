@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.96)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.100)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -76,6 +76,8 @@ Routes (GET unless marked POST):
     /debug/readmodern?name=X&stage=layer|contour|node
     /debug/classdir?name=CLASS[&members=a,b]   names and docstrings of one class; nothing is called
     /debug/fldir?contains=a,b              names in the fontlab module
+    /debug/moddir?contains=a,b | module=M&contains=a,b | module=M&name=N | stage=kerntype
+                                           names in modules ALREADY loaded (never imports); type of font.kerning
     /debug/fontdir?stage=dir|sub|member    names-only probe of the font object (kerning research)
     /debug/currentshapes                   modern shapes of the glyph open in the editor
 
@@ -91,6 +93,8 @@ Routes (GET unless marked POST):
     /debug/trymodern      sync candidates and modern glyph creation
     /debug/trykern        one font.kerning.get((a, b)) call, 20 per listener run
     /debug/trygroups      one font.groups.getCompiled() call, 10 per listener run
+    /debug/trypkgkern     one pair from flPackage.kerning(master) next to font.kerning, 20 per listener run;
+                          &mode=flags&flags=FF|FT|TF|TT asks get(((a, flag), (b, flag)))
     /debug/setcurrent     changes which glyph FontLab displays (no use for the modern API)
 
   Dead ends, kept as history: /debug/contours and /debug/drawpen (the pen protocol returns
@@ -116,7 +120,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.96"
+VERSION = "0.100"
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
 
@@ -4533,18 +4537,18 @@ def debug_draw_pen(name, limit=60):
     return result
 
 
-def debug_class_probe(name, doc_chars=600, members=None):
-    """Names + docstrings of ONE entry of the fontlab module, e.g. flShape,
-    flTransform, flGlyph, flLayer. Only dir() and __doc__ are read: nothing is
-    constructed, called or changed. The entry must exist in dir(module), so no
+def debug_class_probe(name, doc_chars=600, members=None, module=None, module_label="fontlab"):
+    """Names + docstrings of ONE entry of the fontlab module (or, from /debug/moddir, of another
+    ALREADY loaded module), e.g. flShape, flTransform, flGlyph, flLayer. Only dir() and __doc__ are
+    read: nothing is constructed, called or changed. The entry must exist in dir(module), so no
     arbitrary attribute path can be requested."""
     import re as _re
     import sys as _sys
     if not name or not _re.match(r"^[A-Za-z][A-Za-z0-9_<>]*$", name):
         return {"error": "name must look like a plain identifier, e.g. flShape"}
-    mod = _sys.modules.get("fontlab") or fl
+    mod = module if module is not None else (_sys.modules.get("fontlab") or fl)
     if name not in dir(mod):
-        return {"error": f"{name!r} is not a name in the fontlab module"}
+        return {"error": f"{name!r} is not a name in the {module_label} module"}
     try:
         obj = getattr(mod, name)
     except Exception as exc:
@@ -5069,6 +5073,73 @@ def debug_fl_dir(contains):
     if mod is not None and mod is not fl:
         result["fontlab_module_names"] = pick(mod)
     result["filter"] = wanted
+    return result
+
+
+# --------------------------------------------------------------------------
+# /debug/moddir (v0.98) - NAMES ONLY, in modules FontLab has ALREADY loaded (kerning research, test 177: fgKerningObjectPair is not
+# a name of the fontlab module). Read-only, no go=yes needed:
+#   ?contains=a,b,c                          names of loaded modules (keys of sys.modules) that contain a token; at most 100
+#   ?module=M&contains=a,b,c                 public names of loaded module M that contain a token; at most 200
+#   ?module=M&name=N[&members=x,y][&doc=600] type, public names and docstrings of entry N of module M (as /debug/classdir)
+#   ?stage=kerntype                          type name and __module__ of the legacy font.kerning object (one-font gate)
+# Never imported, constructed or called: a module that is not already in sys.modules is refused; only dir(), type(), __doc__ and
+# getattr of a listed name are read. 1 to 3 tokens of a-z 0-9 _ . (case-insensitive); a whole module or the whole module list is
+# never returned.
+# --------------------------------------------------------------------------
+
+_MODDIR_MAX_MODULES = 100
+_MODDIR_MAX_NAMES = 200
+_MODDIR_TOKEN_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789_.")
+
+
+def debug_mod_dir(module, name, contains, members, doc_chars, stage):
+    import re as _re
+    import sys as _sys
+    if stage is not None and stage != "kerntype":
+        return {"error": 'stage must be "kerntype" (or left out)'}
+    if stage == "kerntype":
+        if module is not None or name is not None or contains or members is not None:
+            return {"error": "stage=kerntype takes no other parameters"}
+        ws, pkg, why = _trysync_target(_sys.modules.get("fontlab") or fl)
+        if ws is None:
+            return {"stage": "kerntype", "error": why}
+        font = fl.CurrentFont()
+        if font is None:
+            return {"open": False}
+        try:
+            kind = type(font.kerning)
+        except Exception as exc:
+            return {"stage": "kerntype", "error": f"font.kerning not reachable: {type(exc).__name__}: {exc}"}
+        return {"stage": "kerntype", "type": kind.__name__, "module": getattr(kind, "__module__", None)}
+    tokens = [t.lower() for t in contains]
+    if len(tokens) > 3:
+        return {"error": "contains: at most 3 tokens"}
+    if any(ch not in _MODDIR_TOKEN_CHARS for t in tokens for ch in t):
+        return {"error": "contains: tokens of A-Z a-z 0-9 _ . only"}
+    if module is None:
+        if name is not None or members is not None:
+            return {"error": "name and members need module=M"}
+        if not tokens:
+            return {"error": "give contains=a,b,c: the probe never lists every loaded module"}
+        found = sorted(k for k in list(_sys.modules) if isinstance(k, str) and any(t in k.lower() for t in tokens))
+        return {"modules": found[:_MODDIR_MAX_MODULES], "count": len(found), "cut": len(found) > _MODDIR_MAX_MODULES, "filter": tokens}
+    if len(module) > 64 or not _re.match(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$", module):
+        return {"error": "module must be a dotted name of plain identifiers, at most 64 characters"}
+    mod = _sys.modules.get(module)
+    if mod is None:
+        return {"error": f"{module!r} is not a loaded module; this probe never imports anything"}
+    if name is None:
+        if members is not None:
+            return {"error": "members need name=N"}
+        if not tokens:
+            return {"error": "give contains=a,b,c or name=N: the probe never lists a whole module"}
+        names = sorted(n for n in dir(mod) if not n.startswith("_") and any(t in n.lower() for t in tokens))
+        return {"module": module, "names": names[:_MODDIR_MAX_NAMES], "count": len(names), "cut": len(names) > _MODDIR_MAX_NAMES, "filter": tokens}
+    if tokens:
+        return {"error": "give either contains or name, not both"}
+    result = debug_class_probe(name, doc_chars, members, module=mod, module_label=repr(module))
+    result["module"] = module
     return result
 
 
@@ -5638,6 +5709,140 @@ def debug_layer_item(name, index=0):
     )
 
 
+# --------------------------------------------------------------------------
+# /debug/trypkgkern (v0.97) - RESEARCH: where does kerning made in FontLab's GUI live? Live tests 169 and 170: a class pair made in
+# the KERNING panel of a new font was applied by FontLab but invisible to font.kerning (len 0). Probe 171 (names only) found
+# flPackage.kerning, documented as 'fgKerning kerning([string master_name])'. This probe compares, for ONE pair, the package's kerning
+# of ONE master with the legacy font.kerning. Calls, all reads: pkg.masters, pkg.master, pkg.kerning(master) ONCE, and on each of the
+# two kerning objects len() before and after and get((a, b)) ONCE. Same one-font gate as /debug/trysync; at most _TRYPKGKERN_MAX
+# requests per listener run, counted BEFORE pkg.kerning(master) is called. Not called, ever: autoKern, deleteGroups, getAllGroups,
+# findGroup, update, release, remove, and on a kerning object set, remove, clear, add*, delete*, rename*, scale, setPlainPairs, asDict,
+# getPlainPairs*, items, keys, values.
+# v0.100: &mode=flags&flags=FF|FT|TF|TT (default mode tuple) asks get(((a, flag), (b, flag))) with F = False, T = True: the form
+# fgKerning.get named itself when it refused a fontgate.fgKerningObjectPair (test 183: "Argument type must be Tuple(Tuple(string,
+# bool), Tuple(string, bool)) or Tuple(string, string)!"; defect B). What the flag means (group or glyph) is what the tests find out.
+# The v0.99 mode=glyph (that pair object) is removed; no fontgate object is built.
+# --------------------------------------------------------------------------
+
+_TRYPKGKERN = {"calls": 0}
+_TRYPKGKERN_MAX = 20
+_TRYPKGKERN_MODES = ("tuple", "flags")
+_TRYPKGKERN_FLAGS = {"FF": (False, False), "FT": (False, True), "TF": (True, False), "TT": (True, True)}
+
+
+def _trypkgkern_len(kerning):
+    try:
+        n = len(kerning)
+        return n if isinstance(n, int) and not isinstance(n, bool) else None
+    except Exception:
+        return None
+
+
+def _trypkgkern_get(kerning, key):
+    """ONE get(key) on one kerning object (key: the (a, b) tuple or one pair object), with len() before and after; a failure is
+    reported as text, never raised."""
+    len_before = _trypkgkern_len(kerning)
+    value, call_error = None, None
+    try:
+        getter = kerning.get
+        if not callable(getter):
+            raise TypeError("get is not callable")
+        value = getter(key)
+    except Exception as exc:
+        call_error = f"{type(exc).__name__}: {exc}"
+    len_after = _trypkgkern_len(kerning)
+    plain = isinstance(value, (int, float)) and not isinstance(value, bool)
+    return {"call_error": call_error, "value_type": type(value).__name__, "value": value if plain else None,
+            "len_before": len_before, "len_after": len_after,
+            "side_effect_detected": (len_before != len_after) if (len_before is not None and len_after is not None) else None}
+
+
+def debug_try_pkg_kern(a, b, master, go, mode="tuple", flags=None):
+    import sys as _sys
+    if go != "yes":
+        return {"error": "this probe calls flPackage.kerning(master) ONCE, then get((a, b)) once on it and once on font.kerning (reads); add &go=yes to run it",
+                "calls_so_far": _TRYPKGKERN["calls"], "max_calls": _TRYPKGKERN_MAX}
+    for label, nm in (("a", a), ("b", b)):
+        if not isinstance(nm, str) or not (1 <= len(nm) <= 63) or any(ch not in _TRYCREATE_NAME_CHARS for ch in nm):
+            return {"error": f"{label} must be 1 to 63 characters from A-Z a-z 0-9 . _ -"}
+    if mode not in _TRYPKGKERN_MODES:
+        return {"error": 'mode must be "tuple" (get((a, b))) or "flags" (get(((a, flag), (b, flag))), with flags=FF, FT, TF or TT)'}
+    if mode == "flags" and (not isinstance(flags, str) or flags not in _TRYPKGKERN_FLAGS):
+        return {"error": "mode=flags needs flags=FF, FT, TF or TT (F = False, T = True; first letter for a, second for b)"}
+    if mode == "tuple" and flags is not None:
+        return {"error": "flags need mode=flags"}
+    if master is not None and (not isinstance(master, str) or not (1 <= len(master) <= 63)
+                               or any(ord(ch) < 32 or 127 <= ord(ch) <= 159 for ch in master)):
+        return {"error": "master must be 1 to 63 characters without control characters (or left out: the package's current master)"}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"error": why, "calls_so_far": _TRYPKGKERN["calls"], "max_calls": _TRYPKGKERN_MAX}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    names = set(str(g.name) for g in font.glyphs)
+    missing = [nm for nm in (a, b) if nm not in names]
+    if missing:
+        return {"open": True, "error": "no glyph with this name in the current font: " + ", ".join(repr(m) for m in missing),
+                "calls_so_far": _TRYPKGKERN["calls"]}
+    masters, err = _pkg_get(pkg, "masters")
+    if err is not None:
+        return {"open": True, "error": err, "calls_so_far": _TRYPKGKERN["calls"]}
+    if not isinstance(masters, (list, tuple)) or not all(isinstance(m, str) for m in masters):
+        return {"open": True, "error": f"the package's masters are not a plain list of names ({type(masters).__name__}); nothing was called",
+                "calls_so_far": _TRYPKGKERN["calls"]}
+    masters = list(masters)
+    current, err = _pkg_get(pkg, "master")
+    current = current if isinstance(current, str) else None
+    if master is None:
+        if current is None:
+            return {"open": True, "error": "no master given and the package's current master could not be read as a name" + (f" ({err})" if err else ""),
+                    "masters": masters, "calls_so_far": _TRYPKGKERN["calls"]}
+        master, source = current, "package.master"
+    else:
+        source = "query"
+    if master not in masters:
+        return {"open": True, "error": f"master {master!r} is not one of the package's masters", "masters": masters,
+                "calls_so_far": _TRYPKGKERN["calls"]}
+    if _TRYPKGKERN["calls"] >= _TRYPKGKERN_MAX:
+        return {"open": True, "error": f"the limit of {_TRYPKGKERN_MAX} requests per listener run is used up; restart the listener to continue",
+                "calls_so_far": _TRYPKGKERN["calls"], "max_calls": _TRYPKGKERN_MAX}
+    try:
+        kerning_of = pkg.kerning
+    except Exception as exc:
+        return {"open": True, "error": f"flPackage.kerning not reachable: {type(exc).__name__}: {exc}", "calls_so_far": _TRYPKGKERN["calls"]}
+    if not callable(kerning_of):
+        return {"open": True, "error": "flPackage.kerning is not callable", "calls_so_far": _TRYPKGKERN["calls"]}
+    _TRYPKGKERN["calls"] += 1        # counted BEFORE the call: whatever happens, it is on record
+    key, key_text = (a, b), "(a, b)"
+    if mode == "flags":
+        flag_a, flag_b = _TRYPKGKERN_FLAGS[flags]
+        key, key_text = ((a, flag_a), (b, flag_b)), f"((a, {flag_a}), (b, {flag_b}))"
+    package_kerning, kerning_error = None, None
+    try:
+        package_kerning = kerning_of(master)
+    except Exception as exc:
+        kerning_error = f"{type(exc).__name__}: {exc}"
+    package = {"call": f"flPackage.kerning(master).get({key_text})", "kerning_call_error": kerning_error,
+               "object_type": type(package_kerning).__name__ if package_kerning is not None else None}
+    if kerning_error is None and package_kerning is not None:
+        package = dict(package, **_trypkgkern_get(package_kerning, key))
+    try:
+        legacy_kerning = font.kerning
+    except Exception as exc:
+        legacy = {"kerning_call_error": f"{type(exc).__name__}: {exc}"}
+    else:
+        legacy = _trypkgkern_get(legacy_kerning, key)
+    legacy = dict(legacy, call=f"font.kerning.get({key_text})")
+    out = {"open": True, "a": a, "b": b, "mode": mode, "masters": masters, "current_master": current, "master_used": master, "master_source": source,
+           "package": package, "legacy": legacy, "calls_so_far": _TRYPKGKERN["calls"], "max_calls": _TRYPKGKERN_MAX,
+           "note": "RESEARCH: compare both values with FontLab's KERNING panel; nothing is changed or saved by Glyphbridge"}
+    if mode == "flags":
+        out = dict(out, flags=flags)
+    return out
+
+
 
 
 
@@ -6135,6 +6340,18 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": str(exc)})
 
+        if path == "/debug/moddir":
+            contains = [c.strip() for c in (query.get("contains") or [""])[0].split(",") if c.strip()]
+            try:
+                dc = int((query.get("doc") or ["600"])[0])
+            except ValueError:
+                return _build_response(400, {"error": '"doc" must be an integer'})
+            try:
+                return _build_response(200, debug_mod_dir((query.get("module") or [None])[0], (query.get("name") or [None])[0], contains,
+                                                          (query.get("members") or [None])[0], dc, (query.get("stage") or [None])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
         if path == "/debug/fontdir":
             stage = (query.get("stage") or ["dir"])[0]
             attr = (query.get("attr") or [None])[0]
@@ -6165,6 +6382,14 @@ def _route(method, full_path, body=b""):
         if path == "/debug/trykern":
             try:
                 return _build_response(200, debug_try_kern((query.get("a") or [""])[0], (query.get("b") or [""])[0], (query.get("go") or [""])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/trypkgkern":
+            try:
+                return _build_response(200, debug_try_pkg_kern((query.get("a") or [""])[0], (query.get("b") or [""])[0],
+                                                               (query.get("master") or [None])[0], (query.get("go") or [""])[0],
+                                                               (query.get("mode") or ["tuple"])[0], (query.get("flags") or [None])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

@@ -3214,6 +3214,277 @@ fl.CurrentFont = _kp_cur
 if _kp_cf is not None: fl.CountFonts = _kp_cf
 elif hasattr(fl, "CountFonts"): delattr(fl, "CountFonts")
 
+# ================= v0.97: /debug/trypkgkern (gated research probe: flPackage.kerning(master).get((a, b)) next to font.kerning.get((a, b))) =================
+print("\n==== v0.97 /debug/trypkgkern ====")
+PK = {"cfg": {}, "kerning_args": [], "pkg_touched": [], "pkg_forbidden": [], "pkg_all": set(), "k_touched": [], "k_forbidden": [], "k_all": set(), "gets": []}
+_PK_PKG_FORBIDDEN = ("autoKern", "deleteGroups", "getAllGroups", "findGroup", "update", "release", "remove", "clearMasters", "removeMaster", "renameMaster",
+                     "setMaster", "addMaster", "deleteGlyph", "addGlyph", "kerningContainer", "resetPackage", "setUpm", "runActions")
+class PKKern:
+    def __init__(self, label, values, size): self._label, self._values, self._size, self._got = label, values, size, False
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            PK["k_touched"].append(object.__getattribute__(self, "_label") + "." + n); PK["k_all"].add(n)
+            if n in _FK_FORBIDDEN:
+                PK["k_forbidden"].append(n)
+                raise SystemExit("FORBIDDEN kerning member touched: " + n)
+            if n == "get" and PK["cfg"].get(object.__getattribute__(self, "_label") + "_get") == "not_callable": return 5
+        return object.__getattribute__(self, n)
+    def __len__(self):
+        c = PK["cfg"]
+        if c.get(self._label + "_len_raises"): raise RuntimeError("len boom")
+        if self._got and c.get(self._label + "_len_after") is not None: return c[self._label + "_len_after"]
+        return self._size
+    def get(self, pair):
+        PK["gets"].append((self._label, type(pair).__name__, tuple(pair)))
+        self._got = True
+        m = PK["cfg"].get(self._label + "_get")
+        if m == "raise": raise RuntimeError(self._label + " get boom")
+        if m == "bool": return True
+        return self._values.get(tuple(pair))
+class PKPackage:
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            PK["pkg_touched"].append(n); PK["pkg_all"].add(n)
+            if n in _PK_PKG_FORBIDDEN:
+                PK["pkg_forbidden"].append(n)
+                raise SystemExit("FORBIDDEN package member touched: " + n)
+        return object.__getattribute__(self, n)
+    def isNull(self):
+        v = PK["cfg"].get("isNull", False)
+        if isinstance(v, Exception): raise v
+        return v
+    @property
+    def masters(self):
+        v = PK["cfg"].get("masters", ["Regular"])
+        if isinstance(v, Exception): raise v
+        return (lambda: ["Regular", "Bold"]) if v == "method" else v
+    @property
+    def master(self):
+        v = PK["cfg"].get("master", "Regular")
+        if isinstance(v, Exception): raise v
+        return v
+    @property
+    def kerning(self):
+        v = PK["cfg"].get("kerning_attr")
+        if isinstance(v, Exception): raise v
+        if v == "not_callable": return 5
+        def _kerning(*args):
+            PK["kerning_args"].append(args)
+            m = PK["cfg"].get("kerning_call")
+            if m == "raise": raise RuntimeError("kerning() boom")
+            if m == "none": return None
+            return PKKern("package", {("kn1L", "kn1R"): -100.0, ("kn1L", "kn1S"): -100.0,
+                                      (("kn1L", False), ("kn1R", False)): -50.0, (("kn1L", False), ("kn1R", True)): -100.0}, 1)
+        return _kerning
+class PKWorkspace:
+    @staticmethod
+    def instance(): return PK_WS
+    def packages(self): return [PK_PKG] * PK["cfg"].get("packages", 1)
+    @property
+    def currentPackage(self): return PK_PKG
+PK_PKG = PKPackage(); PK_WS = PKWorkspace()
+class PKGlyph:
+    def __init__(self, n): self.name = n
+class PKFont:
+    glyphs = [PKGlyph(n) for n in ("kn1L", "kn1R", "kn1S", ".notdef")]
+    @property
+    def kerning(self):
+        if PK["cfg"].get("legacy_raises"): raise RuntimeError("no legacy kerning")
+        return PKKern("legacy", {}, 0)
+_pk_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flWorkspace")]
+def pk_setup(calls=0, **cfg):
+    PK["cfg"] = dict(cfg)
+    for k in ("kerning_args", "pkg_touched", "pkg_forbidden", "k_touched", "k_forbidden", "gets"): PK[k].clear()
+    ns["_TRYPKGKERN"]["calls"] = calls
+    count = cfg.get("count", 1)
+    for _m in _tf_mods:
+        _m.flWorkspace = PKWorkspace
+        _m.CountFonts = (lambda: count) if not isinstance(count, Exception) else (lambda: (_ for _ in ()).throw(count))
+        _m.CurrentFont = (lambda: None) if cfg.get("cur") == "none" else (lambda: PKFont())
+def pkc(tag, path, keys=None):
+    c, d = call(path)
+    shown = {k: v for k, v in d.items() if k != "note"} if keys is None else {k: d.get(k) for k in keys}
+    print(tag, ":", c, shown, "| kerning() args", PK["kerning_args"], "| gets", PK["gets"])
+    return c, d
+_PKQ = "/debug/trypkgkern?a=kn1L&b=kn1R"
+pk_setup(); pkc("1230 no go: nothing runs        ", _PKQ)
+pk_setup(); pkc("1231 go=maybe: nothing runs     ", _PKQ + "&go=maybe")
+pk_setup(); c, d = pkc("1232 current master, kn1L:kn1R ", _PKQ + "&go=yes")
+print("1232b note present                 :", "nothing is changed or saved" in d.get("note", ""))
+pk_setup(); pkc("1233 class member kn1L:kn1S   ", "/debug/trypkgkern?a=kn1L&b=kn1S&go=yes", keys=("master_used", "package", "legacy"))
+pk_setup(); pkc("1234 master given             ", _PKQ + "&master=Regular&go=yes", keys=("master_used", "master_source", "calls_so_far"))
+pk_setup(); pkc("1235 master not in masters    ", _PKQ + "&master=Bold&go=yes")
+pk_setup(); pkc("1236 master with control char ", _PKQ + "&master=Reg%01ular&go=yes")
+pk_setup(); pkc("1236b master with U+0080      ", _PKQ + "&master=Reg%C2%80ular&go=yes")
+pk_setup(); pkc("1237 master 64 characters     ", _PKQ + "&master=" + "M" * 64 + "&go=yes")
+pk_setup(masters=["Regular", "M" * 63]); pkc("1238 master 63 characters     ", _PKQ + "&master=" + "M" * 63 + "&go=yes", keys=("master_used", "master_source"))
+pk_setup(masters=["Light Italic"]); pkc("1239 master with a space     ", _PKQ + "&master=Light%20Italic&go=yes", keys=("masters", "master_used", "error"))
+for bad in ("", "A%20V", "A:V", "%C3%A9", "x" * 64):
+    pk_setup(); pkc(f"1240 bad name a {bad[:12]!r:14}", "/debug/trypkgkern?a=" + bad + "&b=kn1R&go=yes")
+pk_setup(); pkc("1241 unknown glyph            ", "/debug/trypkgkern?a=kn1L&b=Q&go=yes")
+pk_setup(cur="none"); pkc("1242 CurrentFont None         ", _PKQ + "&go=yes")
+pk_setup(masters=("Regular",)); pkc("1243 masters is a tuple       ", _PKQ + "&go=yes", keys=("masters", "master_used"))
+pk_setup(masters="method"); pkc("1244 masters is a method      ", _PKQ + "&master=Bold&go=yes", keys=("masters", "master_used"))
+class PKNative: pass
+pk_setup(masters=PKNative()); pkc("1245 masters not a plain list ", _PKQ + "&go=yes")
+pk_setup(masters=["Regular", 5]); pkc("1246 masters not all names    ", _PKQ + "&go=yes")
+pk_setup(masters=RuntimeError("masters boom")); pkc("1247 masters raises           ", _PKQ + "&go=yes")
+pk_setup(master=RuntimeError("master boom")); pkc("1248 current master raises    ", _PKQ + "&go=yes")
+pk_setup(master=RuntimeError("master boom")); pkc("1249 ... but master given     ", _PKQ + "&master=Regular&go=yes", keys=("current_master", "master_used", "master_source"))
+pk_setup(master=PKNative()); pkc("1250 current master native    ", _PKQ + "&go=yes")
+pk_setup(master="Ghost"); pkc("1251 current master unlisted  ", _PKQ + "&go=yes")
+pk_setup(kerning_call="raise"); pkc("1252 kerning() raises (counted)", _PKQ + "&go=yes", keys=("package", "legacy", "calls_so_far"))
+pk_setup(kerning_call="none"); pkc("1253 kerning() returns None  ", _PKQ + "&go=yes", keys=("package", "legacy", "calls_so_far"))
+pk_setup(kerning_attr=RuntimeError("attr boom")); pkc("1254 kerning not reachable    ", _PKQ + "&go=yes")
+pk_setup(kerning_attr="not_callable"); pkc("1255 kerning not callable     ", _PKQ + "&go=yes")
+pk_setup(package_get="raise"); pkc("1256 package get raises       ", _PKQ + "&go=yes", keys=("package", "legacy"))
+pk_setup(package_get="bool"); pkc("1257 package get returns True ", _PKQ + "&go=yes", keys=("package",))
+pk_setup(package_len_after=2); pkc("1258 package len changes     ", _PKQ + "&go=yes", keys=("package",))
+pk_setup(package_len_raises=True); pkc("1259 package len raises      ", _PKQ + "&go=yes", keys=("package",))
+pk_setup(package_get="not_callable"); pkc("1259c package get not callable", _PKQ + "&go=yes", keys=("package", "legacy"))
+pk_setup(legacy_raises=True); pkc("1260 font.kerning raises      ", _PKQ + "&go=yes", keys=("package", "legacy"))
+pk_setup(legacy_get="raise"); pkc("1261 legacy get raises        ", _PKQ + "&go=yes", keys=("legacy",))
+for tag, over in (("1262 no font open        ", dict(count=0)), ("1263 two fonts open      ", dict(count=2)), ("1264 CountFonts True     ", dict(count=True)),
+                  ("1265 CountFonts raises   ", dict(count=RuntimeError("count boom"))), ("1266 two packages        ", dict(packages=2)),
+                  ("1267 package is null     ", dict(isNull=True)), ("1268 isNull raises       ", dict(isNull=RuntimeError("null boom")))):
+    pk_setup(**over); pkc(tag, _PKQ + "&go=yes")
+pk_setup(calls=19); pkc("1269 request 20 allowed       ", _PKQ + "&go=yes", keys=("calls_so_far", "max_calls"))
+PK["kerning_args"].clear(); PK["gets"].clear(); pkc("1270 request 21 refused       ", _PKQ + "&go=yes")
+pk_setup(); _pk_real = ns["debug_try_pkg_kern"]
+def _pk_boom(*a): raise RuntimeError("probe boom")
+ns["debug_try_pkg_kern"] = _pk_boom; pkc("1271 probe raises: HTTP 500    ", _PKQ + "&go=yes"); ns["debug_try_pkg_kern"] = _pk_real
+pk_setup()
+for _tag, _master in (("1271b direct: master is a number", 5), ("1271c direct: master is a list", ["Regular"])):
+    print(_tag.ljust(34), ":", ns["debug_try_pkg_kern"]("kn1L", "kn1R", _master, "yes"), "| kerning() args", PK["kerning_args"])
+pk_setup()
+for _p in (_PKQ, _PKQ + "&go=yes", _PKQ + "&master=Regular&go=yes", "/debug/trypkgkern?a=kn1L&b=kn1S&go=yes"): call(_p)
+print("1272 spy over all cases          : forbidden package members:", PK["pkg_forbidden"], "| package members touched anywhere:", sorted(PK["pkg_all"]),
+      "| forbidden kerning members:", PK["k_forbidden"], "| kerning members touched anywhere:", sorted(PK["k_all"]))
+_pk_src = src[src.index("_TRYPKGKERN = {"):src.index("# /debug/trymodern (v0.88)")]
+_pk_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _pk_src).splitlines())
+print("1273 static scan                 : pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _pk_code))), "| kerning members used:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _pk_code))),
+      "| kerning_of( calls:", len(_re83.findall(r"\bkerning_of\(", _pk_code)), "| getter( calls:", len(_re83.findall(r"\bgetter\(", _pk_code)),
+      "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|set\w*|add\w*|clear\w*|keys|values|items|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|scale|rename\w*|autoKern|getAllGroups|findGroup)\(", _pk_code),
+      "| subscripts on other objects:", [s for s in _re83.findall(r"\b(\w+)\[", _pk_code) if s not in ("_TRYPKGKERN", "_TRYPKGKERN_FLAGS")],
+      "| counter raised before the call:", _pk_code.index('_TRYPKGKERN[""] += 1') < _pk_code.index("kerning_of(master)"), "| scanned chars > 3000:", len(_pk_src) > 3000)
+print("1274 gate, cap, route, docstring  :", "go != \"yes\"" in _pk_src, "| max requests", ns["_TRYPKGKERN_MAX"], "| route registered once:", src.count('path == "/debug/trypkgkern"') == 1,
+      "| listed in the module docstring:", "/debug/trypkgkern" in src[:src.index('"""', 3)])
+for _m, _a, _v in _pk_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)
+ns["_TRYPKGKERN"]["calls"] = 0
+
+# ================= v0.98: /debug/moddir (names only, in modules ALREADY loaded; never imports, constructs or calls) =================
+print("\n==== v0.98 /debug/moddir ====")
+MD = {"touched": []}
+PK["k_all"].clear(); PK["pkg_all"].clear()
+class MDKerningObjectPair:
+    """fgKerningObjectPair(string left, string right [, int mode]) - FAKE docstring for the stub"""
+    def __init__(self, *a, **k):
+        MD["touched"].append("constructed fgKerningObjectPair"); raise SystemExit("FORBIDDEN: constructed")
+    def isGroup(self):
+        """bool isGroup(int side) - FAKE"""
+        MD["touched"].append("called isGroup"); raise SystemExit("FORBIDDEN: called")
+    left = "fake attribute"
+def _md_boom(*a, **k):
+    """boom() - FAKE module function that must never be called"""
+    MD["touched"].append("called kernBoom"); raise SystemExit("FORBIDDEN: called")
+_md_mod = types.ModuleType("fontgate")
+_md_mod.fgKerningObjectPair = MDKerningObjectPair; _md_mod.fgKerning = type("fgKerning", (), {"__doc__": "fgKerning - FAKE"})
+_md_mod.kernBoom = _md_boom; _md_mod.fgFont = object; _md_mod._hiddenKern = 1
+_md_big = types.ModuleType("mdbig")
+for _i in range(205): setattr(_md_big, "kern%03d" % _i, _i)
+sys.modules["fontgate"] = _md_mod; sys.modules["mdbig"] = _md_big
+for _i in range(105): sys.modules["zzmd%03d" % _i] = types.ModuleType("zzmd%03d" % _i)
+_md_keys = set(sys.modules)
+def mdc(tag, path, keys=None):
+    c, d = call(path)
+    shown = d if keys is None else {k: d.get(k) for k in keys}
+    print(tag, ":", c, shown, "| touched", MD["touched"])
+    return c, d
+mdc("1280 no parameters              ", "/debug/moddir")
+mdc("1281 modules containing fontgate", "/debug/moddir?contains=fontgate")
+mdc("1282 case-insensitive           ", "/debug/moddir?contains=FONTGATE,MDBIG")
+mdc("1283 four tokens refused        ", "/debug/moddir?contains=a,b,c,d")
+mdc("1284 token with a star refused  ", "/debug/moddir?contains=fo*t")
+mdc("1285 105 modules: cut at 100    ", "/debug/moddir?contains=zzmd", keys=("count", "cut"))
+print("1285b listed                       :", len(call("/debug/moddir?contains=zzmd")[1]["modules"]))
+mdc("1286 module not loaded          ", "/debug/moddir?module=mdnotloaded&contains=kern")
+print("1286b still not loaded             :", "mdnotloaded" not in sys.modules)
+for bad in ("a..b", "1abc", "a-b", "a.", "m" * 65, "a%20b"):
+    mdc(f"1287 bad module {bad[:10]!r:12}  ", "/debug/moddir?module=" + bad + "&contains=kern")
+mdc("1288 module without a filter    ", "/debug/moddir?module=fontgate")
+mdc("1289 names with kern or pair    ", "/debug/moddir?module=fontgate&contains=kern,pair")
+mdc("1290 205 names: cut at 200      ", "/debug/moddir?module=mdbig&contains=kern", keys=("count", "cut"))
+print("1290b listed                       :", len(call("/debug/moddir?module=mdbig&contains=kern")[1]["names"]))
+mdc("1291 one entry                  ", "/debug/moddir?module=fontgate&name=fgKerningObjectPair&doc=80")
+mdc("1292 entry with members         ", "/debug/moddir?module=fontgate&name=fgKerningObjectPair&doc=80&members=isGroup,left,nope,_x", keys=("member_docs",))
+mdc("1293 a module function's doc    ", "/debug/moddir?module=fontgate&name=kernBoom&doc=80", keys=("type", "doc", "module"))
+mdc("1294 entry not in the module    ", "/debug/moddir?module=fontgate&name=fgNope")
+mdc("1295 name and contains together ", "/debug/moddir?module=fontgate&name=fgKerning&contains=kern")
+mdc("1296 name without module        ", "/debug/moddir?name=fgKerning")
+mdc("1297 members without name       ", "/debug/moddir?module=fontgate&contains=kern&members=get")
+mdc("1298 members without module     ", "/debug/moddir?contains=kern&members=get")
+mdc("1299 doc not a number           ", "/debug/moddir?module=fontgate&name=fgKerning&doc=x")
+mdc("1300 unknown stage              ", "/debug/moddir?stage=bogus")
+pk_setup(); mdc("1301 kerntype                   ", "/debug/moddir?stage=kerntype")
+pk_setup(); mdc("1302 kerntype with module       ", "/debug/moddir?stage=kerntype&module=fontgate")
+pk_setup(); mdc("1302b kerntype with contains    ", "/debug/moddir?stage=kerntype&contains=kern")
+pk_setup(count=0); mdc("1303 kerntype, no font open     ", "/debug/moddir?stage=kerntype")
+pk_setup(count=2); mdc("1304 kerntype, two fonts        ", "/debug/moddir?stage=kerntype")
+pk_setup(cur="none"); mdc("1305 kerntype, CurrentFont None ", "/debug/moddir?stage=kerntype")
+pk_setup(legacy_raises=True); mdc("1306 kerntype, kerning raises  ", "/debug/moddir?stage=kerntype")
+_md_real = ns["debug_mod_dir"]
+def _md_raise(*a): raise RuntimeError("probe boom")
+ns["debug_mod_dir"] = _md_raise; mdc("1307 probe raises: HTTP 500     ", "/debug/moddir?contains=fontgate"); ns["debug_mod_dir"] = _md_real
+print("1308 nothing called or constructed :", MD["touched"], "| sys.modules unchanged:", set(sys.modules) == _md_keys, "| kerning members touched:", sorted(PK["k_all"]), "| package members touched:", sorted(PK["pkg_all"]))
+_md_src = src[src.index("_MODDIR_MAX_MODULES = "):src.index("# /debug/fontdir (v0.90)")]
+_md_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _md_src).splitlines())
+print("1309 static scan                 : import machinery:", _re83.findall(r"__import__|importlib|import_module|\bexec\(|\beval\(|\bcompile\(|__call__", _md_code),
+      "| calls on a module object:", _re83.findall(r"\bmod\.\w+\s*\(", _md_code), "| getattr on the module:", _md_code.count("getattr(mod"),
+      "| font members used:", sorted(set(_re83.findall(r"\bfont\.(\w+)", _md_code))), "| scanned chars > 2000:", len(_md_src) > 2000)
+print("1310 route and docstring          :", src.count('path == "/debug/moddir"') == 1, "| listed in the module docstring:", "/debug/moddir" in src[:src.index('"""', 3)],
+      "| classdir default label unchanged:", call("/debug/classdir?name=fgNope")[1])
+for _k in ["fontgate", "mdbig"] + ["zzmd%03d" % _i for _i in range(105)]: sys.modules.pop(_k, None)
+
+# ================= v0.100: /debug/trypkgkern &mode=flags (get(((a, flag), (b, flag))), the form fgKerning.get named in test 183) =================
+print("\n==== v0.100 /debug/trypkgkern mode=flags ====")
+def pfc(tag, path, keys=None):
+    c, d = call(path)
+    shown = {k: v for k, v in d.items() if k != "note"} if keys is None else {k: d.get(k) for k in keys}
+    print(tag, ":", c, shown, "| gets", PK["gets"])
+    return c, d
+_PFQ = "/debug/trypkgkern?a=kn1L&b=kn1R&go=yes"
+pk_setup(); pfc("1311 flags FF, kn1L:kn1R        ", _PFQ + "&mode=flags&flags=FF")
+for fl_ in ("FT", "TF", "TT"):
+    pk_setup(); pfc(f"1312 flags {fl_}, kn1L:kn1R        ", _PFQ + "&mode=flags&flags=" + fl_, keys=("mode", "flags", "package", "legacy"))
+pk_setup(); pfc("1313 flags FF, kn1L:kn1S        ", "/debug/trypkgkern?a=kn1L&b=kn1S&go=yes&mode=flags&flags=FF", keys=("package",))
+pk_setup(); pfc("1314 tuple mode named           ", _PFQ + "&mode=tuple", keys=("mode", "flags", "package"))
+pk_setup(); pfc("1315 mode left out = tuple      ", _PFQ, keys=("mode", "flags", "package"))
+for bad in ("bogus", "glyph", "FLAGS", "Tuple"):
+    pk_setup(); pfc(f"1316 bad mode {bad!r:10}         ", _PFQ + "&mode=" + bad + "&flags=FF", keys=("error", "calls_so_far"))
+for bad in ("ff", "F", "FFF", "FX", "01", "TrueFalse"):
+    pk_setup(); pfc(f"1317 bad flags {bad!r:12}      ", _PFQ + "&mode=flags&flags=" + bad, keys=("error", "calls_so_far"))
+pk_setup(); pfc("1318 mode=flags without flags   ", _PFQ + "&mode=flags", keys=("error", "calls_so_far"))
+pk_setup(); pfc("1319 flags without mode=flags   ", _PFQ + "&flags=FF", keys=("error", "calls_so_far"))
+pk_setup(); pfc("1320 flags without go           ", "/debug/trypkgkern?a=kn1L&b=kn1R&mode=flags&flags=FF")
+pk_setup(count=0); pfc("1321 flags, no font open        ", _PFQ + "&mode=flags&flags=FF")
+pk_setup(calls=20); pfc("1322 flags, cap used up         ", _PFQ + "&mode=flags&flags=FF")
+pk_setup(); pfc("1323 flags, unknown glyph       ", "/debug/trypkgkern?a=kn1L&b=Q&go=yes&mode=flags&flags=FF")
+pk_setup(package_get="raise"); pfc("1324 flags, package get raises  ", _PFQ + "&mode=flags&flags=FF", keys=("package", "legacy"))
+pk_setup(kerning_call="raise"); pfc("1325 flags, kerning() raises    ", _PFQ + "&mode=flags&flags=FF", keys=("package", "legacy", "calls_so_far"))
+pk_setup(); print("1326 direct call, flags given as a list:", ns["debug_try_pkg_kern"]("kn1L", "kn1R", None, "yes", "flags", ["F", "F"]), "| gets", PK["gets"])
+_pf_src = src[src.index("_TRYPKGKERN = {"):src.index("# /debug/trymodern (v0.88)")]
+_pf_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\n]|\.)*"', '""', _pf_src).splitlines())
+print("1327 static scan                 : fontgate or import machinery:", _re83.findall(r"fontgate|__import__|importlib|import_module|fgKerningObjectPair", _pf_code),
+      "| getter( calls:", len(_re83.findall(r"\bgetter\(", _pf_code)), "| flag table:", ns["_TRYPKGKERN_FLAGS"], "| modes:", ns["_TRYPKGKERN_MODES"])
+for _m, _a, _v in _pk_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)
+ns["_TRYPKGKERN"]["calls"] = 0
+
 
 for _m in _tf_mods:
     for _a in ("Update", "UpdateAll", "UpdateGlyphRect", "UpdateActiveCanvas", "SetCurrentGlyph", "SetCurrentFont"):
