@@ -1,0 +1,79 @@
+# Server tools and listener endpoints
+
+> Moved from milestone summary v11 (§2, §3) on 2026-11-01, edited only where the chat-era workflow or a personal path no longer applies. The original section numbers are kept, so older cross-references such as "section 8p" still resolve: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md) lists which file holds each section. Snapshot: [archive/milestone-summary-v11.md](../archive/milestone-summary-v11.md).
+
+## 2. What the server offers (v0.31)
+
+Tools: `fontlab_status`, `get_current_font`, `list_glyphs`, **`get_glyph_outline`**, **`check_notdef`**, `create_glyph`,
+`delete_glyph`, `get_glyph_width`, `set_glyph_width`, **`get_glyph_sidebearings`**, **`set_glyph_sidebearings`**, **`draw_polygon`**, **`draw_path`** (v0.23), `check_glyph_unicode`, `set_glyph_unicode`, **`finish_changes`** (v0.18), **`get_kerning`** (v0.30 / v0.31, section 8p). The bold geometry tools are described in sections 8b to 8d, 8g to 8h and 8p.
+Tool names as Claude sees them: [CLAUDE.md](../../CLAUDE.md). After a server update the tool DESCRIPTIONS Claude sees can stay stale even after Claude Desktop was restarted (the behaviour is new, the text is old); a second full restart of Claude Desktop refreshes them.
+
+- **Guard fields (server v0.27):** the write tools (`create_glyph`, `delete_glyph`, `set_glyph_unicode`, `set_glyph_width`, `set_glyph_sidebearings`, `draw_polygon`, `draw_path`) forward ONLY these listener fields, type-checked (wrong types are dropped, a broken reply never raises): `synced_with_fontlab` (bool), `durability_note`, `display_refresh`, `display_refresh_note` (text), `display_refresh_skipped_to_protect`, `display_refresh_unreadable_glyphs`, `layers_missing_since_drawn` (non-empty lists of names). They add short sentences to `agent_instruction` (unsynced change / refresh skipped / layers already lost; each says to tell the person) and never replace the existing text or the save reminder. An older listener sends none of them. Failed calls still raise their ToolError as before (the fields are not shown on errors). Tests: part 16 of `create_unicode_tests.py`.
+- **`fontlab_sync` (server v0.29, listener 0.89):** the same write tools (`set_glyph_width`, `set_glyph_sidebearings`, `draw_polygon`, `draw_path`) also forward the listener's `fontlab_sync` block (`attempted`, `synced` bools; `verdict`, `call_error`, `reason` non-empty texts; anything else dropped, a non-dict ignored). A synced write adds no sentence to `agent_instruction`; after an ATTEMPTED but failed sync one extra sentence precedes the old unsynced advice. Tests: part 18 of `create_unicode_tests.py`. Details: section 8m.
+- **`get_kerning`** (server v0.30, v0.31; listener 0.95; section 8p): `get_kerning(pairs=None, text=None, confirmed_large_read=None)`: FontLab's own kerning values (font units, class kerning included, negative = closer) for selected glyph pairs or for the neighbouring characters of a short text. Never the whole table. Up to 250 pairs at once; more needs the PERSON's approval, and only then may the agent repeat the call with `confirmed_large_read=true` (the refusal message says so). A pair that could not be read answers an `error`, never 0; a pair FontLab has no entry for answers `value 0, kerned false`. Pure read (no change counters, no save). Not covered: feature-based, contextual and multi-master kerning (said in every reply). Tests: part 19 of `create_unicode_tests.py`.
+- Timeouts: `TIMEOUT_SECONDS = 5.0`; `delete_glyph` and the `.notdef` dialog wait up to 120 s for a human click (a 90 s wait of the `.notdef` dialog was confirmed
+  live through Claude Desktop; see section 7).
+- A timeout raises the "listener did not answer" error. Its wording: a Glyphbridge dialog (the `.notdef` notice or a delete confirmation) may be
+  waiting in FontLab, so answer or close it; or FontLab is busy or frozen; and for a requested change, check the font's state before repeating it.
+  While a dialog is open the listener serves nothing else, so every other tool call times out after 5 s (live-verified with `/health`).
+- **`fontlab_status`** (v0.17): `listener_reachable`, `font_open`, `server_version`, `listener_version` (from the listener's existing `GET /version`; `unknown` when it is
+  missing, blank, not text or the call fails), font name/path, and a `compatibility_note` when the listener is older than `MIN_LISTENER_VERSION` (0.82 since server v0.24). The
+  version constants must equal the file headers (a test checks it).
+- **`create_glyph`** (section 8): refuses unsafe names BEFORE FontLab is called; reports `unicode`, `unicode_status` (`assigned` / `none` / `unreadable` / `unknown`),
+  `unicode_assigned_by_fontlab`, `unicode_matches_standard`, `also_held_by` + `glyphs_scanned` (when FontLab assigned none to a name that states a codepoint), `name_warnings`
+  (hints only) and an `agent_instruction`.
+- **`check_glyph_unicode`**: judges names that state their own codepoint: a single character, `uniXXXX` (exactly 4 UPPERCASE hex digits), `uXXXX`..`uXXXXXX` (no surrogates, at most
+  10FFFF). Other multi-character names (the Adobe Glyph List is NOT embedded) say "can't determine" on purpose.
+- **`set_glyph_unicode`**: reports `unicode_before/after`, `changed` (+ a note when nothing changed), `also_held_by`, `glyphs_scanned`, and a `duplicate_warning` (warning only: nothing is blocked
+  or undone) when another glyph already holds the codepoint; pass **0 to remove** a codepoint. Its docstring tells agents not to call it right after `create_glyph` unless the reply shows
+  `none` / `unreadable` and the person wants a codepoint, and never to guess one for a non-standard name.
+- Switches: `GLYPHBRIDGE_MODERN=0` (server) or `&modern=no` (listener request) disables the modern-API transform read and falls back to
+  an estimate. `GLYPHBRIDGE_NOTDEF_WARN=0` disables the two AUTOMATIC `.notdef` checks (section 7); the `check_notdef` tool still works.
+  `GLYPHBRIDGE_PORT` (default 8765) changes only the port the SERVER contacts: the listener's `PORT` constant must be changed to match.
+- Self-check without Claude (project folder, listener running): `.\venv\Scripts\python.exe glyphbridge_mcp_server.py --check`
+  (read-only; includes a read-only `.notdef` status and the versions), `--check --outline NAME`, `--check --notdef-warn` (**may show the dialog**),
+  `--check --with-write-test` (create/delete/width round trip on TEST glyphs; FontLab asks you to confirm the deletions).
+- Design decision: width and Unicode writes are not confirmation-gated (reversible); delete **is** (Yes/No dialog).
+- **SAVE POLICY (v0.18, decided by the user):** NO Glyphbridge tool ever saves the font (the `.vfc` file); saving is the person's duty (File menu or Ctrl+S). Agents tell the person so,
+  **once per task package**, never per step and never in a FontLab dialog. Mechanism: every write reply carries `font_modified` (true only when the font REALLY changed: a created or deleted glyph, a width or
+  codepoint that differs afterwards; a refusal, an error or a repeated identical write is false or absent) plus an `agent_instruction`; a write whose outcome is unknown (timeout, HTTP error, unusable
+  reply) counts as an UNCERTAIN change; a create that produced a glyph under another name counts as a change; a refused connection counts as nothing. When the whole package is done the agent calls
+  **`finish_changes`** ONCE: it returns `save_reminder` (constant `SAVE_REMINDER`: bold markdown, "**You must save if you want to keep these changes: use the File menu or press Ctrl+S in FontLab.**") to be shown in the
+  chat after the agent's summary, and resets the package counters; with no change it returns `save_reminder: null`. `fontlab_status` adds `glyphbridge_changes_this_session`,
+  `glyphbridge_uncertain_changes_this_session` and a `save_note` once something changed: they count changes made through THIS server process since it started (not per font; the server cannot see whether the
+  person saved, so the numbers never claim the font is unsaved). The listener is unchanged. A test (part 8 of `create_unicode_tests.py`) guards the policy: a spy font whose save-like members
+  record any call, plus a static scan of both scripts for `.save(`, `.export...(` and `.generate...(`; both were mutation-tested (a planted save call is caught). Only a live run through Claude Desktop shows
+  whether the agent really says it once (section 13, item 9).
+
+## 3. Listener endpoints (v0.95)
+
+`/health`, `/version` (`{"version":"0.95"}`); `/font/current`; `/font/glyphs`; `/font/nonempty` (layerless glyphs such as an empty
+`.notdef` land in `unreadable`, while `/font/notdef` and `/glyph/outline` call the same glyph empty: a known inconsistency, backlog item 11); GET/POST `/glyph/width` and `/glyph/unicode` (POST sets, then re-reads to verify); POST
+`/glyph/create` (verified by list re-read); POST `/glyph/delete` (**requires a Yes/No QMessageBox**, default No); GET `/glyph/nodes`
+(older, superseded); GET `/shutdown` (stops the listener, not FontLab).
+
+- **Kerning endpoints (listener 0.94 / 0.95; section 8p):** `GET /kerning/pairs?pairs=A:V,T:o` or `?text=AVATAR` (no pair cap since 0.95) and `POST /kerning/pairs` with `{"pairs": [["A","V"],["T","o"]]}` or `{"text": "..."}` (for large reads; body read up to 1,000,000 bytes). Read-only, not gated; reply `open`, `mode`, `units_per_em`, `count`, `errors`, `table_size`, `side_effect_detected`, `results`; HTTP 400 for bad input.
+
+- **Geometry endpoints (v0.68 and later):** POST `/glyph/width` (modern route), POST `/glyph/sidebearings` and GET `/glyph/sidebearings?name=X`, POST `/glyph/polygon` (body `{name, points}` OR `{name, contours}`), POST **`/glyph/path`** (v0.81, body `{name, contours}` with point objects, section 8g), GET `/glyph/outline` (adds `modern_check` and `modern_outline`). Section 8b to 8d.
+
+- **POST `/glyph/create`** body `{"name": ..., "scan_unicode": N (optional)}`: when created, the reply carries `unicode` and `unicode_status` (`assigned` = FontLab mapped the name itself, because the
+  script never sets a codepoint at creation; `none`; `unreadable` + `unicode_error`), and, if the status is `none` and `scan_unicode` is a plain integer 1..10FFFF, `duplicate_check`
+  (`scanned`, `also_held_by`, `unreadable`, or `scan_error`). If NOT created but a glyph appeared under another name, `created_under_other_names` lists the new names (a multiset difference, so a
+  second nameless glyph is seen too; it may contain `""`).
+- **POST `/glyph/unicode`** body `{"name", "unicode"}`: success means the re-read equals the request, **or the request was 0 and the re-read is none**. On success with a non-zero codepoint the reply
+  carries `duplicate_check` (a read-only scan of the OTHER glyphs' primary `glyph.unicode`; unreadable glyphs are counted, a failed scan is reported; secondary codepoints are not looked at).
+- **GET `/glyph/outline`** `?name=X`, optional `&layer=body|active|strict|glayer`, `&modern=no`: contours (`kind`, `smooth`, `x`, `y`),
+  `fontlab_bbox`, `margins`, `component_count`, `shape_count`, `layer_name`, `elements` (true transforms). A zero-layer glyph answers
+  `node_count` 0 with `layer_count` 0; a layer that cannot be reached although layers exist gives `layer_unreachable: true` + error.
+- **GET `/font/notdef`**: read-only `.notdef` check. **POST `/font/notdef/warn`**: re-checks, then shows the dialog if warranted
+  (`{"force": true}` shows it again). Section 7.
+- **New gated probes (v0.83 to v0.86; all need `go=yes`, none ever saves, closes, exports or removes anything; each is tested with a forbidden-member spy and a static scan of its source):**
+  - `/debug/tryfont?stage=state|construct|attach[&go=yes]` (v0.83): `state` is read-only (workspace: `CountFonts`, `CurrentFont`, packages, current package). `construct&go=yes` runs `fontlab.flPackage()` ONCE per listener run (a second one is refused: each construction leaves a native reference behind) and REGISTERS a new font (section 8k). `attach` (`flWorkspace.instance().addPackage`, once per run) is NOT needed and was never used live.
+  - `/debug/trysync?stage=state|package_update|workspace_update[&go=yes]` (v0.85): calls `flPackage.update()` or `flWorkspace.instance().update()` ONCE on the current package; runs only when `CountFonts()` is exactly 1 (plain int) and the workspace holds exactly one non-null package. Result: both are accepted and change nothing (section 8l).
+  - `/debug/trycreate?name=N&how=plain|legacy_update&go=yes` (v0.86): ADDS one glyph (name 1 to 40 characters of `A-Za-z0-9._-`, must not exist); `plain` = `font.createGlyph(N)` only, `legacy_update` = createGlyph then `font.update()` (what `create_glyph` did before v0.87); same one-font gate; reply: names before / after, calls made, errors, `calls_so_far`.
+  - `/debug/trymodern?stage=state|call|create&name=N[&how=...][&go=yes]` (v0.88): gated experiment for sync candidates and modern glyph creation; `state` is read-only. Section 8o (record and rules).
+- **Kerning research probes (v0.90 to v0.93, section 8p; kept as evidence tools):** `GET /debug/fontdir?stage=dir|sub|member[&attr=NAME][&members=a,b,c]` (names only: public names, type, `len`, docstrings of ONE font attribute and at most 8 of its members; never calls anything); `GET /debug/trykern?a=NAME&b=NAME&go=yes` (one `font.kerning.get((a, b))`, 20 calls per listener run, both names must be glyph names); `GET /debug/trygroups?go=yes[&contains=a,b,c]` (one `font.groups.getCompiled()`, 10 per run, returns only a 500-character head or the matching segments). The product route `/kerning/pairs` does not need them.
+- New debug probes since v5 (all gated where they change something): `/debug/trylayer?name=&stage=state|create[&method=findLayerCreate|getLayerByName|addLayer&layer=&ref=&go=yes]`, `/debug/readmodern?name=&stage=layer|contour|node[&index=&node=&via=getNodeAt|at]`, `/debug/classdir?name=&doc=&members=a,b,c` (names + `__doc__` of a class's members, never called), `/debug/trymetrics` (disposable glyph, name starts with `tri`; stages names|read|set|doc|refresh|poke), `/debug/tryshape` (history; variants single|points|nodes|probe|curve|curve2|curve3|curve4|curve5, all detached except the gated `curve3` attach; superseded by `/glyph/path`). Probes (read-only unless stated): `/debug/font`, `glyph`, `layerstats`, `objdir`, `findnode`, `layerbbox`, `walk` (restricted
+  modern-API walker, whitelist `_WALK_CALL_OK`), `classdir`, `fldir`, `currentshapes`, `buildglyph` (constructs a wrapper; `go=yes`),
+  `setcurrent` (changes UI state; `go=yes`; useless). Dead-end history: `box`, `contours`, `shapecount`, `drawpen`;
+  `/debug/layeritem` is **disabled** (it crashed FontLab).

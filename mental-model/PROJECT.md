@@ -1,0 +1,47 @@
+# Project: goals, scope, non-goals
+
+## Purpose
+
+Give AI agents reliable access to the font open in FontLab 8. With it they can inspect a glyph, answer spacing and kerning questions, and make basic geometry and metadata changes for the person who designs the font.
+
+## Design rule (binding since the start)
+
+The project replaced a third-party server that reported false successes. Therefore:
+- Every failure gets a specific, honest message.
+- No write is reported successful unless the listener re-read the state afterwards.
+- Coordinates are called `verified` only when FontLab's own numbers agree.
+- **A failed read is never reported as "empty", "missing" or "none".**
+- A reply that could not check something says so (`unknown`, `unreadable`, "could not check whether another glyph holds it") instead of staying silent.
+
+## Goals, in priority order
+
+1. **Read any glyph accurately.** This covers outlines, element transforms, layers, widths, sidebearings and Unicode, checked against FontLab's bounding box and margins. The biggest remaining gaps are components, open contours and multi-master fonts ([ROADMAP.md](ROADMAP.md), P1).
+2. **Write geometry a designer needs.** Today: width, sidebearings, and closed straight and cubic contours into an empty glyph. Next: open contours, several shapes, editing existing outlines (P2).
+3. **Read kerning cheaply.** Only the pairs the task needs, using FontLab's own effective values, class kerning included ([topics/kerning.md](topics/kerning.md)).
+4. **Make new fonts usable by agents**: a create-font tool and a correct "is a font open" check (P0).
+
+## Scope
+
+- FontLab 8 on Windows. macOS should work in principle but is untested. Linux would need Wine and is not supported.
+- Claude Desktop and Claude Code as MCP clients. Any stdio MCP client should work.
+- One font at a time: the current font. Two open fonts are untested (T5 in [LIVE-TESTS.md](LIVE-TESTS.md)).
+
+## Non-goals and hard limits
+
+- **No saving, exporting or generating fonts.** The person saves (save policy, [DECISIONS.md](DECISIONS.md)).
+- **No whole-table or whole-font reads** where a few items answer the question. Large reads need the person's approval.
+- No direct FontLab access from the MCP server, and no network exposure of the listener.
+- No TypeRig or other FontLab wrapper libraries. The project uses the FontLab API only, through probes ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md)).
+- No feature-based (GPOS), contextual or multi-master kerning in the current kerning tool.
+
+## Success criteria
+
+- A reply is either confirmed by FontLab's numbers or clearly marked as unconfirmed.
+- Every write is verified by a re-read, and no work in the font is lost by a tool.
+- All test harnesses pass, and each live-proven scenario is recorded in [CHECKLIST.md](CHECKLIST.md).
+- Workflow success test: a fresh agent session can resume from the repository's documents alone ([HOW-TO-GET-ORGANIZED.md](HOW-TO-GET-ORGANIZED.md)).
+
+## People and roles
+
+- **The user** (font designer and project owner) decides, approves builds, performs FontLab GUI steps, and reports FontLab's numbers.
+- **AI agents** propose, build after approval, test, and keep the documents current ([AGENTS.md](../AGENTS.md)).
