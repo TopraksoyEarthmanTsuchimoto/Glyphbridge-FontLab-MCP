@@ -79,3 +79,15 @@ Tool names as Claude sees them: [CLAUDE.md](../../CLAUDE.md). After a server upd
   modern-API walker, whitelist `_WALK_CALL_OK`), `classdir`, `fldir`, `currentshapes`, `buildglyph` (constructs a wrapper; `go=yes`),
   `setcurrent` (changes UI state; `go=yes`; useless). Dead-end history: `box`, `contours`, `shapecount`, `drawpen`;
   `/debug/layeritem` is **disabled** (it crashed FontLab).
+
+## 4. Activity log in the OUTPUT panel (listener 0.102)
+
+The listener tells the person in FontLab's OUTPUT panel what is done to the font. Decision: [DECISIONS.md](../DECISIONS.md), "OUTPUT activity log first"; code: the block above `_handle` in the listener.
+
+- **One timestamped line per change:** create, delete, Unicode, width, sidebearings, polygon and path drawing, a shown `.notdef` dialog, and every `/debug/...` request with `go=yes`. Example: `[glyphbridge] 20:41:49 width ol1A: 0 -> 600 (verified)`.
+- **Honest words:** "verified" only where the reply's own re-read says so. Always printed, never collapsed: `REFUSED` (400), `FAILED` (500), "no font is open", `NOT DONE` (with the reply's reason, and "the glyph DID change" when it did), declined deletes, unsynced or warned results, every delete, every gated probe.
+- **No flooding:** a run of verified changes of one kind shows 3 lines, then one "N more like this, all verified" line. Reads are counted by kind (kerning with its pair count; `/health`, `/version`, `/shutdown` not at all) and printed as one "reads:" line. Both summaries are printed before a different change, after `_ACTIVITY_IDLE_S` = 10 s without a request (the poll timer checks), and at `/shutdown`.
+- **Safety:** built only from the request and the reply, never a `fontlab` call; both entry points swallow their own errors, so logging cannot change or block a reply. ASCII only.
+- **Switch:** `_ACTIVITY_LOG = "normal"` (changes and reads), `"writes"` (changes only) or `"off"`; a one-line source edit.
+- **Limits:** the listener cannot know who sends a request, so no line names an agent or a tool (optional later: [ROADMAP.md](../ROADMAP.md) P6.2). Server-only events such as `finish_changes` print nothing (P6.3).
+- **Proof:** stub cases 1336–1360; live test 190 (14 lines as predicted, [CHANGELOG.md](../CHANGELOG.md)).

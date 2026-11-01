@@ -2,6 +2,14 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-01: OUTPUT activity log first
+
+- **The activity log in FontLab's OUTPUT panel (listener v0.102, [ROADMAP.md](ROADMAP.md) P6.1) comes before P0.8.** Policy: one short line per change, refusals and declined deletes always shown, runs of the same operation and all reads summarised, "verified" only from the listener's own re-read. *Reason:* the user's choice; the person should see in FontLab what an agent changes. *Supersedes, for now,* "P0.8 first" as the first step.
+
+## 2026-11-01: CURRENT-STATUS budget
+
+- **The CURRENT-STATUS.md budget goes from 900 to 1,000 words, then to 1,250.** The reference totals become 9,450 including the root README, and 8,950 for the startup core files. *Reason:* the user's choice; the file used 845 of 900 words, then 935 of 1,000, with the activity log, P0.8 and the rest of the K-series still to record.
+
 ## 2026-11-01: kerning fix first
 
 - **Listener versions continue 0.100, 0.101, …** *Reason:* the user's choice. Versions are compared part by part, so the server reads `(0, 100)` as newer than `(0, 99)` (verified live: no `compatibility_note`).

@@ -1,4 +1,4 @@
-Last verified: 2026-11-01 against commit f271d27
+Last verified: 2026-11-01 against the commit that follows e0f80c4 (listener v0.102, server v0.32)
 
 # Current status
 
@@ -6,11 +6,11 @@ Last verified: 2026-11-01 against commit f271d27
 
 | Part | Version | md5 (as committed) |
 |---|---|---|
-| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.100"` | `398eee2d807a25c466de6d30f056e372` (325,673 bytes; not yet committed) |
+| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.102"` | `3355e7716cd237e48109d59d51ccfe97` (336,539 bytes) |
 | server `glyphbridge_mcp_server.py` | `SERVER_VERSION = "0.32"`, `MIN_LISTENER_VERSION` (0, 82) | `7d8c99950725ddbd795ff9b26fd39e31` (144,054 bytes) |
-| tests | 4 harnesses | PASS at **1616 + 58 + 90 + 668** lines |
+| tests | 4 harnesses | PASS at **1758 + 58 + 90 + 668** lines |
 
-v0.97 to v0.100 only add research probes (`/debug/trypkgkern`, gated; `/debug/moddir`, names only); no product route changed ([CHANGELOG.md](CHANGELOG.md)). v0.100 runs live; `fontlab_status` reads it as newer than 0.95 (no `compatibility_note`).
+v0.97 to v0.100 only add research probes (`/debug/trypkgkern`, gated; `/debug/moddir`, names only); no product route changed. v0.101 fixes the traceback after `/shutdown` and two OUTPUT lines; live-checked as test 189. v0.102 adds the activity log ([CHANGELOG.md](CHANGELOG.md)). `fontlab_status` reads 0.102 as newer than 0.95 (no `compatibility_note`).
 
 ## Environment (verified 2026-11-01)
 
@@ -28,6 +28,7 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 - **Reading:** outlines with element transforms (scale, offset, slant), cubic and quadratic outlines, Power Brush output, widths, sidebearings, the stale-view fallback. → [topics/reading.md](topics/reading.md)
 - **Writing:** create and delete glyphs (name safety rules), Unicode set and clear, width, sidebearings, closed straight and cubic contours into an empty glyph, auto sync after every modern write. → [topics/geometry.md](topics/geometry.md), [topics/names-unicode.md](topics/names-unicode.md), [topics/fonts-and-sync.md](topics/fonts-and-sync.md)
 - **`.notdef`** check and one-time dialog. → [topics/notdef.md](topics/notdef.md)
+- **Activity log** in FontLab's OUTPUT panel (test 190, a new font): 11 changes and their reads gave 14 lines exactly as predicted, including the run summaries, the 10 s idle flush, a declined delete and a refused width. Stub-tested only: REFUSED / FAILED lines, unsynced or warned results, probes, the `writes` / `off` modes, the flush at `/shutdown`. → [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4
 - **Kerning:** the FontLab call `font.kerning.get` was proven on Arial by probes. The listener route `/kerning/pairs` was run live on 2026-11-01: GET (K2) gave all 13 values as predicted, and POST (K3) gave identical answers. The `get_kerning` tool ran live through the Claude Desktop chat (K4): one call, three pairs, correct values. In `text` mode all 10 pairs of K5 equal FontLab's KERNING panel; the zeros are conclusive for the kerning table (166–167); K10 checks text rendering. Bad requests are refused live with specific messages, and an unknown glyph is reported as unreadable, never as zero (K7). Special characters in `text` (K6): a space and `é` map to the right glyphs, and a missing character gives an error, never a zero. The 250-pair approval flow works at agent level (K8): the agent asked before reading 324 and 251 pairs and read 250 without asking. An exception wins over its class value (K9). → [topics/kerning.md](topics/kerning.md)
 
 ## Known defects (live-proven 2026-11-01, not fixed)
@@ -45,15 +46,17 @@ Both break the design rule. Details: [topics/kerning.md](topics/kerning.md) §9;
 
 ## Next steps (the user's priority of 2026-11-01)
 
-1. **P0.8, the fix of kerning defects A and B** ([ROADMAP.md](ROADMAP.md)). The probes are done (tests 168–188); next is a design proposal.
+1. **P0.8, the fix of kerning defects A and B** ([ROADMAP.md](ROADMAP.md)). Probe step (b) is done (tests 177–188). Open: (a) the Arial comparison of the two tables, and (c) the precedence test and the left side of defect B. Then the design proposal.
 2. **The rest of the K-series** ([LIVE-TESTS.md](LIVE-TESTS.md)). K1 to K9 are done. Suggested order: K10, K11, K12, K13, K14, K16. K15 goes in the last block.
 3. Then the **T-series**: T2 (`finish_changes` live), T3 (an open editor tab during a write, highest value), T4.
 4. Candidates after that (none approved): P0.2, a `CountFonts()`-based "font open" check for every route; P0.3 / P0.4, a create-font tool; P1.1, components. Required by the user, not yet designed: P1.6, kerning group membership.
 
-Tests 155 to 157 and 159 to 188 are used (K2, K3, K7 with 157b, K6, K8, the panel filter, K9, P0.8 probes); 158 is reserved for A7, so the next free test number is **189**. Large-glyph and very-large-read tests stay in the LAST block.
+Tests 155 to 157 and 159 to 190 are used (K2, K3, K7 with 157b, K6, K8, the panel filter, K9, P0.8 probes, 189 the v0.101 check, 190 the activity log); 158 is reserved for A7, so the next free test number is **191**. Large-glyph and very-large-read tests stay in the LAST block.
 
 ## Contradictions and watch points
 
 - **Arial differs on this PC.** It has **4651** glyphs; the old PC had 4548. It may be a different Arial version, but its kerning is unchanged: K2 read `table_size` 1370 and the same 13 pair values as the old probes.
 - Agents may guess whether a kerning value comes from a direct pair or a class: in K5 the agent said four direct pairs "suggests they come from the same class kerning". The reply does not say which. The same in K8 (163, 164): missing pairs "may sit in GPOS lookups". A line in the `get_kerning` agent instruction is a candidate (not approved).
-- FontLab 8.9.5 versus 8.4.2: no difference seen. Writes on 8.9.5: only `create_glyph`, `draw_polygon` and `set_glyph_width` on new glyphs of a new font (K9 setup), all verified and synced.
+- **P0.2 seen live on 8.9.5** (2026-11-01): with no font open, `fontlab_status` gave `font_open: true`, empty names and `path: null`.
+- The change counter showed 9 in a Claude Code session that made no changes, also after a full FontLab restart: the server process outlived the earlier session (inferred).
+- FontLab 8.9.5 versus 8.4.2: no difference seen. Writes on 8.9.5: only `create_glyph`, `draw_polygon` and `set_glyph_width` on new glyphs of a new font (K9 setup, test 190), all verified and synced, and a declined `delete_glyph` (190).

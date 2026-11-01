@@ -3491,3 +3491,238 @@ for _m in _tf_mods:
         if hasattr(_m, _a): delattr(_m, _a)
     _m.flGlyph = P72Mod
 del P72Layer.assignFgLayer; TS85_PKG = _TS85_PKG_ORIG; _fm.CurrentFont = lambda: TsFont(); ns["_confirm_deletion"] = _orig_confirm87; ns["_UNSYNCED_MAX"] = 500
+
+
+# ---- v0.101: start(), the poll loop and /shutdown (cases 1328-1335). A /shutdown handled inside _poll's loop used to be
+# followed by _sock.accept() on None (AttributeError in FontLab's OUTPUT panel, seen live 2026-11-01).
+class PLConn:
+    def __init__(self, raw): self.raw = raw; self.sent = b""; self.closed = False
+    def settimeout(self, t): pass
+    def recv(self, n):
+        chunk, self.raw = self.raw[:n], self.raw[n:]
+        return chunk
+    def sendall(self, b): self.sent += b
+    def close(self): self.closed = True
+class PLSock:
+    def __init__(self, conns): self.conns = list(conns); self.closed = False; self.accepts = 0
+    def accept(self):
+        self.accepts += 1
+        if not self.conns: raise BlockingIOError()
+        return self.conns.pop(0), ("127.0.0.1", 50000)
+    def close(self): self.closed = True
+class PLTimer:
+    def __init__(self): self.stopped = False; self.started = False
+    def setInterval(self, ms): self.ms = ms
+    def connect(self, sig, fn): self.sig = sig
+    def start(self): self.started = True
+    def stop(self): self.stopped = True
+def pl_get(path): return PLConn(("GET " + path + " HTTP/1.1\r\nHost: x\r\n\r\n").encode())
+def pl_status(conn):
+    return conn.sent.split(b"\r\n", 1)[0].decode()[9:12] + " " + conn.sent.partition(b"\r\n\r\n")[2].decode() if conn.sent else "(nothing sent)"
+def pl_poll(tag, conns):
+    sock, timer = PLSock(conns), PLTimer()
+    ns["_sock"], ns["_timer"] = sock, timer
+    try:
+        ns["_poll"](); err = None
+    except Exception as exc:
+        err = f"{type(exc).__name__}: {exc}"
+    print(tag, ": raised", err, "| accepts", sock.accepts, "| left", len(sock.conns), "| socket closed", sock.closed,
+          "| timer stopped", timer.stopped, "| listener running", ns["_sock"] is not None)
+    return sock
+_pl_h, _pl_s, _pl_v = pl_get("/health"), pl_get("/shutdown"), pl_get("/version")
+pl_poll("1328 poll: health, shutdown, version", [_pl_h, _pl_s, _pl_v])
+print("1329 replies                       :", pl_status(_pl_h), "|", pl_status(_pl_s), "|", pl_status(_pl_v), "| closed", _pl_h.closed, _pl_s.closed)
+_pl_v2 = pl_get("/version")
+pl_poll("1330 poll: one request, then none", [_pl_v2])
+print("1331 reply                         :", pl_status(_pl_v2))
+ns["_sock"], ns["_timer"] = None, None
+try:
+    ns["_poll"](); print("1332 poll after stop()             : returns quietly")
+except Exception as exc:
+    print("1332 poll after stop()             : raised", type(exc).__name__, exc)
+_pl_s2 = pl_get("/shutdown")
+pl_poll("1333 poll: shutdown as 8th request", [pl_get("/version") for _ in range(7)] + [_pl_s2])
+ns["_sock"], ns["_timer"] = None, None
+_pl_socket_mod = ns["socket"]
+ns["socket"] = types.SimpleNamespace(AF_INET=2, SOCK_STREAM=1, socket=lambda *a: types.SimpleNamespace(bind=lambda addr: None, listen=lambda n: None, setblocking=lambda b: None))
+qc.QTimer = PLTimer
+print("1334 start() prints:")
+ns["start"]()
+print("1334 start() result                :", "socket set", ns["_sock"] is not None, "| timer started", ns["_timer"].started, "| interval", ns["_timer"].ms, "| signal", ns["_timer"].sig)
+print("1335 first /health after start():")
+call("/health"); call("/health")
+print("1335 (one line above, none for the second /health)")
+ns["socket"] = _pl_socket_mod; del qc.QTimer
+ns["_sock"], ns["_timer"] = None, None
+
+
+# ---- v0.102: the activity log in FontLab's OUTPUT panel (cases 1336-1358). Fixed clock and time of day; replies are built
+# with the listener's own _build_response in the shapes its write functions return (1357 checks those field names exist).
+_al_saved = {k: ns[k] for k in ("_now_hms", "_clock", "_act_print", "_ACTIVITY_LOG")}
+AL_CLOCK = [1000.0]
+ns["_now_hms"] = lambda: "12:00:00"
+ns["_clock"] = lambda: AL_CLOCK[0]
+def al_reset(mode="normal"):
+    ns["_ACTIVITY_LOG"] = mode
+    ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, kern_pairs=0, read_errors=0, last=0.0, pending=False)
+def al(method, path, body, code, reply):
+    raw = json.dumps(body).encode() if isinstance(body, (dict, list)) else (body or b"")
+    ns["_activity_note"](method, path, raw, ns["_build_response"](code, reply))
+def al_tick(advance):
+    AL_CLOCK[0] += advance; ns["_activity_tick"]()
+def al_case(tag): print(tag)
+OK_W = {"open": True, "set": True, "name": "A", "route": "modern", "before": 500.0, "after": 600.0, "requested": 600, "synced_with_fontlab": True}
+
+al_reset(); al_case("1336 create, verified / under another name / exists:")
+al("POST", "/glyph/create", {"name": "kn2A"}, 200, {"open": True, "created": True, "before_count": 4651, "after_count": 4652})
+al("POST", "/glyph/create", {"name": "kn 2B"}, 200, {"open": True, "created": False, "before_count": 4652, "after_count": 4653, "created_under_other_names": ["kn2B"], "reason": "createGlyph() did not raise, but FontLab created a glyph under a different name instead"})
+al("POST", "/glyph/create", {"name": "A"}, 200, {"open": True, "created": False, "reason": "a glyph with this name already exists", "before_count": 3, "after_count": 3})
+al_case("1337 delete, verified / declined / missing / removeGlyph raised:")
+al("POST", "/glyph/delete", {"name": "kn2A"}, 200, {"open": True, "deleted": True, "before_count": 4653, "after_count": 4652})
+al("POST", "/glyph/delete", {"name": "kn2B"}, 200, {"open": True, "deleted": False, "user_declined": True, "reason": "the deletion was not approved in FontLab (dialog answered No or closed)", "before_count": 4652, "after_count": 4652})
+al("POST", "/glyph/delete", {"name": "Q"}, 200, {"open": True, "deleted": False, "reason": "no glyph with this name exists", "before_count": 3, "after_count": 3})
+al("POST", "/glyph/delete", {"name": "kn2C"}, 200, {"open": True, "deleted": False, "call_error": "boom", "before_count": 3, "after_count": 3})
+al_reset(); al_case("1338 six verified widths, then a unicode change (run of 3 shown, 3 counted, flushed by the new kind):")
+for i, g in enumerate("ABCDEF"):
+    al("POST", "/glyph/width", {"name": g, "width": 600 + i}, 200, dict(OK_W, name=g, before=500.0 + i, after=600.0 + i))
+al("POST", "/glyph/unicode", {"name": "kn2A", "unicode": 0xE000}, 200, {"open": True, "set": True, "name": "kn2A", "before": None, "after": 0xE000, "requested": 0xE000})
+al("POST", "/glyph/unicode", {"name": "A", "unicode": 0}, 200, {"open": True, "set": True, "name": "A", "before": 65, "after": None, "requested": 0})
+al("POST", "/glyph/unicode", {"name": "Q", "unicode": 66}, 200, {"open": True, "set": False, "reason": "no glyph named 'Q'", "before": None, "after": None})
+al_reset(); al_case("1339 a run broken by an unsynced width, a width with a warning, and a failed width:")
+for g in "ABCD":
+    al("POST", "/glyph/width", {"name": g, "width": 600}, 200, dict(OK_W, name=g))
+al("POST", "/glyph/width", {"name": "E", "width": 612.5}, 200, dict(OK_W, name="E", after=612.5, synced_with_fontlab=False))
+al("POST", "/glyph/width", {"name": "F", "width": 600}, 200, dict(OK_W, name="F", warning="the left sidebearing changed although only the advance width was set: the outline may have moved"))
+al("POST", "/glyph/width", {"name": "G", "width": 600}, 200, {"open": True, "set": False, "name": "G", "before": 500.0, "after": 500.0, "requested": 600, "reason": "width did not change to the requested value after setting"})
+al("POST", "/glyph/width", {"name": "H", "width": 600}, 200, {"open": True, "found": False, "set": False, "reason": "no glyph named 'H'", "before": None, "after": None})
+al_case("1340 sidebearings, set / already so / refused:")
+al("POST", "/glyph/sidebearings", {"name": "kn2A", "left": 50, "right": 40.25}, 200, {"open": True, "name": "kn2A", "set": True, "changed": True, "after": {"lsb": 50.0, "rsb": 40.25, "advance": 590.25}, "synced_with_fontlab": True})
+al("POST", "/glyph/sidebearings", {"name": "kn2A", "left": 50, "right": 40.25}, 200, {"open": True, "name": "kn2A", "set": True, "changed": False, "after": {"lsb": 50.0, "rsb": 40.25, "advance": 590.25}})
+al("POST", "/glyph/sidebearings", {"name": "kn2B", "left": 50, "right": 50}, 200, {"open": True, "name": "kn2B", "set": False, "reason": "this glyph has no outline, so it has no sidebearings to set: use set_glyph_width for its advance width"})
+al_reset(); al_case("1341 draw, polygon / path with curves / failed after a change / not drawn:")
+al("POST", "/glyph/polygon", {"name": "kn2A", "contours": [[[0, 0], [100, 0], [100, 100], [0, 100]], [[10, 10], [20, 10], [20, 20]]]}, 200, {"open": True, "name": "kn2A", "drawn": True, "route": "modern", "changed": True, "synced_with_fontlab": True})
+al("POST", "/glyph/path", {"name": "kn2B", "contours": [[{"x": 0, "y": 0}, {"x": 100, "y": 0, "c1": {"x": 30, "y": 0}, "c2": {"x": 70, "y": 0}}, {"x": 50, "y": 80}]]}, 200, {"open": True, "name": "kn2B", "drawn": True, "nodes_match": True, "changed": True, "synced_with_fontlab": True})
+al("POST", "/glyph/polygon", {"name": "kn2C", "points": [[0, 0], [100, 0], [50, 80]]}, 200, {"open": True, "name": "kn2C", "drawn": False, "changed": True, "reason": "after drawing, the layer reads 2 shape(s), 6 node(s) and 2 contour(s)"})
+al("POST", "/glyph/path", {"name": "kn2D", "contours": [[{"x": 0, "y": 0}, {"x": 1, "y": 0}, {"x": 0, "y": 1}]]}, 200, {"open": True, "name": "kn2D", "drawn": False, "reason": "the glyph's layer is not KNOWN to be empty"})
+al_case("1342 refused (400), failed (500), no font open, body not JSON, name missing, long texts cut:")
+al("POST", "/glyph/width", {"name": "A", "width": -5}, 400, {"error": '"width" must not be negative'})
+al("POST", "/glyph/unicode", {"name": "A", "unicode": 66}, 500, {"error": "RuntimeError: boom"})
+al("POST", "/glyph/create", {"name": "kn2E"}, 200, {"open": False})
+al("POST", "/glyph/create", b"{not json", 400, {"error": "request body was not valid JSON"})
+al("POST", "/glyph/delete", {}, 400, {"error": '"name" must be a non-empty string'})
+al("POST", "/glyph/create", {"name": "x" * 200}, 400, {"error": "e" * 300})
+al_reset(); al_case("1343 .notdef warning: dialog shown / dialog error / no dialog (counted as a read):")
+al("POST", "/font/notdef/warn", {}, 200, {"open": True, "status": "missing", "evidence": [], "dialog_shown": True, "already_warned": False})
+al("POST", "/font/notdef/warn", {}, 200, {"open": True, "status": "empty", "evidence": [], "dialog_shown": False, "already_warned": False, "dialog_error": "RuntimeError: no box"})
+al("POST", "/font/notdef/warn", {}, 200, {"open": True, "status": "has_outline", "evidence": [], "dialog_shown": False, "already_warned": False})
+print("1343 pending reads:", ns["_ACT"]["reads"])
+al_case("1344 gated probes: answered / refused by the probe / HTTP error; a probe without go=yes is a read:")
+al("GET", "/debug/trypkgkern?a=kn1L&b=kn1R&go=yes", None, 200, {"open": True, "package": {}, "legacy": {}})
+al("GET", "/debug/trypkgkern?a=kn1L&b=kn1R&go=yes", None, 200, {"error": "refused: 20 calls per listener run are used up"})
+al("GET", "/debug/trysync?go=yes", None, 500, {})
+al("GET", "/debug/trypkgkern?a=kn1L&b=kn1R", None, 200, {"error": "refused: add &go=yes"})
+print("1344 pending reads:", ns["_ACT"]["reads"])
+al_reset(); al_case("1345 reads: counted, silent routes skipped, failures counted, nothing printed before the idle time:")
+for p in ("/glyph/outline?name=A", "/glyph/outline?name=B", "/font/current", "/health", "/version", "/glyph/width?name=A", "/font/glyphs"):
+    al("GET", p, None, 200, {"open": True})
+al("GET", "/kerning/pairs?pairs=A:V,T:o", None, 200, {"open": True, "mode": "pairs", "count": 2})
+al("POST", "/kerning/pairs", {"pairs": [["A", "V"], ["V", "A"], ["T", "o"]]}, 200, {"open": True, "mode": "pairs", "count": 3})
+al("GET", "/kerning/pairs?text=AV", None, 400, {"error": "bad"})
+al("GET", "/glyph/outline?name=Q", None, 404, {"error": "no glyph"})
+al("GET", "/nowhere", None, 404, {"error": "unknown endpoint"})
+al_tick(9.9); print("1345 after 9.9 s: (nothing above)")
+al_tick(0.1); print("1345 after 10 s : reads line above; pending", ns["_ACT"]["pending"])
+al_tick(30); print("1345 after 40 s : nothing new")
+al_reset(); al_case("1346 an idle pause ends a run: 2 widths, 10 s idle (no summary: nothing was counted), 2 more widths shown again:")
+for g in "AB":
+    al("POST", "/glyph/width", {"name": g, "width": 600}, 200, dict(OK_W, name=g))
+al_tick(10)
+for g in "CD":
+    al("POST", "/glyph/width", {"name": g, "width": 600}, 200, dict(OK_W, name=g))
+al_reset(); al_case("1347 a reads summary waits during a run and comes before the next kind:")
+for g in "ABCDE":
+    al("GET", "/glyph/width?name=" + g, None, 200, {"open": True})
+    al("POST", "/glyph/width", {"name": g, "width": 600}, 200, dict(OK_W, name=g))
+al("POST", "/glyph/create", {"name": "kn2F"}, 200, {"open": True, "created": True, "before_count": 3, "after_count": 4})
+al_reset(); al_case("1348 mode 'writes': changes printed, reads neither counted nor printed:")
+ns["_ACTIVITY_LOG"] = "writes"
+al("GET", "/glyph/outline?name=A", None, 200, {"open": True})
+al("POST", "/glyph/create", {"name": "kn2G"}, 200, {"open": True, "created": True, "before_count": 4, "after_count": 5})
+al_tick(10); print("1348 reads kept:", ns["_ACT"]["reads"])
+al_reset("off"); al_case("1349 mode 'off': nothing at all:")
+al("POST", "/glyph/create", {"name": "kn2H"}, 200, {"open": True, "created": True, "before_count": 5, "after_count": 6})
+al("GET", "/glyph/outline?name=A", None, 200, {"open": True})
+al_tick(10); print("1349 state:", ns["_ACT"]["reads"], ns["_ACT"]["kind"], ns["_ACT"]["pending"])
+al_reset(); al_case("1350 numbers and code points:")
+print("     ", [ns["_act_num"](v) for v in (600.0, 612.5, -0.25, 1e-9, -1e-9, 0.105, 3, True, None, "7")], [ns["_act_codepoint"](v) for v in (65, 0x1F600, None, True)])
+al_reset(); al_case("1351 broken input never raises (the last reply cannot happen: the route refuses such a body):")
+for args in (("POST", "/glyph/width", b"{}", b""), ("POST", "/glyph/width", b"{}", b"HTTP/1.1 abc"), ("GET", None, b"", b"x"),
+             ("POST", "/glyph/polygon", b'{"name":"A","contours":7}', ns["_build_response"](200, {"open": True, "drawn": True}))):
+    try:
+        ns["_activity_note"](*args); print("      no exception")
+    except Exception as exc:
+        print("      RAISED", type(exc).__name__, exc)
+al_reset(); al_case("1352 a print that raises: the reply is still sent unchanged, and the tick survives:")
+def _al_boom(text): raise RuntimeError("OUTPUT gone")
+ns["_act_print"] = _al_boom
+_al_c = PLConn(b'POST /glyph/width HTTP/1.1\r\nContent-Length: 27\r\n\r\n{"name": "A", "width": -5}\n')
+ns["_handle"](_al_c); print("1352 reply:", pl_status(_al_c))
+ns["_ACT"].update(more=2, kind="width", pending=True)
+try:
+    al_tick(10); print("1352 tick: no exception")
+except Exception as exc:
+    print("1352 tick: RAISED", exc)
+ns["_act_print"] = _al_saved["_act_print"]
+al_reset(); al_case("1353 end to end through _handle: a refused width and a read:")
+_al_c = PLConn(b'POST /glyph/width HTTP/1.1\r\nContent-Length: 27\r\n\r\n{"name": "A", "width": -5}\n')
+ns["_handle"](_al_c); print("1353 reply:", pl_status(_al_c))
+_al_c = pl_get("/font/glyphs"); ns["_handle"](_al_c); print("1353 reads pending:", ns["_ACT"]["reads"])
+al_reset(); al_case("1354 the poll timer prints the summary once the listener is idle:")
+al("GET", "/glyph/outline?name=A", None, 200, {"open": True})
+AL_CLOCK[0] += 10
+pl_poll("1354 poll, no requests", [])
+al_reset(); al_case("1355 /shutdown prints what is pending before 'Listener stopped.':")
+for g in "ABCDE":
+    al("POST", "/glyph/width", {"name": g, "width": 600}, 200, dict(OK_W, name=g))
+al("GET", "/glyph/outline?name=A", None, 200, {"open": True})
+pl_poll("1355 poll: shutdown", [pl_get("/shutdown")])
+al_reset(); al_case("1356 the gated-probe line for a /debug route with go=yes among other parameters:")
+al("GET", "/debug/findnode?name=A&go=yes&index=1", None, 200, {"x": 1})
+_al_src = src[:src.index("# Activity log in FontLab's OUTPUT panel (v0.102)")] + src[src.index("def _handle(conn):"):]
+_al_keys = ("open", "created", "before_count", "after_count", "created_under_other_names", "reason", "call_error", "deleted",
+            "user_declined", "set", "warning", "before", "after", "synced_with_fontlab", "changed", "drawn", "nodes_match",
+            "dialog_shown", "dialog_error", "status", "count", "error", "lsb", "rsb")
+print("1357 reply fields the log reads but the rest of the listener never writes:", [k for k in _al_keys if f'"{k}"' not in _al_src])
+_al_block = src[src.index("# Activity log in FontLab's OUTPUT panel (v0.102)"):src.index("def _handle(conn):")]
+_al_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\n]|\.)*"', '""', _al_block).splitlines())
+print("1358 static scan of the log block: fontlab calls:", _re83.findall(r"\bfl\.\w+|\bfontlab\b|CurrentFont|QMessageBox|(?<!_ACT)\.update\(", _al_code),
+      "| entry points with try/except:", [f for f in ("_activity_note", "_activity_tick") if "try:" in _al_block.split("def " + f)[1].split("\ndef ")[0]])
+for k, v in _al_saved.items(): ns[k] = v
+al_reset(_al_saved["_ACTIVITY_LOG"]); ns["_sock"], ns["_timer"] = None, None
+
+# ---- v0.102 (continued): deletes never collapse; unsynced sidebearings and drawings are always shown (case 1359).
+_al_saved2 = {k: ns[k] for k in ("_now_hms", "_clock")}
+ns["_now_hms"], ns["_clock"] = (lambda: "12:00:00"), (lambda: AL_CLOCK[0])
+al_reset(); al_case("1359 four deletes; four sidebearings and four drawings, the second of each not synced:")
+for g in "ABCD":
+    al("POST", "/glyph/delete", {"name": g}, 200, {"open": True, "deleted": True, "before_count": 9, "after_count": 8})
+for i, g in enumerate("ABCD"):
+    al("POST", "/glyph/sidebearings", {"name": g, "left": 10, "right": 10}, 200, {"open": True, "name": g, "set": True, "changed": True, "after": {"lsb": 10.0, "rsb": 10.0, "advance": 300.0}, "synced_with_fontlab": i != 1})
+for i, g in enumerate("ABCD"):
+    al("POST", "/glyph/polygon", {"name": g, "points": [[0, 0], [10, 0], [0, 10]]}, 200, {"open": True, "name": g, "drawn": True, "changed": True, "synced_with_fontlab": i != 1})
+al_tick(10)
+for k, v in _al_saved2.items(): ns[k] = v
+al_reset(_al_saved["_ACTIVITY_LOG"])
+
+# ---- v0.102 (continued): a warning inside a run is never swallowed; a create that raised is not a success (case 1360).
+_al_saved3 = {k: ns[k] for k in ("_now_hms", "_clock")}
+ns["_now_hms"], ns["_clock"] = (lambda: "12:00:00"), (lambda: AL_CLOCK[0])
+al_reset(); al_case("1360 four verified widths, a fifth with a warning, a sixth verified; then a create whose call raised:")
+for g in "ABCD":
+    al("POST", "/glyph/width", {"name": g, "width": 600}, 200, dict(OK_W, name=g))
+al("POST", "/glyph/width", {"name": "E", "width": 600}, 200, dict(OK_W, name="E", warning="the left sidebearing changed although only the advance width was set: the outline may have moved"))
+al("POST", "/glyph/width", {"name": "F", "width": 600}, 200, dict(OK_W, name="F"))
+al("POST", "/glyph/create", {"name": "kn2J"}, 200, {"open": True, "created": False, "before_count": 9, "after_count": 9, "call_error": "RuntimeError: createGlyph failed"})
+al_tick(10)
+for k, v in _al_saved3.items(): ns[k] = v
+al_reset(_al_saved["_ACTIVITY_LOG"])

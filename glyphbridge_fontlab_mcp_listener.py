@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.100)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.102)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -18,6 +18,9 @@ by the listener waits for a click, no other request is served.
 
 No route ever saves, closes, exports or generates a font. Every write is verified by re-reading
 before success is reported.
+
+ACTIVITY LOG (v0.102): every change is reported in FontLab's OUTPUT panel as one short line, and reads
+as one summary line (see _ACTIVITY_LOG).
 
 Routes (GET unless marked POST):
 
@@ -105,6 +108,7 @@ Routes (GET unless marked POST):
 import datetime
 import json
 import socket
+import time
 from urllib.parse import urlsplit, parse_qs
 
 import fontlab as fl
@@ -120,7 +124,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.100"
+VERSION = "0.102"
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
 
@@ -6069,8 +6073,9 @@ def _route(method, full_path, body=b""):
             if not _connection_announced:
                 _connection_announced = True
                 ts = datetime.datetime.now().strftime("%H:%M:%S")
-                print(f"[glyphbridge] Connected at {ts} - an AI agent (Claude) has checked in "
-                      f"and is talking to this FontLab session.")
+                # Any local client can send it (--check, a PowerShell call), so the line does not name an agent.
+                print(f"[glyphbridge] Connected at {ts} - first request (GET /health) from a local client "
+                      f"to this FontLab session.")
             return _build_response(200, {"status": "ok"})
 
         if path == "/version":
@@ -6679,6 +6684,206 @@ def _parse_headers(head_bytes):
     return headers
 
 
+# --------------------------------------------------------------------------
+# Activity log in FontLab's OUTPUT panel (v0.102). One short line per change, built ONLY from the request and the reply
+# (never a fontlab call), so it says "verified" only where the reply's own re-read says so. Refusals, errors, declined
+# deletes, unverified or unsynced results and gated probes (go=yes) are always printed. A run of the same verified change
+# shows _ACTIVITY_RUN_SHOWN lines and then one "N more like this" line; reads are only counted and printed as one
+# "reads:" line. Both summaries are printed when a different change starts, after _ACTIVITY_IDLE_S seconds without a
+# request (checked by the poll timer), or at /shutdown. Every entry point swallows its own errors: logging can never
+# change a reply.
+# --------------------------------------------------------------------------
+_ACTIVITY_LOG = "normal"     # "normal" (changes and read summaries), "writes" (changes only) or "off"
+_ACTIVITY_RUN_SHOWN = 3      # verified changes of one kind printed in a row before they are only counted
+_ACTIVITY_IDLE_S = 10.0      # an agent's tool calls arrive seconds apart, so a shorter pause would split one run into many
+_ACTIVITY_TEXT_MAX = 120     # longest reason or name quoted in a line
+
+_ACT = {"kind": None, "shown": 0, "more": 0, "reads": {}, "kern_pairs": 0, "read_errors": 0, "last": 0.0, "pending": False}
+
+_ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/width": "width",
+               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/glyph/polygon": "draw",
+               "/glyph/path": "draw", "/font/notdef/warn": ".notdef"}
+_ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
+              "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
+              "/font/current": "font info", "/font/notdef": ".notdef check", "/font/notdef/warn": ".notdef check",
+              "/font/nonempty": "empty-glyph scan", "/kerning/pairs": "kerning"}
+_ACT_SILENT = ("/health", "/version", "/shutdown")
+
+
+def _now_hms():
+    return datetime.datetime.now().strftime("%H:%M:%S")
+
+
+def _clock():
+    return time.monotonic()
+
+
+def _act_print(text):
+    print(f"[glyphbridge] {_now_hms()} {text}")
+
+
+def _act_text(value):
+    text = " ".join(str(value).split())
+    return text if len(text) <= _ACTIVITY_TEXT_MAX else text[:_ACTIVITY_TEXT_MAX - 3] + "..."
+
+
+def _act_num(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "?"
+    if float(value).is_integer():
+        return str(int(value))
+    text = f"{value:.2f}".rstrip("0").rstrip(".")
+    return "0" if text in ("0", "-0") else text
+
+
+def _act_codepoint(value):
+    return f"U+{value:04X}" if isinstance(value, int) and not isinstance(value, bool) else "none"
+
+
+def _act_flush():
+    """Print the pending run summary, then the pending reads summary, and forget both."""
+    if _ACT["more"]:
+        _act_print(f"{_ACT['kind']}: {_ACT['more']} more like this, all verified")
+    if _ACT["reads"]:
+        parts = [f"{label} {n} ({_ACT['kern_pairs']} pairs)" if label == "kerning" else f"{label} {n}"
+                 for label, n in _ACT["reads"].items()]
+        errors = f" ({_ACT['read_errors']} refused or failed)" if _ACT["read_errors"] else ""
+        _act_print("reads: " + ", ".join(parts) + errors)
+    _ACT.update(kind=None, shown=0, more=0, reads={}, kern_pairs=0, read_errors=0, pending=False)
+
+
+def _act_change(kind, text, collapsible):
+    if collapsible and kind == _ACT["kind"]:
+        if _ACT["shown"] < _ACTIVITY_RUN_SHOWN:
+            _ACT["shown"] += 1
+            _act_print(text)
+        else:
+            _ACT["more"] += 1
+        return
+    _act_flush()
+    _act_print(text)
+    if collapsible:
+        _ACT.update(kind=kind, shown=1)
+
+
+def _act_describe_write(path, payload, code, reply):
+    """(line, collapsible) for one write request, or (None, False) for a .notdef warning request that showed no dialog."""
+    kind = _ACT_WRITES[path]
+    name = payload.get("name") if isinstance(payload, dict) else None
+    head = f"{kind} {_act_text(name.strip())}" if isinstance(name, str) and name.strip() else (kind if kind == ".notdef" else f"{kind} ?")
+    if code != 200 or not isinstance(reply, dict):
+        error = reply.get("error") if isinstance(reply, dict) else None
+        return f"{'REFUSED' if code == 400 else 'FAILED'} {head}: {_act_text(error or f'HTTP {code}')}", False
+    if reply.get("open") is False:
+        return f"REFUSED {head}: no font is open", False
+    why = _act_text(reply.get("reason") or reply.get("call_error") or "not confirmed by the re-read")
+    unsynced = reply.get("synced_with_fontlab") is False
+    sync = ", NOT synced with FontLab" if unsynced else ""
+    if kind == ".notdef":
+        if reply.get("dialog_shown") is True:
+            return f".notdef: warning dialog shown (.notdef is {_act_text(reply.get('status'))})", False
+        if reply.get("dialog_error"):
+            return f"FAILED .notdef warning: {_act_text(reply['dialog_error'])}", False
+        return None, False
+    if kind == "create":
+        if reply.get("created") is True:
+            return f"{head}: created (verified, glyphs {_act_num(reply.get('before_count'))} -> {_act_num(reply.get('after_count'))})", True
+        others = reply.get("created_under_other_names")
+        instead = f"; FontLab created {_act_text(', '.join(map(str, others)))} instead" if others else ""
+        return f"NOT DONE {head}: {why}{instead}", False
+    if kind == "delete":
+        if reply.get("deleted") is True:
+            return f"{head}: deleted after your Yes (verified, glyphs {_act_num(reply.get('before_count'))} -> {_act_num(reply.get('after_count'))})", False
+        if reply.get("user_declined") is True:
+            return f"{head}: you answered No in FontLab, nothing deleted", False
+        return f"NOT DONE {head}: {why}", False
+    if kind == "width":
+        if reply.get("set") is True:
+            warning = f"; WARNING: {_act_text(reply['warning'])}" if reply.get("warning") else ""
+            line = f"{head}: {_act_num(reply.get('before'))} -> {_act_num(reply.get('after'))} (verified{sync}){warning}"
+            return line, not (warning or unsynced)
+        return f"NOT DONE {head}: {why}", False
+    if kind == "sidebearings":
+        if reply.get("set") is True:
+            after = reply.get("after") if isinstance(reply.get("after"), dict) else {}
+            same = ", already so" if reply.get("changed") is False else ""
+            return f"{head}: L {_act_num(after.get('lsb'))}, R {_act_num(after.get('rsb'))} (verified{same}{sync})", not unsynced
+        return f"NOT DONE {head}: {why}", False
+    if kind == "unicode":
+        if reply.get("set") is True:
+            return f"{head}: {_act_codepoint(reply.get('before'))} -> {_act_codepoint(reply.get('after'))} (verified)", True
+        return f"NOT DONE {head}: {why}", False
+    # draw (/glyph/polygon or /glyph/path): sizes from the request, success from the reply
+    payload = payload if isinstance(payload, dict) else {}
+    lists = payload.get("contours") if payload.get("contours") is not None else [payload.get("points")]
+    lists = [c for c in lists if isinstance(c, list)] if isinstance(lists, list) else []
+    points = sum(len(c) for c in lists)
+    curved = sum(1 for c in lists for p in c if isinstance(p, dict) and p.get("c1") is not None)
+    size = (f"{len(lists)} contour{'' if len(lists) == 1 else 's'}, {points} points" + (f", {curved} curved" if curved else "")
+            if points else "size unreadable")
+    if reply.get("drawn") is True:
+        match = ", nodes match" if reply.get("nodes_match") is True else ""
+        return f"{head}: {size} (verified{match}{sync})", not unsynced
+    changed = "; the glyph DID change" if reply.get("changed") is True else ""
+    return f"NOT DONE {head}: {why}{changed}", False
+
+
+def _activity_note(method, raw_path, body, response):
+    """Log one served request (called by _handle with the reply about to be sent). Never raises."""
+    try:
+        if _ACTIVITY_LOG == "off":
+            return
+        split = urlsplit(raw_path)
+        path, query = split.path, parse_qs(split.query)
+        code = int(response[9:12])
+
+        def reply():
+            try:
+                return json.loads(response.partition(b"\r\n\r\n")[2].decode("utf-8"))
+            except Exception:
+                return None
+
+        _ACT["last"], _ACT["pending"] = _clock(), True
+        if method == "POST" and path in _ACT_WRITES:
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except Exception:
+                payload = None
+            line, collapsible = _act_describe_write(path, payload, code, reply())
+            if line:
+                _act_change(_ACT_WRITES[path], line, collapsible)
+                return
+        elif method == "GET" and path.startswith("/debug/") and "yes" in query.get("go", []):
+            answer = reply()
+            error = answer.get("error") if isinstance(answer, dict) else None
+            if not error and code != 200:
+                error = f"HTTP {code}"
+            _act_change("probe", f"probe {path} (go=yes): " + (f"error: {_act_text(error)}" if error else "answered"), False)
+            return
+        if path in _ACT_SILENT or _ACTIVITY_LOG == "writes":
+            return
+        label = _ACT_READS.get(path) or ("probe, read-only" if path.startswith("/debug/") else "other")
+        _ACT["reads"][label] = _ACT["reads"].get(label, 0) + 1
+        if code != 200:
+            _ACT["read_errors"] += 1
+        elif label == "kerning":
+            answer = reply()
+            count = answer.get("count") if isinstance(answer, dict) else None
+            if isinstance(count, int) and not isinstance(count, bool):
+                _ACT["kern_pairs"] += count
+    except Exception:
+        pass
+
+
+def _activity_tick():
+    """Called on every poll: print the summaries once no request came for _ACTIVITY_IDLE_S seconds. Never raises."""
+    try:
+        if _ACT["pending"] and _clock() - _ACT["last"] >= _ACTIVITY_IDLE_S:
+            _act_flush()
+    except Exception:
+        pass
+
+
 def _handle(conn):
     try:
         conn.settimeout(1.0)
@@ -6712,7 +6917,9 @@ def _handle(conn):
             body += chunk
         body = body[:content_length]
 
-        conn.sendall(_route(method, path, body))
+        response = _route(method, path, body)
+        _activity_note(method, path, body, response)  # before sending: a change is logged even if the client is gone
+        conn.sendall(response)
         if method == "GET" and path == "/shutdown":
             stop()
     except Exception:
@@ -6725,7 +6932,10 @@ def _handle(conn):
 
 
 def _poll():
+    _activity_tick()
     for _ in range(8):
+        if _sock is None:  # a /shutdown handled earlier in this loop has closed the socket
+            return
         try:
             conn, _addr = _sock.accept()
         except (BlockingIOError, InterruptedError):
@@ -6746,6 +6956,10 @@ def stop():
         except Exception:
             pass
         _sock = None
+    try:
+        _act_flush()  # the summaries still pending
+    except Exception:
+        pass
     print("[glyphbridge] Listener stopped.")
 
 
@@ -6775,7 +6989,7 @@ def start():
 
     print(f"[glyphbridge] glyphbridge_fontlab_mcp_listener.py v{VERSION}")
     print(f"[glyphbridge] Listener started on http://{HOST}:{PORT} (main-thread polling)")
-    print("[glyphbridge] Try: GET /health, GET /font/current, POST /glyph/create, POST /glyph/delete, POST /glyph/width, POST /glyph/sidebearings, POST /glyph/unicode")
+    print("[glyphbridge] Try: GET /health, GET /version. All routes are listed at the top of this file.")
 
 
 start()

@@ -20,7 +20,7 @@
 1u  scan_unicode '66' (ignored)               -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1v  scan_unicode 1114112 (ignored)            -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1h  no font open                       -> (200, {'open': False})
-1i  /version                           -> {'version': '0.100'}
+1i  /version                           -> {'version': '0.102'}
 
 ==== 2. server create_glyph: fields and agent_instruction (faked listener replies) ====
 2a  'B' assigned 66 (matches)             -> {'unicode': 66, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': True}
@@ -209,7 +209,7 @@
 6k  docstrings: create mentions refusal: False | set mentions codepoint 0: True | no stale claim: True
 
 ==== 7. fontlab_status: server_version, listener_version, compatibility_note ====
-[glyphbridge] Connected at HH:MM:SS - an AI agent (Claude) has checked in and is talking to this FontLab session.
+[glyphbridge] Connected at HH:MM:SS - first request (GET /health) from a local client to this FontLab session.
 7a  real listener behind the server  -> fields: ['family_name', 'font_open', 'listener_reachable', 'listener_version', 'path', 'server_version', 'style_name']
     listener_version matches the listener's VERSION: True | server_version matches SERVER_VERSION: True | compatibility_note: False
 7b  listener 0.81 (the minimum)     -> {'listener_reachable': True, 'listener_version': '0.81', 'note': True}
