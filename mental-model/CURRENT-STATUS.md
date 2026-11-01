@@ -42,6 +42,7 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 
 ## Next steps (the user's priority of 2026-10-27, still in force)
 
+0. **Housekeeping build first** (listener 0.96, server 0.32): move the docstring version history out of both scripts ([DECISIONS.md](DECISIONS.md)). To be proposed in detail and built only after the approval phrase.
 1. **K-series of kerning live tests** ([LIVE-TESTS.md](LIVE-TESTS.md)). K1 is done. Suggested order: K2, K3, K4, K5, K7, K6, K8, K9, K10, K11, K12, K13, K14, K16. K15 goes in the last block.
 2. Then the **T-series**: T2 (`finish_changes` live), T3 (an open editor tab during a write, highest value), T4.
 3. Candidates after that (none approved): P0.2, a `CountFonts()`-based "font open" check for every route; P0.3 / P0.4, a create-font tool; P1.1, components.

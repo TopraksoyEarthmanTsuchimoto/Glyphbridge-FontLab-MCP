@@ -42,7 +42,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 ## Archive
 
 [archive/](archive/README.md) holds snapshots and retired material:
-- [archive/milestone-summary-v11.md](archive/milestone-summary-v11.md): the last chat-era hand-off, verbatim.
+- [archive/milestone-summary-v11.md](archive/milestone-summary-v11.md): the last chat-era hand-off, personal details removed.
 - [archive/scenarios-checklist-v11.md](archive/scenarios-checklist-v11.md): the full scenario matrix with its DONE rows, verbatim.
 - [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md): superseded decisions.
 

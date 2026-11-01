@@ -8,7 +8,7 @@
 
 **CLOSED (do not repeat):** v8 list (sidebearings and width on a curved glyph; O with counter vs the GUI; diagonal-node circle; S-like blob; smooth gate at 0.33 / 2.73 degrees, zero-length handle on a smooth node, c1 = c2, line-to-handle smooth node, negative x; refusals create no layer; 180- and 990-node draws; `fontlab_status` version reporting). v10: the stale legacy view (fixed at the source by `Update(flGlyph)` and by the 0.88 fallback); the guard live (139a / 139b, 142: a drawing survives a create, and a synced glyph survives a later `font.update()`); first glyph of a new font (layer `Regular` from the package master); margin comparison on a scaled and on a skewed glyph (143); `fillFgData` is useless; sidebearings and width are carried by the sync (141, 142). Evidence only from stubs: the layer guard's own refusal path (8h); the failed-sync path of 0.89.
 
-### PRIORITY FOR THE NEXT SESSION: K-SERIES, the remaining live tests about getting and reading kerning values (decision of the user, 2026-10-27; do these BEFORE the T-series below)
+### K-series: reading kerning (current priority, decision of the user of 2026-10-27; before the T-series)
 
 **Stage for all K tests:** FontLab started, **Arial opened from the system** (`:/Arial: Normal`, 4548 glyphs on the old PC; **4651 glyphs on the new PC with FontLab 8.9.5**, so it may be a different Arial version: re-check `table_size` and the K2 values before trusting them), listener **v0.95** running (Output panel says "v0.95"), server v0.31 in Claude Desktop (fully restarted). Nothing is written by these tests (pure reads), so nothing can be damaged and nothing needs saving. One variable per test; FontLab's KERNING panel is the oracle (the user reads it and reports the numbers). Numbering continues from **155** (A4 to A7 in Appendix A use 155 to 158). Predicted values come from probes 150, 151, 154b; the stub values of the tests (for example `A:space` -113) are FAKES and must not be used as expectations.
 
@@ -33,7 +33,7 @@
 
 **Ready for the first K session:** K1, K2, K3 (A4, A5) need only PowerShell; K4 to K8 and K16 need the agent in Claude Desktop with the new server; K9 to K11 need the user at the KERNING panel / a text line; K12 and K13 need FontLab restarts (give the stage-setting steps from scratch). Suggested order: K1, K2, K3, K4, K5, K7, K6, K8, K9, K10, K11, K12, K13, K14, K16, then K15 with the LAST block.
 
-### SCHEDULED LIVE TESTS, T-SERIES (from v10; do them after the K-series unless the user chooses otherwise; their commands A2 / A3 are numbered 144a / 144b / 145 and were never run; the next free test number is **155**, which the K-series uses)
+### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are tests 144a / 144b / 145, prepared but never run)
 
 | Id | Test | Stage / how | Expected | Status |
 |---|---|---|---|---|
