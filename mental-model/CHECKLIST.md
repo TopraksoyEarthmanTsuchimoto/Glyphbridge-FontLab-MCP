@@ -15,12 +15,7 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 
 | # | Scenario | Status |
 |---|---|---|
-| 66 | K2: listener route on the 13 probe-proven pairs | TODO. Re-check the expectations: Arial differs on this PC |
-| 67 | K3: POST equals GET | TODO |
-| 68 | K4: three pairs through the agent | TODO |
-| 69 | K5: `text` mode against the KERNING panel | TODO |
 | 70 | K6: special characters in `text` | TODO |
-| 71 | K7: error cases | TODO |
 | 72 | K8: approval flow at 250 / 251 / 324 pairs | TODO |
 | 73 | K9: exact pair overriding a class value | TODO |
 | 74 | K10: `font.kerning` versus kerning applied to text | TODO, high value |
@@ -84,4 +79,4 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 |---|---|---|
 | 17, 42, 64 | Large glyphs: 1980-node request, 2001-node refusal, read 1000+ nodes, time of `Update` against the 5 s timeout | POSTPONED |
 
-Closed on 2026-11-01: row 33 (tests refreshed and passing on the user's machine), row 65 (K1 deployment check).
+Closed on 2026-11-01: row 33 (tests refreshed and passing on the user's machine), row 65 (K1 deployment check), row 66 (K2 listener route), row 67 (K3 POST equals GET), row 68 (K4 three pairs through the agent), row 69 (K5 `text` mode against the KERNING panel), row 71 (K7 error cases).

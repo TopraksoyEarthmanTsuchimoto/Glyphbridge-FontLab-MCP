@@ -33,4 +33,4 @@ Scope and non-goals: [PROJECT.md](PROJECT.md).
 
 ## Status in one line
 
-Listener 0.95 and server 0.31 run on Windows 11 with FontLab 8.9.5. Reading, writing basic geometry and reading kerning work. Components, multi-master fonts and saving workflows are open. See [CURRENT-STATUS.md](CURRENT-STATUS.md).
+Listener 0.96 and server 0.32 run on Windows 11 with FontLab 8.9.5. Reading, writing basic geometry and reading kerning work. Components, multi-master fonts and saving workflows are open. See [CURRENT-STATUS.md](CURRENT-STATUS.md).

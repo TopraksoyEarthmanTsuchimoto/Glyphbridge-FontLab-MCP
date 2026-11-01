@@ -24,6 +24,7 @@ Live checks done today:
 - `--check` gave four `[OK]` lines.
 - `fontlab_status` gave server 0.31, listener 0.95, no `compatibility_note`, and `get_kerning` was listed.
 - The tests ran on the new machine for the first time and passed: 1489 + 58 + 90 + 668 lines, the deployed listener copy identical.
+- After the v0.96 / v0.32 deploy: `fontlab_status` gave server 0.32, listener 0.96, no `compatibility_note`.
 
 Setup steps: [RUNBOOK.md](RUNBOOK.md).
 
@@ -32,7 +33,7 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 - **Reading:** outlines with element transforms (scale, offset, slant), cubic and quadratic outlines, Power Brush output, widths, sidebearings, the stale-view fallback. → [topics/reading.md](topics/reading.md)
 - **Writing:** create and delete glyphs (name safety rules), Unicode set and clear, width, sidebearings, closed straight and cubic contours into an empty glyph, auto sync after every modern write. → [topics/geometry.md](topics/geometry.md), [topics/names-unicode.md](topics/names-unicode.md), [topics/fonts-and-sync.md](topics/fonts-and-sync.md)
 - **`.notdef`** check and one-time dialog. → [topics/notdef.md](topics/notdef.md)
-- **Kerning:** the FontLab call `font.kerning.get` was proven on Arial by probes. **The `get_kerning` tool itself has not yet been run live**, only stub- and mutation-tested. → [topics/kerning.md](topics/kerning.md)
+- **Kerning:** the FontLab call `font.kerning.get` was proven on Arial by probes. The listener route `/kerning/pairs` was run live on 2026-11-01: GET (K2) gave all 13 values as predicted, and POST (K3) gave identical answers. The `get_kerning` tool ran live through the Claude Desktop chat (K4): one call, three pairs, correct values. In `text` mode all 10 pairs of K5 equal FontLab's KERNING panel; the zeros become conclusive with K10. Bad requests are refused live with specific messages, and an unknown glyph is reported as unreadable, never as zero (K7). → [topics/kerning.md](topics/kerning.md)
 
 ## Not proven or not built
 
@@ -42,14 +43,14 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 
 ## Next steps (the user's priority of 2026-10-27, still in force)
 
-1. **K-series of kerning live tests** ([LIVE-TESTS.md](LIVE-TESTS.md)). K1 is done. Suggested order: K2, K3, K4, K5, K7, K6, K8, K9, K10, K11, K12, K13, K14, K16. K15 goes in the last block.
+1. **K-series of kerning live tests** ([LIVE-TESTS.md](LIVE-TESTS.md)). K1 to K5 and K7 are done. Suggested order: K6, K8, K9, K10, K11, K12, K13, K14, K16. K15 goes in the last block.
 2. Then the **T-series**: T2 (`finish_changes` live), T3 (an open editor tab during a write, highest value), T4.
 3. Candidates after that (none approved): P0.2, a `CountFonts()`-based "font open" check for every route; P0.3 / P0.4, a create-font tool; P1.1, components.
 
-The next free test number is **155**. Large-glyph and very-large-read tests stay in the LAST block.
+Tests 155 to 157 are used (K2, K3, K7 with 157b); 158 is reserved for A7, so the next free test number is **159**. Large-glyph and very-large-read tests stay in the LAST block.
 
 ## Contradictions and watch points
 
-- **Arial differs on this PC.** It has **4651** glyphs; the old PC had 4548. It may be a different Arial version, so the K2 expectations (`table_size` 1370, the pair values) must be re-checked rather than assumed.
+- **Arial differs on this PC.** It has **4651** glyphs; the old PC had 4548. It may be a different Arial version, but its kerning is unchanged: K2 read `table_size` 1370 and the same 13 pair values as the old probes.
+- Agents may guess whether a kerning value comes from a direct pair or a class: in K5 the agent said four direct pairs "suggests they come from the same class kerning". The reply does not say which. A line in the `get_kerning` agent instruction is a candidate (not approved).
 - FontLab 8.9.5 versus 8.4.2: no difference seen in today's read-only checks. Write behaviour has not been re-tested on 8.9.5.
-- Two listener comments still point to "the milestone summary" (code text only; [ROADMAP.md](ROADMAP.md) P5).

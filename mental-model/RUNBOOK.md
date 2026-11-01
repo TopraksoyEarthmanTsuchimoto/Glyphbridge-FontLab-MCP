@@ -84,6 +84,12 @@ $o='157_kern_errors.txt'; $h='http://127.0.0.1:8765'; function Gb($m,$p,$b){ "==
 ```
 Expected: every answer except the third is HTTP 400 with a specific message (`ERR` lines with the message body); the third is HTTP 200 with `errors` 1: the pair `A:Qzq` has `error` "no glyph named 'Qzq'" and `A:V` still reads -152.
 
+**A6b. K7 (test 157b): names and control characters, with HTTP status codes.**
+```
+$o='157b_kern_names.txt'; $h='http://127.0.0.1:8765'; $n63='x'*63; $n64='x'*64; $bodies=@('{"pairs":[["A B","V"]]}','{"pairs":[["A:V","B"]]}',('{"pairs":[["'+$n64+'","V"]]}'),('{"pairs":[["'+$n63+'","V"]]}'),'{"text":"A\u0001V"}','{"text":"A\tV"}'); foreach($b in $bodies){ try { $r=Invoke-WebRequest "$h/kerning/pairs" -Method Post -Body $b -ContentType 'application/json' -UseBasicParsing; "$($r.StatusCode) $b`n$($r.Content)" | Out-File $o -Append -Encoding utf8 } catch { "$([int]$_.Exception.Response.StatusCode) $b`n$($_.ErrorDetails.Message)" | Out-File $o -Append -Encoding utf8 } }
+```
+Expected: 400 with the NAME:NAME message for the first three; 200 with `errors` 1 ("no glyph named …") for the 63-character name; 400 "text must not contain control characters" for the last two. Names are stripped first, so a leading or trailing space is accepted.
+
 **A7. K11 (test 158): names only, the OpenType features object of the font (nothing is called).**
 ```
 $o='158_features.txt'; $h='http://127.0.0.1:8765'; function Gb($m,$p,$b){ "== $(Get-Date -Format HH:mm:ss) $m $p $b" | Out-File $o -Append -Encoding utf8; try { $r=Invoke-RestMethod "$h$p"; ($r | ConvertTo-Json -Depth 10 -Compress) | Out-File $o -Append -Encoding utf8 } catch { "ERR $_ $($_.ErrorDetails.Message)" | Out-File $o -Append -Encoding utf8 } }; Gb GET '/debug/fontdir?stage=sub&attr=features'
