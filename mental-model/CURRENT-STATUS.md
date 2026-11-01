@@ -1,4 +1,4 @@
-Last verified: 2026-11-01 against commit d254df6 plus the v0.96 / v0.32 housekeeping build (committed right after)
+Last verified: 2026-11-01 against commit 23fc0c4
 
 # Current status
 
