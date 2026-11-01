@@ -29,6 +29,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 | [RUNBOOK.md](RUNBOOK.md) | machine setup, restart rules, PowerShell conventions, re-verify steps, ready commands |
 | [LIVE-TESTS.md](LIVE-TESTS.md) | the K-series and T-series live tests in full |
 | [ROADMAP.md](ROADMAP.md) | work items P0–P5 and LAST; known limits |
+| [CHANGELOG.md](CHANGELOG.md) | one entry per release of the two scripts |
 | [LESSONS.md](LESSONS.md) | incidents and method lessons |
 | [topics/server-and-endpoints.md](topics/server-and-endpoints.md) | every server tool and listener route, switches, save policy mechanics |
 | [topics/reading.md](topics/reading.md) | how a glyph is read: kinds, transforms, layers, bridge, stale view |
@@ -45,6 +46,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 - [archive/milestone-summary-v11.md](archive/milestone-summary-v11.md): the last chat-era hand-off, personal details removed.
 - [archive/scenarios-checklist-v11.md](archive/scenarios-checklist-v11.md): the full scenario matrix with its DONE rows, verbatim.
 - [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md): superseded decisions.
+- [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md): the old module docstrings with the full version history.
 
 ## Where the sections of milestone summary v11 went
 

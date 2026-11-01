@@ -1,4 +1,4 @@
-Last verified: 2026-11-01 against commit 8d464b0
+Last verified: 2026-11-01 against commit d254df6 plus the v0.96 / v0.32 housekeeping build (committed right after)
 
 # Current status
 
@@ -6,11 +6,11 @@ Last verified: 2026-11-01 against commit 8d464b0
 
 | Part | Version | md5 (as committed) |
 |---|---|---|
-| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.95"` | `873913621428a2c4e3d1f8a43c02be27` |
-| server `glyphbridge_mcp_server.py` | `SERVER_VERSION = "0.31"`, `MIN_LISTENER_VERSION` (0, 82) | `dedcc8366021f9fdfd20cd2aaa16d48f` |
+| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.96"` | `5759859d82dbf2d9a1f75e1a7e8a3a4c` (311,546 bytes) |
+| server `glyphbridge_mcp_server.py` | `SERVER_VERSION = "0.32"`, `MIN_LISTENER_VERSION` (0, 82) | `7d8c99950725ddbd795ff9b26fd39e31` (144,054 bytes) |
 | tests | 4 harnesses | PASS at **1489 + 58 + 90 + 668** lines |
 
-Both md5s equal the identity recorded at the v11 hand-off. No code has changed since then.
+v0.96 / v0.32 changed text only: a parsed-code comparison with v0.95 / v0.31 shows identical code apart from the version constants ([CHANGELOG.md](CHANGELOG.md)). All live evidence of v0.95 / v0.31 therefore still applies.
 
 ## Environment (verified 2026-11-01)
 
@@ -42,7 +42,6 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 
 ## Next steps (the user's priority of 2026-10-27, still in force)
 
-0. **Housekeeping build first** (listener 0.96, server 0.32): move the docstring version history out of both scripts ([DECISIONS.md](DECISIONS.md)). To be proposed in detail and built only after the approval phrase.
 1. **K-series of kerning live tests** ([LIVE-TESTS.md](LIVE-TESTS.md)). K1 is done. Suggested order: K2, K3, K4, K5, K7, K6, K8, K9, K10, K11, K12, K13, K14, K16. K15 goes in the last block.
 2. Then the **T-series**: T2 (`finish_changes` live), T3 (an open editor tab during a write, highest value), T4.
 3. Candidates after that (none approved): P0.2, a `CountFonts()`-based "font open" check for every route; P0.3 / P0.4, a create-font tool; P1.1, components.

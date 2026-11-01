@@ -26,5 +26,7 @@ Snapshots and retired material. Nothing here is current: live facts are in the f
 | [milestone-summary-v11.md](milestone-summary-v11.md) | the last chat-era hand-off (listener 0.95 / server 0.31, 2026-10-27), unchanged except for personal details; its sections now live in the files mapped in MARKDOWN-MAP |
 | [scenarios-checklist-v11.md](scenarios-checklist-v11.md) | the full 80-row scenario matrix of v11 with its evidence, verbatim |
 | [DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md) | superseded decisions |
+| [listener-history-to-v0.95.md](listener-history-to-v0.95.md) | the listener's module docstring at v0.95, with its version history, unchanged |
+| [server-history-to-v0.31.md](server-history-to-v0.31.md) | the server's module docstring at v0.31, with its version history, unchanged |
 
 The two v11 snapshots keep their chat-era wording on purpose. On 2026-11-01 the summary's personal details were removed before publishing: the old user folder became `<user>`, the time zone and locale were dropped, and pronouns became "the user". The checklist needed no change.
