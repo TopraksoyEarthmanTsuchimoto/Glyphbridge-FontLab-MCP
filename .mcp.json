@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "glyphbridge-fontlab": {
+      "type": "stdio",
+      "command": "venv/Scripts/python.exe",
+      "args": ["glyphbridge_mcp_server.py"]
+    }
+  }
+}

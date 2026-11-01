@@ -1,0 +1,668 @@
+==== 1. listener POST /glyph/create reports the Unicode of the new glyph ====
+1a  'B'  (standard)                    -> 200 {'created': True, 'unicode': 66, 'unicode_status': 'assigned'}
+1b  'eacute' (Adobe Glyph List name)   -> 200 {'created': True, 'unicode': 233, 'unicode_status': 'assigned'}
+1c  'zzcontrol', FontLab says 0        -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
+1d  'zzcontrol', FontLab says None     -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
+1e  'B', reading .unicode raises       -> 200 {'created': True, 'unicode': None, 'unicode_status': 'unreadable', 'unicode_error': 'unicode read failed'}
+1f  createGlyph does nothing           -> 200 {'created': False, 'reason': 'createGlyph() did not raise, but the glyph is not in font.glyphs afterward'}
+1g  name already exists                -> 200 {'created': False, 'reason': 'a glyph with this name already exists'}
+1j  e-acute at the end of a name (stripped)   -> 200 {'created': False, 'created_under_other_names': ['eacut'], 'reason': 'createGlyph() did not raise, but FontLab created a glyph under a different name instead'}
+1k  a lone e-acute (name becomes EMPTY)       -> 200 {'created': False, 'created_under_other_names': [''], 'reason': 'createGlyph() did not raise, but FontLab created a glyph under a different name instead'}
+1l  ...and an empty-named glyph already there -> 200 {'created': False, 'created_under_other_names': [''], 'reason': 'createGlyph() did not raise, but FontLab created a glyph under a different name instead'}
+1m  'a b' (space stripped)                    -> 200 {'created': False, 'created_under_other_names': ['ab'], 'reason': 'createGlyph() did not raise, but FontLab created a glyph under a different name instead'}
+1n  B, scan 66, B.alt already holds 66        -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none', 'duplicate_check': {'scanned': 1, 'also_held_by': ['B.alt'], 'unreadable': 0}}
+1o  B, scan 66, nobody holds it (assigned)    -> 200 {'created': True, 'unicode': 66, 'unicode_status': 'assigned'}
+1p  zzcontrol, scan 66 (none, nobody holds)   -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none', 'duplicate_check': {'scanned': 1, 'also_held_by': [], 'unreadable': 0}}
+1q  zzcontrol, scan 65: A is the holder       -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none', 'duplicate_check': {'scanned': 1, 'also_held_by': ['A'], 'unreadable': 0}}
+1r  zzcontrol, no scan_unicode field          -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
+1s  scan_unicode True (ignored)               -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
+1t  scan_unicode 0 (ignored)                  -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
+1u  scan_unicode '66' (ignored)               -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
+1v  scan_unicode 1114112 (ignored)            -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
+1h  no font open                       -> (200, {'open': False})
+1i  /version                           -> {'version': '0.95'}
+
+==== 2. server create_glyph: fields and agent_instruction (faked listener replies) ====
+2a  'B' assigned 66 (matches)             -> {'unicode': 66, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': True}
+     instruction: FontLab already assigned Unicode 66 (U+0042) to 'B' from its name: do NOT call set_glyph_unicode unless the person wants a different value. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2b  'eacute' assigned 233 (not judged)    -> {'unicode': 233, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': None}
+     instruction: FontLab already assigned Unicode 233 (U+00E9) to 'eacute' from its name: do NOT call set_glyph_unicode unless the person wants a different value. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2c  'zzcontrol' none                      -> {'unicode': None, 'unicode_status': 'none', 'unicode_assigned_by_fontlab': False, 'unicode_matches_standard': None}
+     instruction: FontLab assigned no Unicode to 'zzcontrol'. That is normal for non-standard names (alternates such as 'A.alt', ligatures such as 'f_i', work glyphs): leave it unencoded. BUT if it is a standard glyph name (for example an accented letter such as 'eacute'), FontLab skips its automatic assignment when another glyph already holds that codepoint (seen live): look for that glyph before treating this one as unencoded on purpose. Call set_glyph_unicode only if the person asks for a specific codepoint; never guess one. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2d  single char 'Q' but none              -> {'unicode': None, 'unicode_status': 'none', 'unicode_assigned_by_fontlab': False, 'unicode_matches_standard': False}
+     instruction: FontLab assigned no Unicode, but 'Q' is a single-character name that states 81 (U+0051); FontLab normally maps such names by itself (seen live). Could not check whether another glyph already holds it (is the listener older than v0.51?). You may set it with set_glyph_unicode and should tell the person. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2e  'B' but FontLab gave 67 (wrong)       -> {'unicode': 67, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': False}
+     instruction: FontLab assigned Unicode 67 (U+0043), but the single-character name 'B' stands for 66 (U+0042). Tell the person; change it with set_glyph_unicode only if they agree. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2f  unreadable                            -> {'unicode': None, 'unicode_status': 'unreadable', 'unicode_assigned_by_fontlab': None, 'unicode_matches_standard': None}
+     instruction: The glyph's Unicode could not be read right after creation (boom); call check_glyph_unicode to find out before using set_glyph_unicode. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2g  OLDER listener (no unicode fields)    -> {'unicode': None, 'unicode_status': 'unknown', 'unicode_assigned_by_fontlab': None, 'unicode_matches_standard': None}
+     instruction: The listener did not report a Unicode status (is it older than v0.49? restart it with the current file); call check_glyph_unicode to find out before using set_glyph_unicode. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2h  'assigned' with a non-codepoint value -> {'unicode': None, 'unicode_status': 'unknown', 'unicode_assigned_by_fontlab': None, 'unicode_matches_standard': None}
+     instruction: The listener's Unicode report was not usable (status 'assigned', value '66'); call check_glyph_unicode to find out before using set_glyph_unicode. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2i  'assigned' with True                  -> {'unicode': None, 'unicode_status': 'unknown', 'unicode_assigned_by_fontlab': None, 'unicode_matches_standard': None}
+     instruction: The listener's Unicode report was not usable (status 'assigned', value True); call check_glyph_unicode to find out before using set_glyph_unicode. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2n  'uni00E9' none (no holder info)       -> {'unicode': None, 'unicode_status': 'none', 'unicode_assigned_by_fontlab': False, 'unicode_matches_standard': False}
+     instruction: FontLab assigned no Unicode, but 'uni00E9' is a uniXXXX name that states 233 (U+00E9); FontLab normally maps such names by itself (seen live). Could not check whether another glyph already holds it (is the listener older than v0.51?). You may set it with set_glyph_unicode and should tell the person. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2o  'uni00E9' assigned 233 (matches)      -> {'unicode': 233, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': True}
+     instruction: FontLab already assigned Unicode 233 (U+00E9) to 'uni00E9' from its name: do NOT call set_glyph_unicode unless the person wants a different value. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2p  'uni00E9' assigned 234 (wrong)        -> {'unicode': 234, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': False}
+     instruction: FontLab assigned Unicode 234 (U+00EA), but the uniXXXX name 'uni00E9' stands for 233 (U+00E9). Tell the person; change it with set_glyph_unicode only if they agree. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2q  'u1F600' none                         -> {'unicode': None, 'unicode_status': 'none', 'unicode_assigned_by_fontlab': False, 'unicode_matches_standard': False}
+     instruction: FontLab assigned no Unicode, but 'u1F600' is a uXXXX name that states 128512 (U+1F600); FontLab normally maps such names by itself (seen live). Could not check whether another glyph already holds it (is the listener older than v0.51?). You may set it with set_glyph_unicode and should tell the person. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2r  'uniD800' (surrogate) none            -> {'unicode': None, 'unicode_status': 'none', 'unicode_assigned_by_fontlab': False, 'unicode_matches_standard': None}
+     instruction: FontLab assigned no Unicode to 'uniD800'. That is normal for non-standard names (alternates such as 'A.alt', ligatures such as 'f_i', work glyphs): leave it unencoded. BUT if it is a standard glyph name (for example an accented letter such as 'eacute'), FontLab skips its automatic assignment when another glyph already holds that codepoint (seen live): look for that glyph before treating this one as unencoded on purpose. Call set_glyph_unicode only if the person asks for a specific codepoint; never guess one. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2s  'uni00E90041' (a sequence) none       -> {'unicode': None, 'unicode_status': 'none', 'unicode_assigned_by_fontlab': False, 'unicode_matches_standard': None}
+     instruction: FontLab assigned no Unicode to 'uni00E90041'. That is normal for non-standard names (alternates such as 'A.alt', ligatures such as 'f_i', work glyphs): leave it unencoded. BUT if it is a standard glyph name (for example an accented letter such as 'eacute'), FontLab skips its automatic assignment when another glyph already holds that codepoint (seen live): look for that glyph before treating this one as unencoded on purpose. Call set_glyph_unicode only if the person asks for a specific codepoint; never guess one. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2t  'uni00e9' (lowercase) none            -> {'unicode': None, 'unicode_status': 'none', 'unicode_assigned_by_fontlab': False, 'unicode_matches_standard': None, 'name_warnings': ["The name uses lowercase hex digits; the naming convention requires UPPERCASE (use 'uni00E9'). FontLab maps lowercase hex anyway (seen live: 'uni00e8' -> 232), but other tools may not."]}
+     instruction: FontLab assigned no Unicode to 'uni00e9'. That is normal for non-standard names (alternates such as 'A.alt', ligatures such as 'f_i', work glyphs): leave it unencoded. BUT if it is a standard glyph name (for example an accented letter such as 'eacute'), FontLab skips its automatic assignment when another glyph already holds that codepoint (seen live): look for that glyph before treating this one as unencoded on purpose. Call set_glyph_unicode only if the person asks for a specific codepoint; never guess one. The name_warnings are hints only (the glyph WAS created); mention them to the person. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2m  naming hint is appended to the instruction -> nish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written. | 1 warning
+2u  B none, B.alt holds 66                 -> {'unicode_status': 'none', 'unicode_matches_standard': False, 'also_held_by': ['B.alt'], 'glyphs_scanned': 5}
+     instruction: FontLab assigned no Unicode, most likely because B.alt already holds U+0042 (seen live: FontLab skips its automatic assignment when another glyph holds the codepoint). 'B' states 66. Setting it would create a duplicate: tell the person and ask which glyph should keep the codepoint; do not set it on your own. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2v  B none, two holders                    -> {'unicode_status': 'none', 'unicode_matches_standard': False, 'also_held_by': ['B.alt', 'B.sc'], 'glyphs_scanned': 5}
+     instruction: FontLab assigned no Unicode, most likely because B.alt, B.sc already hold U+0042 (seen live: FontLab skips its automatic assignment when another glyph holds the codepoint). 'B' states 66. Setting it would create a duplicate: tell the person and ask which glyph should keep the codepoint; do not set it on your own. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2w  uni00E9 none, clean scan, no holder    -> {'unicode_status': 'none', 'unicode_matches_standard': False, 'also_held_by': [], 'glyphs_scanned': 5}
+     instruction: FontLab assigned no Unicode, but 'uni00E9' is a uniXXXX name that states 233 (U+00E9); FontLab normally maps such names by itself (seen live). No other glyph was found holding it. You may set it with set_glyph_unicode and should tell the person. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2x  uni00E9 none, 2 unreadable glyphs      -> {'unicode_status': 'none', 'unicode_matches_standard': False, 'also_held_by': [], 'glyphs_scanned': 3}
+     instruction: FontLab assigned no Unicode, but 'uni00E9' is a uniXXXX name that states 233 (U+00E9); FontLab normally maps such names by itself (seen live). 2 glyph(s) could not be read, so a holder among them cannot be ruled out. You may set it with set_glyph_unicode and should tell the person. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2y  uni00E9 none, scan failed              -> {'unicode_status': 'none', 'unicode_matches_standard': False, 'also_held_by': [], 'glyphs_scanned': 0}
+     instruction: FontLab assigned no Unicode, but 'uni00E9' is a uniXXXX name that states 233 (U+00E9); FontLab normally maps such names by itself (seen live). The scan for other holders failed (boom), so a holder cannot be ruled out. You may set it with set_glyph_unicode and should tell the person. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2z  uni00E9 none, a holder AND unreadable  -> {'unicode_status': 'none', 'unicode_matches_standard': False, 'also_held_by': ['eacute'], 'glyphs_scanned': 3}
+     instruction: FontLab assigned no Unicode, most likely because eacute already holds U+00E9 (seen live: FontLab skips its automatic assignment when another glyph holds the codepoint). 'uni00E9' states 233. Setting it would create a duplicate: tell the person and ask which glyph should keep the codepoint; do not set it on your own. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+2za assigned: a stray duplicate_check is not used -> {'unicode_status': 'assigned', 'unicode_matches_standard': None}
+2zb non-standard name: holders ignored (no stated codepoint) -> {'unicode_status': 'none', 'unicode_matches_standard': None}
+-- names FontLab would strip are refused BEFORE the listener is called
+2zc  '\xe9'           -> refused | listener calls: 0 | Glyph name 'é' was NOT sent to FontLab: it contains characters FontLab silentl ...  its standard ASCII name (for e-acute: 'eacute' or 'uni00E9').
+2zc  'eacut\xe9'      -> refused | listener calls: 0 | Glyph name 'eacuté' was NOT sent to FontLab: it contains characters FontLab si ...  its standard ASCII name (for e-acute: 'eacute' or 'uni00E9').
+2zc  'a b'            -> refused | listener calls: 0 | Glyph name 'a b' was NOT sent to FontLab: it contains characters FontLab silen ...  Use only A-Z a-z 0-9 . _ -; use '_' or '-' instead of spaces.
+2zc  'tab\there'      -> refused | listener calls: 0 | Glyph name 'tab\there' was NOT sent to FontLab: it contains characters FontLab ...  Use only A-Z a-z 0-9 . _ -; use '_' or '-' instead of spaces.
+2zc  'x\x00y'         -> refused | listener calls: 0 | Glyph name 'x\x00y' was NOT sent to FontLab: it contains characters FontLab si ... under the altered name, here 'xy'. Use only A-Z a-z 0-9 . _ -.
+2zc  '\xe9\xe8'       -> refused | listener calls: 0 | Glyph name 'éè' was NOT sent to FontLab: it contains characters FontLab silent ...  its standard ASCII name (for e-acute: 'eacute' or 'uni00E9').
+2zc  'caf\xe9'        -> refused | listener calls: 0 | Glyph name 'café' was NOT sent to FontLab: it contains characters FontLab sile ...  its standard ASCII name (for e-acute: 'eacute' or 'uni00E9').
+2zc  'a#b/c*d:e'      -> refused | listener calls: 0 | Glyph name 'a#b/c*d:e' was NOT sent to FontLab: it contains characters FontLab ... on such as # / * : + @ ! $ % & ( ) ~ = or replace it with '_'.
+2zc  'p+q@r!s$t%u&v(w)x~y=z' -> refused | listener calls: 0 | Glyph name 'p+q@r!s$t%u&v(w)x~y=z' was NOT sent to FontLab: it contains charac ... on such as # / * : + @ ! $ % & ( ) ~ = or replace it with '_'.
+2zc  'x/y'            -> refused | listener calls: 0 | Glyph name 'x/y' was NOT sent to FontLab: it contains characters FontLab silen ... on such as # / * : + @ ! $ % & ( ) ~ = or replace it with '_'.
+2zc  "q'r"            -> refused | listener calls: 0 | Glyph name "q'r" was NOT sent to FontLab: it contains characters FontLab silen ... on such as # / * : + @ ! $ % & ( ) ~ = or replace it with '_'.
+2zc  'q"r'            -> refused | listener calls: 0 | Glyph name 'q"r' was NOT sent to FontLab: it contains characters FontLab silen ... on such as # / * : + @ ! $ % & ( ) ~ = or replace it with '_'.
+2zc  'q\\r'           -> refused | listener calls: 0 | Glyph name 'q\\r' was NOT sent to FontLab: it contains characters FontLab sile ... on such as # / * : + @ ! $ % & ( ) ~ = or replace it with '_'.
+2zc  'q[r]'           -> refused | listener calls: 0 | Glyph name 'q[r]' was NOT sent to FontLab: it contains characters FontLab sile ... on such as # / * : + @ ! $ % & ( ) ~ = or replace it with '_'.
+2zc  'q{r}'           -> refused | listener calls: 0 | Glyph name 'q{r}' was NOT sent to FontLab: it contains characters FontLab sile ... on such as # / * : + @ ! $ % & ( ) ~ = or replace it with '_'.
+2zc  'q<r>'           -> refused | listener calls: 0 | Glyph name 'q<r>' was NOT sent to FontLab: it contains characters FontLab sile ... on such as # / * : + @ ! $ % & ( ) ~ = or replace it with '_'.
+2zc  'q,r;s?t'        -> refused | listener calls: 0 | Glyph name 'q,r;s?t' was NOT sent to FontLab: it contains characters FontLab s ... on such as # / * : + @ ! $ % & ( ) ~ = or replace it with '_'.
+2zc  'q^r|s`t'        -> refused | listener calls: 0 | Glyph name 'q^r|s`t' was NOT sent to FontLab: it contains characters FontLab s ... on such as # / * : + @ ! $ % & ( ) ~ = or replace it with '_'.
+-- names built from the safe set, or with a warning FontLab accepts, are NOT refused
+2zf  m-n_o.p      -> accepted | listener calls: 1 | warnings: 0
+2zf  9lives       -> accepted | listener calls: 1 | warnings: 1
+2zf  .hidden      -> accepted | listener calls: 1 | warnings: 1
+2zf  A.alt        -> accepted | listener calls: 1 | warnings: 0
+2zf  f_i          -> accepted | listener calls: 1 | warnings: 0
+2zf  uni00E9      -> accepted | listener calls: 1 | warnings: 0
+2zf  aaaaaa...(64) -> accepted | listener calls: 1 | warnings: 1
+2zf  kkkkkk...(130) -> accepted | listener calls: 1 | warnings: 1
+-- what is sent to the listener
+2zd  B          -> ('/glyph/create', {'name': 'B', 'scan_unicode': 66})
+2zd  uni00E9    -> ('/glyph/create', {'name': 'uni00E9', 'scan_unicode': 233})
+2zd  u1F600     -> ('/glyph/create', {'name': 'u1F600', 'scan_unicode': 128512})
+2zd  zzcontrol  -> ('/glyph/create', {'name': 'zzcontrol'})
+2zd  A.alt      -> ('/glyph/create', {'name': 'A.alt'})
+2zd  uniD800    -> ('/glyph/create', {'name': 'uniD800'})
+-- a glyph appeared under another name (the server's message)
+2ze  ['eacut'] -> Glyph 'a-b' was NOT created, but FontLab DID create a glyph under a different name instead: 'eacut'. It strips characters it does not accept from names. That glyph is now in the font: tell the person; delete_glyph can remove it. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save.
+2ze  [''] -> Glyph 'a-b' was NOT created, but FontLab DID create a glyph under a different name instead: an EMPTY name. It strips characters it does not accept from names. That glyph is now in the font: tell the person; a glyph with an empty name cannot be deleted with delete_glyph, which needs a name. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save.
+2ze  ['', 'x'] -> Glyph 'a-b' was NOT created, but FontLab DID create a glyph under a different name instead: an EMPTY name, 'x'. It strips characters it does not accept from names. That glyph is now in the font: tell the person; a glyph with an empty name cannot be deleted with delete_glyph, which needs a name. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save.
+2j  name is stripped; keys in order     -> ['created', 'name', 'glyph_count_before', 'glyph_count_after', 'unicode', 'unicode_status', 'unicode_assigned_by_fontlab', 'unicode_matches_standard', 'agent_instruction', 'font_modified']
+2k  failed creation still raises         -> Glyph 'B' was NOT created: a glyph with this name already exists
+2l  no font open still raises            -> FontLab is running and the listener answered, but 
+
+==== 3. name_warnings (hints only; the glyph is created regardless) ====
+3   'B'                      -> no warnings
+3   '7'                      -> no warnings
+3   'A.alt'                  -> no warnings
+3   'f_i'                    -> no warnings
+3   'uni00E9'                -> no warnings
+3   'my-glyph'               -> no warnings
+3   'eacute'                 -> no warnings
+3   '.notdef'                -> no warnings
+3   '9lives'                 -> ['The name starts with a digit. FontLab accept']
+3   '.hidden'                -> ['The name starts with a period. FontLab accep']
+3   'xxxxxxxx...(64)'        -> ['The name is 64 characters long. FontLab acce']
+3   'xxxxxxxx...(63)'        -> no warnings
+3   'xxxxxxxx...(130)'       -> ['The name is 130 characters long. FontLab acc']
+3   'uni00e9'                -> ['The name uses lowercase hex digits; the nami']
+3   'uni00E'                 -> ['The name looks like a uniXXXX / uXXXX name b']
+3   'uni00E90041'            -> no warnings
+3   'u1F600'                 -> no warnings
+3   'u00e9'                  -> ['The name uses lowercase hex digits; the nami']
+3   'unite'                  -> no warnings
+3   'uniform'                -> no warnings
+3   'uni00e8'                -> ['The name uses lowercase hex digits; the nami']
+3   'u1f600'                 -> ['The name uses lowercase hex digits; the nami']
+3   'uni00e90041'            -> ['The name uses lowercase hex digits; the nami']
+3   'uni00E9004'             -> ['The name looks like a uniXXXX / uXXXX name b']
+3   'u00E9X'                 -> no warnings
+3b  full text, lowercase hex  : The name uses lowercase hex digits; the naming convention requires UPPERCASE (use 'uni00E8'). FontLab maps lowercase hex anyway (seen live: 'uni00e8' -> 232), but other tools may not.
+3c  full text, wrong length    : The name looks like a uniXXXX / uXXXX name but does not follow the convention (uni needs 4 hex digits per codepoint, u needs 4 to 6), so a codepoint most likely cannot be derived from it (not tested in FontLab).
+3d  suggested fix for u1f600   : The name uses lowercase hex digits; the naming convention requires UPPERCASE (us
+
+==== 4. end to end: stub FontLab -> real listener -> real server ====
+4a  B -> {'unicode': 66, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': True} | warnings: 0
+4a  eacute -> {'unicode': 233, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': None} | warnings: 0
+4a  zzcontrol -> {'unicode': None, 'unicode_status': 'none', 'unicode_assigned_by_fontlab': False, 'unicode_matches_standard': None} | warnings: 0
+4a  9lives -> {'unicode': None, 'unicode_status': 'none', 'unicode_assigned_by_fontlab': False, 'unicode_matches_standard': None} | warnings: 1
+4b  full reply for 'A.alt': {"created": true, "name": "A.alt", "glyph_count_before": 6, "glyph_count_after": 7, "unicode": null, "unicode_status": "none", "unicode_assigned_by_fontlab": false, "unicode_matches_standard": null, "agent_instruction": "FontLab assigned no Unicode to 'A.alt'. That is normal for non-standard names (alternates such as 'A.alt', ligatures such as 'f_i', work glyphs): leave it unencoded. Call set_glyph_unicode only if the person asks for a specific codepoint; never guess one. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.", "font_modified": true}
+4c  set_glyph_unicode('B', 66) after creation   -> {'unicode_before': 66, 'unicode_after': 66, 'changed': False} | note starts: Nothing changed: the glyph already
+4d  set_glyph_unicode('zzcontrol', 0xE000)      -> {'unicode_before': None, 'unicode_after': 57344, 'changed': True} | note: None
+4e  ...same call again                          -> {'unicode_before': 57344, 'unicode_after': 57344, 'changed': False} | note starts: Nothing changed: the glyph already
+4f  unknown glyph still raises                  -> No glyph named 'nosuch' was found.
+4g  docstrings mention the rule: create_glyph: True | set_glyph_unicode: True
+
+==== 5. duplicate codepoints: listener scan, server warning, end to end ====
+5a  uni00E9 -> 233, eacute holds it         -> {'set': True, 'before': None, 'after': 233, 'duplicate_check': {'scanned': 3, 'also_held_by': ['eacute'], 'unreadable': 0}}
+5b  uni00E9 -> 8364, nobody holds it        -> {'set': True, 'before': None, 'after': 8364, 'duplicate_check': {'scanned': 3, 'also_held_by': [], 'unreadable': 0}}
+5c  two other holders                       -> {'set': True, 'before': None, 'after': 233, 'duplicate_check': {'scanned': 4, 'also_held_by': ['eacute', 'eacute.alt'], 'unreadable': 0}}
+5d  an unreadable glyph in the font         -> {'set': True, 'before': None, 'after': 233, 'duplicate_check': {'scanned': 3, 'also_held_by': ['eacute'], 'unreadable': 1}}
+5e  A -> 65 (A itself is not 'another')     -> {'set': True, 'before': 65, 'after': 65, 'duplicate_check': {'scanned': 3, 'also_held_by': [], 'unreadable': 0}}
+5f  clearing: uni00E9 -> 0                  -> {'set': True, 'before': None, 'after': None}
+5f2 clearing a glyph that already has none -> {'set': True, 'before': None, 'after': None}
+5g  glyph does not exist                    -> {'set': False, 'before': None, 'after': None}
+5h  font.glyphs raises (helper direct)      -> {'scanned': 0, 'also_held_by': [], 'unreadable': 0, 'scan_error': 'glyphs unreadable'}
+5i  one other holder                        -> {'changed': True, 'also_held_by': ['eacute'], 'glyphs_scanned': 3, 'duplicate_warning': 'U+00E9 is now held by 2 glyphs: this one and eacute. FontLab accepted the duplicate silently. Two glyphs on one character is normally a mistake: tell the person and ask whether the other glyph(s) should lose the codepoint; nothing was changed automatically.'}
+        duplicate_warning: U+00E9 is now held by 2 glyphs: this one and eacute. FontLab accepted the duplicate silently. Two glyphs on one character is normally a mistake: tell the person and ask whether the other glyph(s) should lose the codepoint; nothing was changed automatically.
+5j  two other holders                       -> {'changed': True, 'also_held_by': ['eacute', 'eacute.alt'], 'glyphs_scanned': 4, 'duplicate_warning': 'U+00E9 is now held by 3 glyphs: this one and eacute, eacute.alt. FontLab accepted the duplicate silently. Two glyphs on one character is normally a mistake: tell the person and ask whether the other glyph(s) should lose the codepoint; nothing was changed automatically.'}
+        duplicate_warning: U+00E9 is now held by 3 glyphs: this one and eacute, eacute.alt. FontLab accepted the duplicate silently. Two glyphs on one character is normally a mistake: tell the person and ask whether the other glyph(s) should lose the codepoint; nothing was changed automatically.
+5k  nobody, clean scan                      -> {'changed': True, 'also_held_by': [], 'glyphs_scanned': 3}
+5l  nobody found but 2 unreadable           -> {'changed': True, 'also_held_by': [], 'glyphs_scanned': 3, 'duplicate_note': '2 glyph(s) could not be read, so a duplicate among them cannot be ruled out.'}
+        duplicate_note: 2 glyph(s) could not be read, so a duplicate among them cannot be ruled out.
+5m  scan failed                             -> {'changed': True, 'also_held_by': [], 'glyphs_scanned': 0, 'duplicate_note': 'The duplicate scan failed (boom), so duplicates cannot be ruled out.'}
+        duplicate_note: The duplicate scan failed (boom), so duplicates cannot be ruled out.
+5n  OLDER listener (no duplicate_check)     -> {'changed': True, 'duplicate_check': 'unavailable (the listener did not report it: is it older than v0.50?)'}
+5o  clearing (codepoint 0): no scan, no claim -> {'changed': True}
+5o2 clearing a glyph that has none          -> {'changed': False}
+5o3 OLDER listener (< 0.51) still reports clearing as a failure -> Unicode codepoint of glyph 'uni00E9' was NOT changed: unicode did not change to the requested value after setting
+-- end to end, the live scenario: eacute holds 233, then uni00E9 is created and set
+5p  create uni00E9                          -> {'unicode': None, 'unicode_status': 'none', 'unicode_matches_standard': False} 
+       instruction: FontLab assigned no Unicode, most likely because eacute already holds U+00E9 (seen live: FontLab skips its automatic assignment when another glyph holds the codepoint). 'uni00E9' states 233. Setting it would create a duplicate: tell the person and ask which glyph should keep the codepoint; do not set it on your own. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+5q  check_glyph_unicode before setting      -> {'unicode': None, 'has_unicode': False, 'expected_unicode': 233, 'matches_standard': False}
+5r  set_glyph_unicode('uni00E9', 233)       -> {'changed': True, 'also_held_by': ['eacute'], 'glyphs_scanned': 2, 'duplicate_warning': 'U+00E9 is now held by 2 glyphs: this one and eacute. FontLab accepted the duplicate silently. Two glyphs on one character is normally a mistake: tell the person and ask whether the other glyph(s) should lose the codepoint; nothing was changed automatically.'} 
+       warning: U+00E9 is now held by 2 glyphs: this one and eacute. FontLab accepted the duplicate silently. Two glyphs on one character is normally a mistake: tell the person and ask whether the other glyph(s) should lose the codepoint; nothing was changed automatically.
+5s  check_glyph_unicode after setting       -> {'unicode': 233, 'expected_unicode': 233, 'matches_standard': True}
+5t  check_glyph_unicode('eacute')           -> {'unicode': 233, 'expected_unicode': None, 'matches_standard': None} | note starts: This glyph's name is not a single character and does not sta
+5u  docstrings: set mentions also_held_by: True | create mentions uniXXXX: True | check mentions uni00E9: True
+
+==== 6. end to end: the three live fixes (stub FontLab -> real listener -> real server) ====
+6a  create B while B.alt holds 66           -> {'unicode_status': 'none', 'unicode_matches_standard': False, 'also_held_by': ['B.alt'], 'glyphs_scanned': 2} 
+       instruction: FontLab assigned no Unicode, most likely because B.alt already holds U+0042 (seen live: FontLab skips its automatic assignment when another glyph holds the codepoint). 'B' states 66. Setting it would create a duplicate: tell the person and ask which glyph should keep the codepoint; do not set it on your own. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+6b  create C (nobody holds 67)              -> {'unicode_status': 'assigned', 'unicode_matches_standard': True, 'unicode': 67}
+6c  eacute then uni00E9: the second gets none -> {'unicode': 233, 'unicode_status': 'assigned'} {'unicode': None, 'unicode_status': 'none', 'also_held_by': ['eacute']}
+       instruction for uni00E9: FontLab assigned no Unicode, most likely because eacute already holds U+00E9 (seen live: FontLab skips its automatic assignment when another glyph holds the codepoint). 'uni00E9' states 233. Setting it would create a duplicate: tell the person and ask which glyph should keep the codepoint; do not set it on your own. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+6d  plain non-standard name                 -> {'unicode_status': 'none'} 
+       instruction: FontLab assigned no Unicode to 'zzcontrol'. That is normal for non-standard names (alternates such as 'A.alt', ligatures such as 'f_i', work glyphs): leave it unencoded. BUT if it is a standard glyph name (for example an accented letter such as 'eacute'), FontLab skips its automatic assignment when another glyph already holds that codepoint (seen live): look for that glyph before treating this one as unencoded on purpose. Call set_glyph_unicode only if the person asks for a specific codepoint; never guess one. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+6e  suffixed name                           -> {'unicode_status': 'none'} | mentions 'BUT': False
+6f  '\xe9'         -> refused; font unchanged: True
+6f  'eacut\xe9'    -> refused; font unchanged: True
+6f  'a b'          -> refused; font unchanged: True
+6f  'a#b/c*d:e'    -> refused; font unchanged: True
+6g  a glyph appears under another name (hypothetical '-' stripping) -> Glyph 'a-b' was NOT created, but FontLab DID create a glyph under a different name instead: 'ab'. It strips characters it does not accept fr ...
+       glyphs now: ['.notdef', 'ab']
+6h  set_glyph_unicode('B.alt', 0)           -> {'unicode_before': 66, 'unicode_after': None, 'changed': True}
+6i  check_glyph_unicode('B.alt') afterwards -> {'unicode': None, 'has_unicode': False}
+6j  clearing again                          -> {'changed': False, 'note': 'Nothing changed: the glyph already had no Unicode.'}
+6k  docstrings: create mentions refusal: False | set mentions codepoint 0: True | no stale claim: True
+
+==== 7. fontlab_status: server_version, listener_version, compatibility_note ====
+[glyphbridge] Connected at HH:MM:SS - an AI agent (Claude) has checked in and is talking to this FontLab session.
+7a  real listener behind the server  -> fields: ['family_name', 'font_open', 'listener_reachable', 'listener_version', 'path', 'server_version', 'style_name']
+    listener_version matches the listener's VERSION: True | server_version matches SERVER_VERSION: True | compatibility_note: False
+7b  listener 0.81 (the minimum)     -> {'listener_reachable': True, 'listener_version': '0.81', 'note': True}
+7c  listener 0.50 (older)           -> {'listener_reachable': True, 'listener_version': '0.50', 'note': True}
+7d  listener 0.9 (much older)       -> {'listener_reachable': True, 'listener_version': '0.9', 'note': True}
+7e  listener 1.0 (newer)            -> {'listener_reachable': True, 'listener_version': '1.0', 'note': False}
+7f  listener 0.81.1                 -> {'listener_reachable': True, 'listener_version': '0.81.1', 'note': True}
+7g  unparseable 'abc'               -> {'listener_reachable': True, 'listener_version': 'abc', 'note': False}
+7h  unparseable '0.5x'              -> {'listener_reachable': True, 'listener_version': '0.5x', 'note': False}
+7i  /version answers without a version -> {'listener_reachable': True, 'listener_version': 'unknown', 'note': False}
+7j  version is a number, not text   -> {'listener_reachable': True, 'listener_version': 'unknown', 'note': False}
+7k  version is blank                -> {'listener_reachable': True, 'listener_version': 'unknown', 'note': False}
+7l  /version fails (very old listener) -> {'listener_reachable': True, 'listener_version': 'unknown (the listener did not answer /version)', 'note': False}
+7m  the note itself                 -> This server expects listener v0.82 or newer (modern advance width and sidebearing tools, automatic layer creation, draw_polygon with several contours, draw_path with curves, whole-unit rounding reports, the layer guard (a second draw never replaces an outline) and reading API-drawn outlines, clearing a codepoint with 0, holders reported at creation, glyphs created under another name); the running listener is v0.50. Copy the current listener file into FontLab's Scripts folder and restart it.
+7n  the fields stay in front of the font details -> ['listener_reachable', 'font_open', 'server_version', 'listener_version', 'compatibility_note', 'family_name', 'style_name', 'path']
+7o  header versions equal the constants: server True | listener True
+7p  fontlab_status docstring mentions the versions: True
+
+==== 8. save policy: nothing is ever saved; ONE bold reminder per task package (server v0.18) ====
+8a  create: font_modified: True | instruction names finish_changes: True | says do NOT remind per step: True
+8b  finish_changes -> {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+8c  the reminder text: **You must save if you want to keep these changes: use the File menu or press Ctrl+S in FontLab.**
+8d  bold: True | names File menu and Ctrl+S: True | equals SAVE_REMINDER: True | mentions a dialog: False
+8e  second finish_changes (same package) -> {'changes': 0, 'uncertain': 0, 'reminder_given': False} | note: Nothing was changed through Glyphbridge since the last finish_changes call (or since the server started), so no save reminder is due now. Do not invent one. Changes from EARLIER packages in this session may still be unsaved: Glyphbridge cannot see whether the person saved.
+8f  three creates: [True, True, True] | width new / repeated: True False | unicode new / repeated: True False
+8g  the repeated (no-op) writes carry no save instruction: True
+8h  delete (faked Yes in FontLab): font_modified: True
+8i  status before the package ends -> {'glyphbridge_changes_this_session': 6, 'glyphbridge_uncertain_changes_this_session': 0}
+8j  ONE finish_changes for the whole package (3 creates + 1 width + 1 unicode + 1 delete) -> {'changes': 6, 'uncertain': 0, 'reminder_given': True}
+8k  status after finish_changes (session total stays) -> {'glyphbridge_changes_this_session': 6, 'glyphbridge_uncertain_changes_this_session': 0} | save_note present: True
+8l  status with no change made: glyphbridge fields absent: True
+-- nothing changed, nothing counted
+8m  name with a space (refused) -> error
+8m  name that already exists   -> error
+8m  write to a missing glyph   -> error
+8n  delete declined in FontLab        -> error
+8o  finish_changes -> {'changes': 0, 'uncertain': 0, 'reminder_given': False} | note says do not invent one: True
+-- a failed create that still changed the font
+8p  error still names the other glyph: True | says it counts as a change: True
+8q  finish_changes -> {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+-- outcome unknown (timeout / unusable reply)
+8r  create timed out -> error; says it may or may not have been applied: True
+8r  width timed out -> error; says it may or may not have been applied: True
+8r  unicode timed out -> error; says it may or may not have been applied: True
+8r  delete timed out -> error; says it may or may not have been applied: True
+8s  finish_changes -> {'changes': 0, 'uncertain': 4, 'reminder_given': True} | uncertain_note: True | bold reminder: True
+8t  listener not reachable (nothing was sent) -> plain ToolError | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+8u  a READ that times out is not counted -> {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+-- which transport errors count as 'outcome unknown' (real _do_request, fake opener)
+8v  TimeoutError         -> OutcomeUnknown
+8v  URLError(timeout)    -> OutcomeUnknown
+8v  HTTP 500             -> OutcomeUnknown
+8v  connection refused   -> plain ToolError
+8v  OSError              -> plain ToolError
+8v  reply not JSON       -> OutcomeUnknown
+8v  reply is a JSON list -> OutcomeUnknown
+8v  valid reply          -> returned {'a': 1}
+-- nothing in Glyphbridge may save: a spy font and a static scan
+8w  save-like members called on the font or on the fontlab module: []
+8x  glyphbridge_fontlab_mcp_listener.py -> save / export / generate call syntax found: []
+8x  glyphbridge_mcp_server.py -> save / export / generate call syntax found: []
+8y  the server never touches a FontLab dialog class: True
+-- wording and tool surface
+8z  finish_changes is a tool function: True | docstring says ONCE: True | says it changes nothing in FontLab: True
+8za write tool docstrings say the tool NEVER saves: [True, True, True, True]
+8zb the instruction added to every real change: The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+8zc the note added to an unknown outcome:       The request may or may not have been applied, so the font may have been modified: check its state before repeating the change, and when your task package is finished call finish_changes once so the person is reminded to save.
+
+==== 9. server 0.19: set_glyph_sidebearings, get_glyph_sidebearings, set_glyph_width extras (faked listener replies) ====
+9a  set 88/77        -> {'name': 'tri', 'verified': True, 'left_before': 0, 'left_after': 88, 'right_before': 0, 'right_after': 77, 'advance_width_before': 500, 'advance_width_after': 665, 'ink_width': 500, 'note': 'advance width = left + ink width + right; the outline moved, its shape did not change.', 'display_note': 'NOTE', 'font_modified': True, 'agent_instruction': "The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written."}
+9b  sent to the listener -> [('/glyph/sidebearings', {'name': 'tri', 'left': 88, 'right': 77})]
+9c  right omitted    -> sent {'name': 'tri', 'left': 60, 'right': 60}
+9d  no-op (changed false) -> font_modified: False | instruction absent: True | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+9e  bool left -> ToolError: left must be a number. | posts 0
+9f  string right -> ToolError: right must be a number. | posts 0
+9g  huge left -> ToolError: left must be a number between -10000 and 10000. | posts 0
+9h  NaN right -> ToolError: right must be a number between -10000 and 10000. | posts 0
+9i  infinite -> ToolError: left must be a number between -10000 and 10000. | posts 0
+9j  empty name       -> ToolError: Glyph name must not be empty. | posts 0
+9k  no font open     -> ToolError: FontLab is running and the listener answered, but no font is open. Open a font in FontLab and try again.
+9l  unknown glyph    -> ToolError: No glyph named 'tri' was found.
+9m  no editable layer -> ToolError: Sidebearings of glyph 'tri' were NOT changed: this glyph has no editable layer yet: open it once in an editor tab in FontLab (double-click it in the glyph overview), then try again. | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+9n  no outline        -> ToolError: Sidebearings of glyph 'tri' were NOT changed: this glyph has no outline, so it has no sidebearings to set: use set_glyph_width for its advance width
+9o  setSB error, nothing moved -> ToolError: Sidebearings of glyph 'tri' were NOT changed: FontLab raised an error in setSB; the re-read margins differ from the request: lsb_ok, rsb_ok, advance_ok (FontLab reported: RuntimeError: x) | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+9p  moved but the re-read does not match -> ToolError: Sidebearings of glyph 'tri' were changed, but the re-read margins do not match the request: rsb_ok, advance_ok. Now: left 40, right 65, advance width 605. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save. | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+9q  listener 0.67    -> ToolError: set_glyph_sidebearings needs listener v0.68 or newer; the running listener is v0.67. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+9r  /version unreadable -> the call goes ahead: True | posts 1
+9s  write times out  -> OutcomeUnknown: timed out The request may or may not have be | {'changes': 0, 'uncertain': 1, 'reminder_given': True}
+9t  get_glyph_sidebearings -> {'name': 'tri', 'left': 88, 'right': 77, 'advance_width': 665, 'ink_width': 500, 'note': "Left, right and advance width as FontLab's editor panel shows them; ink_width = advance - left - right."} | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+9u  read, no layer   -> ToolError: Sidebearings of glyph 'tri' cannot be read: this glyph has no editable layer yet: open it
+9v  read, unreadable -> ToolError: Sidebearings of glyph 'tri' could not be read: RuntimeError: getLSB refused
+9w  read, unknown    -> ToolError: No glyph named 'x' was found.
+9x  read, no font    -> ToolError: FontLab is running and the listener answered, but no font is open. Open a font in FontLab and try again.
+9y  read, listener 0.60 -> ToolError: get_glyph_sidebearings needs listener v0.68 or newer; the running listener is v0.60. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed.
+9z  width, modern reply -> {'name': 'tri', 'width_before': 500, 'width_after': 700, 'route': 'modern', 'outline_untouched': True, 'display_note': 'NOTE', 'font_modified': True, 'agent_instruction': "The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written."}
+9za width, outline moved warning passes through -> the left sidebearing changed although on
+9zb width refused, no layer -> ToolError: Width of glyph 'tri' was NOT changed: this glyph has no editable layer yet: open it once in an editor tab in FontLab (double-click it in the glyph overview), then try again.
+9zc width, legacy reply (empty glyph) -> route: legacy_empty_glyph | display_note absent: True | font_modified: True
+9zd tool surface     -> set_glyph_sidebearings: True | get_glyph_sidebearings: True | NEVER saves in set docstring: True | outline moved explained: True | right defaults to left: True | width tool says advance only: True
+9ze signature        -> (name: str, left: float, right: float | None = None) -> dict[str, typing.Any] | (name: str) -> dict[str, typing.Any]
+9zf MIN_LISTENER_VERSION -> (0, 82) | server 0.31
+
+==== 10. server 0.20: draw_polygon, layer_created on set_glyph_width, get_glyph_outline modern_check (faked listener replies) ====
+10a draw_polygon     -> {'name': 'fresh', 'drawn': True, 'verified': True, 'coordinates_rounded': [], 'points': 4, 'contours': 1, 'contour_sizes': [4], 'shapes': 1, 'nodes': 4, 'left': 0, 'right': -400, 'advance_width': 0, 'ink_width': 400, 'note': 'Closed contours of straight segments, in one shape. The advance width is NOT changed by drawing: set it with set_glyph_width, or place the outline and the width together with set_glyph_sidebearings.', 'layer_created': 'test_font', 'display_note': 'NOTE', 'font_modified': True, 'agent_instruction': "The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written."}
+10b sent             -> [('/glyph/polygon', {'name': 'fresh', 'points': [[0.0, 0.0], [400.0, 0.0], [400.0, 300.0], [0.0, 300.0]]})] | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+10c tuples accepted  -> sent [[0.0, 0.0], [10.0, 0.0], [5.0, 9.0]]
+10d layer existed    -> layer_created absent: True
+10e not a list -> ToolError: points must be a list of 3 to 500 [x, y] pairs. | posts 0
+10f two points -> ToolError: points must be a list of 3 to 500 [x, y] pairs. | posts 0
+10g 501 points -> ToolError: points must be a list of 3 to 500 [x, y] pairs. | posts 0
+10h bool coordinate -> ToolError: every point must be [x, y] with numbers between -20000 and 20000. | posts 0
+10i string coordinate -> ToolError: every point must be [x, y] with numbers between -20000 and 20000. | posts 0
+10j NaN -> ToolError: every point must be [x, y] with numbers between -20000 and 20000. | posts 0
+10k huge -> ToolError: every point must be [x, y] with numbers between -20000 and 20000. | posts 0
+10l three numbers in a point -> ToolError: every point must be [x, y] with numbers between -20000 and 20000. | posts 0
+10m two distinct positions -> ToolError: the points must contain at least 3 different positions. | posts 0
+10n point is a number -> ToolError: every point must be [x, y] with numbers between -20000 and 20000. | posts 0
+10o empty name       -> ToolError: Glyph name must not be empty. | posts 0
+10p no font          -> ToolError: FontLab is running and the listener answered, but no font is open. Open a font in FontLab and try again.
+10q unknown glyph    -> ToolError: No glyph named 'fresh' was found.
+10r not empty        -> ToolError: Glyph 'fresh' was NOT drawn: the glyph's layer is not KNOWN to be empty (x), so nothing was drawn | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+10s layer made, draw failed -> ToolError: Glyph 'fresh' was NOT drawn: layer.addShape(shape) failed: RuntimeError: boom. A layer named 'test_font' WAS created for it, so the font counts as changed. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save. | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+10t drawn but mismatch -> ToolError: Glyph 'fresh': something was drawn, but after drawing, the layer reads 1 shape(s) and 6 node(s); expected 1 and 4. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save. | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+10u no layer name    -> ToolError: Glyph 'fresh' was NOT drawn: the glyph has no layer yet and one could not be created automatically: the glyphs of this font have different layer names (['A', 'B']), so the right one cannot be chosen automatically | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+10v listener 0.71    -> ToolError: draw_polygon needs listener v0.82 or newer; the running listener is v0.71. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | posts 0
+10w /version unreadable -> goes ahead: True | posts 1
+10x times out        -> OutcomeUnknown: timed out The request may or may n | {'changes': 0, 'uncertain': 1, 'reminder_given': True}
+10y width + layer_created -> {'route': 'modern', 'layer_created': 'test_font', 'font_modified': True}
+10z layer made, width unchanged -> font_modified: True
+10za legacy fallback note passes -> no other glyph of the font has an editable layer
+10zb layer made, width failed -> ToolError: Width of glyph 'fresh' was NOT changed: width did not change to the requested value after setting. A layer named 'test_font' WAS created for the glyph, so the font counts as changed. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save. | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+10zc tool surface    -> draw_polygon: True | NEVER saves: True | example rectangle: True | signature: (name: str, points: list[list[float]] | None = None, contours: list[list[list[float]]] | None = None) -> dict[str, typing.Any] | sidebearings doc: never creates a layer: True
+10zd legacy blind, modern has nodes -> ToolError: The outline of 'fresh' cannot be read reliably: FontLab's modern view of the glyph holds 4 node(s) in 1 shape(s), but the legacy reader this tool uses sees none (it lags on glyphs changed through the API). This does NOT mean the glyph is empty. get_glyph_sidebearings still reports its real margins.
+10ze empty, no modern layer -> {'name': 'fresh', 'empty': True, 'contour_count': 0, 'node_count': 0, 'notes': ['This glyph has no contours of its own.', 'FontLab holds no layer at all for this glyph, which means it has no outline data.']}
+10zf empty, modern agrees -> {'name': 'fresh', 'empty': True, 'contour_count': 0, 'node_count': 0, 'notes': ['This glyph has no contours of its own.', 'FontLab holds no layer at all for this glyph, which means it has no outline data.']}
+10zg modern check unavailable -> {'name': 'fresh', 'empty': True, 'contour_count': 0, 'node_count': 0, 'notes': ['This glyph has no contours of its own.', 'FontLab holds no layer at all for this glyph, which means it has no outline data.']}
+10zh outline mismatch -> unverified | 5 | ["FontLab's modern layer holds 5 node(s) but the legacy reader found 3: the legacy view is stale, so these numbers should not be relied on."]
+10zi outline agrees   -> verified | notes [] | modern_check kept out: True
+10zj old listener reply (no modern_check) -> verified
+
+==== 11. server 0.21: get_glyph_outline with modern_outline (faked listener replies) ====
+11a house, verified   -> modern layer | verified | {'box_left': 10, 'lsb': 10, 'box_width': 400, 'ink_width': 400, 'left_ok': True, 'width_ok': True} | bbox {'left': 10, 'right': 410, 'bottom': 20, 'top': 320} exact True
+11b fields            -> {'left': 10, 'right': 90, 'advance_width': 500, 'ink_width': 400, 'contour_count': 1, 'node_count': 5}
+11c contour           -> {'closed': True, 'node_count': 5, 'clockwise_reported': True, 'direction_computed': 'counterclockwise', 'svg_path': 'M 10 20 L 410 20 L 410 220 L 210 320 L 10 220 Z'}
+11d first nodes       -> [{'x': 10, 'y': 20, 'kind': 'On', 'curve': False, 'smooth': False}, {'x': 410, 'y': 20, 'kind': 'On', 'curve': False, 'smooth': False}]
+11e notes             -> ["direction_computed is the geometric direction in y-up font units (counterclockwise = positive area). FontLab's own clockwise flag (clockwise_reported) reads the opposite way round on the contours tested live (a counterclockwise contour shows true); it is listed for reference only. In the cubic test font the outer contour of FontLab's own glyph A is counterclockwise.", "The legacy reader sees 0 node(s) for this glyph (it lags on glyphs changed through the API), so this outline was read from FontLab's modern layer (5 node(s))."]
+11f clockwise points, flag false -> clockwise | disagreement noted: True | verified
+11g clockwise points, flag true  -> clockwise | disagreement noted: True
+11h box differs from lsb -> unverified | the nodes' bounding box does not match the modern left sidebearing and ink width | False False
+11i width differs     -> unverified | {'box_left': 10, 'lsb': 10, 'box_width': 400, 'ink_width': 420, 'left_ok': True, 'width_ok': False}
+11j curves            -> unverified | the outline has curve nodes whose extents are not computed ( | exact False | kinds ['On', 'Curve', 'On', 'On'] | svg_path absent: True
+11k no margins        -> unverified | the modern margins could not be read, so the bounding box could not be compared | left absent: True
+11l modern unavailable -> ToolError: The outline of 'rdback' cannot be read reliably: FontLab's modern view of the glyph holds 5 node(s) in 1 shape(s), but the legacy reader this tool uses sees none (it lags on glyphs changed through the API). Reading it from the modern layer failed too: contour 0 node 2: getNodeAt failed: boom. This does NOT mean the glyph is empty. get_glyph_sidebearings still reports its real margins.
+11m agree unknown, legacy blind -> ToolError: The outline of 'rdback' cannot be read reliably: FontLab's modern view of the glyph holds 5 node(s) in 1 shape(s), but the legacy reader this tool uses sees none (it lags on glyphs changed through the API). This does NOT mean the glyph is empty. get_glyph_sidebearings still reports its real margins.
+11n components note   -> ['The glyph has 2 component(s), whose outlines are not read by this tool.']
+11o agree true, empty -> True | source key absent: True
+11p doc mentions the modern route: True | MIN_LISTENER_VERSION (0, 82)
+
+==== 12. server 0.22: draw_polygon with contours, flag_follows_known_inversion (faked listener replies) ====
+12a ring              -> {'verified': True, 'points': 8, 'contours': 2, 'contour_sizes': [4, 4], 'shapes': 1, 'nodes': 8, 'ink_width': 300}
+12b sent              -> [('/glyph/polygon', {'name': 'ring', 'contours': [[[0.0, 0.0], [300.0, 0.0], [300.0, 300.0], [0.0, 300.0]], [[100.0, 100.0], [100.0, 200.0], [200.0, 200.0], [200.0, 100.0]]]})]
+12c single points still works -> contours 1 | sizes [4] | sent keys ['name', 'points']
+12d both given -> ToolError: Give exactly one of points (one contour) or contours (a list of point lists). | posts 0
+12e neither given -> ToolError: Give exactly one of points (one contour) or contours (a list of point lists). | posts 0
+12f empty contours -> ToolError: contours must be a list of 1 to 20 point lists. | posts 0
+12g 21 contours -> ToolError: contours must be a list of 1 to 20 point lists. | posts 0
+12h contours not a list -> ToolError: contours must be a list of 1 to 20 point lists. | posts 0
+12i one contour has 2 points -> ToolError: points must be a list of 3 to 500 [x, y] pairs. | posts 0
+12j contour is a number -> ToolError: points must be a list of 3 to 500 [x, y] pairs. | posts 0
+12k 2500 points -> ToolError: at most 2000 points in total. | posts 0
+12l bad coordinate -> ToolError: every point must be [x, y] with numbers between -20000 and 20000. | posts 0
+12m contours need 0.82 -> ToolError: draw_polygon needs listener v0.82 or newer; the running listener is v0.81. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | posts 0
+12n single contour needs 0.82 too -> ToolError: draw_polygon needs listener v0.82 or newer; the running listener is v0.81. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | posts 0
+12o second contour dropped -> ToolError: Glyph 'ring': something was drawn, but after drawing, the layer reads 1 shape(s), 4 node(s) and 1 contour(s); expected 1, 8 and 2. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save. | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+12p docs              -> contours example: True | direction advice: True | signature: (name: str, points: list[list[float]] | None = None, contours: list[list[list[float]]] | None = None) -> dict[str, typing.Any]
+12q house, flag True   -> counterclockwise True | follows inversion: True | warning: False | general note: True
+12r clockwise, flag False -> clockwise False | follows inversion: True | warning: False
+12s clockwise, flag True (not inverted) -> False | warning: ["WARNING: for contour(s) [0] FontLab's clockwise flag does NOT show the usual inversion: check the direction before relying on direction_computed."]
+
+==== 13. server 0.23: draw_path, coordinates_rounded, listener 0.81 (faked listener replies) ====
+13a curved rectangle   -> {'drawn': True, 'verified': True, 'nodes_match': True, 'points': 4, 'curved_segments': 1, 'contours': 1, 'contour_sizes': [6], 'shapes': 1, 'nodes': 6, 'ink_width': 400, 'coordinates_rounded': []} | rounding_note absent: True | font_modified True
+13b sent               -> [('/glyph/path', {'name': 'fresh', 'contours': [[{'x': 0.0, 'y': 0.0}, {'x': 400.0, 'y': 0.0}, {'x': 400.0, 'y': 400.0, 'c1': {'x': 500.0, 'y': 100.0}, 'c2': {'x': 500.0, 'y': 300.0}}, {'x': 0.0, 'y': 400.0}]]})]
+13c rounding reported  -> [{'contour': 0, 'point': 1, 'field': 'x', 'requested': 10.5, 'used': 11}, {'contour': 0, 'point': 2, 'field': 'c1.y', 'requested': 3.2, 'used': 3}] | Rule B: FontLab stores whole font units  | sent {'x': 10.5, 'y': 0.0}
+13d polygon rounding   -> [{'contour': 0, 'point': 1, 'field': 'x', 'requested': 10.5, 'used': 11}] | note True
+13e polygon, whole numbers -> [] | note absent True
+13f older listener's polygon reply -> []
+13g listener 0.81 (no layer guard) -> ToolError: draw_path needs listener v0.82 or newer; the running listener is v0.81. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | posts 0
+13h empty name -> ToolError: Glyph name must not be empty. | posts 0
+13i contours None -> ToolError: contours must be a list of 1 to 20 point lists. | posts 0
+13j empty list -> ToolError: contours must be a list of 1 to 20 point lists. | posts 0
+13k 21 contours -> ToolError: contours must be a list of 1 to 20 point lists. | posts 0
+13l contour a number -> ToolError: contour 0 must be a list of 3 to 500 points. | posts 0
+13m 2 points -> ToolError: contour 0 must be a list of 3 to 500 points. | posts 0
+13n point is a list -> ToolError: contour 0 point 0 must be an object with x, y and optionally c1, c2, smooth. | posts 0
+13o unknown key -> ToolError: contour 0 point 0 must be an object with x, y and optionally c1, c2, smooth. | posts 0
+13p missing y -> ToolError: contour 0 point 0 needs x and y. | posts 0
+13q x text -> ToolError: contour 0 point 0 x must be a number between -20000 and 20000. | posts 0
+13r x bool -> ToolError: contour 0 point 0 x must be a number between -20000 and 20000. | posts 0
+13s x NaN -> ToolError: contour 0 point 0 x must be a number between -20000 and 20000. | posts 0
+13t x out of range -> ToolError: contour 0 point 0 x must be a number between -20000 and 20000. | posts 0
+13u c1 without c2 -> ToolError: contour 0 point 0: give c1 and c2 together (both control points of the curved segment) or neither. | posts 0
+13v c1 is a list -> ToolError: contour 0 point 0 c1 must be an object {"x": number, "y": number}. | posts 0
+13w c1 stray key -> ToolError: contour 0 point 0 c1 must be an object {"x": number, "y": number}. | posts 0
+13x smooth text -> ToolError: contour 0 point 0: smooth must be true or false. | posts 0
+13y same position -> ToolError: contour 0 needs at least 3 different on-curve positions. | posts 0
+13z too many nodes -> ToolError: at most 2000 nodes in total (every curved segment adds its two control points). | posts 0
+13za refused, nothing changed -> ToolError: Glyph 'fresh' was NOT drawn: the request cannot be drawn, nothing was changed: contour 0: the smooth node at (400.0, 0.0) is not smooth | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+13zb drawn but layer differs -> ToolError: Glyph 'fresh': something was drawn, but the layer does not match the request: layer contour 0 node 0: position (5.0, 0.0) instead of (0.0, 0.0). The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save. | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+13zc layer created, then refused -> ToolError: Glyph 'fresh' was NOT drawn: x. A layer named 'test_font' WAS created for it, so the font counts as changed. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save. | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+13zd no font -> ToolError: FontLab is running and the listener answered, but no font is open. Open a font in FontLab and try again. | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+13ze unknown glyph -> ToolError: No glyph named 'fresh' was found. | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+13zf docs              -> tool listed: True | rule B: True | closing segment: True | NEVER saves: True | signature: (name: str, contours: list[list[dict[str, typing.Any]]]) -> dict[str, typing.Any]
+13zg polygon doc       -> rounding mentioned: True | points to draw_path: True
+
+==== 14. server 0.24: get_glyph_outline reads cubic curves: Curve labels, curve_type, svg_path, exact extents (live data) ====
+14a crv81a bulge right (ink 475)   -> verified |  | bbox {'left': 0, 'right': 475, 'bottom': 0, 'top': 400} exact True | type cubic | kinds ['On', 'On', 'Curve', 'Curve', 'On', 'On'] | svg M 0 0 L 400 0 C 500 100 500 300 400 400 L 0 400 L 0 0 Z
+14b crv81c, closing handles at the END (left -75) -> verified |  | bbox {'left': -75, 'right': 400, 'bottom': 0, 'top': 400} exact True | type cubic | kinds ['On', 'On', 'On', 'On', 'Curve', 'Curve'] | svg M 0 0 L 400 0 L 400 400 L 0 400 C -100 300 -100 100 0 0 Z
+14c crv81b circle, 4 smooth nodes  -> verified |  | bbox {'left': 0, 'right': 400, 'bottom': 0, 'top': 400} exact True | type cubic | kinds ['On', 'Curve', 'Curve', 'On', 'Curve', 'Curve', 'On', 'Curve', 'Curve', 'On', 'Curve', 'Curve'] | svg M 400 200 C 400 310 310 400 200 400 C 90 400 0 310 0 200 C 0 90 90 0 200 0 C 310 0 400 90 400 200 Z
+14d crv81e rounded (left -2, right 10.75) -> verified |  | bbox {'left': -2, 'right': 10.75, 'bottom': 0, 'top': 11} exact True | type cubic | kinds ['On', 'On', 'Curve', 'Curve', 'On', 'On'] | svg M 1 0 L 10 0 C 11 3 11 8 10 11 L -2 10 L 1 0 Z
+14e margins disagree (box says 475) -> unverified | the nodes' bounding box (curve extents included) does not match the mo | bbox {'left': 0, 'right': 475, 'bottom': 0, 'top': 400} exact True | type cubic | kinds ['On', 'On', 'Curve', 'Curve', 'On', 'On'] | svg M 0 0 L 400 0 C 500 100 500 300 400 400 L 0 400 L 0 0 Z
+14f only 0.04 off is still verified -> verified |  | bbox {'left': 0, 'right': 475, 'bottom': 0, 'top': 400} exact True | type cubic | kinds ['On', 'On', 'Curve', 'Curve', 'On', 'On'] | svg M 0 0 L 400 0 C 500 100 500 300 400 400 L 0 400 L 0 0 Z
+14g 0.1 off is not -> unverified | the nodes' bounding box (curve extents included) does not match the mo | bbox {'left': 0, 'right': 475, 'bottom': 0, 'top': 400} exact True | type cubic | kinds ['On', 'On', 'Curve', 'Curve', 'On', 'On'] | svg M 0 0 L 400 0 C 500 100 500 300 400 400 L 0 400 L 0 0 Z
+14h three handles in a row      -> unverified | the outline has curve nodes whose extents are not computed (contour 0: | bbox {'left': 0, 'right': 400, 'bottom': 0, 'top': 400} exact False | type cubic | kinds ['On', 'On', 'Curve', 'Curve', 'Curve', 'On'] | svg None
+14i one handle only            -> unverified | the outline has curve nodes whose extents are not computed (contour 0: | bbox {'left': 0, 'right': 400, 'bottom': 0, 'top': 400} exact False | type cubic | kinds ['On', 'On', 'Curve', 'On'] | svg None
+14j quadratic off-curve point  -> unverified | the outline has curve nodes whose extents are not computed (contour 0: | bbox {'left': 0, 'right': 400, 'bottom': 0, 'top': 400} exact False | type quadratic | kinds ['On', 'On', 'Off', 'On'] | svg None
+14k margins unreadable         -> unverified | the modern margins could not be read, so the bounding box could not be | bbox {'left': 0, 'right': 475, 'bottom': 0, 'top': 400} exact True | type cubic | kinds ['On', 'On', 'Curve', 'Curve', 'On', 'On'] | svg M 0 0 L 400 0 C 500 100 500 300 400 400 L 0 400 L 0 0 Z
+14l fields              -> {'left': 0, 'right': -475, 'advance_width': 0, 'ink_width': 475, 'node_count': 6} | curve flag kept [False, False, True, True, False, False]
+14m two contours        -> verified | types ['none', 'cubic'] | svg ['M 0 0 L 300 0 L 300 300 L 0 300 Z', 'M 100 100 C 60 130 60 170 100 200 L 200 200 L 200 100 L 100 100 Z'] | bbox {'left': 0, 'right': 300, 'bottom': 0, 'top': 300} exact True
+14n open contour        -> unverified | the outline has curve nodes whose extents are not computed (contour 1: the cubic segments 
+14o extremes            -> [(475.0, 200.0)] | [] | [] | s-curve [(63.3975, 57.735), (236.6025, -57.735)]
+14p circle quadrant     -> []
+14q docs                -> Curve explained: True | unverified-for-curves wording gone: True
+
+==== 15. server 0.25: stale legacy view - modern margins vs the legacy reader's margins (faked listener replies) ====
+15a stale legacy view     -> unverified | check mismatch | stale_legacy_view True | extra reads 1
+15b  detail               -> {'status': 'mismatch', 'differs': ['left', 'right'], 'legacy': {'left': 0, 'right': 100, 'advance_width': 500}, 'modern': {'left': 40, 'right': 60, 'advance_width': 500}} | FontLab's legacy view of this glyph disagrees with its modern layer (l | STALE LEGACY VIEW: the legacy reader gives margins {'left':  ...
+15c legacy and modern agree -> verified | check agrees | stale_legacy_view None | extra reads 1 | notes ['Contours are assumed closed (open contours have not been verified against FontLab).']
+15d difference 0.04       -> verified | check agrees | stale_legacy_view None | extra reads 1
+15e difference 0.06       -> unverified | check mismatch | stale_legacy_view True | extra reads 1 | differs ['left', 'advance_width']
+15f advance only differs  -> unverified | check mismatch | stale_legacy_view True | extra reads 1 | differs ['advance_width']
+15g extra read fails      -> verified | check not_checked | stale_legacy_view None | extra reads 1 | the modern sidebearings could not be read ('/glyph/sidebeari | note: Could not cross-check the nodes against FontLab's MODERN mar
+15h modern not readable   -> verified | check not_checked | stale_legacy_view None | extra reads 1 | the margins could not be compared (no editable layer)
+15i modern not a number   -> verified | check not_checked | stale_legacy_view None | extra reads 1
+15j legacy margins missing -> unverified | check None | stale_legacy_view None | extra reads 0
+15k no modern layer       -> verified | check None | stale_legacy_view None | extra reads 0
+15l old listener (no modern_check) -> verified | check None | stale_legacy_view None | extra reads 0
+15m modern API switched off -> verified | check None | stale_legacy_view None | extra reads 0
+15n node counts disagree (old path) -> unverified | check None | stale_legacy_view None | extra reads 0 | modern_check kept: True
+15o already unverified    -> unverified | check None | stale_legacy_view None | extra reads 0
+15p calibrated is checked too -> unverified | check mismatch | stale_legacy_view True | extra reads 1
+15q docs                  -> stale view explained: True | close-and-reopen advice: True | old grid-tab advice gone: True
+15s note wording          -> close and reopen: True | old advice gone: True | says plain grid-tab switch did not do it: True
+15r no write, no save     -> posts sent: []
+
+==== 16. server 0.27: guard fields of listener 0.87 are forwarded, type-checked, with short instructions (faked listener replies) ====
+16a create_glyph           : ['display_refresh', 'display_refresh_note', 'display_refresh_skipped_to_protect', 'display_refresh_unreadable_glyphs', 'durability_note', 'layers_missing_since_drawn', 'synced_with_fontlab'] | unsynced sentence True | skipped sentence True | missing sentence True | font_modified True
+16a set_glyph_width        : ['display_refresh', 'display_refresh_note', 'display_refresh_skipped_to_protect', 'display_refresh_unreadable_glyphs', 'durability_note', 'layers_missing_since_drawn', 'synced_with_fontlab'] | unsynced sentence True | skipped sentence True | missing sentence True | font_modified True
+16a set_glyph_sidebearings : ['display_refresh', 'display_refresh_note', 'display_refresh_skipped_to_protect', 'display_refresh_unreadable_glyphs', 'durability_note', 'layers_missing_since_drawn', 'synced_with_fontlab'] | unsynced sentence True | skipped sentence True | missing sentence True | font_modified True
+16a draw_polygon           : ['display_refresh', 'display_refresh_note', 'display_refresh_skipped_to_protect', 'display_refresh_unreadable_glyphs', 'durability_note', 'layers_missing_since_drawn', 'synced_with_fontlab'] | unsynced sentence True | skipped sentence True | missing sentence True | font_modified True
+16a draw_path              : ['display_refresh', 'display_refresh_note', 'display_refresh_skipped_to_protect', 'display_refresh_unreadable_glyphs', 'durability_note', 'layers_missing_since_drawn', 'synced_with_fontlab'] | unsynced sentence True | skipped sentence True | missing sentence True | font_modified True
+16a set_glyph_unicode      : ['display_refresh', 'display_refresh_note', 'display_refresh_skipped_to_protect', 'display_refresh_unreadable_glyphs', 'durability_note', 'layers_missing_since_drawn', 'synced_with_fontlab'] | unsynced sentence True | skipped sentence True | missing sentence True | font_modified True
+16a delete_glyph           : ['display_refresh', 'display_refresh_note', 'display_refresh_skipped_to_protect', 'display_refresh_unreadable_glyphs', 'durability_note', 'layers_missing_since_drawn', 'synced_with_fontlab'] | unsynced sentence True | skipped sentence True | missing sentence True | font_modified True
+16b older listener, create_glyph           : [] | unsynced sentence False | skipped sentence False | missing sentence False | font_modified True
+16b older listener, set_glyph_width        : [] | unsynced sentence False | skipped sentence False | missing sentence False | font_modified True
+16b older listener, set_glyph_sidebearings : [] | unsynced sentence False | skipped sentence False | missing sentence False | font_modified True
+16b older listener, draw_polygon           : [] | unsynced sentence False | skipped sentence False | missing sentence False | font_modified True
+16b older listener, draw_path              : [] | unsynced sentence False | skipped sentence False | missing sentence False | font_modified True
+16b older listener, set_glyph_unicode      : [] | unsynced sentence False | skipped sentence False | missing sentence False | font_modified True
+16b older listener, delete_glyph           : [] | unsynced sentence False | skipped sentence False | missing sentence False | font_modified True
+16c wrong types ignored, create_glyph           : [] | unsynced sentence False | skipped sentence False | missing sentence False | font_modified True
+16c wrong types ignored, set_glyph_width        : [] | unsynced sentence False | skipped sentence False | missing sentence False | font_modified True
+16c wrong types ignored, set_glyph_sidebearings : [] | unsynced sentence False | skipped sentence False | missing sentence False | font_modified True
+16d synced true: no unsynced sentence  : ['synced_with_fontlab'] | unsynced sentence False | skipped sentence False | missing sentence False | font_modified True
+16e only missing layers                : ['layers_missing_since_drawn'] | unsynced sentence False | skipped sentence False | missing sentence True | font_modified True
+16f instruction keeps the create text and the save reminder: True | True | tail ok True
+16g failed create still raises ToolError: Glyph 'g1' was NOT created: x
+16i a broken reply never raises, adds nothing: {'x': 1}
+16h version / MIN_LISTENER_VERSION: 0.31 (0, 82)
+
+==== 17. server 0.28: stale legacy view answered from the modern layer when the listener (0.88) sends margins_agree false (faked listener replies) ====
+17a stale margins + modern_outline -> source modern layer | verified | legacy_view_was_stale True | stale_legacy_view None | extra sidebearing reads 0
+17b  detail               -> x range 40 440 | margins 40 60 500 | ink_bbox {'left': 40, 'right': 440, 'bottom': 0, 'top': 300} | node_count 4
+17c  verification         -> {'status': 'mismatch', 'differs': ['left', 'right'], 'legacy': {'left': 0.0, 'right': 100.0, 'advance_width': 500.0}, 'modern': {'left': 40.0, 'right': 60.0, 'advance_width': 500.0}} | {'box_left': 40, 'lsb': 40, 'box_width': 400, 'ink_width': 400, 'left_ok': True, 'width_ok': True}
+17d  note                 -> STALE LEGACY VIEW, answered from the modern layer: the legacy reader gives margins {'left': 0, 'right': 100, 'advance_width': 500} but FontLab's modern layer gives {'left': 40, 'right': 60, 'advance_width': 500} (the glyph was probably changed through the API a moment ago). This outline was therefore read from the modern layer (4 node(s)) and is current; no refresh is needed to trust it. FontLab's legacy view itself refreshes only when the glyph's editor tab is closed (X) and the glyph reopened from the grid.
+17e  old note not used    -> True
+17f margins_agree true: legacy route kept -> verified | check agrees | stale_legacy_view None | extra reads 1 | source None
+17g margins_agree true (listener says so) -> verified | check agrees | stale_legacy_view None | extra reads 1 | source None
+17h stale, modern_outline unavailable: v0.25 check takes over -> unverified | check mismatch | stale_legacy_view True | extra reads 1 | source None | legacy_view_was_stale None
+17i stale, no modern_outline at all    -> unverified | check mismatch | stale_legacy_view True | extra reads 1 | source None
+17j listener could not compare, margins agree -> verified | check agrees | stale_legacy_view None | extra reads 1 | source None
+17k listener could not compare, stale -> server check -> unverified | check mismatch | stale_legacy_view True | extra reads 1 | source None
+17l node counts disagree: old note, no flag -> source modern layer | verified | legacy_view_was_stale None | stale_legacy_view None | extra sidebearing reads 0 | The legacy reader sees 4 node(s) for this glyp
+17m both flags false: old note, no flag   -> source modern layer | verified | legacy_view_was_stale None | stale_legacy_view None | extra sidebearing reads 0 | The legacy reader sees 4 node(s) for this glyp
+17n modern box disagrees with modern margins -> source modern layer | unverified | legacy_view_was_stale True | stale_legacy_view None | extra sidebearing reads 0 | the nodes' bounding box does not match the modern left sidebearing and
+17o margins of mc not dicts: no raise -> source modern layer | verified | legacy_view_was_stale True | stale_legacy_view None | extra sidebearing reads 0 | STALE LEGACY VIEW, answered from the modern layer: the legacy reader g | differs ['left', 'right']
+17p old listener (no margins_agree): v0.25 behaviour -> unverified | check mismatch | stale_legacy_view True | extra reads 1 | source None
+17q docs                  -> modern answer explained: True | v0.25 text kept: True
+17r no write, no save     -> posts sent: []
+17s version / MIN_LISTENER_VERSION: 0.31 (0, 82)
+
+==== 18. server 0.29: fontlab_sync of listener 0.89 is forwarded, type-checked; the editor-tab advice only when the sync attempt failed (faked listener replies) ====
+18a synced set_glyph_width        : synced_with_fontlab True | fontlab_sync {'attempted': True, 'synced': True, 'verdict': 'synced'} | secret False | failed-sync sentence False | unsynced sentence False | editor advice False
+18a synced set_glyph_sidebearings : synced_with_fontlab True | fontlab_sync {'attempted': True, 'synced': True, 'verdict': 'synced'} | secret False | failed-sync sentence False | unsynced sentence False | editor advice False
+18a synced draw_polygon           : synced_with_fontlab True | fontlab_sync {'attempted': True, 'synced': True, 'verdict': 'synced'} | secret False | failed-sync sentence False | unsynced sentence False | editor advice False
+18a synced draw_path              : synced_with_fontlab True | fontlab_sync {'attempted': True, 'synced': True, 'verdict': 'synced'} | secret False | failed-sync sentence False | unsynced sentence False | editor advice False
+18b not synced set_glyph_width        : synced_with_fontlab False | fontlab_sync {'attempted': True, 'synced': False, 'verdict': 'at_risk', 'call_error': 'RuntimeError: Update refused'} | secret False | failed-sync sentence True | unsynced sentence True | editor advice True
+18b not synced set_glyph_sidebearings : synced_with_fontlab False | fontlab_sync {'attempted': True, 'synced': False, 'verdict': 'at_risk', 'call_error': 'RuntimeError: Update refused'} | secret False | failed-sync sentence True | unsynced sentence True | editor advice True
+18b not synced draw_polygon           : synced_with_fontlab False | fontlab_sync {'attempted': True, 'synced': False, 'verdict': 'at_risk', 'call_error': 'RuntimeError: Update refused'} | secret False | failed-sync sentence True | unsynced sentence True | editor advice True
+18b not synced draw_path              : synced_with_fontlab False | fontlab_sync {'attempted': True, 'synced': False, 'verdict': 'at_risk', 'call_error': 'RuntimeError: Update refused'} | secret False | failed-sync sentence True | unsynced sentence True | editor advice True
+18c order of the sentences       : True | editor advice still last-resort text: True
+18d not attempted                   : synced_with_fontlab False | fontlab_sync {'attempted': False, 'reason': 'the fontlab module has no Update function'} | secret False | failed-sync sentence False | unsynced sentence True | editor advice True
+18e wrong types ignored             : synced_with_fontlab False | fontlab_sync None | secret False | failed-sync sentence False | unsynced sentence True | editor advice True
+18f fontlab_sync not a dict         : synced_with_fontlab False | fontlab_sync None | secret False | failed-sync sentence False | unsynced sentence True | editor advice True
+18g fontlab_sync a list             : synced_with_fontlab False | fontlab_sync None | secret False | failed-sync sentence False | unsynced sentence True | editor advice True
+18h older listener                  : synced_with_fontlab False | fontlab_sync None | secret False | failed-sync sentence False | unsynced sentence True | editor advice True
+18i synced: no agent_instruction about sync: True | font_modified True
+18j a broken reply never raises  : {'x': 1}
+18k version / MIN_LISTENER_VERSION: 0.31 (0, 82)
+
+==== 19. server 0.30 / 0.31: get_kerning reads selected pairs through POST /kerning/pairs; no upper limit, approval above 250 (faked listener replies) ====
+19a pairs, tidy numbers          : {'mode': 'pairs', 'units_per_em': 2048, 'table_size': 1370, 'count': 4, 'errors': 0} | instruction True
+        {'left': 'A', 'right': 'V', 'value': -152, 'kerned': True}
+        {'left': 'T', 'right': 'o', 'value': -227, 'kerned': True}
+        {'left': 'A', 'right': 'B', 'value': 0, 'kerned': False}
+        {'left': 'o', 'right': 'o', 'value': -12.5, 'kerned': True}
+19b request sent                 : [('/kerning/pairs', {'pairs': [['A', 'V'], ['T', 'o'], ['A', 'B'], ['o', 'o']]})] | timeout 5.04 | other requests [] | changes {'package': 0, 'package_unsure': 0, 'session': 0, 'session_unsure': 0}
+19c instruction                  : Values are in font units (units_per_em says how many per em); a NEGATIVE value moves the pair closer together, a positive one pushes it apart. They are FontLab's own numbers and include class (group) kerning. 'kerned: false' with value 0 means FontLab has no kerning for that pair. A result with an 'error' was NOT read: never treat it as zero kerning. Feature-based (GPOS lookup), contextual and multi-master kerning are NOT covered by this tool. Only the pairs you asked for were read; do not request the whole table.
+19d names are stripped           : [('/kerning/pairs', {'pairs': [['A', 'V']]})]
+19e tuple of tuples accepted     : [('/kerning/pairs', {'pairs': [['A', 'V']]})]
+19f text mode                     : {'mode': 'text', 'units_per_em': 2048, 'table_size': 1370, 'count': 3, 'errors': 1} | instruction True
+        {'left': 'A', 'right': 'V', 'chars': 'AV', 'value': -152, 'kerned': True}
+        {'left': 'V', 'right': 'space', 'chars': 'V ', 'value': -37, 'kerned': True}
+        {'left': 'space', 'right': None, 'chars': ' é', 'error': "character 'e' (U+00E9): no glyph has this codepoint as its primary Unicode"}
+19g text request (JSON body)     : [('/kerning/pairs', {'text': 'AV é'})]
+19h text mode: errors counted    : 1 | mode text | error entry has no value: True | chars kept: ['AV', 'V ', ' é']
+--- input validation: nothing is sent, not even the version check
+19i neither                    : ToolError: Give exactly one of pairs (a list of [left, right] glyph names) or text (a short string). | sent 0
+19j both                       : ToolError: Give exactly one of pairs (a list of [left, right] glyph names) or text (a short string). | sent 0
+19k empty pairs list           : ToolError: pairs must be a list of at least one [left, right] glyph-name pair. | sent 0
+19l empty text                 : ToolError: text must be a string of at least 2 characters. | sent 0
+19n pairs not a list           : ToolError: pairs must be a list of at least one [left, right] glyph-name pair. | sent 0
+19o pair is a string           : ToolError: pair 1 must be [left, right], two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - (got 'AV'). | sent 0
+19p pair has 3 names           : ToolError: pair 1 must be [left, right], two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - (got ['A', 'V', 'T | sent 0
+19q pair has 1 name            : ToolError: pair 1 must be [left, right], two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - (got ['A']). | sent 0
+19r name empty                 : ToolError: pair 1 must be [left, right], two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - (got ['A', '']). | sent 0
+19s name blank                 : ToolError: pair 1 must be [left, right], two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - (got ['A', '   ']) | sent 0
+19t name with colon            : ToolError: pair 1 must be [left, right], two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - (got ['A:V', 'B']) | sent 0
+19u name with comma            : ToolError: pair 1 must be [left, right], two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - (got ['A,V', 'B']) | sent 0
+19v name 64 long               : ToolError: pair 1 must be [left, right], two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - (got ['A', 'xxxxxx | sent 0
+19w name not a string          : ToolError: pair 1 must be [left, right], two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - (got ['A', 5]). | sent 0
+19x name with space inside     : ToolError: pair 1 must be [left, right], two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - (got ['A', 'a b']) | sent 0
+19y name non-ASCII             : ToolError: pair 1 must be [left, right], two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - (got ['A', 'é']). | sent 0
+19z text 1 char                : ToolError: text must be a string of at least 2 characters. | sent 0
+19ab text not a string         : ToolError: text must be a string of at least 2 characters. | sent 0
+19ac text newline              : ToolError: text must not contain control characters. | sent 0
+19ad text DEL                  : ToolError: text must not contain control characters. | sent 0
+19ae text U+0080               : ToolError: text must not contain control characters. | sent 0
+19af text tab                  : ToolError: text must not contain control characters. | sent 0
+19ag 40 pairs ok         : True 40 | pairs sent 40
+19ah 41 chars ok         : True 40
+19ai exactly 2 chars ok          : True 1
+19aj U+00A0 is not a control char: True [('/kerning/pairs', {'text': 'A\xa0'})]
+--- listener version and state
+19ak listener 0.93     : ToolError: get_kerning needs listener v0.95 or newer; the running listener is v0.93. Copy  | kerning requests 0
+19ak listener 0.82     : ToolError: get_kerning needs listener v0.95 or newer; the running listener is v0.82. Copy  | kerning requests 0
+19ak listener 0.9      : ToolError: get_kerning needs listener v0.95 or newer; the running listener is v0.9. Copy t | kerning requests 0
+19ak listener 0.94     : ToolError: get_kerning needs listener v0.95 or newer; the running listener is v0.94. Copy  | kerning requests 0
+19ak listener 0.95     : read ok | kerning requests 1
+19ak listener 1.0      : read ok | kerning requests 1
+19ak listener garbage  : read ok | kerning requests 1
+19al version unreadable          : read ok | kerning requests 1
+19am no font open                : ToolError: FontLab is running and the listener answered, but no font is open. Open a font in FontLab | NO_FONT text True
+19an listener error              : ToolError: Kerning could not be read: font.kerning / kerning.get not reachable: RuntimeError: boom
+19ao long listener error cut     : 638
+19ap transport error passes      : ToolError: listener says no
+19aq empty reply                 : ToolError: FontLab is running and the listener answered, but no font is open. Open a font 
+--- odd listener answers become errors, never zeros
+19ar value is a string          : {'left': 'A', 'right': 'V', 'error': "the listener's answer for this pair carried no usable number..."}
+19as value is bool              : {'left': 'A', 'right': 'V', 'error': "the listener's answer for this pair carried no usable number..."}
+19at value NaN                  : {'left': 'A', 'right': 'V', 'error': "the listener's answer for this pair carried no usable number..."}
+19au value inf                  : {'left': 'A', 'right': 'V', 'error': "the listener's answer for this pair carried no usable number..."}
+19av value -inf                 : {'left': 'A', 'right': 'V', 'error': "the listener's answer for this pair carried no usable number..."}
+19aw no value, no error         : {'left': 'A', 'right': 'V', 'error': "the listener's answer for this pair carried no usable number..."}
+19ax value None                 : {'left': 'A', 'right': 'V', 'error': "the listener's answer for this pair carried no usable number..."}
+19ay entry not a dict           : {'left': 'A', 'right': 'V', 'error': "the listener's answer for this pair was unusable, so it was ..."}
+19az entry None                 : {'left': 'A', 'right': 'V', 'error': "the listener's answer for this pair was unusable, so it was ..."}
+19ba other pair answered        : {'left': 'A', 'right': 'V', 'error': 'the listener answered for a different pair than the one aske...'}
+19bb right differs              : {'left': 'A', 'right': 'V', 'error': 'the listener answered for a different pair than the one aske...'}
+19bc error empty string         : {'left': 'A', 'right': 'V', 'error': "the listener's answer for this pair carried no usable number..."}
+19bd error not a string         : {'left': 'A', 'right': 'V', 'error': "the listener's answer for this pair carried no usable number..."}
+19be error kept, value ignored  : {'left': 'A', 'right': 'V', 'error': "no glyph named 'V'"}
+19bf kerned lie ignored         : {'left': 'A', 'right': 'V', 'value': 0, 'kerned': False}
+19bg kerned lie 2               : {'left': 'A', 'right': 'V', 'value': -4, 'kerned': True}
+19bh extra fields dropped       : {'left': 'A', 'right': 'V', 'value': -4, 'kerned': True}
+19bi long error cut             : {'left': 'A', 'right': 'V', 'error': 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee...'}
+19bj int value                  : {'left': 'A', 'right': 'V', 'value': -152, 'kerned': True}
+19bk float value                : {'left': 'A', 'right': 'V', 'value': -152.25, 'kerned': True}
+19bl tiny value                 : {'left': 'A', 'right': 'V', 'value': 0, 'kerned': False}
+19bm negative zero              : {'left': 'A', 'right': 'V', 'value': 0, 'kerned': False}
+19bi2 listener error cut at 600  : 600 | 19bi3 short error unchanged: short
+19bn errors counted by the server: 2 | listener said 0
+19bo count from results          : 3
+--- reply shape
+19bp results missing            : ToolError: Kerning could not be read: the listener's answer did not match the request. Nothing was changed.
+19bq results not a list         : ToolError: Kerning could not be read: the listener's answer did not match the request. Nothing was changed.
+19br too few results            : ToolError: Kerning could not be read: the listener's answer did not match the request. Nothing was changed.
+19bs too many results           : ToolError: Kerning could not be read: the listener's answer did not match the request. Nothing was changed.
+19bt table_size 0               : {'mode': 'pairs', 'units_per_em': 2048, 'table_size': 0, 'count': 1, 'errors': 0} | 0-note True | WARNING False
+19bu table_size missing         : {'mode': 'pairs', 'units_per_em': 2048, 'table_size': None, 'count': 1, 'errors': 0} | 0-note False | WARNING False
+19bv table_size bool            : {'mode': 'pairs', 'units_per_em': 2048, 'table_size': None, 'count': 1, 'errors': 0} | 0-note False | WARNING False
+19bw table_size string          : {'mode': 'pairs', 'units_per_em': 2048, 'table_size': None, 'count': 1, 'errors': 0} | 0-note False | WARNING False
+19bx upm int-valued float       : {'mode': 'pairs', 'units_per_em': 1000, 'table_size': 1370, 'count': 1, 'errors': 0} | 0-note False | WARNING False
+19by upm fractional             : {'mode': 'pairs', 'units_per_em': 1000.5, 'table_size': 1370, 'count': 1, 'errors': 0} | 0-note False | WARNING False
+19bz upm bool                   : {'mode': 'pairs', 'units_per_em': None, 'table_size': 1370, 'count': 1, 'errors': 0} | 0-note False | WARNING False
+19ca upm missing                : {'mode': 'pairs', 'units_per_em': None, 'table_size': 1370, 'count': 1, 'errors': 0} | 0-note False | WARNING False
+19cb upm string                 : {'mode': 'pairs', 'units_per_em': None, 'table_size': 1370, 'count': 1, 'errors': 0} | 0-note False | WARNING False
+19cc side effect True           : {'mode': 'pairs', 'units_per_em': 2048, 'table_size': 1370, 'count': 1, 'errors': 0, 'side_effect_detected': True} | 0-note False | WARNING True
+19cd side effect False          : {'mode': 'pairs', 'units_per_em': 2048, 'table_size': 1370, 'count': 1, 'errors': 0} | 0-note False | WARNING False
+19ce side effect None           : {'mode': 'pairs', 'units_per_em': 2048, 'table_size': 1370, 'count': 1, 'errors': 0} | 0-note False | WARNING False
+19cf side effect string         : {'mode': 'pairs', 'units_per_em': 2048, 'table_size': 1370, 'count': 1, 'errors': 0} | 0-note False | WARNING False
+19cg unknown top-level field dropped: True | keys ['agent_instruction', 'count', 'errors', 'mode', 'results', 'table_size', 'units_per_em']
+19ch no change counters, only the read: {'package': 0, 'package_unsure': 0, 'session': 0, 'session_unsure': 0} | other requests [] | posts 1
+--- v0.31: no upper limit, approval above 250
+19cn 250 pairs: no approval needed : 250 | flag in reply False | requests 1
+19co 251 pairs: refused            : ToolError: This request would read 251 kerning pairs, more than the 250-pair threshold, and nothing was read. Do NOT repeat the call yet. A large read costs many tokens: tell the person how many pairs you want to read and why, and ask whether they approve. Only after they have said yes, call get_kerning again with the same arguments and confirmed_large_read=true. Never set that flag without the person's approval. | requests (incl. version) 0
+19cp 251 pairs, flag false: refused: ToolError: This request would read 251 kerning pairs, more t | requests 0
+19cq 251 pairs, approved           : (251, 0, True) | requests 1 | payload pairs 251
+19cr flag is the string yes        : ToolError: confirmed_large_read must be true or false (or left out). | requests 0
+19cs flag is 1                     : ToolError: confirmed_large_read must be true or false (or left out). | requests 0
+19ct flag is a list                : ToolError: confirmed_large_read must be true or false (or left out). | requests 0
+19cu flag true on a small read     : 3 | flag in reply False
+19cv flag false on a small read    : 3 | flag in reply False
+19cw 1000 pairs approved           : 1000 | timeout 15.0
+19cx 30000 pairs approved          : 30000 | timeout 305.0 | large flag True
+19cy small read timeout            : 5.01 | not below TIMEOUT_SECONDS True
+19cz 250 pairs timeout             : 7.5
+19da text of 251 chars = 250 pairs : 250
+19db text of 252 chars = 251 pairs : ToolError: This request would read 251 kerning pairs, more than the 25 | requests 0
+19dc same text, approved           : (251, True) | payload {'text': 252}
+19dd 3000 characters approved      : 2999
+19de invalid name beats threshold  : ToolError: pair 300 must be [left, right], two glyph names of 1 to 63  | requests 0
+19df both inputs still refused     : ToolError: Give exactly one of pairs (a list of [left, right
+19dg approved but listener 0.94    : ToolError: get_kerning needs listener v0.95 or newer; the running listener is v0.94. Copy the c | kerning requests 0
+19dh small read, listener 0.94     : ToolError: get_kerning needs listener v0.95 or newer; the running listener is v0.94. Copy the c | kerning requests 0
+19di request shape                 : /kerning/pairs ['pairs'] | only POST True
+19dj text request shape            : /kerning/pairs {'text': 'AV'} | only POST True
+19dk payload: stripped lists       : {'pairs': [['A', 'V'], ['T', 'o']]}
+19dl transport error on POST       : ToolError: listener says no
+19dm refusal text mentions       : True
+--- the tool
+19ci static scan                 : posts present True | change tracking False | save False | GET listener calls 0 | requires 0.95 True | posts to the listener 1
+19cj docstring has the key phrases: True | missing []
+19ck wrapper equals read_kerning (pairs): True
+19cl wrapper equals read_kerning (text) : True | both None -> ToolError: Give exactly one of pairs (a 
+19cl2 wrapper passes the approval flag : refused / 251
+19cm MIN_LISTENER_VERSION unchanged / server version: (0, 82) 0.31

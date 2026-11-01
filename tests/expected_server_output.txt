@@ -1,0 +1,58 @@
+testglyph1: calibrated {'x': {'scale': 0.95146, 'offset': 15.0, 'applied': True}, 'y': {'scale': 0.96864, 'offset': 24.0, 'applied': True}, 'meaning': 'FontLab_value = scale * raw_value + offset', 'as_element_transform': {'position_x': 15.0, 'position_y': 24.0, 'horizontal_scale_percent': 95.15, 'vertical_scale_percent': 96.86, 'rotation_and_slant': 'assumed 0 (not measurable here)', 'compare_with': "FontLab's Element selection tool transform bar"}}
+  node 4: 222.419 423.081 (FontLab readout 222.4, 423.1) raw 218 412
+  margins rebuilt: 78.748 74.306 vs FontLab 78.748 / 74.306
+  ink_bbox: {'left': 78.748, 'right': 258.694, 'bottom': 83.88, 'top': 436.234}
+testglyph3: verified | ink {'left': 101.87, 'right': 383, 'bottom': 203.238, 'top': 414} | curve type quadratic
+testglyph2 rebuilt margins: 102.155 117.0 | FontLab shows LSB 102, RSB 117 (displayed truncated)
+  svg: M 128 414 L 383 274 C 314 255 250 172 173 217 C 96 262 83 347 128 414 Z
+  status when margins agree: verified
+A rebuilt margins: 192.466 174.466 | FontLab shows LSB 192, RSB 174 -> expect [192,193) and [174,175)
+  A curve type cubic | contours 1 | path pieces: 18 cubics
+tampered margin -> unverified
+no FontLab bbox -> unverified
+components note present: True
+mixed handle kinds -> unverified | segment mixes cubic and quadratic handles near node 1
+unknown kind -> unverified | unknown node kind 'Weird' at node 3
+no Move start -> unverified | contour does not start with a 'Move' node
+---- new in v0.8 ----
+shape_count=1 -> calibrated | as_element_transform: {'position_x': 15.0, 'position_y': 24.0, 'horizontal_scale_percent': 95.15, 'vertical_scale_percent': 96.86, 'rotation_and_slant': 'assumed 0 (not measurable here)', 'compare_with': "FontLab's Element selection tool transform bar"}
+shape_count=2 -> unverified | This glyph has 2 elements and its coordinates differ from FontLab's geometry. Each element
+shape_count=None -> calibrated | has 'could not be read' note: True
+slanted element (not modelled): status = unverified | margin check agrees: False | rebuilt L/R margin 193.155 34.8 vs FontLab 196.413 34.8
+---- testglyph4 (real slant 10 deg case) ----
+status: unverified
+coordinate_space: element-local RAW coordinates (what the node API returns). They do NOT include t ...
+node 0 shown as: {'index': 0, 'x': 128, 'y': 414, 'kind': 'Move', 'smooth': True} (raw expected: 128, 414; displayed is really ~201.0)
+has attempted_calibration_NOT_applied: True | has 'calibration': False
+ink_bbox: {'left': 102.155, 'right': 383, 'bottom': 203.806, 'top': 414}
+explanatory note present: True
+testglyph1 calibrated | FontLab view (calibrated from FontLab's bounding box; matche
+testglyph3 verified | FontLab view (raw coordinates agree with FontLab's own geome
+
+==== v0.9 direct route ====
+1 testglyph1: verified | FontLab's own element transform, read dire | node0 (93.02, 390.147) raw (82, 378) (FontLab shows 93, 390.1)
+   node4 (222.419, 423.081) (FontLab 222.4, 423.1) | margins rebuilt 78.748 / 74.306 vs 78.748 / 74.306
+   element: scale 95.15% horizontally, 96.86% vertically; offset (15, 24)
+2 testglyph4: verified (was 'unverified' before) | node0 x=200.999 (expected 128+0.17633*414 = 201.0) | margins 158.876 / 68.686 vs FontLab 158.875 / 68.686
+   element: horizontal slant 10.00 degrees (shear 0.17633)
+   svg: M 200.999 414 L 431.314 274 C 358.963 255 280.328 172 211.263 217 C 14 ...
+3 testglyph3 : verified | identity (no transformation) | composite note: False
+3 testglyph2 : verified | identity (no transformation) | composite note: False
+3 A : verified | identity (no transformation) | composite note: True
+4 mirrored glyph
+   WITHOUT the matrix (estimate only): unverified | node0 x = 128 
+   WITH the real matrix              : verified | node0 x = 338 (true mirrored position 466-128 = 338) | scale -100.00% horizontally, 100.00% vertically; MIRRORED horizontally; offset (466, 0)
+5 two elements: verified | 2 elements | ['identity (no transformation)', 'scale 50.00% horizontally, 50.'] | mapping note: True
+6a unavailable    : unverified | note: FontLab's element transforms could not be read (RuntimeError
+6b switched off   : unverified | extra note: False
+6c matrix disagrees: calibrated (estimate takes over) | note: FontLab's element transforms were read but did not reproduce FontLab's
+6d contour mismatch: True
+6e component      : True
+6f incomplete matrix: True
+6g no 'elements' key (old listener): unverified | no extra note: True
+6h no FontLab bbox: unverified | note: True
+7 identity (no transformation)
+7 scale 95.15% horizontally, 96.86% vertically; offset (15, 24)
+7 horizontal slant 10.00 degrees (shear 0.17633)
+7 scale -100.00% horizontally, 100.00% vertically; MIRRORED horizontally; offset (466, 0)
+7 general transformation: rotation about 28.65 degrees, matrix [0.87758 0.47943 -0.47943 0.87758]

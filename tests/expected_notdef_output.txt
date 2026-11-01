@@ -1,0 +1,90 @@
+==== 1. detector (GET /font/notdef, read-only) ====
+1a  zero layers, no components (the real empty .notdef) -> empty | FontLab holds 0 layers for the glyph and it has no components: no outline data
+1b  one layer, 0 nodes/contours/shapes, no components  -> empty | 1 layer with 0 nodes, 0 contours, 0 shapes and no components
+1c  one layer with 8 nodes, 2 contours (Arial-like)     -> has_outline | nodes 8, contours 2, shapes 1, components 0
+1d  zero layers but 1 component                         -> has_outline | FontLab holds 0 layers for the glyph, but it has 1 component(s)
+1e  zero layers, component count unreadable             -> unknown | FontLab holds 0 layers for the glyph, but its component count could not be rea
+1f  one layer, bodyLayer unreachable (None)             -> unknown | the glyph has 1 layer but bodyLayer was None on every attempt, so its contents
+1g  TWO layers, both empty-looking                      -> unknown | the glyph has 2 layers; multi-layer glyphs are untested, so no verdict
+1h  len(glyph.layers) raises                            -> unknown | len(glyph.layers) could not be read
+1i  one layer, countNodes raises                        -> unknown | the layer's counts could not be read: countNodes failed
+1j  one layer, empty, but 1 component                   -> has_outline | nodes 0, contours 0, shapes 0, components 1
+1k  NO glyph named .notdef (glyph 0 is 'A')             -> missing | no glyph named '.notdef' among the 2 glyphs of this font (glyph 0 is named 'A'
+1l  .notdef is glyph 2 (not first)                      -> has_outline | notes: ['.notdef is glyph number 2; the OpenType spec wants it to be glyph 0']
+1m  no font open                                        -> (200, {'open': False})
+1n  GET never shows a dialog                            -> dialogs shown: 0
+
+==== 2. warning dialog (POST /font/notdef/warn) ====
+2a  empty -> shown: True | already_warned: False | dialogs: 1
+    icon: Information | buttons: Ok 
+    title: Glyphbridge: .notdef glyph 
+    text : "It looks like you haven't created a proper .notdef glyph yet. The .notdef is the glyph that shows when your font doesn't contain a character that is being typed. It is usually drawn as a rectangle, often with a question mark or an X inside, as the OpenType specification recommends.\n\n(Shown once per font per session by Glyphbridge, because an AI agent read this font.)"
+2b  second call, same font -> shown: False | already_warned: True | dialogs: 1
+2c  force=true -> shown: True | dialogs: 2
+2d  force="yes" (not boolean true) -> shown: False | already_warned: True
+2e  different font path -> shown: True | dialogs: 3
+2f  missing -> shown: True | status: missing 
+    text : "Your font has no glyph named .notdef. Every font needs one (it must be glyph 0). The .notdef is the glyph that shows when your font doesn't contain a character that is being typed. It is usually drawn as a rectangle, often with a question mark or an X inside, as the OpenType specification recommends.\n\n(Shown once per font per session by Glyphbridge, because an AI agent read this font.)"
+2g  drawn    -> status: has_outline | shown: False | dialogs: 0 | no warning needed: .notdef has an outline
+2g  unknown  -> status: unknown | shown: False | dialogs: 0 | could not be determined, so no warning was shown
+2g  two lyrs -> status: unknown | shown: False | dialogs: 0 | could not be determined, so no warning was shown
+2g  comp     -> status: has_outline | shown: False | dialogs: 0 | no warning needed: .notdef has an outline
+2h  dialog raises -> shown: False | dialog_error: RuntimeError: no GUI available | remembered as warned: False
+    next call tries again -> shown: True
+2i  bad JSON -> 400 | JSON list -> 400
+2j  no font open -> (200, {'open': False})
+
+==== 3. /glyph/outline for a layerless / unreachable glyph ====
+3a  zero layers -> 200 {'node_count': 0, 'layer_count': 0, 'contours': [], 'component_count': 0} | error: None
+3b  1 layer, unreachable -> 200 | error: layer route 'body' was None on every attempt | layer_unreachable: True | layer_count: 1
+3c  zero layers, route=strict -> 200 | node_count: 0 | layer_name: L (the always-empty placeholder)
+
+==== 4. server (listener faked) ====
+4a  has_outline -> status: has_outline | calls: [('GET', '/font/notdef')] | agent_instruction: None
+4b  empty, dialog shown -> shown: True | calls: [('GET', '/font/notdef'), ('POST', '/font/notdef/warn', 120.0)]
+    instruction: A dialog explaining this was just shown to the user in FontLab. Also tell the user in your reply that the .notdef glyph is empty (it has no lines or shapes), and what .notdef is for. Do not present it as an error.
+4c  already warned -> True | The user was already shown the warning dialog earlier in this session 
+4d  dialog failed -> RuntimeError: no GUI | The warning dialog could NOT be shown (RuntimeError: no GUI)
+4e  unknown -> calls: [('GET', '/font/notdef')] | Do not tell the user that .notdef is missing or empty: it 
+4f  missing -> shown: True | A dialog explaining this was just shown to the user in FontLab. Also
+4g  changed between reads -> status: has_outline | ['The status changed between the two reads; the later one is reported.']
+4h  malformed status -> ToolError: The listener's .notdef reply was malformed, so it was not trusted.
+4i  no font open -> ToolError: FontLab is running and the li
+
+-- get_current_font automatic check
+4j  auto on, drawn -> notdef status: has_outline | calls: ['/font/current', '/font/notdef']
+4k  GLYPHBRIDGE_NOTDEF_WARN=0 -> 'notdef' key: False | calls: ['/font/current']
+4l  notdef check fails -> font still returned: F | notdef: check_failed | The FontLab listener did not answe
+4m  no font open -> still raises: ToolError: FontLab is running and the li
+
+-- get_glyph_outline wording
+4n  unreachable (not .notdef): ToolError: The outline of 'Q' could not be read: FontLab did not hand over its layer through the API (layer route 'body' was None on every attempt; FontLab reports 1 layer(s) for it). This does NOT mean the glyph is empty - its contents are simply unknown.
+4o  unreachable (.notdef)     : ToolError: The outline of '.notdef' could not be read: FontLab did not hand over its layer through the API (layer route 'body' was None on every attempt; FontLab reports 1 layer(s) for it). This does NOT mean the glyph is empty - its contents are simply unknown. .notdef is a mandatory glyph that every font has (glyph 0); do not report it as missing or empty on this basis. Call check_notdef to check it a different way.
+4p  other error unchanged     : ToolError: The outline of 'R' could not be read: boom
+4q  .notdef empty -> empty: True | notdef_check: empty dialog_shown: True 
+    notes: ['This glyph has no contours of its own.', 'FontLab holds no layer at all for this glyph, which means it has no outline data.', '.notdef is the glyph shown when a character is missing from the font. An empty .notdef is valid but not recommended; see check_notdef.']
+4r  another empty glyph -> notdef_check present: False | calls: ['/glyph/outline?name=space']
+4s  .notdef empty, env off -> notdef_check present: False
+4t  list_glyphs never checks .notdef -> calls: ['/font/glyphs']
+
+-- self-check flags
+    --check -> notdef check lines: ['[OK]     .notdef status (read-only): {"status"'] | POSTs: []
+    --notdef-warn -> notdef check lines: ['[OK]     .notdef status (read-only): {"status"', '[OK]     check_notdef (may show a dialog in Fo'] | POSTs: ['/font/notdef/warn']
+
+==== 5. end to end: stub FontLab -> real listener -> real server ====
+5a  get_current_font, empty .notdef  -> notdef: empty | dialogs: 1 | instruction: A dialog explaining this was just shown to the u
+5b  get_current_font again          -> already_warned: True | dialogs still: 1
+5c  list_glyphs                     -> dialogs still: 1
+5d  check_notdef tool               -> status: empty | dialogs still: 1 (once per font)
+5e  get_glyph_outline('.notdef'), new font -> empty: True | dialogs: 1 | notdef_check.dialog_shown: True
+5f  drawn .notdef                   -> notdef: has_outline | dialogs: 0 (none)
+5g  unreachable .notdef             -> notdef: unknown | dialogs: 0 (none) | Do not tell the user that .notdef is missing
+5h  font without .notdef            -> notdef: missing | dialogs: 1 | text starts: Your font has no glyph named .notdef. Ever
+5i  GLYPHBRIDGE_NOTDEF_WARN=0       -> 'notdef' key: False | dialogs: 0
+5j  ...but the explicit tool still works -> status: empty | dialogs: 1
+
+==== 6. timeout wording (_do_request with a fake opener) ====
+6a  socket timeout       -> The FontLab listener did not answer /glyph/create within 5s. This happens, for example, when a Glyphbridge dialog (the .notdef notice or a delete confirmation) is waiting for an answer in FontLab: answer or close it there. It can also mean FontLab is busy or frozen. If you asked for a change, it may or may not have been applied: check the font's current state before repeating it.
+6b  URLError(timeout)    -> The FontLab listener did not answer /glyph/create within 5s. This happens, for example, when a Glyphbridge dialog (the .notdef notice or a delete confirmation) is waiting for an answer in FontLab: answer or close it there. It can also mean FontLab is busy or frozen. If you asked for a change, it may or may not have been applied: check the font's current state before repeating it.
+6c  connection refused   -> Cannot reach the Glyphbridge listener at http://127.0.0.1:8765. Make sure FontLab 8 is running and that glyphbridge_fontlab_mcp_listener.py has been started from FontLab's Scripting panel (it must be started manually each FontLab session).
+6d  mentions a waiting dialog: True | still names busy/frozen: True | tells to check the state before repeating a change: True | path and seconds: True
