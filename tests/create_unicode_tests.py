@@ -1180,7 +1180,7 @@ def _k19_post(path, payload, timeout=0):
     if isinstance(r, Exception): raise r
     return r
 srv._call_listener, srv._call_listener_post = _k19_get, _k19_post
-def k19(reply=None, version="0.95", **call):
+def k19(reply=None, version="0.104", **call):
     K19["reply"] = reply; K19["version"] = version; K19["paths"].clear(); K19["posts"] = []
     srv._reset_change_tracking()
     try:
@@ -1189,9 +1189,16 @@ def k19(reply=None, version="0.95", **call):
         return "ToolError: " + str(e)
 def k19reads(): return [(p, pl) for p, pl, _t in K19["posts"]]
 def k19other(): return [p for p, _pl, _t in K19["posts"] if p != "/kerning/pairs"] + [p for p in K19["paths"] if p != "/version"]
+def _src19(e):
+    """v0.33: listener 0.104 sends a source with every read value; give the older fakes a plausible one unless the case sets its own."""
+    if not isinstance(e, dict) or "source" in e or "error" in e:
+        return e
+    v = e.get("value")
+    zero = isinstance(v, (int, float)) and not isinstance(v, bool) and v == 0
+    return dict(e, source="none" if zero else "glyph : glyph")
 def okreply(results, **extra):
-    return dict({"open": True, "mode": "pairs", "units_per_em": 2048.0, "count": len(results), "errors": 0, "table_size": 1370,
-                 "side_effect_detected": False, "results": results}, **extra)
+    return dict({"open": True, "mode": "pairs", "master": "Regular", "master_count": 1, "units_per_em": 2048.0, "count": len(results), "errors": 0, "table_size": 1370,
+                 "side_effect_detected": False, "results": [_src19(e) for e in results]}, **extra)
 def row19(label, r):
     if isinstance(r, str): print(label, ":", r[:230]); return
     print(label, ":", {k: v for k, v in r.items() if k not in ("results", "agent_instruction")}, "| instruction", len(r["agent_instruction"]) > 100)
@@ -1226,7 +1233,7 @@ r = k19(okreply([{"left": "A", "right": "V", "value": 0, "kerned": False}] * 1, 
 r = k19(okreply([{"left": "A", "right": "V", "value": 0, "kerned": False}] * 1, mode="text"), text="A "); print("19aj U+00A0 is not a control char:", isinstance(r, dict), k19reads())
 
 print("--- listener version and state")
-for v in ("0.93", "0.82", "0.9", "0.94", "0.95", "1.0", "garbage"):
+for v in ("0.93", "0.82", "0.9", "0.94", "0.95", "0.103", "0.104", "0.105", "1.0", "garbage"):
     r = k19(okreply([{"left": "A", "right": "V", "value": -1.0}]), version=v, pairs=[["A", "V"]]); print("19ak listener", v.ljust(8), ":", (r[:90] if isinstance(r, str) else "read ok"), "| kerning requests", len(k19reads()))
 r = k19(okreply([{"left": "A", "right": "V", "value": -1.0}]), version=RuntimeError("down"), pairs=[["A", "V"]]); print("19al version unreadable          :", "read ok" if isinstance(r, dict) else r[:90], "| kerning requests", len(k19reads()))
 r = k19({"open": False}, pairs=[["A", "V"]]); print("19am no font open                :", r[:100], "| NO_FONT text", r == "ToolError: " + srv.NO_FONT)
@@ -1289,6 +1296,34 @@ r = k19(okreply(many(2999), mode="text"), text="AV" * 1500, confirmed_large_read
 r = k19(okreply(many(300)), pairs=[["A", "V"]] * 299 + [["A", "bad name"]]); print("19de invalid name beats threshold  :", r[:70], "| requests", len(K19["paths"]) + len(K19["posts"]))
 r = k19(okreply(many(300)), pairs=[["A", "V"]] * 300, confirmed_large_read=True, text="AV") if False else k19(okreply(many(300)), pairs=[["A", "V"]] * 300, text="AV", confirmed_large_read=True); print("19df both inputs still refused     :", r[:60])
 r = k19(okreply(many(300)), version="0.94", pairs=[["A", "V"]] * 300, confirmed_large_read=True); print("19dg approved but listener 0.94    :", r[:95], "| kerning requests", len(k19reads()))
+
+print("--- v0.33: source, class names and master from listener 0.104 (P0.8)")
+for label, e in (("19x01 glyph : class with its class", {"left": "A", "right": "V", "value": -76.0, "source": "glyph : class", "right_class": "W"}),
+                 ("19x02 class : glyph with its class", {"left": "A", "right": "V", "value": -80.0, "source": "class : glyph", "left_class": "Aring"}),
+                 ("19x03 class : class, both classes", {"left": "A", "right": "V", "value": -76.0, "source": "class : class", "left_class": "Aring", "right_class": "W"}),
+                 ("19x04 explicit 0 entry", {"left": "A", "right": "V", "value": 0.0, "source": "glyph : class", "right_class": "W"}),
+                 ("19x05 none with value 0", {"left": "A", "right": "V", "value": 0, "source": "none"}),
+                 ("19x06 extra class on glyph : glyph dropped", {"left": "A", "right": "V", "value": -5.0, "source": "glyph : glyph", "left_class": "X"}),
+                 ("19x07 source missing", {"left": "A", "right": "V", "value": -5.0, "source": None}),
+                 ("19x08 source unknown", {"left": "A", "right": "V", "value": -5.0, "source": "glyph:glyph"}),
+                 ("19x09 source not a string", {"left": "A", "right": "V", "value": -5.0, "source": 3}),
+                 ("19x10 none but a value", {"left": "A", "right": "V", "value": -5.0, "source": "none"}),
+                 ("19x11 glyph : class without class", {"left": "A", "right": "V", "value": -5.0, "source": "glyph : class"}),
+                 ("19x12 class : class, one class", {"left": "A", "right": "V", "value": -5.0, "source": "class : class", "left_class": "Aring"}),
+                 ("19x13 class name with a space", {"left": "A", "right": "V", "value": -5.0, "source": "glyph : class", "right_class": "W W"}),
+                 ("19x14 class name not a string", {"left": "A", "right": "V", "value": -5.0, "source": "class : glyph", "left_class": 7}),
+                 ("19x15 class name 64 long", {"left": "A", "right": "V", "value": -5.0, "source": "class : glyph", "left_class": "x" * 64}),
+                 ("19x16 bad value beats source", {"left": "A", "right": "V", "value": "x", "source": "glyph : glyph"})):
+    r = one(e); print(label.ljust(40), ":", r)
+for label, extra in (("19x17 master and count", {}), ("19x18 master missing", dict(master=None)), ("19x19 master not a string", dict(master=5)),
+                     ("19x20 master empty", dict(master="")), ("19x21 master with a newline", dict(master="Reg\nular")), ("19x22 master 64 long", dict(master="M" * 64)),
+                     ("19x23 two masters", dict(master="Bold", master_count=2)), ("19x24 master_count bool", dict(master_count=True)), ("19x25 master_count 0", dict(master_count=0)),
+                     ("19x26 master_count string", dict(master_count="2"))):
+    rep = okreply([{"left": "A", "right": "V", "value": -1.0}]); rep.update(extra)
+    r = k19(rep, pairs=[["A", "V"]]); print(label.ljust(31), ":", {k: r[k] for k in ("master", "master_count")}, "| masters note", "only the current one was read" in r["agent_instruction"])
+r = k19(okreply([{"left": "A", "right": "V", "value": -1.0}], table_size=0), pairs=[["A", "V"]]); print("19x27 empty master table note       :", r["agent_instruction"][-200:])
+r = k19({"open": True, "error": "2 fonts are open: the kerning table can be matched to the current font only when exactly one font is open, so close the other fonts"}, pairs=[["A", "V"]]); print("19x28 two fonts: listener error     :", r)
+print("19x29 tool docstring                :", "listener v0.104" in srv.get_kerning.__doc__, "| source named:", "never guess whether a value comes from a class" in srv.get_kerning.__doc__, "| one font:", "Exactly one font" in srv.get_kerning.__doc__)
 r = k19(okreply(many(2)), version="0.94", pairs=[["A", "V"]] * 2); print("19dh small read, listener 0.94     :", r[:95], "| kerning requests", len(k19reads()))
 r = k19(okreply(many(1)), pairs=[["A", "V"]]); print("19di request shape                 :", k19reads()[0][0], sorted(k19reads()[0][1]), "| only POST", k19other() == [])
 r = k19(okreply(many(1), mode="text"), text="AV"); print("19dj text request shape            :", k19reads()[0][0], k19reads()[0][1], "| only POST", k19other() == [])
@@ -1301,11 +1336,11 @@ tool_src = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
 _body = tool_src[tool_src.index("_KERN_NAME_RE = "):tool_src.index("def write_glyph_sidebearings(")]
 import re as _re19
 print("19ci static scan                 : posts present", "_call_listener_post" in _body, "| change tracking", bool(_re19.search(r"_note_change|_mark_modified|_CHANGES|finish_changes", _body)),
-      "| save", bool(_re19.search(r"\.save\(|save\(", _body)), "| GET listener calls", len(_re19.findall(r"_call_listener\(", _body)), "| requires 0.95", '_require_listener((0, 95), "get_kerning")' in _body, "| posts to the listener", len(_re19.findall(r"_call_listener_post\(", _body)))
+      "| save", bool(_re19.search(r"\.save\(|save\(", _body)), "| GET listener calls", len(_re19.findall(r"_call_listener\(", _body)), "| requires 0.104", '_require_listener((0, 104), "get_kerning")' in _body, "| posts to the listener", len(_re19.findall(r"_call_listener_post\(", _body)))
 doc = srv.get_kerning.__doc__
-_need = ("exactly one of", "Never ask for the whole", "Needs listener v0.95", "never a zero", "more than 250 pairs", "confirmed_large_read=true", "Never set confirmed_large_read=true on your own", "no upper limit")
+_need = ("exactly one of", "Never ask for the whole", "Needs listener v0.104", "never a zero", "more than 250 pairs", "confirmed_large_read=true", "Never set confirmed_large_read=true on your own", "no upper limit")
 print("19cj docstring has the key phrases:", [w for w in _need if w not in doc] == [], "| missing", [w for w in _need if w not in doc])
-K19["reply"] = okreply([{"left": "A", "right": "V", "value": -152.0}]); K19["version"] = "0.95"
+K19["reply"] = okreply([{"left": "A", "right": "V", "value": -152.0}]); K19["version"] = "0.104"
 _w = srv.get_kerning(pairs=[["A", "V"]]); _d = srv.read_kerning(pairs=[["A", "V"]]); print("19ck wrapper equals read_kerning (pairs):", _w == _d)
 K19["reply"] = okreply([{"chars": "AV", "left": "A", "right": "V", "value": -152.0}], mode="text"); print("19cl wrapper equals read_kerning (text) :", srv.get_kerning(text="AV") == srv.read_kerning(text="AV"), "| both None ->", k19(None, pairs=None, text=None)[:40])
 K19["reply"] = okreply([{"left": "A", "right": "V", "value": -1.0}] * 251)

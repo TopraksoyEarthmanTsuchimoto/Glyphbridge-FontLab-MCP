@@ -3013,22 +3013,20 @@ elif hasattr(fl, "CountFonts"): delattr(fl, "CountFonts")
 ns["_TRYGROUPS"]["calls"] = 0
 
 
-# ================= v0.94: GET /kerning/pairs (read-only; faked class-resolving kerning object with spies) =================
-print("\n==== v0.94 /kerning/pairs ====")
-KP = {"touched": [], "forbidden": [], "gets": [], "mode": {}, "len": 1370, "len_after": None, "len_raises": False, "all_touched": set(), "cur_calls": 0, "glyph_boom": False}
+# ================= v0.94 / v0.104: GET /kerning/pairs (read-only; the master's table through flPackage, explicit keys; spies) =================
+print("\n==== v0.94 /kerning/pairs (v0.104: the master's table, explicit keys) ====")
+KP = {"touched": [], "forbidden": [], "gets": [], "mode": {}, "len": 1370, "len_after": None, "len_raises": False, "all_touched": set(), "cur_calls": 0, "glyph_boom": False,
+      "groups_calls": 0, "kerning_args": [], "cfg": {}, "ever": []}
 _KP_FORBIDDEN = ("set", "remove", "clear", "addGroup", "deleteGroup", "deleteAllGroups", "renameGroup", "scale", "setPlainPairs", "asDict", "getPlainPairs",
                  "getPlainPairsDict", "items", "keys", "values", "has_key", "hasGroupKerning", "groups")
-_KP_LEFT = {"Aring": ("Aacute", "Atilde", "Aring")}
-_KP_RIGHT = {"W": ("W.c2sc", "Wgrave.c2sc"), "Y": ("Ydieresis.c2sc",)}
-_KP_TABLE = {("A", "V"): -152.0, ("V", "A"): -152.0, ("T", "o"): -227.0, ("A", "@W"): -76.0, ("@Aring", "@W"): -76.0, ("@Aring", "@Y"): -152.0,
-             ("A", "Tbar.c2sc"): -80.0, ("@Aring", "Tbar.c2sc"): -80.0, ("o", "o"): 0.0, ("A", "space"): -113.0, ("space", "V"): -37.0}
-def _kp_lookup(a, b):
-    la = [a] + ["@" + g for g, m in _KP_LEFT.items() if a in m]
-    rb = [b] + ["@" + g for g, m in _KP_RIGHT.items() if b in m]
-    for x in la:
-        for y in rb:
-            if (x, y) in _KP_TABLE: return _KP_TABLE[(x, y)]
-    return None
+_KP_LEFT = {"Aring": (101, ("Aacute", "Atilde", "Aring"))}               # left classes: name -> (id, members); the glyph's kerningLeft holds the id
+_KP_RIGHT = {"W": (201, ("W.c2sc", "Wgrave.c2sc")), "Y": (202, ("Ydieresis.c2sc",))}
+_KP_TABLE = {(("A", False), ("V", False)): -152.0, (("V", False), ("A", False)): -152.0, (("T", False), ("o", False)): -227.0,
+             (("A", False), ("W", True)): -76.0, (("Aring", True), ("W", True)): -76.0, (("Aring", True), ("Y", True)): -152.0,
+             (("A", False), ("Tbar.c2sc", False)): -80.0, (("Aring", True), ("Tbar.c2sc", False)): -80.0, (("o", False), ("o", False)): 0.0,
+             (("A", False), ("space", False)): -113.0, (("space", False), ("V", False)): -37.0}
+def _kp_groups_default():
+    return [(True, name, gid, 0, list(members)) for name, (gid, members) in list(_KP_LEFT.items()) + list(_KP_RIGHT.items())] + [(False, "fea", 300, 0, ["A"])]
 class KPKern:
     def __getattribute__(self, n):
         if not n.startswith("__"):
@@ -3036,13 +3034,19 @@ class KPKern:
             if n in _KP_FORBIDDEN:
                 KP["forbidden"].append(n)
                 raise SystemExit("FORBIDDEN kerning member touched: " + n)
+            if n == "get" and KP["cfg"].get("get_attr") == "not_callable": return 5
         return object.__getattribute__(self, n)
     def __len__(self):
         if KP["len_raises"]: raise RuntimeError("len boom")
         return KP["len_after"] if (KP["len_after"] is not None and KP["gets"]) else KP["len"]
     def get(self, pair):
-        KP["gets"].append((type(pair).__name__, pair, [type(x).__name__ for x in pair]))
-        m = KP["mode"].get(tuple(pair))
+        KP["gets"].append(pair)
+        flagged = isinstance(pair, tuple) and len(pair) == 2 and all(isinstance(p, tuple) and len(p) == 2 and isinstance(p[1], bool) for p in pair)
+        if not flagged:
+            KP["forbidden"].append("plain key " + repr(pair)); KP["ever"].append("plain key " + repr(pair)); return -999.0
+        (a, fa), (b, fb) = pair
+        m = KP["mode"].get(pair)
+        if m is None and not (fa or fb): m = KP["mode"].get((a, b))
         if m == "raise": raise RuntimeError("get boom")
         if m == "str": return "text"
         if m == "bool": return True
@@ -3050,31 +3054,102 @@ class KPKern:
         if m == "inf": return float("inf")
         if m == "-inf": return float("-inf")
         if m == "zero": return 0.0
-        return _kp_lookup(*pair)
+        if isinstance(m, float): return m
+        return _KP_TABLE.get(pair)
 class KPGlyph:
     def __init__(self, n, u=None, boom=False): self.name = n; self._u = u; self._boom = boom
     @property
     def unicode(self):
         if self._boom: raise RuntimeError("unicode boom")
         return self._u
+    def _ids(self):
+        over = KP["cfg"].get("ids", {}).get(self.name)
+        if over is not None: return over
+        left = next((gid for gid, members in _KP_LEFT.values() if self.name in members), 0)
+        right = next((gid for gid, members in _KP_RIGHT.values() if self.name in members), 0)
+        return (left, right)
+    @property
+    def kerningLeft(self):
+        v = self._ids()[0]
+        if isinstance(v, Exception): raise v
+        return v
+    @property
+    def kerningRight(self):
+        v = self._ids()[1]
+        if isinstance(v, Exception): raise v
+        return v
 _KP_GLYPHS = [KPGlyph(n, u) for n, u in (("A", 65), ("V", 86), ("T", 84), ("o", 111), ("B", 66), ("space", 32), ("Aacute", 193), ("eacute", 233), ("Atilde", 195), ("Aring", 197),
               ("W.c2sc", None), ("Wgrave.c2sc", None), ("Ydieresis.c2sc", None), ("Tbar.c2sc", None), ("x", 120), ("x.alt2", 120), ("y", 121), ("y.1", 121), ("y.2", 121), ("y.3", 121), ("y.4", 121), ("y.5", 121), ("y.6", 121), ("zero", 0), (".notdef", None))]
 class KPInfo:
     unitsPerEm = 2048.0
 class KPFont:
-    kerning = KPKern()
     info = KPInfo()
+    @property
+    def kerning(self):
+        KP["forbidden"].append("font.kerning (the legacy table)"); KP["ever"].append("font.kerning")
+        raise SystemExit("FORBIDDEN: the legacy font.kerning was read")
     @property
     def glyphs(self):
         if KP["glyph_boom"]: raise RuntimeError("glyph list boom")
         return list(_KP_GLYPHS)
-def kp_setup(count=1, cur="font", mode=None):
+_KP_PKG_OK = ("isNull", "masters", "master", "kerning", "getAllGroups")
+class KPPackage:
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            KP["all_touched"].add("package." + n)
+            if n not in _KP_PKG_OK:
+                KP["forbidden"].append("package." + n); raise SystemExit("FORBIDDEN package member touched: " + n)
+        return object.__getattribute__(self, n)
+    def isNull(self): return False
+    @property
+    def masters(self):
+        v = KP["cfg"].get("masters", ["Regular"])
+        if isinstance(v, Exception): raise v
+        return v
+    @property
+    def master(self):
+        v = KP["cfg"].get("master", "Regular")
+        if isinstance(v, Exception): raise v
+        return v
+    @property
+    def kerning(self):
+        v = KP["cfg"].get("kerning_attr")
+        if isinstance(v, Exception): raise v
+        if v == "not_callable": return 5
+        def _kerning(*args):
+            KP["kerning_args"].append(args)
+            m = KP["cfg"].get("kerning_call")
+            if isinstance(m, Exception): raise m
+            if m == "no_get": return object()
+            return KPKern()
+        return _kerning
+    @property
+    def getAllGroups(self):
+        v = KP["cfg"].get("getall_attr")
+        if v == "not_callable": return 7
+        def _all():
+            KP["groups_calls"] += 1
+            g = KP["cfg"].get("groups", "default")
+            if isinstance(g, Exception): raise g
+            return _kp_groups_default() if g == "default" else g
+        return _all
+KP_PKG = KPPackage()
+class KPWorkspace:
+    @staticmethod
+    def instance(): return KP_WS
+    def packages(self): return [KP_PKG] * KP["cfg"].get("packages", 1)
+    @property
+    def currentPackage(self): return KP_PKG
+KP_WS = KPWorkspace()
+def kp_setup(count=1, cur="font", mode=None, **cfg):
     KP["touched"].clear(); KP["forbidden"].clear(); KP["gets"].clear(); KP["mode"] = mode or {}; KP["len_after"] = None; KP["len_raises"] = False; KP["cur_calls"] = 0; KP["glyph_boom"] = False
+    KP["groups_calls"] = 0; KP["kerning_args"].clear(); KP["cfg"] = dict(cfg)
     def _cur():
         KP["cur_calls"] += 1
-        return None if cur is None else KPFont()
+        return None if cur is None else (cfg["font"]() if "font" in cfg else KPFont())
     fl.CurrentFont = _cur
     fl.CountFonts = (lambda: count) if not isinstance(count, Exception) else (lambda: (_ for _ in ()).throw(count))
+    fl.flWorkspace = KPWorkspace
 def kpc(tag, path, brief=False):
     c, d = call(path)
     head = {k: v for k, v in d.items() if k != "results"}
@@ -3086,13 +3161,13 @@ def kpc(tag, path, brief=False):
     else:
         print("       (%d results; distinct:" % len(rs), sorted(set(str(r) for r in rs))[:4], ")")
     return c, d
-_kp_cf = getattr(fl, "CountFonts", None); _kp_cur = fl.CurrentFont
+_kp_cf = getattr(fl, "CountFonts", None); _kp_cur = fl.CurrentFont; _kp_ws = getattr(fl, "flWorkspace", None)
 kp_setup(); kpc("1140 no parameter                ", "/kerning/pairs")
 kp_setup(); kpc("1141 both parameters             ", "/kerning/pairs?pairs=A:V&text=AV")
 kp_setup(); kpc("1142 pairs: direct pairs         ", "/kerning/pairs?pairs=A:V,V:A,T:o,A:B")
 kp_setup(); kpc("1143 pairs: class kerning        ", "/kerning/pairs?pairs=A:Wgrave.c2sc,Aacute:Wgrave.c2sc,Atilde:Ydieresis.c2sc,A:Tbar.c2sc,Aacute:Tbar.c2sc")
 kp_setup(); c, d = kpc("1144 pairs: get gets a tuple of str", "/kerning/pairs?pairs=A:V")
-print("1144b types passed to get          :", KP["gets"], "| touched only get:", sorted(set(KP["touched"])))
+print("1144b keys passed to get           :", KP["gets"], "| touched only get:", sorted(set(KP["touched"])))
 kp_setup(); kpc("1145 pairs: duplicates, spaces    ", "/kerning/pairs?pairs=A:V,%20A%20:%20V%20,A:V")
 kp_setup(); kpc("1146 pairs: unknown glyph names   ", "/kerning/pairs?pairs=A:V,Q:V,A:Qq,Q:Qq")
 kp_setup(mode={("A", "V"): "raise", ("V", "A"): "str", ("T", "o"): "bool", ("A", "B"): "nan", ("o", "o"): "inf"}); kpc("1147 get raises / odd values per pair", "/kerning/pairs?pairs=A:V,V:A,T:o,A:B,o:o,A:space")
@@ -3125,18 +3200,6 @@ _KP_GLYPHS.pop()
 kp_setup(); KP["len_after"] = 1369; kpc("1166 table size changes: side effect", "/kerning/pairs?pairs=A:V")
 kp_setup(); KP["len_raises"] = True; kpc("1167 len() raises                 ", "/kerning/pairs?pairs=A:V")
 kp_setup(); KP["glyph_boom"] = True; kpc("1168 glyph list unreadable         ", "/kerning/pairs?pairs=A:V")
-class KPNoKern:
-    glyphs = _KP_GLYPHS
-    @property
-    def kerning(self): raise RuntimeError("no kerning")
-class KPBadGet:
-    glyphs = _KP_GLYPHS
-    class _K:
-        get = 5
-    kerning = _K()
-class KPNoGet:
-    glyphs = _KP_GLYPHS
-    kerning = object()
 class KPNoInfo(KPFont):
     @property
     def info(self): raise RuntimeError("no info")
@@ -3148,8 +3211,11 @@ class KPStrInfo(KPFont):
     class _I:
         unitsPerEm = "2048"
     info = _I()
-for tag, fnt in (("1169 font.kerning raises", KPNoKern), ("1170 kerning.get not callable", KPBadGet), ("1171 kerning has no get", KPNoGet), ("1172 font.info unreadable", KPNoInfo), ("1172b unitsPerEm is True", KPBoolInfo), ("1172c unitsPerEm is a string", KPStrInfo)):
-    kp_setup(); fl.CurrentFont = (lambda f=fnt: f()); kpc(tag.ljust(32), "/kerning/pairs?pairs=A:V")
+kp_setup(kerning_attr=RuntimeError("no kerning")); kpc("1169 package kerning raises      ", "/kerning/pairs?pairs=A:V")
+kp_setup(get_attr="not_callable"); kpc("1170 table get not callable      ", "/kerning/pairs?pairs=A:V")
+kp_setup(kerning_call="no_get"); kpc("1171 table has no get            ", "/kerning/pairs?pairs=A:V")
+for tag, fnt in (("1172 font.info unreadable", KPNoInfo), ("1172b unitsPerEm is True", KPBoolInfo), ("1172c unitsPerEm is a string", KPStrInfo)):
+    kp_setup(font=fnt); kpc(tag.ljust(32), "/kerning/pairs?pairs=A:V")
 kp_setup(count=0); kpc("1173 CountFonts 0: not open     ", "/kerning/pairs?pairs=A:V")
 print("1173b CurrentFont never asked      :", KP["cur_calls"] == 0)
 kp_setup(cur=None); kpc("1174 CurrentFont None          ", "/kerning/pairs?pairs=A:V")
@@ -3161,13 +3227,13 @@ def _kp_boom(pairs, text): raise RuntimeError("probe boom")
 ns["get_kerning_pairs"] = _kp_boom; kpc("1177 function raises: HTTP 500   ", "/kerning/pairs?pairs=A:V"); ns["get_kerning_pairs"] = _kp_real
 kp_setup(); [call("/kerning/pairs?pairs=A:V") for _ in range(60)]; c, d = call("/kerning/pairs?pairs=A:V"); print("1178 no per-run cap: 61st request  :", c, d.get("results"))
 print("1179 spy over all cases          : forbidden members touched:", KP["forbidden"], "| every member touched anywhere:", sorted(KP["all_touched"]))
-_kp_src = src[src.index("def get_kerning_pairs("):src.index("def _other_glyphs_with_unicode(")]
+_kp_src = src[src.index("def _kern_class_id("):src.index("def _other_glyphs_with_unicode(")]
 _kp_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _kp_src).splitlines())
-_kp_body = _re83.sub(r'(?s)"""(.*?)"""', '', _kp_code, count=1)
+_kp_body = _re83.sub(r'(?s)"""(.*?)"""', '', _kp_code)
 print("1180 static scan                 : kerning members used:", sorted(set(_re83.findall(r"kerning\.(\w+)", _kp_body))), "| getter( calls:", len(_re83.findall(r"\bgetter\(", _kp_body)),
-      "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|set\w*|add\w*|clear\w*|keys|values|items|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|scale|rename\w*)\(", _kp_body),
-      "| subscripts on other objects:", sorted(set(s for s in _re83.findall(r"\b(\w+)\[", _kp_body) if s not in ("entry", "holders", "wanted", "hit", "parts", "text", "items", "raw_items"))),
-      "| no gate needed (no go= in source):", "go" not in _re83.findall(r"\bgo\b", _kp_body), "| scanned chars > 3000:", len(_kp_src) > 3000)
+      "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|set\w*|add\w*|clear\w*|keys|values|items|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|scale|rename\w*)\(", _kp_body.replace("entry.update(", "").replace("by_name.setdefault(", "").replace("twice.add(", "")),
+      "| subscripts:", sorted(set(_re83.findall(r"\b(\w+)\[", _kp_body))), "| font members used:", sorted(set(_re83.findall(r"\bfont\.(\w+)", _kp_body))),
+      "| pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _kp_body))), "| no gate needed (no go= in source):", "go" not in _re83.findall(r"\bgo\b", _kp_body), "| scanned chars > 3000:", len(_kp_src) > 3000)
 print("1181 constants and routes        : cap constant gone:", "_KERN_MAX_PAIRS" not in ns, "| GET and POST routes registered:", src.count('if path == "/kerning/pairs":') == 2 and src.count('"/kerning/pairs"') >= 2)
 def kpp(tag, payload, raw=False):
     body = payload if raw else json.dumps(payload).encode("utf-8")
@@ -3196,7 +3262,7 @@ for tag, pl in (("1194 pairs is a string", {"pairs": "A:V"}), ("1195 text is a n
                 ("1198 pairs is null, text null", {"pairs": None, "text": None}), ("1199 item is a string", {"pairs": ["AV"]}), ("1200 item has 3 names", {"pairs": [["A", "V", "T"]]}),
                 ("1201 item has 1 name", {"pairs": [["A"]]}), ("1202 name is a number", {"pairs": [["A", 5]]}), ("1203 name is null", {"pairs": [["A", None]]}), ("1204 name empty", {"pairs": [["A", ""]]}),
                 ("1205 name blank", {"pairs": [["A", "  "]]}), ("1206 name with colon", {"pairs": [["A:V", "B"]]}), ("1207 name with comma", {"pairs": [["A,V", "B"]]}),
-                ("1208 name 64 long", {"pairs": [["A", "x" * 64]]}), ("1209 name non-ASCII", {"pairs": [["A", "\u00e9"]]}), ("1210 item is a dict", {"pairs": [{"left": "A", "right": "V"}]}),
+                ("1208 name 64 long", {"pairs": [["A", "x" * 64]]}), ("1209 name non-ASCII", {"pairs": [["A", "é"]]}), ("1210 item is a dict", {"pairs": [{"left": "A", "right": "V"}]}),
                 ("1211 item is nested list", {"pairs": [[["A"], "V"]]}), ("1212 good pair then bad pair", {"pairs": [["A", "V"], ["A"]]})):
     kp_setup(); kpp(tag.ljust(32), pl)
 kp_setup(); kpp("1213 POST body not JSON          ", b"not json", raw=True)
@@ -3210,9 +3276,60 @@ kp_setup()
 for _tag, _a, _b in (("1221 direct: pairs is a number", 5, None), ("1222 direct: pairs is a dict", {"A": "V"}, None), ("1223 direct: text is a number", None, 5), ("1224 direct: text is a list", None, ["AV"]), ("1225 direct: text is a tuple of 2", None, ("A", "V"))):
     print(_tag.ljust(34), ":", ns["get_kerning_pairs"](_a, _b), "| gets", len(KP["gets"]))
 print("1220 POST route registered once   :", src.count('if path == "/kerning/pairs":') == 2, "| spy: forbidden members touched:", KP["forbidden"], "| members touched anywhere:", sorted(KP["all_touched"]))
+
+# ---- v0.104: classes from the glyphs' group ids, FontLab's order of entries, the master, and the one-font rule (cases 1430-1462).
+print("\n==== v0.104 /kerning/pairs: classes, order of entries, master, one font ====")
+_KPQ = "/kerning/pairs?pairs="
+_KP_ALL4 = {(("Aacute", False), ("Wgrave.c2sc", False)): -10.0, (("Aacute", False), ("W", True)): -20.0, (("Aring", True), ("Wgrave.c2sc", False)): -30.0}
+kp_setup(mode=dict(_KP_ALL4)); kpc("1430 four entries: glyph : glyph", _KPQ + "Aacute:Wgrave.c2sc")
+print("1430b keys asked, in order         :", KP["gets"])
+kp_setup(mode={k: v for k, v in _KP_ALL4.items() if k[0][1] or k[1][1]}); kpc("1431 then glyph : class wins    ", _KPQ + "Aacute:Wgrave.c2sc")
+kp_setup(mode={(("Aring", True), ("Wgrave.c2sc", False)): -30.0}); kpc("1432 then class : glyph wins    ", _KPQ + "Aacute:Wgrave.c2sc")
+kp_setup(); kpc("1433 class : class only          ", _KPQ + "Aacute:Wgrave.c2sc")
+print("1433b keys asked, in order         :", KP["gets"])
+kp_setup(mode={(("Aring", False), ("W", True)): -30.0}); kpc("1434 defect B: glyph Aring is also a class name", _KPQ + "Aring:Wgrave.c2sc,Aring:W.c2sc")
+kp_setup(mode={(("Aacute", False), ("W", True)): "zero"}); kpc("1435 explicit 0 exception wins over -76", _KPQ + "Aacute:Wgrave.c2sc")
+kp_setup(ids={"x": (400, 400)}, groups=_kp_groups_default() + [(True, "xboth", 400, 0, ["x"])], mode={(("xboth", True), ("xboth", True)): -40.0})
+kpc("1436 a Both class on both sides  ", _KPQ + "x:x,A:x,x:A")
+kp_setup(ids={"A": (999, 0)}); kpc("1437 id missing from the list   ", _KPQ + "A:V,T:o")
+kp_setup(groups=_kp_groups_default() + [(True, "W2", 201, 0, ["W.c2sc"])]); kpc("1438 id listed twice            ", _KPQ + "A:Wgrave.c2sc,T:o")
+for _tag, _v in (("1439 kerningLeft is True     ", True), ("1439b kerningLeft is a string ", "101"), ("1439c kerningLeft is 101.0    ", 101.0), ("1439d kerningLeft is None     ", None)):
+    kp_setup(ids={"Aacute": (_v, 0)}); kpc(_tag, _KPQ + "Aacute:V")
+kp_setup(ids={"Aacute": (RuntimeError("left boom"), 0), "V": (0, RuntimeError("right boom"))}); kpc("1440 kerningLeft and kerningRight raise", _KPQ + "Aacute:V,T:o")
+kp_setup(groups=RuntimeError("groups boom")); kpc("1441 getAllGroups raises        ", _KPQ + "Aacute:V,T:o,A:Wgrave.c2sc")
+print("1441b getAllGroups calls           :", KP["groups_calls"])
+kp_setup(groups="not a list"); kpc("1442 getAllGroups not a list    ", _KPQ + "Aacute:V")
+kp_setup(getall_attr="not_callable"); kpc("1443 getAllGroups not callable  ", _KPQ + "Aacute:V")
+kp_setup(); call(_KPQ + ",".join(["Aacute:Wgrave.c2sc", "Atilde:Ydieresis.c2sc", "A:Wgrave.c2sc"] * 20)); print("1444 60 class pairs: getAllGroups calls:", KP["groups_calls"])
+kp_setup(); call(_KPQ + "A:V,T:o,V:A"); print("1444b no class ids: getAllGroups calls :", KP["groups_calls"])
+kp_setup(groups=[(False, "Aring", 101, 0, ["Aacute"])] + _kp_groups_default()[1:]); kpc("1445 the id only in a non-kerning group", _KPQ + "Aacute:V")
+kp_setup(groups=[(True, "Aring", 101, 0), "Aring", (True, 101, 101, 0, []), (True, "Aring", "101", 0, []), (1, "Aring", 101, 0, [])] + _kp_groups_default()[1:])
+kpc("1446 malformed entries skipped   ", _KPQ + "Aacute:V,A:Wgrave.c2sc")
+kp_setup(count=2); kpc("1447 two fonts open             ", _KPQ + "A:V")
+kp_setup(count=3); kpp("1447b POST, three fonts open     ", {"pairs": [["A", "V"]]})
+kp_setup(packages=2); kpc("1448 two packages               ", _KPQ + "A:V")
+kp_setup(masters=["Regular", "Bold"], master="Bold"); kpc("1449 two masters, current Bold  ", _KPQ + "A:V")
+print("1449b kerning() asked for          :", KP["kerning_args"])
+kp_setup(master="Ghost"); kpc("1450 current master unlisted    ", _KPQ + "A:V")
+kp_setup(masters="Regular"); kpc("1450b masters not a list        ", _KPQ + "A:V")
+kp_setup(masters=RuntimeError("masters boom")); kpc("1450c masters raises           ", _KPQ + "A:V")
+kp_setup(master=RuntimeError("master boom")); kpc("1450d master raises            ", _KPQ + "A:V")
+kp_setup(kerning_attr="not_callable"); kpc("1451 package kerning not callable", _KPQ + "A:V")
+kp_setup(kerning_call=RuntimeError("kerning() boom")); kpc("1451b kerning(master) raises    ", _KPQ + "A:V")
+kp_setup(mode={(("Aacute", False), ("W", True)): "raise"}); kpc("1453 get raises on a class key   ", _KPQ + "Aacute:Wgrave.c2sc,A:V")
+kp_setup(mode={(("Aring", True), ("W", True)): "str"}); kpc("1454 odd answer on a class key   ", _KPQ + "Aacute:Wgrave.c2sc")
+kp_setup(mode={(("Aring", True), ("W", True)): "nan"}); kpc("1454b NaN on a class key        ", _KPQ + "Aacute:Wgrave.c2sc")
+kp_setup(); kpc("1455 text: a class glyph         ", "/kerning/pairs?text=%C3%81V%C3%83A")
+print("1455b keys asked, in order         :", KP["gets"])
+kp_setup(); kpp("1456 POST: classes as in 1143    ", {"pairs": [["A", "Wgrave.c2sc"], ["Aacute", "Wgrave.c2sc"], ["Atilde", "Ydieresis.c2sc"], ["A", "Tbar.c2sc"], ["Aacute", "Tbar.c2sc"]]})
+kp_setup(mode={(("Aacute", False), ("W", True)): -50.0, (("Aring", True), ("Wgrave.c2sc", False)): -101.0}); kpc("1457 the kc1 case: glyph : class over class : glyph", _KPQ + "Aacute:Wgrave.c2sc,Atilde:Wgrave.c2sc,Aacute:W.c2sc")
+kp_setup(); kpc("1458 a class pair needs both ids  ", _KPQ + "Aacute:V,V:Wgrave.c2sc")
+print("1459 no plain key, no legacy table : forbidden over 1140-1458:", KP["ever"])
 fl.CurrentFont = _kp_cur
 if _kp_cf is not None: fl.CountFonts = _kp_cf
 elif hasattr(fl, "CountFonts"): delattr(fl, "CountFonts")
+if _kp_ws is not None: fl.flWorkspace = _kp_ws
+elif hasattr(fl, "flWorkspace"): delattr(fl, "flWorkspace")
 
 # ================= v0.97: /debug/trypkgkern (gated research probe: flPackage.kerning(master).get((a, b)) next to font.kerning.get((a, b))) =================
 print("\n==== v0.97 /debug/trypkgkern ====")
@@ -3726,3 +3843,205 @@ al("POST", "/glyph/create", {"name": "kn2J"}, 200, {"open": True, "created": Fal
 al_tick(10)
 for k, v in _al_saved3.items(): ns[k] = v
 al_reset(_al_saved["_ACTIVITY_LOG"])
+
+# ================= v0.103: /debug/trykerngroups (gated research probe: kerning group members and sides; allow-list spies) =================
+print("\n==== v0.103 /debug/trykerngroups ====")
+KG = {"cfg": {}, "forbidden": [], "all": set(), "calls": []}
+class KGSpy:
+    """A native-looking fake: every public member outside its allow-list aborts the run; subscripts and iteration are forbidden."""
+    def __init__(self, label, allowed, attrs, length=None): object.__setattr__(self, "_kg", (label, allowed, attrs, length))
+    def __getattribute__(self, n):
+        if n.startswith("_"): return object.__getattribute__(self, n)
+        label, allowed, attrs, _ = object.__getattribute__(self, "_kg")
+        KG["all"].add(label + "." + n)
+        if n not in allowed:
+            KG["forbidden"].append(label + "." + n); raise SystemExit("FORBIDDEN member touched: " + label + "." + n)
+        if n not in attrs: raise AttributeError(n)
+        v = attrs[n]
+        if isinstance(v, Exception): raise v
+        return v
+    def __len__(self):
+        length = object.__getattribute__(self, "_kg")[3]
+        if isinstance(length, Exception): raise length
+        if callable(length): return length()
+        if length is None: raise TypeError("object has no len()")
+        return length
+    def __getitem__(self, k):
+        KG["forbidden"].append("subscript"); raise SystemExit("FORBIDDEN subscript on a native object")
+    def __iter__(self):
+        KG["forbidden"].append("iteration"); raise SystemExit("FORBIDDEN iteration of a native object")
+_KG_GROUP_OK = ("name", "mode", "isLeft", "isRight", "isBoth", "isFeaGroup", "id")
+def kg_group(name, mode, left, right, gid, **over):
+    attrs = {"name": name, "mode": mode, "isLeft": left, "isRight": right, "isBoth": False, "isFeaGroup": False, "id": gid}
+    attrs.update(over)
+    return KGSpy("group", _KG_GROUP_OK, attrs)
+def _kg_track(label, value):
+    def _f(*args):
+        KG["calls"].append((label,) + args)
+        if isinstance(value, Exception): raise value
+        return value() if callable(value) else value
+    return _f
+_KG_ALL_DEFAULT = [(True, "kc1A", 0, 0, ["kc1A", "kc1B"]), (True, "kc1rgt", 1, 0, ["kc1C", "kc1D"]), (False, "fea1", 2, 0, ["kc1A", "x"])]
+def _kg_len_seq(first, later):
+    seen = {"n": 0}
+    def _f():
+        seen["n"] += 1
+        return first if seen["n"] == 1 else later
+    return _f
+def kg_build():
+    c = KG["cfg"]
+    values = c.get("values", lambda: [kg_group("kc1A", "KernLeftGroupMode", True, False, 0), kg_group("kc1rgt", "KernRightGroupMode", False, True, 1)])
+    groups_len = c.get("groups_len", 2)
+    if c.get("groups_len_after") is not None:
+        groups_len = _kg_len_seq(groups_len, c["groups_len_after"])
+    container = c.get("groups", KGSpy("groups", ("values",), {"values": c.get("values_attr", _kg_track("values", values))}, groups_len))
+    k_len = c.get("kerning_len", 2)
+    if c.get("kerning_len_after") is not None:
+        k_len = _kg_len_seq(k_len, c["kerning_len_after"])
+    kerning = KGSpy("kerning", ("groups",), {"groups": container}, k_len)
+    pkg_attrs = {"isNull": lambda: False, "masters": c.get("masters", ["Regular"]), "master": c.get("master", "Regular"),
+                 "kerning": c.get("kerning_attr", _kg_track("kerning", c.get("kerning_call", kerning))),
+                 "getAllGroups": c.get("getall_attr", _kg_track("getAllGroups", c.get("getall", _KG_ALL_DEFAULT)))}
+    pkg = KGSpy("package", ("isNull", "masters", "master", "kerning", "getAllGroups"), pkg_attrs)
+    glyphs = [KGSpy("glyph", ("name", "kerningLeft", "kerningRight"),
+                    dict({"name": n, "kerningLeft": 1, "kerningRight": 0}, **(c.get("glyph_attrs", {}) if n == "kc1A" else {}))) for n in ("kc1A", "kc1B", "kc1C", "kc1D")]
+    font = KGSpy("font", ("glyphs",), {"glyphs": glyphs})
+    return pkg, font
+class KGWorkspace:
+    @staticmethod
+    def instance(): return KG_WS
+    def packages(self): return [KG["pkg"]] * KG["cfg"].get("packages", 1)
+    @property
+    def currentPackage(self): return KG["pkg"]
+KG_WS = KGWorkspace()
+_kg_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flWorkspace")]
+def kg_setup(calls=0, **cfg):
+    KG["cfg"] = dict(cfg); KG["calls"].clear()
+    ns["_TRYKERNGROUPS"]["calls"] = calls
+    KG["pkg"], font = kg_build()
+    count = cfg.get("count", 1)
+    for _m in _tf_mods:
+        _m.flWorkspace = KGWorkspace
+        _m.CountFonts = (lambda: count)
+        _m.CurrentFont = (lambda: None) if cfg.get("cur") == "none" else (lambda: font)
+def kgc(tag, path, keys=None):
+    c, d = call(path)
+    shown = {k: v for k, v in d.items() if k != "note"} if keys is None else {k: d.get(k) for k in keys}
+    print(tag, ":", c, shown, "| calls", KG["calls"])
+    return c, d
+_KGA = "/debug/trykerngroups?stage=all&contains=kc1A&go=yes"
+_KGM = "/debug/trykerngroups?stage=modes&contains=kc1A,kc1rgt&go=yes"
+_KGG = "/debug/trykerngroups?stage=glyph&name=kc1A&go=yes"
+kg_setup(); kgc("1370 no go: nothing runs         ", "/debug/trykerngroups?stage=all&contains=kc1A")
+kg_setup(); kgc("1371 go=maybe: nothing runs      ", "/debug/trykerngroups?stage=all&contains=kc1A&go=maybe")
+kg_setup(); kgc("1372 unknown stage               ", "/debug/trykerngroups?stage=bogus&contains=kc1A&go=yes")
+kg_setup(); kgc("1372b no stage                   ", "/debug/trykerngroups?contains=kc1A&go=yes")
+kg_setup(); c, d = kgc("1373 all, contains kc1A          ", _KGA)
+print("1373b note present                 :", "nothing is changed or saved" in d.get("note", ""))
+kg_setup(); kgc("1374 all, a group name           ", "/debug/trykerngroups?stage=all&contains=kc1rgt&go=yes", keys=("count", "kern_groups", "matched", "entries"))
+kg_setup(); kgc("1375 all, no match               ", "/debug/trykerngroups?stage=all&contains=zzz&go=yes", keys=("count", "matched", "entries", "cut"))
+kg_setup(); kgc("1376 all, contains missing       ", "/debug/trykerngroups?stage=all&go=yes")
+kg_setup(); kgc("1377 all, four tokens            ", "/debug/trykerngroups?stage=all&contains=a,b,c,d&go=yes")
+for bad in ("A%20V", "%40kc1A", "A:V", "x" * 64, "%C3%A9"):
+    kg_setup(); kgc(f"1378 bad token {bad[:10]!r:12}     ", "/debug/trykerngroups?stage=all&contains=" + bad + "&go=yes")
+kg_setup(); kgc("1379 all with name               ", "/debug/trykerngroups?stage=all&contains=kc1A&name=kc1A&go=yes")
+kg_setup(); kgc("1380 modes, kc1A and kc1rgt      ", _KGM)
+kg_setup(values=lambda: [kg_group("kc1A", "KernLeftGroupMode", True, False, i) for i in range(25)])
+kgc("1380b modes, 25 matches: cut     ", _KGM, keys=("count", "matched", "cut"))
+print("1380c shown                        :", len(call(_KGM)[1]["entries"]))
+kg_setup(values=lambda: [kg_group("kc1A", "KernLeftGroupMode", _kg_track("isLeft()", True), False, 0)])
+kgc("1381 modes, isLeft is a method   ", _KGM, keys=("first_entry", "matched"))
+kg_setup(values=lambda: [kg_group("kc1A", RuntimeError("mode boom"), True, False, 0)])
+kgc("1382 modes, mode raises          ", _KGM, keys=("first_entry",))
+kg_setup(values=lambda: [kg_group(_kg_track("name()", "kc1A"), "KernLeftGroupMode", True, False, 0)])
+kgc("1382b modes, name is a method    ", _KGM, keys=("first_entry", "matched", "entries"))
+kg_setup(values=lambda: KGSpy("valuesresult", (), {}, 2)); kgc("1383 modes, values not a list    ", _KGM, keys=("values_type", "note_modes", "count", "entries", "groups_len_before"))
+kg_setup(values_attr=5); kgc("1384 modes, values not callable  ", _KGM, keys=("call_error", "groups_len_before", "groups_len_after", "side_effect_detected"))
+kg_setup(values=RuntimeError("values boom")); kgc("1385 modes, values raises        ", _KGM, keys=("call_error", "groups_len_before", "groups_len_after", "side_effect_detected"))
+kg_setup(groups=RuntimeError("groups boom")); kgc("1386 modes, groups raises        ", _KGM, keys=("call_error", "groups_type", "side_effect_detected"))
+kg_setup(groups=_kg_track("groups()", [])); kgc("1387 modes, groups is callable   ", _KGM, keys=("call_error", "groups_type", "count"))
+kg_setup(groups_len_after=3); kgc("1388 modes, groups len changes   ", _KGM, keys=("groups_len_before", "groups_len_after", "groups_side_effect_detected"))
+kg_setup(groups_len=RuntimeError("len boom")); kgc("1388b modes, groups len raises  ", _KGM, keys=("groups_len_before", "groups_len_after", "groups_side_effect_detected", "matched"))
+kg_setup(getall=KGSpy("allresult", (), {}, 3)); kgc("1389 all, not a list            ", _KGA, keys=("result_type", "note_all", "count", "entries"))
+kg_setup(getall=RuntimeError("getAllGroups boom")); kgc("1390 all, getAllGroups raises   ", _KGA, keys=("call_error", "count", "side_effect_detected"))
+kg_setup(getall_attr=5); kgc("1391 all, not callable           ", _KGA, keys=("call_error", "count"))
+kg_setup(getall=[(True, "kc1A", 0, 0), (True, 5, 1, 0, ["kc1A"]), (True, "g", 1, 0, "kc1A"), "kc1A", (True, "kc1A", 0, 0, ("kc1A",))])
+kgc("1392 all, malformed entries      ", _KGA, keys=("count", "first_entry_types", "kern_groups", "malformed", "matched", "entries"))
+kg_setup(getall=[(True, "g1", 0, 0, [KGSpy("member", (), {}), "kc1B"]), (1, "g2", 1, 0, ["kc1A"])])
+kgc("1393 all, native member, flag 1  ", _KGA, keys=("kern_groups", "matched", "entries"))
+kg_setup(getall=[(True, "g%02d" % i, i, 0, ["kc1A"]) for i in range(25)]); kgc("1394 all, 25 matches: cut at 20  ", _KGA, keys=("count", "matched", "cut"))
+print("1394b shown                        :", len(call(_KGA)[1]["entries"]))
+kg_setup(getall=[]); kgc("1395 all, empty list            ", _KGA, keys=("count", "first_entry_types", "kern_groups", "matched"))
+kg_setup(getall=[(True, "g1", 0, 0, ["kc1A"] * 60)]); kgc("1395b all, 60 members           ", _KGA, keys=("matched",))
+print("1395c members shown                :", len(call(_KGA)[1]["entries"][0]["members"]))
+kg_setup(kerning_len_after=3); kgc("1396 kerning len changes        ", _KGA, keys=("kerning_len_before", "kerning_len_after", "side_effect_detected"))
+kg_setup(kerning_len=RuntimeError("len boom")); kgc("1396b kerning len raises       ", _KGA, keys=("kerning_len_before", "kerning_len_after", "side_effect_detected", "matched"))
+kg_setup(kerning_call=RuntimeError("kerning() boom")); kgc("1397 kerning() raises (counted)  ", _KGA)
+kg_setup(kerning_attr=5); kgc("1398 kerning not callable       ", _KGA)
+kg_setup(kerning_attr=RuntimeError("attr boom")); kgc("1398b kerning not reachable    ", _KGA)
+kg_setup(masters=KGSpy("masterlist", (), {})); kgc("1399 masters not a plain list   ", _KGA)
+kg_setup(masters=["Regular", 5]); kgc("1399b masters not all names    ", _KGA)
+kg_setup(masters=RuntimeError("masters boom")); kgc("1399c masters raises           ", _KGA)
+kg_setup(master="Ghost"); kgc("1399d current master unlisted  ", _KGM)
+kg_setup(master=RuntimeError("master boom")); kgc("1399e current master raises    ", _KGM)
+kg_setup(); kgc("1400 glyph kc1A                  ", _KGG)
+kg_setup(glyph_attrs={"kerningRight": _kg_track("kerningRight()", 7), "kerningLeft": RuntimeError("left boom")}); kgc("1401 glyph: method and raise     ", _KGG)
+kg_setup(glyph_attrs={"kerningRight": KGSpy("native", (), {})}); kgc("1401b glyph: native value       ", _KGG, keys=("kerningLeft", "kerningRight"))
+kg_setup(); kgc("1402 glyph unknown (not counted) ", "/debug/trykerngroups?stage=glyph&name=Q&go=yes")
+kg_setup(); kgc("1403 glyph with contains         ", "/debug/trykerngroups?stage=glyph&name=kc1A&contains=kc1A&go=yes")
+kg_setup(); kgc("1403b glyph without name         ", "/debug/trykerngroups?stage=glyph&go=yes")
+kg_setup(); kgc("1403c glyph, bad name            ", "/debug/trykerngroups?stage=glyph&name=A%20V&go=yes")
+for tag, over in (("1404 no font open         ", dict(count=0)), ("1404b two fonts open      ", dict(count=2)),
+                  ("1404c two packages        ", dict(packages=2)), ("1404d CurrentFont None    ", dict(cur="none"))):
+    kg_setup(**over); kgc(tag, _KGA)
+kg_setup(calls=9); kgc("1405 request 10 allowed         ", _KGG, keys=("kerningLeft", "calls_so_far", "max_calls"))
+KG["calls"].clear(); kgc("1405b request 11 refused        ", _KGG)
+kg_setup(calls=10); kgc("1405c modes refused at the cap   ", _KGM)
+kg_setup(); _kg_real = ns["debug_try_kern_groups"]
+def _kg_boom(*a): raise RuntimeError("probe boom")
+ns["debug_try_kern_groups"] = _kg_boom; kgc("1406 probe raises: HTTP 500     ", _KGA); ns["debug_try_kern_groups"] = _kg_real
+kg_setup(); print("1407 direct: contains not a list  :", ns["debug_try_kern_groups"]("all", "kc1A", None, "yes"), "| calls", KG["calls"])
+kg_setup()
+for _p in (_KGA, _KGM, _KGG, "/debug/trykerngroups?stage=all&contains=kc1A"): call(_p)
+print("1408 spy over all cases          : forbidden:", KG["forbidden"], "| members touched anywhere:", sorted(KG["all"]))
+_kg_src = src[src.index("_TRYKERNGROUPS = {"):src.index("# /debug/trypkgkern (v0.97)")]
+_kg_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _kg_src).splitlines())
+print("1409 static scan                 : method calls:", sorted(set(_re83.findall(r"\b(\w+\.\w+)\(", _kg_code))),
+      "| subscripts:", sorted(set(_re83.findall(r"\b(\w+)\[", _kg_code))),
+      "| forbidden names:", _re83.findall(r"\b(?:keys|items|asDict|has_key|clear|remove|rename|findGroup|deleteGroups|autoKern|save\w*|update)\b", _kg_code.replace("out.update(", "")),
+      "| getter( / values_of( / kerning_of( calls:", [len(_re83.findall(r"\b" + f + r"\(", _kg_code)) for f in ("getter", "values_of", "kerning_of")],
+      "| counted before the first native call:", _kg_code.index('_TRYKERNGROUPS[""] += 1') < _kg_code.index("_trykerngroups_attr(glyph"),
+      _kg_code.rindex('_TRYKERNGROUPS[""] += 1') < _kg_code.index("kerning_of(current)"), "| scanned chars > 5000:", len(_kg_src) > 5000)
+print("1410 gate, cap, route, docstring  :", "go != \"yes\"" in _kg_src, "| max requests", ns["_TRYKERNGROUPS_MAX"], "| shown", ns["_TRYKERNGROUPS_SHOWN"],
+      "| route registered once:", src.count('path == "/debug/trykerngroups"') == 1, "| listed in the module docstring:", "/debug/trykerngroups" in src[:src.index('"""', 3)])
+for _m, _a, _v in _kg_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)
+ns["_TRYKERNGROUPS"]["calls"] = 0
+
+# ---- v0.103 (continued): /debug/trypkgkern mode=flags, a side flagged T may name a class (R2).
+print("\n==== v0.103 /debug/trypkgkern class names on T sides ====")
+_PK_GET_SAVED = PKKern.get
+_PK_CLASS_VALUES = {(("kn1L", False), ("kn1grp", True)): -50.0, (("kn1L", True), ("kn1grp", True)): -100.0}
+def _pk_get_with_classes(self, pair):
+    PK["gets"].append((self._label, type(pair).__name__, tuple(pair)))
+    self._got = True
+    return _PK_CLASS_VALUES.get(tuple(pair), self._values.get(tuple(pair)))
+PKKern.get = _pk_get_with_classes
+_PCQ = "/debug/trypkgkern?go=yes&mode=flags"
+pk_setup(); pfc("1411 FT, b is a class name        ", _PCQ + "&flags=FT&a=kn1L&b=kn1grp", keys=("flags", "package", "legacy", "class_names_not_checked", "error"))
+pk_setup(); pfc("1412 TT, both class names         ", _PCQ + "&flags=TT&a=kn1L&b=kn1grp", keys=("flags", "package", "class_names_not_checked"))
+pk_setup(); pfc("1413 TF, a is a class name        ", _PCQ + "&flags=TF&a=kn1grp&b=kn1R", keys=("flags", "package", "class_names_not_checked"))
+pk_setup(); pfc("1414 FF, b is no glyph: refused   ", _PCQ + "&flags=FF&a=kn1L&b=kn1grp", keys=("error", "calls_so_far"))
+pk_setup(); pfc("1415 tuple, b is no glyph: refused", "/debug/trypkgkern?go=yes&a=kn1L&b=kn1grp", keys=("error", "calls_so_far"))
+pk_setup(); pfc("1416 FT, a unknown: only a named  ", _PCQ + "&flags=FT&a=Q&b=kn1grp", keys=("error", "calls_so_far"))
+pk_setup(); pfc("1417 FT, b is a glyph: still noted", _PCQ + "&flags=FT&a=kn1L&b=kn1R", keys=("package", "class_names_not_checked"))
+pk_setup(); pfc("1418 FF, both glyphs: no new field", _PCQ + "&flags=FF&a=kn1L&b=kn1R", keys=("package", "class_names_not_checked"))
+pk_setup(); pfc("1419 TT, bad class name refused   ", _PCQ + "&flags=TT&a=kn1L&b=kn1%20grp", keys=("error", "calls_so_far"))
+PKKern.get = _PK_GET_SAVED
+for _m, _a, _v in _pk_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)
+ns["_TRYPKGKERN"]["calls"] = 0

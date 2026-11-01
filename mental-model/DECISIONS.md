@@ -2,19 +2,17 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
-## 2026-11-01: OUTPUT activity log first
+## 2026-11-01: kerning reads need exactly one open font
 
-- **The activity log in FontLab's OUTPUT panel (listener v0.102, [ROADMAP.md](ROADMAP.md) P6.1) comes before P0.8.** Policy: one short line per change, refusals and declined deletes always shown, runs of the same operation and all reads summarised, "verified" only from the listener's own re-read. *Reason:* the user's choice; the person should see in FontLab what an agent changes. *Supersedes, for now,* "P0.8 first" as the first step.
+- **`get_kerning` (listener 0.104 / server 0.33) refuses when not exactly one font is open**, and says so. *Reason:* it reads `flPackage.kerning(master)` of the workspace's current package, and which package belongs to `CurrentFont()` with several fonts open is unproven (T5). Approved with the P0.8 build; lifted only after T5.
 
 ## 2026-11-01: CURRENT-STATUS budget
 
 - **The CURRENT-STATUS.md budget goes from 900 to 1,000 words, then to 1,250.** The reference totals become 9,450 including the root README, and 8,950 for the startup core files. *Reason:* the user's choice; the file used 845 of 900 words, then 935 of 1,000, with the activity log, P0.8 and the rest of the K-series still to record.
 
-## 2026-11-01: kerning fix first
+## 2026-11-01: listener version numbers
 
 - **Listener versions continue 0.100, 0.101, …** *Reason:* the user's choice. Versions are compared part by part, so the server reads `(0, 100)` as newer than `(0, 99)` (verified live: no `compatibility_note`).
-
-- **P0.8 (the fix of kerning defects A and B) comes before the remaining K tests** (K10 to K16). *Reason:* the user's choice; `get_kerning` can report false zeros and wrong values today ([topics/kerning.md](topics/kerning.md) §9). *Supersedes, for now,* the order "K-series, then T-series" of 2026-10-27; the T-series still follows the K-series.
 
 ## 2026-11-01: kerning groups
 

@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.32)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.33)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -41,7 +41,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.32"            # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.33"            # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 SAVE_REMINDER = "**You must save if you want to keep these changes: use the File menu or press Ctrl+S in FontLab.**"   # shown in CHAT only, never as a FontLab dialog
 DELETE_CONFIRM_TIMEOUT_SECONDS = 120.0  # time to let a human see and answer the FontLab dialog
@@ -614,10 +614,16 @@ _KERN_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,63}$")
 _KERN_CONFIRM_ABOVE = 250     # more pairs than this need the person's approval (confirmed_large_read=true); there is no upper limit
 _KERN_INSTRUCTION = (
     "Values are in font units (units_per_em says how many per em); a NEGATIVE value moves the pair closer together, a positive one pushes it apart. "
-    "They are FontLab's own numbers and include class (group) kerning. 'kerned: false' with value 0 means FontLab has no kerning for that pair. "
-    "A result with an 'error' was NOT read: never treat it as zero kerning. Feature-based (GPOS lookup), contextual and multi-master kerning are NOT covered by this tool. "
+    "They are FontLab's own numbers from the kerning table of the current master (master names it), class (group) kerning included. "
+    "'source' says which kind of entry gave the value: 'glyph : glyph' (a direct pair), 'glyph : class' or 'class : glyph' (an exception against a class, "
+    "with right_class or left_class naming it), 'class : class' (both classes named), or 'none' (FontLab has no entry: value 0, kerned false). "
+    "Report the source as given; never guess whether a value comes from a class. An entry can hold 0 on purpose (kerned false, but a source other than 'none'). "
+    "A result with an 'error' was NOT read: never treat it as zero kerning. Other masters, feature-based (GPOS lookup) and contextual kerning are NOT covered by this tool. "
     "Only the pairs you asked for were read; do not request the whole table."
 )
+_KERN_SOURCES = ("glyph : glyph", "glyph : class", "class : glyph", "class : class", "none")
+_KERN_SOURCE_CLASSES = {"glyph : glyph": (), "glyph : class": ("right_class",), "class : glyph": ("left_class",),
+                        "class : class": ("left_class", "right_class"), "none": ()}
 
 
 def _kern_pair_names(pairs: Any) -> list:
@@ -668,8 +674,24 @@ def _kern_entry(raw: Any, expected: Any) -> dict:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value or abs(value) == float("inf"):
         out["error"] = "the listener's answer for this pair carried no usable number, so it was not read"
         return out
+    source = raw.get("source")
+    if source not in _KERN_SOURCES:
+        out["error"] = "the listener's answer for this pair carried no valid source, so it was not read"
+        return out
+    if source == "none" and value != 0:
+        out["error"] = "the listener's answer for this pair said 'no entry' but carried a value, so it was not read"
+        return out
+    classes = {}
+    for key in _KERN_SOURCE_CLASSES[source]:
+        name = raw.get(key)
+        if not isinstance(name, str) or not _KERN_NAME_RE.match(name):
+            out["error"] = f"the listener's answer for this pair named no valid {key.replace('_', ' ')}, so it was not read"
+            return out
+        classes[key] = name
     out["value"] = _tidy_number(value)
     out["kerned"] = value != 0
+    out["source"] = source
+    out.update(classes)
     return out
 
 
@@ -691,8 +713,9 @@ def read_kerning(pairs: Any = None, text: Any = None, confirmed_large_read: Any 
             f"This request would read {len(expected)} kerning pairs, more than the {_KERN_CONFIRM_ABOVE}-pair threshold, and nothing was read. "
             "Do NOT repeat the call yet. A large read costs many tokens: tell the person how many pairs you want to read and why, and ask whether they approve. "
             "Only after they have said yes, call get_kerning again with the same arguments and confirmed_large_read=true. Never set that flag without the person's approval.")
-    _require_listener((0, 95), "get_kerning")
-    data = _call_listener_post("/kerning/pairs", payload, timeout=max(TIMEOUT_SECONDS, 5.0 + len(expected) / 100.0))
+    # v0.33: listener 0.104 reads the master's table with class-aware keys; older listeners can report false zeros and class values (P0.8)
+    _require_listener((0, 104), "get_kerning")
+    data = _call_listener_post("/kerning/pairs", payload, timeout=max(TIMEOUT_SECONDS, 5.0 + len(expected) / 50.0))
     if not data.get("open"):
         raise ToolError(NO_FONT)
     if isinstance(data.get("error"), str) and data["error"]:
@@ -704,7 +727,11 @@ def read_kerning(pairs: Any = None, text: Any = None, confirmed_large_read: Any 
     errors = sum(1 for r in results if "error" in r)
     size = data.get("table_size")
     upm = data.get("units_per_em")
+    master = data.get("master")
+    master_count = data.get("master_count")
     reply = {"mode": "pairs" if pairs is not None else "text",
+             "master": master if isinstance(master, str) and 1 <= len(master) <= 63 and master.isprintable() else None,
+             "master_count": master_count if isinstance(master_count, int) and not isinstance(master_count, bool) and master_count >= 1 else None,
              "units_per_em": _tidy_number(upm) if isinstance(upm, (int, float)) and not isinstance(upm, bool) else None,
              "table_size": size if isinstance(size, int) and not isinstance(size, bool) else None,
              "count": len(results), "errors": errors, "results": results}
@@ -712,7 +739,9 @@ def read_kerning(pairs: Any = None, text: Any = None, confirmed_large_read: Any 
     if large:
         reply["large_read_confirmed"] = True
     if reply["table_size"] == 0:
-        instruction += " table_size is 0: this font has no kerning at all."
+        instruction += " table_size is 0: the current master's kerning table is empty, so this master has no kerning at all."
+    if reply["master_count"] is not None and reply["master_count"] > 1:
+        instruction += f" This font has {reply['master_count']} masters; only the current one was read. Say so when you report the values."
     if data.get("side_effect_detected") is True:
         reply["side_effect_detected"] = True
         instruction += " WARNING: the size of the kerning table changed while reading, which a read must never do. Tell the person and do not trust further kerning edits until they have looked."
@@ -2338,9 +2367,11 @@ def get_kerning(pairs: list[list[str]] | None = None, text: str | None = None, c
     There is no upper limit, but more than 250 pairs (text: more than 251 characters) in one call is refused until the PERSON has approved it:
     warn them that a large read costs many tokens, say how many pairs and why, ask for approval, and only after they said yes repeat the call with
     confirmed_large_read=true. Never set confirmed_large_read=true on your own.
-    Values are in font units and are the numbers FontLab's KERNING panel shows, class (group) kerning included; negative = closer.
-    A pair without kerning answers value 0 and kerned false; a pair that could not be read has an 'error' and is never a zero.
-    Feature-based, contextual and multi-master kerning are not covered. Needs listener v0.95.
+    Values are in font units and are the numbers FontLab applies, read from the kerning table of the current master, class (group) kerning
+    included; negative = closer. Each result says its source: 'glyph : glyph', 'glyph : class', 'class : glyph' (with the class named),
+    'class : class', or 'none' (no entry: value 0, kerned false). Report the source; never guess whether a value comes from a class.
+    A pair that could not be read has an 'error' and is never a zero. Exactly one font must be open in FontLab.
+    Other masters, feature-based and contextual kerning are not covered. Needs listener v0.104.
     """
     return read_kerning(pairs, text, confirmed_large_read)
 

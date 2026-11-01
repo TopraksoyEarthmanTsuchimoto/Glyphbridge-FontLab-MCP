@@ -36,6 +36,13 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 - **An error message can document the API.** `get` refused a documented pair object, and its `TypeError` named the form it does accept (test 183); one more probe then settled it.
 - **Big payloads** (for example 990-node drawings) are generated and checked by a script before sending, because `nodes_match` only compares against what was sent.
 
+## P0.8 sessions (2026-11-01)
+
+- **Check how the GUI recorded an entry before building on it.** Alt + Left arrow on a pair whose entry was glyph : class made a glyph : glyph entry, not the class : glyph exception the test needed. The panel showed it (plain names, no class count) and one explicit-key read confirmed it before any conclusion was drawn ([topics/kerning.md](topics/kerning.md) §9.9).
+- **Rule out the age of an entry.** "The glyph : class exception wins" also fitted "the older entry wins"; removing it and making it again, newer, settled it (tests 211–213).
+- **A GUI instruction must be checked for its side effects before it is given.** The Text tool was suggested for a screen check but hides the text bar; the Element tool shows it but moves the selected outline with arrow keys; Ctrl+Z was suggested as cleanup although it can undo a kerning edit. Name the tool that shows what is needed, and what not to press with it.
+- **Incident: test edits through shell heredocs.** One heredoc did not parse at all; another turned an escaped `\n` in a test value into a real line break, and the harness crashed with a SyntaxError (caught by its exit code before any `--update`). Write test code with a file tool, or compute it in a script that asserts every anchor.
+
 ## Migration day (2026-11-01)
 
 - **Copied virtual environments do not travel.** `pyvenv.cfg` points at the old machine's Python. Create a fresh venv.

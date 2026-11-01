@@ -50,7 +50,7 @@ Every write is reported as successful only after a re-read agrees. Drawings are 
 | `.notdef` | `check_notdef` (+ automatic checks) | `/font/notdef`, `/font/notdef/warn` | [notdef](topics/notdef.md) |
 | names, Unicode | `create_glyph`, `delete_glyph`, `check_glyph_unicode`, `set_glyph_unicode` | `/glyph/create`, `/glyph/delete`, `/glyph/unicode` | [names-unicode](topics/names-unicode.md) |
 | geometry | `set_glyph_width`, `set_glyph_sidebearings`, `draw_polygon`, `draw_path` | `/glyph/width`, `/glyph/sidebearings`, `/glyph/polygon`, `/glyph/path` | [geometry](topics/geometry.md) |
-| kerning | `get_kerning` | GET/POST `/kerning/pairs` | [kerning](topics/kerning.md) |
+| kerning | `get_kerning` | GET/POST `/kerning/pairs` (the current master's table; exactly one open font) | [kerning](topics/kerning.md) |
 | save policy | `finish_changes` | none (server bookkeeping) | [server-and-endpoints](topics/server-and-endpoints.md) §2 |
 | research | none | `/debug/...` probes, gated by `go=yes` where they change anything | [server-and-endpoints](topics/server-and-endpoints.md) §3 |
 
