@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.106)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.108)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -108,6 +108,10 @@ Routes (GET unless marked POST):
                           &mode=flags&flags=FF|FT|TF|TT asks get(((a, flag), (b, flag))); a side flagged T may name a class
     /debug/trykerngroups  stage=all|modes&contains=a,b,c or stage=glyph&name=N: kerning group members and sides
                           (getAllGroups(), the master's groups.values(), a glyph's kerningLeft / kerningRight), 10 per listener run
+    /debug/features       stage=tags: font.features.keys(); stage=size&tag=T: has_key(T), get_feature(T), only the SIZE of that
+                          feature's code is returned; stage=shape&tag=T: line counts by kind and the first 300 characters;
+                          stage=lines&tag=T&contains=a,b,c: only the lines naming those names (v0.108); exactly one font open,
+                          10 per listener run (v0.107, K11)
     /debug/setcurrent     changes which glyph FontLab displays (no use for the modern API)
 
   Dead ends, kept as history: /debug/contours and /debug/drawpen (the pen protocol returns
@@ -134,7 +138,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.106"
+VERSION = "0.108"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -6033,6 +6037,168 @@ def debug_try_kern_groups(stage, contains, name, go):
 
 
 # --------------------------------------------------------------------------
+# /debug/features (v0.107) - K11: the font's OpenType feature code (font.features). Names-only tests 158 and 230 on Arial: an fgOTLayout,
+# len 29, with keys() "list(string) keys() - list of feature tags", has_key() "bool has_key(string / numeric tag) - True if feature is
+# present" and get_feature() "string get_feature(string / numeric tag) - get feature text". Every stage needs go=yes and exactly one open
+# font (CountFonts() == 1); at most _FEATURES_MAX requests per listener run, counted BEFORE the first call of the stage:
+#   stage=tags               ONE features.keys(). Only when that returns a real list or tuple of text: the tags and their count
+#   stage=size&tag=TAG       ONE features.keys(); only when TAG is one of the tags, ONE has_key(TAG), and only when that is True, ONE
+#                            get_feature(TAG). Only the SIZE of the text is returned (characters, lines, lines with the word "pos"),
+#                            never the text itself (token rule)
+#   stage=shape&tag=TAG      (v0.108) the same calls; the size, the number of lines that START with each kind in _FEATURES_KINDS
+#                            (pos, enum pos, a pos with a class on the left, lookup, ...), and the first _FEATURES_HEAD characters
+#   stage=lines&tag=TAG&contains=a,b,c   (v0.108) the same calls; the size, and only the lines that name a token (1 to 3 glyph or class
+#                            names) as a whole word: at most _FEATURES_LINES_SHOWN per token, each cut at _FEATURES_LINE_CUT characters
+# len(features) is read before and after (side_effect_detected). Never called, ever: clear, remove, set_feature, set_prefix (they change
+# the font), get_prefix, and any subscript of a native object.
+# --------------------------------------------------------------------------
+
+_FEATURES = {"calls": 0}
+_FEATURES_MAX = 10
+_FEATURES_STAGES = ("tags", "size", "shape", "lines")
+_FEATURES_SHOWN = 100
+_FEATURES_TAG_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+_FEATURES_HEAD = 300
+_FEATURES_LINES_SHOWN = 20
+_FEATURES_LINE_CUT = 200
+_FEATURES_KINDS = (("pos", r"pos\b"), ("enum_pos", r"enum\s+pos\b"), ("class_left_pos", r"(?:enum\s+)?pos\s+@"), ("lookup", r"lookup\b"),
+                   ("lookupflag", r"lookupflag\b"), ("script", r"script\b"), ("language", r"language\b"), ("subtable", r"subtable\b"),
+                   ("class_definition", r"@[A-Za-z0-9_.\-]+\s*="), ("comment", r"#"))
+
+
+def debug_features(stage, tag, go, contains=()):
+    if go != "yes":
+        return {"error": "this probe calls font.features.keys() (stage=tags), then has_key(tag) and get_feature(tag) (stages size, shape and "
+                         "lines); add &go=yes to run it", "calls_so_far": _FEATURES["calls"], "max_calls": _FEATURES_MAX}
+    if stage not in _FEATURES_STAGES:
+        return {"error": 'stage must be "tags", "size", "shape" or "lines"'}
+    if not isinstance(contains, (list, tuple)):
+        return {"error": "contains must be a list of names"}
+    if stage == "tags":
+        if tag is not None:
+            return {"error": "stage=tags takes no tag"}
+    elif not isinstance(tag, str) or not (1 <= len(tag) <= 4) or any(ch not in _FEATURES_TAG_CHARS for ch in tag):
+        return {"error": f"stage={stage} needs tag=<1 to 4 characters from A-Z a-z 0-9>, one of the tags that stage=tags lists"}
+    if stage != "lines" and contains:
+        return {"error": f"stage={stage} takes no contains (only stage=lines does)"}
+    if stage == "lines" and (not (1 <= len(contains) <= 3)
+                             or not all(isinstance(t, str) and 1 <= len(t) <= 63 and all(ch in _TRYGROUPS_TOKEN_CHARS for ch in t) for t in contains)):
+        return {"error": "stage=lines needs contains=<1 to 3 glyph or class names of 1 to 63 characters from A-Z a-z 0-9 . _ - @>"}
+    count = None
+    try:
+        counter = getattr(fl, "CountFonts", None)
+        if callable(counter):
+            got = counter()
+            if isinstance(got, int) and not isinstance(got, bool):
+                count = got
+    except Exception:
+        count = None
+    if count == 0:
+        return {"open": False, "count_fonts": 0, "note": "CountFonts() is 0: no font is open"}
+    if count != 1:
+        why = f"CountFonts() is {count}" if count is not None else "the number of open fonts could not be read (CountFonts() gave no plain number)"
+        return {"open": True, "error": why + "; the probe runs only when exactly one font is open",
+                "calls_so_far": _FEATURES["calls"], "max_calls": _FEATURES_MAX}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    if _FEATURES["calls"] >= _FEATURES_MAX:
+        return {"open": True, "error": f"the limit of {_FEATURES_MAX} requests per listener run is used up; restart the listener to continue",
+                "calls_so_far": _FEATURES["calls"], "max_calls": _FEATURES_MAX}
+    try:
+        features = font.features
+        keys_of = features.keys
+    except Exception as exc:
+        return {"open": True, "error": f"font.features / features.keys not reachable: {type(exc).__name__}: {exc}", "calls_so_far": _FEATURES["calls"]}
+    if not callable(keys_of):
+        return {"open": True, "error": "features.keys is not callable", "calls_so_far": _FEATURES["calls"]}
+
+    def _len():
+        try:
+            n = len(features)
+            return n if isinstance(n, int) and not isinstance(n, bool) else None
+        except Exception:
+            return None
+
+    len_before = _len()
+    _FEATURES["calls"] += 1        # counted BEFORE the first call: whatever happens, it is on record
+    out = {"open": True, "count_fonts": count, "stage": stage, "features_type": type(features).__name__}
+    tags = None
+    try:
+        keys = keys_of()
+    except Exception as exc:
+        out["keys_error"] = f"{type(exc).__name__}: {exc}"
+    else:
+        out["keys_type"] = type(keys).__name__
+        if isinstance(keys, (list, tuple)) and all(isinstance(k, str) for k in keys):
+            tags = list(keys)
+            out["tags_count"] = len(tags)
+        else:
+            out["keys_note"] = "not a real list or tuple of text, so nothing in it was read"
+    if tags is not None and stage == "tags":
+        out.update(tags=[t[:16] for t in tags[:_FEATURES_SHOWN]], cut=len(tags) > _FEATURES_SHOWN, duplicates=len(tags) - len(set(tags)))
+    elif tags is not None:
+        out.update(tag=tag, tag_listed=tag in tags)
+        if tag not in tags:
+            out["error"] = f"{tag!r} is not one of the tags keys() returned; has_key and get_feature were not called"
+        else:
+            try:
+                has_of = features.has_key
+                get_of = features.get_feature
+            except Exception as exc:
+                has_of = get_of = None
+                out["error"] = f"has_key / get_feature not reachable: {type(exc).__name__}: {exc}"
+            if has_of is not None and not (callable(has_of) and callable(get_of)):
+                out["error"] = "has_key or get_feature is not callable; neither was called"
+            elif has_of is not None:
+                present = None
+                try:
+                    present = has_of(tag)
+                except Exception as exc:
+                    out["has_key_error"] = f"{type(exc).__name__}: {exc}"
+                out["has_key"] = _tryfont_plain(present)
+                if present is True:
+                    try:
+                        text = get_of(tag)
+                    except Exception as exc:
+                        out["get_feature_error"] = f"{type(exc).__name__}: {exc}"
+                    else:
+                        out["text_type"] = type(text).__name__
+                        if isinstance(text, str):
+                            out.update(_features_text_report(text, stage, contains))
+                elif "has_key_error" not in out:
+                    out["note_size"] = "has_key did not answer True, so get_feature was not called"
+    len_after = _len()
+    out.update(len_before=len_before, len_after=len_after,
+               side_effect_detected=(len_before != len_after) if (len_before is not None and len_after is not None) else None,
+               calls_so_far=_FEATURES["calls"], max_calls=_FEATURES_MAX,
+               note="RESEARCH (K11): what font.features answers; compare with FontLab's Features panel. The size alone does not show whether "
+                    "the feature code holds kerning that the master's kerning table lacks; nothing is changed or saved by Glyphbridge")
+    return out
+
+
+def _features_text_report(text, stage, tokens):
+    """The report on one feature's code (a plain str): its size in every stage; stage=shape adds the line counts by kind and the
+    first _FEATURES_HEAD characters, stage=lines the lines that name a token as a whole word. The text is never returned whole."""
+    import re as _re
+    lines = text.splitlines()
+    out = {"chars": len(text), "lines": len(lines), "pos_lines": sum(1 for ln in lines if _re.search(r"\bpos\b", ln))}
+    if stage == "shape":
+        stripped = [ln.strip() for ln in lines]
+        out["line_starts"] = {kind: sum(1 for ln in stripped if _re.match(pat, ln)) for kind, pat in _FEATURES_KINDS}
+        out["head"] = text[:_FEATURES_HEAD]
+    elif stage == "lines":
+        counts, found = {}, {}
+        for tok in tokens:
+            pat = _re.compile(r"(?<![A-Za-z0-9._@-])" + _re.escape(tok) + r"(?![A-Za-z0-9._@-])")
+            hits = [ln.strip() for ln in lines if pat.search(ln)]
+            counts[tok] = len(hits)
+            found[tok] = [(h[:_FEATURES_LINE_CUT] + " ...[cut]") if len(h) > _FEATURES_LINE_CUT else h for h in hits[:_FEATURES_LINES_SHOWN]]
+        out.update(match_counts=counts, matches=found)
+    return out
+
+
+# --------------------------------------------------------------------------
 # /debug/trypkgkern (v0.97) - RESEARCH: where does kerning made in FontLab's GUI live? Live tests 169 and 170: a class pair made in
 # the KERNING panel of a new font was applied by FontLab but invisible to font.kerning (len 0). Probe 171 (names only) found
 # flPackage.kerning, documented as 'fgKerning kerning([string master_name])'. This probe compares, for ONE pair, the package's kerning
@@ -6730,6 +6896,13 @@ def _route(method, full_path, body=b""):
                 return _build_response(200, debug_try_kern_groups((query.get("stage") or [""])[0],
                                                                   [c.strip() for c in (query.get("contains") or [""])[0].split(",") if c.strip()],
                                                                   (query.get("name") or [None])[0], (query.get("go") or [""])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/features":
+            try:
+                return _build_response(200, debug_features((query.get("stage") or [""])[0], (query.get("tag") or [None])[0], (query.get("go") or [""])[0],
+                                                           [c.strip() for c in (query.get("contains") or [""])[0].split(",") if c.strip()]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

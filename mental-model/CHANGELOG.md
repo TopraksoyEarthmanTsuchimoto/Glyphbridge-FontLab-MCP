@@ -4,6 +4,22 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.108 / server v0.34 (2026-11-03)
+
+**Two more stages for `/debug/features` (K11)**; the server is unchanged.
+- `stage=shape&tag=T&go=yes`: the size, the number of lines that start with `pos`, `enum pos`, a `pos` with a class on the left, `lookup`, `lookupflag`, `script`, `language`, `subtable`, a class definition (`@name =`) or `#`, and the first 300 characters.
+- `stage=lines&tag=T&contains=a,b,c&go=yes`: the size, and only the lines that name 1–3 glyph or class names (`A-Z a-z 0-9 . _ - @`, 1–63 characters) as whole words: at most 20 per name, each cut at 200 characters. Only `stage=lines` takes `contains`.
+- The same calls, gate, one-font rule and cap (10 requests per listener run, all stages together) as v0.107.
+- Tests: cases 1470–1485; existing output changed in the version lines, the reworded go and stage messages (1440–1443) and the scan of 1466 (the helper's local names). Mutation run: 25 of 25 killed (13 of v0.107, 12 new), each by a case, not only by a scan.
+- Not yet run in FontLab.
+
+## Listener v0.107 / server v0.34 (2026-11-03)
+
+**A gated research probe of the font's OpenType feature code (K11)**; the server is unchanged.
+- New route `/debug/features`, from the names-only tests 158 and 230 on Arial (`font.features` is an `fgOTLayout`, `len` 29). `stage=tags&go=yes` calls `keys()` once and returns the tags and their count. `stage=size&tag=T&go=yes` calls `keys()`, then `has_key(T)` only when T is one of the tags, then `get_feature(T)` only when that answers `True`, and returns the size of that feature's code only (characters, lines, lines with the word `pos`), never the text. Tag: 1–4 characters from `A-Z a-z 0-9`. Exactly one font must be open; 10 requests per listener run, counted before the first call; `len(features)` before and after (`side_effect_detected`). Never called: `clear`, `remove`, `set_feature`, `set_prefix`, `get_prefix`.
+- Tests: cases 1440–1468; existing output changed only in the version lines. The scan slice of case 1409 now ends before the new probe. Mutation run: 13 of 13 killed.
+- Live 2026-11-03 on Arial (FontLab 8.9.5): test 231 gave 29 tags, `kern` among them; test 232 gave `kern` 52,450 characters, 1,558 lines, 1,417 with `pos`; `side_effect_detected` false both times.
+
 ## Listener v0.106 / server v0.34 (2026-11-02)
 
 The shown client name leaves out the config entry name; the server is unchanged.

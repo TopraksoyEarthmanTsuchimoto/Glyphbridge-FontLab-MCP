@@ -4004,7 +4004,7 @@ kg_setup(); print("1407 direct: contains not a list  :", ns["debug_try_kern_grou
 kg_setup()
 for _p in (_KGA, _KGM, _KGG, "/debug/trykerngroups?stage=all&contains=kc1A"): call(_p)
 print("1408 spy over all cases          : forbidden:", KG["forbidden"], "| members touched anywhere:", sorted(KG["all"]))
-_kg_src = src[src.index("_TRYKERNGROUPS = {"):src.index("# /debug/trypkgkern (v0.97)")]
+_kg_src = src[src.index("_TRYKERNGROUPS = {"):src.index("# /debug/features (v0.107)")]
 _kg_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _kg_src).splitlines())
 print("1409 static scan                 : method calls:", sorted(set(_re83.findall(r"\b(\w+\.\w+)\(", _kg_code))),
       "| subscripts:", sorted(set(_re83.findall(r"\b(\w+)\[", _kg_code))),
@@ -4173,3 +4173,210 @@ ns["_connection_announced"] = False
 ns["_handle"](PLConn(b"GET /health HTTP/1.1\r\nX-Glyphbridge-Client: local-agent-mode-glyphbridge-fontlab\r\n\r\n"))
 for k, v in _nl_saved6.items(): ns[k] = v
 al_reset(_al_saved["_ACTIVITY_LOG"])
+
+# ================= v0.107: /debug/features (K11, gated research probe: font.features keys / has_key / get_feature; spies) =================
+print("\n==== v0.107 /debug/features ====")
+FT = {"touched": [], "forbidden": [], "calls": [], "keys": None, "has": True, "text": "", "len": 29, "len_after": None, "len_raises": False,
+      "all_touched": set(), "cur_calls": 0}
+_FT_FORBIDDEN = ("clear", "remove", "set_feature", "set_prefix", "get_prefix")
+FT_TAGS = ["aalt", "c2sc", "case", "ccmp", "dlig", "dnom", "frac", "kern", "liga", "lnum", "locl", "mark", "mkmk", "numr", "onum",
+           "ordn", "pnum", "salt", "sinf", "smcp", "ss01", "ss02", "subs", "sups", "tnum", "zero", "init", "medi", "fina"]
+FT_TEXT = ("feature kern {\n  pos A V -152;\r\n  enum pos @Aring V -76;\n  # position comment\n  subpos x y 3;\n  lookup k1 {\n"
+           "    pos T o -227;\n  } k1;\n} kern;\n")
+class FTFeatures:
+    def __getattribute__(self, n):
+        if not n.startswith("__"):
+            FT["touched"].append(n); FT["all_touched"].add(n)
+            if n in _FT_FORBIDDEN:
+                FT["forbidden"].append(n)
+                raise SystemExit("FORBIDDEN features member touched: " + n)
+        return object.__getattribute__(self, n)
+    def __len__(self):
+        if FT["len_raises"]: raise RuntimeError("len boom")
+        return FT["len_after"] if (FT["len_after"] is not None and FT["calls"]) else FT["len"]
+    def keys(self):
+        FT["calls"].append("keys")
+        k = FT["keys"]
+        if k == "raise": raise RuntimeError("keys boom")
+        if k == "native": return FTNative()
+        return list(FT_TAGS) if k is None else k
+    def has_key(self, tag):
+        FT["calls"].append(("has_key", tag))
+        h = FT["has"]
+        if h == "raise": raise RuntimeError("has_key boom")
+        return h
+    def get_feature(self, tag):
+        FT["calls"].append(("get_feature", tag))
+        t = FT["text"]
+        if t == "raise": raise RuntimeError("get_feature boom")
+        return t
+    def clear(self): FT["calls"].append("clear")
+    def remove(self, tag): FT["calls"].append("remove")
+    def set_feature(self, tag, text): FT["calls"].append("set_feature")
+    def set_prefix(self, text): FT["calls"].append("set_prefix")
+    def get_prefix(self): FT["calls"].append("get_prefix"); return ""
+class FTNative:
+    """a native-like container: indexing or iterating it is a test failure"""
+    def __getitem__(self, i): FT["forbidden"].append("native[]"); raise SystemExit("FORBIDDEN: native container indexed")
+    def __iter__(self): FT["forbidden"].append("native iter"); raise SystemExit("FORBIDDEN: native container iterated")
+    def __len__(self): return 29
+class FTFont:
+    features = FTFeatures()
+def ft_setup(count=1, cur="font", keys=None, has=True, text=FT_TEXT, calls=0):
+    FT["touched"].clear(); FT["forbidden"].clear(); FT["calls"].clear(); FT["keys"] = keys; FT["has"] = has; FT["text"] = text
+    FT["len_after"] = None; FT["len_raises"] = False; FT["cur_calls"] = 0
+    ns["_FEATURES"]["calls"] = calls
+    def _cur():
+        FT["cur_calls"] += 1
+        return None if cur is None else FTFont()
+    fl.CurrentFont = _cur
+    if count == "missing":
+        if hasattr(fl, "CountFonts"): delattr(fl, "CountFonts")
+    elif isinstance(count, Exception):
+        fl.CountFonts = lambda: (_ for _ in ()).throw(count)
+    else:
+        fl.CountFonts = lambda: count
+def ftc(tag, path):
+    c, d = call(path)
+    shown = {k: v for k, v in d.items() if k not in ("note", "tags")}
+    print(tag, ":", c, shown, "| tags", (len(d["tags"]), d["tags"][:3], d["tags"][-1:]) if isinstance(d.get("tags"), list) else None,
+          "| touched", list(FT["touched"]), "| calls", list(FT["calls"]), "| forbidden", list(FT["forbidden"]))
+    return c, d
+_ft_cf = getattr(fl, "CountFonts", None); _ft_cur = fl.CurrentFont
+ft_setup(); ftc("1440 no go: nothing runs          ", "/debug/features?stage=tags")
+ft_setup(); ftc("1441 go=maybe: nothing runs       ", "/debug/features?stage=tags&go=maybe")
+ft_setup(); ftc("1442 no stage                     ", "/debug/features?go=yes")
+ft_setup(); ftc("1443 unknown stage                ", "/debug/features?stage=text&go=yes")
+ft_setup(); ftc("1444 stage=tags takes no tag      ", "/debug/features?stage=tags&tag=kern&go=yes")
+ft_setup(); ftc("1445 stage=size without tag       ", "/debug/features?stage=size&go=yes")
+for bad in ("kerns", "ke%20n", "k%2Bn", "%C3%A9", "kern%00", "k_rn", "k.rn"):
+    ft_setup(); ftc(f"1446 bad tag {bad!r:16}", "/debug/features?stage=size&tag=" + bad + "&go=yes")
+ft_setup(); c, d = ftc("1447 tags: Arial-like, 29 tags    ", "/debug/features?stage=tags&go=yes")
+print("1447b all tags, in order            :", d.get("tags") == FT_TAGS, "| has_key / get_feature untouched:", not any(n in FT["touched"] for n in ("has_key", "get_feature")), "| note present:", "note" in d)
+ft_setup(); c, d = ftc("1448 size kern: the size only      ", "/debug/features?stage=size&tag=kern&go=yes")
+_ft_vals = json.dumps(d)
+print("1448b no text in the reply          :", "pos A V" not in _ft_vals and "feature kern" not in _ft_vals and "lookup" not in _ft_vals,
+      "| chars", d.get("chars") == len(FT_TEXT), "| lines", d.get("lines") == len(FT_TEXT.splitlines()), "| pos_lines (pos, enum pos, pos in a lookup; not position / subpos):", d.get("pos_lines"))
+ft_setup(); ftc("1449 size, tag not listed         ", "/debug/features?stage=size&tag=zzzz&go=yes")
+ft_setup(); ftc("1449b size, case differs (Kern)    ", "/debug/features?stage=size&tag=Kern&go=yes")
+ft_setup(has=False); ftc("1450 has_key False: no get_feature", "/debug/features?stage=size&tag=kern&go=yes")
+ft_setup(has=1); ftc("1451 has_key 1 (not True)         ", "/debug/features?stage=size&tag=kern&go=yes")
+ft_setup(has=FTNative()); ftc("1451b has_key native object       ", "/debug/features?stage=size&tag=kern&go=yes")
+ft_setup(has="raise"); ftc("1452 has_key raises (counted)     ", "/debug/features?stage=size&tag=kern&go=yes")
+ft_setup(text="raise"); ftc("1453 get_feature raises           ", "/debug/features?stage=size&tag=kern&go=yes")
+ft_setup(text=None); ftc("1454 get_feature returns None     ", "/debug/features?stage=size&tag=kern&go=yes")
+ft_setup(text=b"pos A V -1;"); ftc("1454b get_feature returns bytes   ", "/debug/features?stage=size&tag=kern&go=yes")
+ft_setup(text=""); ftc("1454c get_feature returns ''      ", "/debug/features?stage=size&tag=kern&go=yes")
+ft_setup(keys="native"); ftc("1455 keys native: nothing read     ", "/debug/features?stage=tags&go=yes")
+ft_setup(keys="native"); ftc("1455b keys native, size stage     ", "/debug/features?stage=size&tag=kern&go=yes")
+ft_setup(keys=["kern", 5]); ftc("1456 keys with a non-text entry   ", "/debug/features?stage=size&tag=kern&go=yes")
+ft_setup(keys="raise"); ftc("1457 keys raises (counted)        ", "/debug/features?stage=tags&go=yes")
+ft_setup(keys=("kern", "kern", "x" * 40)); ftc("1458 tuple, duplicate, long tag cut", "/debug/features?stage=tags&go=yes")
+ft_setup(keys=[f"t{i:03d}" for i in range(130)]); ftc("1458b 130 tags: 100 shown, cut   ", "/debug/features?stage=tags&go=yes")
+ft_setup(keys=[]); ftc("1458c no tags at all              ", "/debug/features?stage=tags&go=yes")
+ft_setup(); FT["len_after"] = 28; ftc("1459 length changes: side effect ", "/debug/features?stage=size&tag=kern&go=yes")
+ft_setup(); FT["len_raises"] = True; ftc("1459b len() raises               ", "/debug/features?stage=tags&go=yes")
+ft_setup(count=0); ftc("1460 CountFonts 0: not open       ", "/debug/features?stage=tags&go=yes")
+print("1460b CurrentFont never asked      :", FT["cur_calls"] == 0)
+for cnt, lbl in ((2, "two fonts"), (RuntimeError("count boom"), "CountFonts raises"), (True, "CountFonts True"), ("1", "CountFonts '1'"), ("missing", "no CountFonts")):
+    ft_setup(count=cnt); ftc(f"1460c {lbl:27}", "/debug/features?stage=tags&go=yes"); print("      CurrentFont asked:", FT["cur_calls"])
+ft_setup(cur=None); ftc("1461 CurrentFont None            ", "/debug/features?stage=tags&go=yes")
+ft_setup(calls=9); ftc("1462 request number 10 allowed    ", "/debug/features?stage=tags&go=yes")
+ftc("1462b request number 11 refused   ", "/debug/features?stage=size&tag=kern&go=yes")
+class FTNoFeatures:
+    @property
+    def features(self): raise RuntimeError("no features")
+class FTBadKeys:
+    class _F:
+        keys = 5
+    features = _F()
+class FTBadHas:
+    class _F:
+        def keys(self): FT["calls"].append("keys"); return ["kern"]
+        has_key = "x"
+        def get_feature(self, tag): FT["calls"].append("get_feature"); return ""
+    features = _F()
+class FTNoHas:
+    class _F:
+        def keys(self): FT["calls"].append("keys"); return ["kern"]
+    features = _F()
+for tag, fnt, path in (("1463 font.features raises", FTNoFeatures, "stage=tags"), ("1463b keys not callable", FTBadKeys, "stage=tags"),
+                       ("1463c has_key not callable", FTBadHas, "stage=size&tag=kern"), ("1463d no has_key member", FTNoHas, "stage=size&tag=kern")):
+    ft_setup(); fl.CurrentFont = (lambda f=fnt: f()); ftc(tag.ljust(34), "/debug/features?" + path + "&go=yes"); print("      calls so far:", ns["_FEATURES"]["calls"])
+ft_setup(); _ft_real = ns["debug_features"]
+def _ft_boom(stage, tag, go, contains=()): raise RuntimeError("probe boom")
+ns["debug_features"] = _ft_boom; ftc("1464 probe raises: HTTP 500      ", "/debug/features?stage=tags&go=yes"); ns["debug_features"] = _ft_real
+print("1465 spy over all cases            : forbidden members touched:", FT["forbidden"], "| every member touched anywhere:", sorted(FT["all_touched"]))
+_ft_src = src[src.index("def debug_features("):src.index("# /debug/trypkgkern (v0.97)")]
+_ft_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _ft_src).splitlines())
+print("1466 static scan                   : features members used:", sorted(set(_re83.findall(r"features\.(\w+)", _ft_code))),
+      "| calls of the native getters:", sorted(set(_re83.findall(r"\b(keys_of|has_of|get_of)\(", _ft_code))),
+      "| forbidden syntax:", _re83.findall(r"(?<!out)\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|set\w*|add\w*|clear\w*|append|values|items|"
+                                           r"assign\w*|replace\w*|delete\w*|get_prefix|rename\w*)\(", _ft_code),
+      "| subscripts:", sorted(set(s for s in _re83.findall(r"\b(\w+)\[", _ft_code) if s not in ("_FEATURES", "out"))),
+      "| counter raised before the first call:", _ft_code.index('_FEATURES[""] += 1') < _ft_code.index("keys_of()"), "| scanned chars > 3000:", len(_ft_src) > 3000)
+print("1467 gate, cap, route, header      :", "go != \"yes\"" in _ft_src, "| max", ns["_FEATURES_MAX"], "| route registered once:", src.count('path == "/debug/features"') == 1,
+      "| in the route list:", "/debug/features       stage=tags" in src[:src.index('"""', 10)])
+_ft_saved = {k: ns[k] for k in ("_now_hms", "_clock")}
+ns["_now_hms"], ns["_clock"] = (lambda: "12:00:00"), (lambda: AL_CLOCK[0])
+al_reset(); al_case("1468 activity log: a go=yes request is one probe line, a refusal without go is a read-only probe:")
+ns["_activity_note"]("GET", "/debug/features?stage=tags&go=yes", b"", ns["_build_response"](200, {"open": True, "tags_count": 29}), "claude-code")
+ns["_activity_note"]("GET", "/debug/features?stage=size&tag=zzzz&go=yes", b"", ns["_build_response"](200, {"open": True, "error": "'zzzz' is not one of the tags"}), "claude-code")
+ns["_activity_note"]("GET", "/debug/features?stage=tags", b"", ns["_build_response"](200, {"error": "add &go=yes"}), "claude-code")
+al_tick(10)
+for k, v in _ft_saved.items(): ns[k] = v
+al_reset(_al_saved["_ACTIVITY_LOG"])
+
+# ================= v0.108: /debug/features stage=shape (line counts by kind, the head) and stage=lines (lines naming a token) =================
+print("\n==== v0.108 /debug/features shape and lines ====")
+FT_TEXT2 = ("# kern feature, generated\nlanguagesystem DFLT dflt;\nfeature kern {\n  script latn;\n  language dflt;\n  lookupflag IgnoreMarks;\n"
+            "  lookup kern1 {\n    pos A V -152;\r\n    pos Aacute V -10;\n    enum pos @Aring V -76;\n    pos @T_left o -227;\n    subtable;\n"
+            "    pos [A Aacute] Vacute -5;\n  } kern1;\n  @kclass = [A B];\n  @k.c-2=[C];\n  pos V.sc A -3;\n  pos AV A 1;\n  pos A @V -9;\n"
+            "  pos V " + "x" * 300 + ";\n" + "".join(f"  pos Q{i} V {i};\n" for i in range(25)) + "  lookup kern1;\n  enumpos X Y 1;\n} kern;\n")
+def ftl(tag, path):
+    c, d = call(path)
+    shown = {k: v for k, v in d.items() if k not in ("note", "tags", "head", "matches")}
+    print(tag, ":", c, shown, "| head", (len(d["head"]), d["head"] == FT["text"][:300]) if isinstance(d.get("head"), str) else None,
+          "| calls", list(FT["calls"]), "| forbidden", list(FT["forbidden"]))
+    for tok, segs in (d.get("matches") or {}).items():
+        print("      ", repr(tok), len(segs), "lines; lengths", [len(s) for s in segs][:8], "| first:", (segs[0][:60] if segs else None), "| last:", (segs[-1][:60] if segs else None),
+              "| cut flagged:", sum(1 for s in segs if s.endswith("...[cut]")))
+    return c, d
+ft_setup(text=FT_TEXT2); c, d = ftl("1470 shape: kinds and head        ", "/debug/features?stage=shape&tag=kern&go=yes")
+print("1470b head is the first 300 chars   :", d.get("head") == FT_TEXT2[:300], "| no matches key:", "matches" not in d, "| reply shorter than the text:", len(json.dumps(d)) < len(FT_TEXT2))
+ft_setup(text=FT_TEXT2); ftl("1471 shape with contains refused  ", "/debug/features?stage=shape&tag=kern&contains=V&go=yes")
+ft_setup(text=FT_TEXT2); ftl("1472 size with contains refused   ", "/debug/features?stage=size&tag=kern&contains=V&go=yes")
+ft_setup(text=FT_TEXT2); ftl("1472b tags with contains refused  ", "/debug/features?stage=tags&contains=V&go=yes")
+ft_setup(text=FT_TEXT2); ftl("1473 lines without contains       ", "/debug/features?stage=lines&tag=kern&go=yes")
+ft_setup(text=FT_TEXT2); ftl("1473b lines, empty contains       ", "/debug/features?stage=lines&tag=kern&contains=,%20,&go=yes")
+ft_setup(text=FT_TEXT2); ftl("1473c lines without tag           ", "/debug/features?stage=lines&contains=V&go=yes")
+ft_setup(text=FT_TEXT2); ftl("1474 four names refused           ", "/debug/features?stage=lines&tag=kern&contains=A,B,C,D&go=yes")
+for bad in ("a%20b", "x/y", "A(", "A%3Bb", "%C3%A9", "x" * 64, "A%00"):
+    ft_setup(text=FT_TEXT2); ftl(f"1474b bad name {bad[:12]!r:14}", "/debug/features?stage=lines&tag=kern&contains=" + bad + "&go=yes")
+ft_setup(text=FT_TEXT2); c, d = ftl("1475 lines V: whole word only      ", "/debug/features?stage=lines&tag=kern&contains=V&go=yes")
+print("1475b V matched in                  :", [s[:24] for s in d["matches"]["V"][:5]], "| never V.sc / AV / @V / Vacute alone:",
+      not any(s.startswith(("pos V.sc", "pos AV ", "pos A @V", "pos [A Aacute] Vacute")) for s in d["matches"]["V"]), "| 63 chars + 300 x cut to 200 + marker:", len(d["matches"]["V"][3]))
+ft_setup(text=FT_TEXT2); ftl("1476 names with @, dot, dash      ", "/debug/features?stage=lines&tag=kern&contains=Aacute,@Aring,@V&go=yes")
+ft_setup(text=FT_TEXT2); ftl("1476b class names as defined       ", "/debug/features?stage=lines&tag=kern&contains=@kclass,@k.c-2,V.sc&go=yes")
+ft_setup(text=FT_TEXT2); ftl("1477 name not present             ", "/debug/features?stage=lines&tag=kern&contains=Zzz&go=yes")
+ft_setup(text=FT_TEXT2); ftl("1477b spaces around names trimmed ", "/debug/features?stage=lines&tag=kern&contains=%20A%20,%20o&go=yes")
+ft_setup(text=FT_TEXT2); ftl("1478 lines, tag not listed        ", "/debug/features?stage=lines&tag=zzzz&contains=V&go=yes")
+ft_setup(text=None); ftl("1479 lines, get_feature None       ", "/debug/features?stage=lines&tag=kern&contains=V&go=yes")
+ft_setup(text=""); ftl("1479b lines, empty text           ", "/debug/features?stage=lines&tag=kern&contains=V&go=yes")
+ft_setup(text=""); ftl("1479c shape, empty text           ", "/debug/features?stage=shape&tag=kern&go=yes")
+ft_setup(text=FT_TEXT2, has=False); ftl("1479d shape, has_key False       ", "/debug/features?stage=shape&tag=kern&go=yes")
+ft_setup(text=FT_TEXT2, calls=9); ftl("1480 shape is request 10          ", "/debug/features?stage=shape&tag=kern&go=yes")
+ftl("1480b lines is request 11: refused", "/debug/features?stage=lines&tag=kern&contains=V&go=yes")
+ft_setup(text=FT_TEXT2, count=2); ftl("1481 lines, two fonts             ", "/debug/features?stage=lines&tag=kern&contains=V&go=yes")
+ft_setup(text=FT_TEXT2); ftl("1482 lines without go             ", "/debug/features?stage=lines&tag=kern&contains=V")
+print("1483 report helper on its own      :", ns["_features_text_report"]("pos A V 1;\npos A B 2;", "size", ["A"]),
+      "| unknown stage gives the size only:", ns["_features_text_report"]("pos A V 1;", "other", ["A"]))
+_ft2_src = src[src.index("def _features_text_report("):src.index("# /debug/trypkgkern (v0.97)")]
+_ft2_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _ft2_src).splitlines())
+print("1484 static scan of the helper     : method calls:", sorted(set(_re83.findall(r"\b(\w+\.\w+)\(", _ft2_code))),
+      "| subscripts:", sorted(set(_re83.findall(r"\b(\w+)\[", _ft2_code))), "| scanned chars > 1000:", len(_ft2_src) > 1000)
+print("1485 spy over all cases            : forbidden members touched:", FT["forbidden"], "| every member touched anywhere:", sorted(FT["all_touched"]))
+fl.CurrentFont = _ft_cur
+if _ft_cf is not None: fl.CountFonts = _ft_cf
+elif hasattr(fl, "CountFonts"): delattr(fl, "CountFonts")
+ns["_FEATURES"]["calls"] = 0

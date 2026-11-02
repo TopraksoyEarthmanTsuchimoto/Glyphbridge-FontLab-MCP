@@ -15,9 +15,8 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 
 | # | Scenario | Status |
 |---|---|---|
-| 75 | K11: GPOS / contextual kerning, names-only probe | TODO |
 | 76 | K12: new font, test font, two fonts | PARTLY: (a) `table_size` 0 proven (168) |
-| 77 | K13: no font open | TODO |
+| 77 | K13: no font open | PARTLY: closing the only font proven (227); a freshly started FontLab is row 57 (T12) |
 | 78 | K14: timings at 250 and 2000 pairs | TODO |
 | 80 | K16: encoding end to end | TODO |
 | 79 | K15: transport limit (about 1 MB) | POSTPONED to the last block |
@@ -74,6 +73,8 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 | # | Scenario | Status |
 |---|---|---|
 | 17, 42, 64 | Large glyphs: 1980-node request, 2001-node refusal, read 1000+ nodes, time of `Update` against the 5 s timeout | POSTPONED |
+
+Closed on 2026-11-03: row 75 (K11 on Arial, tests 158, 230–235).
 
 Closed on 2026-11-02: row 74 (K10, test 224).
 

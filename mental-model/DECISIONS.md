@@ -2,6 +2,10 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-03: proven container calls on native objects
+
+- **Container access (`[]`, `get`, `keys`, `values`, `items`, `has_key`, iteration) on a native FontLab object is forbidden until proven, per object and call form.** The proven calls form one table in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10, with their test numbers. This replaces the blanket ban and its two one-off exceptions (the kerning `get`, the K11 `keys()`). *Reason:* the user's choice, the tidiest option. The ban rests on one crash (`font.shapes`), the `keys()` exception was noticed only after the live runs, and one proof path keeps the rules and the reports consistent.
+
 ## 2026-11-02: the client's name in the activity log
 
 - **The log shows the name the app sends by itself** (MCP `clientInfo`), without the config entry name `glyphbridge-fontlab`. No label is set in the MCP configs. *Reason:* the user's choice: an ambiguous automatic name such as `local-agent-mode` is enough, and the configs stay untouched.
@@ -31,7 +35,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 - **The repository is the source of truth.** The project follows [HOW-TO-GET-ORGANIZED.md](HOW-TO-GET-ORGANIZED.md), with all documentation in `mental-model/`. *Reason:* milestone summaries had grown to about 28,000 words, and every new chat had to rebuild the context. *Supersedes* "the milestone summary is the single source of truth".
 - **CLAUDE.md joins the core set with a 200-word budget.** The reference total becomes 8,700 words including the root README, and 8,200 for the startup core files. *Reason:* Claude Code reads CLAUDE.md automatically, so it costs context in every session.
 - **The CHECKLIST.md budget goes from 1,000 to 1,300 words.** The reference totals become 9,000 including the root README, and 8,500 for the startup core files. *Reason:* the first version used 994 of 1,000 words, which left no room for new scenarios.
-- **The CURRENT-STATUS.md budget goes from 800 to 900 words.** The reference totals become 9,100 including the root README, and 8,600 for the startup core files. *Reason:* the K-series records had used 736 of 800 words; the user's choice.
 - **`tests/README.md` stays in `tests/`**, an exception to the "all Markdown in `mental-model/`" rule. *Reason:* the user's choice, so it stays next to the harnesses it describes.
 - **The repository is public.** Live files contain no personal paths, names, time zones or locales. *Reason:* the user's choice. The v11 summary snapshot was trimmed of those details before the first push.
 - **The project folder is the cloned repository.** The scripts stay at the root, and the server uses its own `venv` there (Python 3.15.2, `mcp==2.2.0`, ignored by git). *Reason:* `run_all.py` reads the scripts from the parent of `tests/`, and the MCP configs point at the root.

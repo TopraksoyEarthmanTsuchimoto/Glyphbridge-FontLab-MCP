@@ -1,6 +1,6 @@
 [glyphbridge] Connected at HH:MM:SS - first request (GET /health) from a local client to this FontLab session.
 /health ('200', {'status': 'ok'})
-/version ('200', {'version': '0.106'})
+/version ('200', {'version': '0.108'})
 /font/current ('200', {'open': True, 'path': 'x', 'glyph_count': 3, 'family_name': 'F', 'style_name': 'R', 'postscript_font_name': '', 'postscript_full_name': '', 'units_per_em': 1000, 'ascender': 800, 'descender': -200, 'cap_height': 700, 'x_height': 500, 'weight_class': 400})
 /font/glyphs ('200', {'open': True, 'count': 3, 'names': ['A', 'empty', 'B']})
 /glyph/width?name=A ('200', {'open': True, 'found': True, 'name': 'A', 'width': 500.0})
@@ -264,7 +264,7 @@ shape_count in outline: 1
 207 bad route       : unknown route 'bogus': use rou
 208 unknown tri glyph: False no glyph named 'trinope'
 209 no font open    : {'open': False}
-210 version         : {'version': '0.106'}
+210 version         : {'version': '0.108'}
 220 legacy lsb refused: True refused: the legacy setters glyph.leftMargin / glyph.rightMa | leftMargin 0.0 | calls []
 221 legacy rsb refused: True | rightMargin -500.0
 222 legacy width still allowed: glyph.width = 600.0 | width 600.0
@@ -369,7 +369,7 @@ shape_count in outline: 1
 339 negative width   : 400 "width" must not be negative
 340 unknown glyph    : {'open': True, 'found': False, 'set': False, 'reason': "no glyph named 'nope'", 'before': None, 'after': None}
 341 no font          : {'open': False}
-342 version          : {'version': '0.106'}
+342 version          : {'version': '0.108'}
 343 state            : 200 {'is_none': True} 0 | findLayer {'is_none': True} | nocreate {'is_none': True} | ref True | calls [('findLayer', 'Master'), ('getLayerByName', 'Master', False)]
 344 create without go: 200 refused: stage=create can change the fon | calls []
 345 findLayerCreate  : 200 w.findLayerCreate('Master') | returned {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | same {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | rebuilt built {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
@@ -386,14 +386,14 @@ shape_count in outline: 1
 356 no name          : 400
 357 unknown glyph    : {'open': True, 'found': False, 'reason': "no glyph named 'nope'", 'font_master': {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}}
 358 no font          : {'open': False}
-359 version          : {'version': '0.106'}
+359 version          : {'version': '0.108'}
 360 font_master      : 200 {'is_none': False, 'type': 'FmLayer', 'public_names': ['id', 'isBodyLayer', 'isMasterLayer', 'mutate', 'name'], 'name': 'test_font', 'id': 7, 'isMasterLayer': True, 'isBodyLayer': False}
 361 master, no glyph : False test_font
 362 create has no section: False
 363 master is None   : {'is_none': True}
 364 master raises    : {'error': 'RuntimeError: no master'}
 365 no master member : {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}
-366 version          : {'version': '0.106'}
+366 version          : {'version': '0.108'}
 400 width, new glyph  : 200 {'set': True, 'route': 'modern', 'layer_created': 'test_font', 'before': 0.0, 'after': 600.0} | calls [('findLayerCreate', 'fresh', 'test_font'), ('advanceWidth', 'fresh', 600.0)]
 401 width again       : True modern | layer_created None | creates 1
 402 names disagree    : True legacy_empty_glyph | the glyphs of this font have different layer names (['Alpha' | creates [] | legacy width 600.0
@@ -430,7 +430,7 @@ shape_count in outline: 1
 434 reader, agree     : 3 | modern_check {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True}
 435 reader, modern=no : False
 436 reader, no modern : 3 | modern_check {'available': True, 'modern_layer': False}
-437 version           : {'version': '0.106'}
+437 version           : {'version': '0.108'}
 440 stage=layer       : 200 1 | getContours {'type': 'list', 'python_sequence': True, 'len': 1} | getShapes {'type': 'list', 'python_sequence': True, 'len': 1} | shapes {'type': 'R73Native', 'python_sequence': False, 'len': 2} | shapesCount 1
 441 stage=contour     : 1 True False 4 {'type': 'list', 'python_sequence': True, 'len': 4}
 442 node via getNodeAt: {'type': 'R73Node', 'x': 400, 'y': 300, 'isOn': True, 'isOff': False, 'isCurve': False, 'smooth': False, 'index': 2} | calls [('getNodeAt', 2)]
@@ -453,7 +453,7 @@ shape_count in outline: 1
 459 no modern layer    : this glyph has no modern active layer, so there is nothing to read
 460 no font            : {'open': False}
 461 read-only          : calls [] | shapes still 1
-462 version           : {'version': '0.106'}
+462 version           : {'version': '0.108'}
 470 modern_outline    : True | nodes 5 of 5 | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0} | check agree False
 471 contour 0         : {'index': 0, 'closed': True, 'clockwise': True, 'nodesCount': 5}
 472 nodes             : [(10.0, 20.0, True), (410.0, 20.0, True), (410.0, 220.0, True), (210.0, 320.0, True), (10.0, 220.0, True)]
@@ -469,7 +469,7 @@ shape_count in outline: 1
 482 count mismatch    : {'available': False, 'error': 'read 5 nodes but the layer reports 6: the outline is not trusted'}
 483 too many nodes    : {'available': False, 'error': 'the layer has 5 nodes, more than the 3 that are read'}
 484 no QTransform     : margins key False | available True
-485 version           : {'version': '0.106'}
+485 version           : {'version': '0.108'}
 490 two contours      : 200 {'drawn': True, 'points': 8, 'contours': 2, 'contour_sizes': [4, 4], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': True}, 'layer_created': 'test_font'} | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 8, 'components': 0}
 491 calls             : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'flContour', 'addShape']
 492 read back         : True | contours 2 [4, 4]
@@ -489,7 +489,7 @@ shape_count in outline: 1
 506 second contour dropped: False | after drawing, the layer reads 1 shape(s), 4 node(s) and 1 contour(s); expected 1, 8 and 2 | changed True | checks {'shapes_ok': True, 'nodes_ok': False, 'contours_ok': False}
 507 getContours unreadable: True | checks {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': None}
 508 not empty         : False | the glyph's layer is not KNOWN to be empty (needs  | calls []
-509 version           : {'version': '0.106'}
+509 version           : {'version': '0.108'}
 510 curve probe        : 200 curve | call node(index 1).convertToCurve(False) | returned True | nodes_added 2 | may_change False
     before             : 4 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '2: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '3: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
     after              : 6 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '2: (268.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '3: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '4: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '5: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
@@ -507,7 +507,7 @@ shape_count in outline: 1
 520 bogus stage        : unknown stage 'bogus' for route=modern: use stage=names or stage=build or stage=attach or stage=refresh
 521 bogus variant      : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
 522 curve without go   : 200 refused: this probe can change the font 
-523 version           : {'version': '0.106'}
+523 version           : {'version': '0.108'}
 524 curve2 normal | may_change False | keys []
     A plan: convertToCurve(False) on node 1; setPoint(1, QPointF(100, 60 | error: None | note: None | final_as_expected: True
       step getNodeAt(1).convertToCurve(False) | returned True | error None | as_expected None | n 6
@@ -592,7 +592,7 @@ shape_count in outline: 1
 537 QPointF missing    : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 538 curve2 without go  : 200 refused: this probe can change the font 
 539 variant=curve still works: 2 1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False
-540 version           : {'version': '0.106'}
+540 version           : {'version': '0.108'}
 541 build (dry run)   : 200 curve3 | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | may_change False | layer shapes/nodes 0 0
     calls             : ['flContour([5 QPointF])', 'contour.closed = True', 'getNodeAt(2).convertToCurve(False)', 'setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))', 'flShape()', 'shape.shapeData', 'shapeData.addContour(contour)']
     notes             : ['detached nodes before attach: 0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 1: (300.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 2: (355.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 3: (400.0, 45.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 4: (400.0, 100.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 5: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 6: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', "after adding the contour, the detached shape reads {'contoursCount': 1, 'hasContours': True, 'isEmpty': False}"]
@@ -617,7 +617,7 @@ shape_count in outline: 1
 557 attach without go : 200 refused: this probe can change the font 
 558 second attach refused: True | layer 1 7
 559 variant=single unchanged: single {'nodesCount': 3, 'closed': True, 'clockwise': False}
-560 version           : {'version': '0.106'}
+560 version           : {'version': '0.108'}
 561 curve3 whole-number handles: None | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | calls ['setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))']
 562 curve3 attach     : True {'shapes': 1, 'nodes': 7} | layer 1 7
 563 curve3, FontLab rounds everything: None | layer 1 7
@@ -684,7 +684,7 @@ shape_count in outline: 1
 573 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 574 curve4 without go : 200 refused: this probe can change the font 
 575 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-576 version           : {'version': '0.106'}
+576 version           : {'version': '0.108'}
 577 curve5, everything works (stub assumptions) | may_change False | error None
      T1 closing segment: convertToCurve(False) on node 0 of a square | {'returned': True, 'handle_indices': [4, 5], 'nodesCount': 6}
      T2a convertToCurve(True) on node 1 of a square | {'returned': True, 'smooth_flags': [False, False, False, True, False, False]}
@@ -740,7 +740,7 @@ shape_count in outline: 1
 586 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 587 curve5 without go : 200 refused: this probe can change the font 
 588 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-589 version           : {'version': '0.106'}
+589 version           : {'version': '0.108'}
 600 one curved segment       : {'drawn': True, 'nodes_match': True, 'points': 4, 'segments_curved': 1, 'contour_sizes': [6], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 601 nodes read back       : [[(0.0, 0.0, 'on', False), (400.0, 0.0, 'on', False), (500.0, 100.0, 'h', False), (500.0, 300.0, 'h', False), (400.0, 400.0, 'on', False), (0.0, 400.0, 'on', False)]] | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 6, 'components': 0} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
 602 calls                 : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'convertToCurve', 'addShape'] | layer_created test_font
@@ -800,7 +800,7 @@ shape_count in outline: 1
 667 second draw refused   : False | the glyph's layer is not KNOWN to be empty (needs 
 668 plain triangle via path : {'drawn': True, 'nodes_match': True, 'points': 3, 'segments_curved': 0, 'contour_sizes': [3], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 669 no convert calls      : 0
-671 version               : {'version': '0.106'}
+671 version               : {'version': '0.108'}
 672 pure helpers          : 3.0 -2.0 0.0 0.0 0.0 -3.0
 700 first draw             : True | layer_created test_font | layer (1, 6, 1) | creates 1
 701 legacy view lags       : True | wrapper activeLayer None
@@ -812,7 +812,7 @@ shape_count in outline: 1
 708 findLayer missing        : False | the glyph may already have a layer (the glyph has no findLayer to ask with), so no layer was created | creates 0 | layer None
 709 glyph without layer, nobody answers yes: True | layer_created test_font | creates 1
 710 width on a glyph with no layer still works: True modern | layer_created test_font | creates 1
-711 version                : {'version': '0.106'}
+711 version                : {'version': '0.108'}
 720 state, nothing open        : 200 {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': None} | constructed False | attached False | calls []
 721 default stage is state     : 200 state
 722 construct without go       : 200 stage=construct constructs ONE native flPackage object (it is not attached to anything). Add &go=yes to run it. | calls []
@@ -834,7 +834,7 @@ shape_count in outline: 1
 738 no flPackage class         : 200 the fontlab module has no flPackage class; nothing was constructed | constructed False
 739 forbidden members called   : [] | calls ['flPackage()', 'addPackage']
 740 static scan of the probe   : forbidden call syntax found: [] | real addPackage calls: 1 | scanned chars > 3000: True
-741 version                    : {'version': '0.106'}
+741 version                    : {'version': '0.108'}
 750 first glyph of a new font, polygon    : {'drawn': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
 751 what was read             : ['cp', 'defaultMaster', 'glyphsCount', 'isNull', 'master', 'masters', 'mastersCount', 'packages', 'upm'] | reads 9
 752 first glyph, width               : {'set': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
@@ -882,7 +882,7 @@ shape_count in outline: 1
 797 other glyphs, with source    : ('test_font', None, 'other glyphs') | reads []
 798 forbidden members called, whole run: [] | addShape calls 1
 799 static scan of the fallback  : forbidden call syntax found: [] | scanned chars > 3000: True
-800 version                      : {'version': '0.106'}
+800 version                      : {'version': '0.108'}
 810 state, one font open               : 200 {'stage': 'state', 'state': {'package_isChanged': False, 'workspace_isChanged': False, 'package_glyphsCount': 1}, 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 811 default stage is state           : 200 {'stage': 'state', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 812 package_update without go        : 200 {'error': "stage=package_update calls flPackage.update() ONCE on the font's package. Add &go=yes to run it."} | calls []
@@ -913,7 +913,7 @@ shape_count in outline: 1
 842 the module has no CountFonts     : 200 {'error': 'the fontlab module has no CountFonts, so the number of open fonts is unknown', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 843 forbidden members called    : [] | calls ['flPackage.update()', 'flWorkspace.update()']
 844 static scan of the probe     : forbidden call syntax found: [] | real update calls: 1 | scanned chars > 3000: True
-845 version                      : {'version': '0.106'}
+845 version                      : {'version': '0.108'}
 850 no go                         : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 851 go must be exactly yes           : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 852 unknown how                      : 200 {'error': 'how must be "plain" (createGlyph only) or "legacy_update" (createGlyph, then font.update())'} | names ['.notdef', 'A'] | calls []
@@ -945,7 +945,7 @@ shape_count in outline: 1
 878 forbidden members called     : [] | calls ['createGlyph', 'createGlyph', 'update'] | names ['.notdef', 'A', 'P1', 'P2']
 879 static scan of the probe     : forbidden call syntax found: [] | real createGlyph calls: 1 | real font.update calls: 1 | scanned chars > 2000: True
 880 create_glyph itself unchanged: True | still calls font.update(): True
-881 version                      : {'version': '0.106'}
+881 version                      : {'version': '0.108'}
 890 nothing tracked: update runs       : 200 {'created': True} | calls ['createGlyph', 'font.update'] | layers ['ref'] | tracked []
 891 draw: reply says not synced         : 200 {'drawn': True, 'synced_with_fontlab': False} | calls [] | layers ['fresh', 'ref'] | tracked ['fresh']
 891b durability note present  : True | mentions create_glyph: True
@@ -978,7 +978,7 @@ shape_count in outline: 1
 913 no regression: duplicate name   : 200 {'created': False}
 914 static scan of the guard     : forbidden call syntax found: [] | scanned chars > 3000: True
 915 every legacy update is guarded: [(1, 1, 1), (1, 1, 1), (1, 1, 2), (1, 1, 2)]
-916 version                      : {'version': '0.106'}
+916 version                      : {'version': '0.108'}
 917 sidebearings change remembered: 200 {'set': True, 'changed': True, 'synced_with_fontlab': False} | tracked ['tri']
 918 same values again: not remembered: {'set': True, 'changed': False, 'synced_with_fontlab': None} | tracked []
 920 margins agree                    : 200 node_count 3 | check {'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True} | modern_outline None
@@ -1001,7 +1001,7 @@ shape_count in outline: 1
 936 margins argument not a dict  : {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True}
 937 direct compare, missing key  : {'margins_agree': None, 'margins_note': 'the legacy margins are not numbers, so they could not be compared'}
 938 static scan of the compare   : forbidden call syntax found: [] | getLSB / getRSB reads in the helper: 1 | scanned chars > 1500: True
-939 version                      : {'version': '0.106'}
+939 version                      : {'version': '0.108'}
 940 state, drawn glyph                  : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'components': 0}, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
 940b                              : {'found': True, 'legacy_layers': 0, 'modern': 'present', 'modern_nodes': 4, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'} | registry {'fresh': 'at_risk'} | counters {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}
 941 state, updatedFgGlyphs ids          : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'components': 0}, 'updated_fg_glyphs': {'count': 2, 'ids': [5, 7]}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
@@ -1089,7 +1089,7 @@ shape_count in outline: 1
 981 forbidden members called     : [] | pkg.update / other recorded package calls: []
 982 static scan of the probe     : forbidden call syntax found: [] | real calls: Update 2 UpdateAll 1 fillFgData 1 prepareFontGateData 1 addGlyph 1 flGlyph() 1 | scanned chars > 6000: True
 983 no other tool changed        : True | create_glyph still calls font.update(): True
-984 version                      : {'version': '0.106'}
+984 version                      : {'version': '0.108'}
 990 polygon, Update syncs           : 200 {'drawn': True} | synced_with_fontlab True | fontlab_sync {'attempted': True, 'verdict': 'synced', 'synced': True} | note Glyphbridge asked Font | calls [('Update', 'M88Mod')] | tracked []
 990b                              : unsynced note gone: True | layer kept: True | legacy layers: 1
 991 polygon, Update has no effect     : 200 {'drawn': True} | synced_with_fontlab False | fontlab_sync {'attempted': True, 'verdict': 'at_risk', 'synced': False} | note This change exists onl | calls [('Update', 'M88Mod')] | tracked ['fresh']
@@ -1114,7 +1114,7 @@ shape_count in outline: 1
 1005 calls over all cases        : UpdateAll called: False | forbidden: [] | Update calls: 10 | all Update args are the modern wrapper: True
 1006 static scan of the sync     : forbidden call syntax found: [] | upd(w) calls: 1 | scanned chars > 900: True
 1007 constants                   : shipped default ['True'] | synced note mentions legacy view: True
-1008 version                     : {'version': '0.106'}
+1008 version                     : {'version': '0.108'}
 
 ==== v0.90 /debug/fontdir ====
 1010 dir                     : 200 {'open': True, 'count_fonts': 1, 'stage': 'dir', 'font_type': 'FDFont'} | names ['boom', 'familyName', 'flag', 'kerning', 'lenboom', 'method', 'nolen', 'nothing', 'unitsPerEm'] | doc len None | touched [] | called []
@@ -1707,12 +1707,12 @@ shape_count in outline: 1
 1328 poll: health, shutdown, version : raised None | accepts 2 | left 1 | socket closed True | timer stopped True | listener running False
 1329 replies                       : 200 {"status": "ok"} | 200 {"status": "shutting down"} | (nothing sent) | closed True True
 1330 poll: one request, then none : raised None | accepts 2 | left 0 | socket closed False | timer stopped False | listener running True
-1331 reply                         : 200 {"version": "0.106"}
+1331 reply                         : 200 {"version": "0.108"}
 1332 poll after stop()             : returns quietly
 [glyphbridge] Listener stopped.
 1333 poll: shutdown as 8th request : raised None | accepts 8 | left 0 | socket closed True | timer stopped True | listener running False
 1334 start() prints:
-[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.106
+[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.108
 [glyphbridge] Listener started on http://127.0.0.1:8765 (main-thread polling)
 [glyphbridge] Try: GET /health, GET /version. All routes are listed at the top of glyphbridge_fontlab_mcp_listener.py.
 1334 start() result                : socket set True | timer started True | interval 25 | signal timeout()
@@ -2017,3 +2017,119 @@ shape_count in outline: 1
 [local-agent-mode > Glyphbridge] 12:00:00 reads: kerning 1 (13 pairs)
 1436 the 'Connected' line with the same name:
 [glyphbridge] Connected at HH:MM:SS - first request (GET /health) from "local-agent-mode" (the name the client gave, shortened as in the log) to this FontLab session.
+
+==== v0.107 /debug/features ====
+1440 no go: nothing runs           : 200 {'error': 'this probe calls font.features.keys() (stage=tags), then has_key(tag) and get_feature(tag) (stages size, shape and lines); add &go=yes to run it', 'calls_so_far': 0, 'max_calls': 10} | tags None | touched [] | calls [] | forbidden []
+1441 go=maybe: nothing runs        : 200 {'error': 'this probe calls font.features.keys() (stage=tags), then has_key(tag) and get_feature(tag) (stages size, shape and lines); add &go=yes to run it', 'calls_so_far': 0, 'max_calls': 10} | tags None | touched [] | calls [] | forbidden []
+1442 no stage                      : 200 {'error': 'stage must be "tags", "size", "shape" or "lines"'} | tags None | touched [] | calls [] | forbidden []
+1443 unknown stage                 : 200 {'error': 'stage must be "tags", "size", "shape" or "lines"'} | tags None | touched [] | calls [] | forbidden []
+1444 stage=tags takes no tag       : 200 {'error': 'stage=tags takes no tag'} | tags None | touched [] | calls [] | forbidden []
+1445 stage=size without tag        : 200 {'error': 'stage=size needs tag=<1 to 4 characters from A-Z a-z 0-9>, one of the tags that stage=tags lists'} | tags None | touched [] | calls [] | forbidden []
+1446 bad tag 'kerns'          : 200 {'error': 'stage=size needs tag=<1 to 4 characters from A-Z a-z 0-9>, one of the tags that stage=tags lists'} | tags None | touched [] | calls [] | forbidden []
+1446 bad tag 'ke%20n'         : 200 {'error': 'stage=size needs tag=<1 to 4 characters from A-Z a-z 0-9>, one of the tags that stage=tags lists'} | tags None | touched [] | calls [] | forbidden []
+1446 bad tag 'k%2Bn'          : 200 {'error': 'stage=size needs tag=<1 to 4 characters from A-Z a-z 0-9>, one of the tags that stage=tags lists'} | tags None | touched [] | calls [] | forbidden []
+1446 bad tag '%C3%A9'         : 200 {'error': 'stage=size needs tag=<1 to 4 characters from A-Z a-z 0-9>, one of the tags that stage=tags lists'} | tags None | touched [] | calls [] | forbidden []
+1446 bad tag 'kern%00'        : 200 {'error': 'stage=size needs tag=<1 to 4 characters from A-Z a-z 0-9>, one of the tags that stage=tags lists'} | tags None | touched [] | calls [] | forbidden []
+1446 bad tag 'k_rn'           : 200 {'error': 'stage=size needs tag=<1 to 4 characters from A-Z a-z 0-9>, one of the tags that stage=tags lists'} | tags None | touched [] | calls [] | forbidden []
+1446 bad tag 'k.rn'           : 200 {'error': 'stage=size needs tag=<1 to 4 characters from A-Z a-z 0-9>, one of the tags that stage=tags lists'} | tags None | touched [] | calls [] | forbidden []
+1447 tags: Arial-like, 29 tags     : 200 {'open': True, 'count_fonts': 1, 'stage': 'tags', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'cut': False, 'duplicates': 0, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags (29, ['aalt', 'c2sc', 'case'], ['fina']) | touched ['keys'] | calls ['keys'] | forbidden []
+1447b all tags, in order            : True | has_key / get_feature untouched: True | note present: True
+1448 size kern: the size only       : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 142, 'lines': 9, 'pos_lines': 3, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys', 'has_key', 'get_feature'] | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+1448b no text in the reply          : True | chars True | lines True | pos_lines (pos, enum pos, pos in a lookup; not position / subpos): 3
+1449 size, tag not listed          : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'zzzz', 'tag_listed': False, 'error': "'zzzz' is not one of the tags keys() returned; has_key and get_feature were not called", 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys'] | calls ['keys'] | forbidden []
+1449b size, case differs (Kern)     : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'Kern', 'tag_listed': False, 'error': "'Kern' is not one of the tags keys() returned; has_key and get_feature were not called", 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys'] | calls ['keys'] | forbidden []
+1450 has_key False: no get_feature : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': False, 'note_size': 'has_key did not answer True, so get_feature was not called', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys', 'has_key', 'get_feature'] | calls ['keys', ('has_key', 'kern')] | forbidden []
+1451 has_key 1 (not True)          : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': 1, 'note_size': 'has_key did not answer True, so get_feature was not called', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys', 'has_key', 'get_feature'] | calls ['keys', ('has_key', 'kern')] | forbidden []
+1451b has_key native object        : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': '<FTNative>', 'note_size': 'has_key did not answer True, so get_feature was not called', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys', 'has_key', 'get_feature'] | calls ['keys', ('has_key', 'kern')] | forbidden []
+1452 has_key raises (counted)      : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key_error': 'RuntimeError: has_key boom', 'has_key': None, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys', 'has_key', 'get_feature'] | calls ['keys', ('has_key', 'kern')] | forbidden []
+1453 get_feature raises            : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'get_feature_error': 'RuntimeError: get_feature boom', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys', 'has_key', 'get_feature'] | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+1454 get_feature returns None      : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'NoneType', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys', 'has_key', 'get_feature'] | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+1454b get_feature returns bytes    : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'bytes', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys', 'has_key', 'get_feature'] | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+1454c get_feature returns ''       : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 0, 'lines': 0, 'pos_lines': 0, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys', 'has_key', 'get_feature'] | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+1455 keys native: nothing read      : 200 {'open': True, 'count_fonts': 1, 'stage': 'tags', 'features_type': 'FTFeatures', 'keys_type': 'FTNative', 'keys_note': 'not a real list or tuple of text, so nothing in it was read', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys'] | calls ['keys'] | forbidden []
+1455b keys native, size stage      : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'FTNative', 'keys_note': 'not a real list or tuple of text, so nothing in it was read', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys'] | calls ['keys'] | forbidden []
+1456 keys with a non-text entry    : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'keys_note': 'not a real list or tuple of text, so nothing in it was read', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys'] | calls ['keys'] | forbidden []
+1457 keys raises (counted)         : 200 {'open': True, 'count_fonts': 1, 'stage': 'tags', 'features_type': 'FTFeatures', 'keys_error': 'RuntimeError: keys boom', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys'] | calls ['keys'] | forbidden []
+1458 tuple, duplicate, long tag cut : 200 {'open': True, 'count_fonts': 1, 'stage': 'tags', 'features_type': 'FTFeatures', 'keys_type': 'tuple', 'tags_count': 3, 'cut': False, 'duplicates': 1, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags (3, ['kern', 'kern', 'xxxxxxxxxxxxxxxx'], ['xxxxxxxxxxxxxxxx']) | touched ['keys'] | calls ['keys'] | forbidden []
+1458b 130 tags: 100 shown, cut    : 200 {'open': True, 'count_fonts': 1, 'stage': 'tags', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 130, 'cut': True, 'duplicates': 0, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags (100, ['t000', 't001', 't002'], ['t099']) | touched ['keys'] | calls ['keys'] | forbidden []
+1458c no tags at all               : 200 {'open': True, 'count_fonts': 1, 'stage': 'tags', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 0, 'cut': False, 'duplicates': 0, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | tags (0, [], []) | touched ['keys'] | calls ['keys'] | forbidden []
+1459 length changes: side effect  : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 142, 'lines': 9, 'pos_lines': 3, 'len_before': 29, 'len_after': 28, 'side_effect_detected': True, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched ['keys', 'has_key', 'get_feature'] | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+1459b len() raises                : 200 {'open': True, 'count_fonts': 1, 'stage': 'tags', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'cut': False, 'duplicates': 0, 'len_before': None, 'len_after': None, 'side_effect_detected': None, 'calls_so_far': 1, 'max_calls': 10} | tags (29, ['aalt', 'c2sc', 'case'], ['fina']) | touched ['keys'] | calls ['keys'] | forbidden []
+1460 CountFonts 0: not open        : 200 {'open': False, 'count_fonts': 0} | tags None | touched [] | calls [] | forbidden []
+1460b CurrentFont never asked      : True
+1460c two fonts                   : 200 {'open': True, 'error': 'CountFonts() is 2; the probe runs only when exactly one font is open', 'calls_so_far': 0, 'max_calls': 10} | tags None | touched [] | calls [] | forbidden []
+      CurrentFont asked: 0
+1460c CountFonts raises           : 200 {'open': True, 'error': 'the number of open fonts could not be read (CountFonts() gave no plain number); the probe runs only when exactly one font is open', 'calls_so_far': 0, 'max_calls': 10} | tags None | touched [] | calls [] | forbidden []
+      CurrentFont asked: 0
+1460c CountFonts True             : 200 {'open': True, 'error': 'the number of open fonts could not be read (CountFonts() gave no plain number); the probe runs only when exactly one font is open', 'calls_so_far': 0, 'max_calls': 10} | tags None | touched [] | calls [] | forbidden []
+      CurrentFont asked: 0
+1460c CountFonts '1'              : 200 {'open': True, 'error': 'the number of open fonts could not be read (CountFonts() gave no plain number); the probe runs only when exactly one font is open', 'calls_so_far': 0, 'max_calls': 10} | tags None | touched [] | calls [] | forbidden []
+      CurrentFont asked: 0
+1460c no CountFonts               : 200 {'open': True, 'error': 'the number of open fonts could not be read (CountFonts() gave no plain number); the probe runs only when exactly one font is open', 'calls_so_far': 0, 'max_calls': 10} | tags None | touched [] | calls [] | forbidden []
+      CurrentFont asked: 0
+1461 CurrentFont None             : 200 {'open': False} | tags None | touched [] | calls [] | forbidden []
+1462 request number 10 allowed     : 200 {'open': True, 'count_fonts': 1, 'stage': 'tags', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'cut': False, 'duplicates': 0, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 10, 'max_calls': 10} | tags (29, ['aalt', 'c2sc', 'case'], ['fina']) | touched ['keys'] | calls ['keys'] | forbidden []
+1462b request number 11 refused    : 200 {'open': True, 'error': 'the limit of 10 requests per listener run is used up; restart the listener to continue', 'calls_so_far': 10, 'max_calls': 10} | tags None | touched ['keys'] | calls ['keys'] | forbidden []
+1463 font.features raises          : 200 {'open': True, 'error': 'font.features / features.keys not reachable: RuntimeError: no features', 'calls_so_far': 0} | tags None | touched [] | calls [] | forbidden []
+      calls so far: 0
+1463b keys not callable            : 200 {'open': True, 'error': 'features.keys is not callable', 'calls_so_far': 0} | tags None | touched [] | calls [] | forbidden []
+      calls so far: 0
+1463c has_key not callable         : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': '_F', 'keys_type': 'list', 'tags_count': 1, 'tag': 'kern', 'tag_listed': True, 'error': 'has_key or get_feature is not callable; neither was called', 'len_before': None, 'len_after': None, 'side_effect_detected': None, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched [] | calls ['keys'] | forbidden []
+      calls so far: 1
+1463d no has_key member            : 200 {'open': True, 'count_fonts': 1, 'stage': 'size', 'features_type': '_F', 'keys_type': 'list', 'tags_count': 1, 'tag': 'kern', 'tag_listed': True, 'error': "has_key / get_feature not reachable: AttributeError: '_F' object has no attribute 'has_key'", 'len_before': None, 'len_after': None, 'side_effect_detected': None, 'calls_so_far': 1, 'max_calls': 10} | tags None | touched [] | calls ['keys'] | forbidden []
+      calls so far: 1
+1464 probe raises: HTTP 500       : 500 {'error': 'RuntimeError: probe boom'} | tags None | touched [] | calls [] | forbidden []
+1465 spy over all cases            : forbidden members touched: [] | every member touched anywhere: ['get_feature', 'has_key', 'keys']
+1466 static scan                   : features members used: ['get_feature', 'has_key', 'keys'] | calls of the native getters: ['get_of', 'has_of', 'keys_of'] | forbidden syntax: [] | subscripts: ['counts', 'found', 'h', 'hits', 't', 'tags', 'text'] | counter raised before the first call: True | scanned chars > 3000: True
+1467 gate, cap, route, header      : True | max 10 | route registered once: True | in the route list: True
+1468 activity log: a go=yes request is one probe line, a refusal without go is a read-only probe:
+[claude-code > Glyphbridge] 12:00:00 probe /debug/features (go=yes): answered
+[claude-code > Glyphbridge] 12:00:00 probe /debug/features (go=yes): error: 'zzzz' is not one of the tags
+[claude-code > Glyphbridge] 12:00:00 reads: probe, read-only 1
+
+==== v0.108 /debug/features shape and lines ====
+1470 shape: kinds and head         : 200 {'open': True, 'count_fonts': 1, 'stage': 'shape', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 1099, 'lines': 48, 'pos_lines': 34, 'line_starts': {'pos': 33, 'enum_pos': 1, 'class_left_pos': 2, 'lookup': 2, 'lookupflag': 1, 'script': 1, 'language': 1, 'subtable': 1, 'class_definition': 2, 'comment': 1}, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | head (300, True) | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+1470b head is the first 300 chars   : True | no matches key: True | reply shorter than the text: True
+1471 shape with contains refused   : 200 {'error': 'stage=shape takes no contains (only stage=lines does)'} | head None | calls [] | forbidden []
+1472 size with contains refused    : 200 {'error': 'stage=size takes no contains (only stage=lines does)'} | head None | calls [] | forbidden []
+1472b tags with contains refused   : 200 {'error': 'stage=tags takes no contains (only stage=lines does)'} | head None | calls [] | forbidden []
+1473 lines without contains        : 200 {'error': 'stage=lines needs contains=<1 to 3 glyph or class names of 1 to 63 characters from A-Z a-z 0-9 . _ - @>'} | head None | calls [] | forbidden []
+1473b lines, empty contains        : 200 {'error': 'stage=lines needs contains=<1 to 3 glyph or class names of 1 to 63 characters from A-Z a-z 0-9 . _ - @>'} | head None | calls [] | forbidden []
+1473c lines without tag            : 200 {'error': 'stage=lines needs tag=<1 to 4 characters from A-Z a-z 0-9>, one of the tags that stage=tags lists'} | head None | calls [] | forbidden []
+1474 four names refused            : 200 {'error': 'stage=lines needs contains=<1 to 3 glyph or class names of 1 to 63 characters from A-Z a-z 0-9 . _ - @>'} | head None | calls [] | forbidden []
+1474b bad name 'a%20b'        : 200 {'error': 'stage=lines needs contains=<1 to 3 glyph or class names of 1 to 63 characters from A-Z a-z 0-9 . _ - @>'} | head None | calls [] | forbidden []
+1474b bad name 'x/y'          : 200 {'error': 'stage=lines needs contains=<1 to 3 glyph or class names of 1 to 63 characters from A-Z a-z 0-9 . _ - @>'} | head None | calls [] | forbidden []
+1474b bad name 'A('           : 200 {'error': 'stage=lines needs contains=<1 to 3 glyph or class names of 1 to 63 characters from A-Z a-z 0-9 . _ - @>'} | head None | calls [] | forbidden []
+1474b bad name 'A%3Bb'        : 200 {'error': 'stage=lines needs contains=<1 to 3 glyph or class names of 1 to 63 characters from A-Z a-z 0-9 . _ - @>'} | head None | calls [] | forbidden []
+1474b bad name '%C3%A9'       : 200 {'error': 'stage=lines needs contains=<1 to 3 glyph or class names of 1 to 63 characters from A-Z a-z 0-9 . _ - @>'} | head None | calls [] | forbidden []
+1474b bad name 'xxxxxxxxxxxx' : 200 {'error': 'stage=lines needs contains=<1 to 3 glyph or class names of 1 to 63 characters from A-Z a-z 0-9 . _ - @>'} | head None | calls [] | forbidden []
+1474b bad name 'A%00'         : 200 {'error': 'stage=lines needs contains=<1 to 3 glyph or class names of 1 to 63 characters from A-Z a-z 0-9 . _ - @>'} | head None | calls [] | forbidden []
+1475 lines V: whole word only       : 200 {'open': True, 'count_fonts': 1, 'stage': 'lines', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 1099, 'lines': 48, 'pos_lines': 34, 'match_counts': {'V': 29}, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | head None | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+       'V' 20 lines; lengths [13, 17, 22, 209, 11, 11, 11, 11] | first: pos A V -152; | last: pos Q15 V 15; | cut flagged: 1
+1475b V matched in                  : ['pos A V -152;', 'pos Aacute V -10;', 'enum pos @Aring V -76;', 'pos V xxxxxxxxxxxxxxxxxx', 'pos Q0 V 0;'] | never V.sc / AV / @V / Vacute alone: True | 63 chars + 300 x cut to 200 + marker: 209
+1476 names with @, dot, dash       : 200 {'open': True, 'count_fonts': 1, 'stage': 'lines', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 1099, 'lines': 48, 'pos_lines': 34, 'match_counts': {'Aacute': 2, '@Aring': 1, '@V': 1}, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | head None | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+       'Aacute' 2 lines; lengths [17, 25] | first: pos Aacute V -10; | last: pos [A Aacute] Vacute -5; | cut flagged: 0
+       '@Aring' 1 lines; lengths [22] | first: enum pos @Aring V -76; | last: enum pos @Aring V -76; | cut flagged: 0
+       '@V' 1 lines; lengths [12] | first: pos A @V -9; | last: pos A @V -9; | cut flagged: 0
+1476b class names as defined        : 200 {'open': True, 'count_fonts': 1, 'stage': 'lines', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 1099, 'lines': 48, 'pos_lines': 34, 'match_counts': {'@kclass': 1, '@k.c-2': 1, 'V.sc': 1}, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | head None | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+       '@kclass' 1 lines; lengths [16] | first: @kclass = [A B]; | last: @kclass = [A B]; | cut flagged: 0
+       '@k.c-2' 1 lines; lengths [11] | first: @k.c-2=[C]; | last: @k.c-2=[C]; | cut flagged: 0
+       'V.sc' 1 lines; lengths [14] | first: pos V.sc A -3; | last: pos V.sc A -3; | cut flagged: 0
+1477 name not present              : 200 {'open': True, 'count_fonts': 1, 'stage': 'lines', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 1099, 'lines': 48, 'pos_lines': 34, 'match_counts': {'Zzz': 0}, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | head None | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+       'Zzz' 0 lines; lengths [] | first: None | last: None | cut flagged: 0
+1477b spaces around names trimmed  : 200 {'open': True, 'count_fonts': 1, 'stage': 'lines', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 1099, 'lines': 48, 'pos_lines': 34, 'match_counts': {'A': 6, 'o': 1}, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | head None | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+       'A' 6 lines; lengths [13, 25, 16, 14, 11, 12] | first: pos A V -152; | last: pos A @V -9; | cut flagged: 0
+       'o' 1 lines; lengths [19] | first: pos @T_left o -227; | last: pos @T_left o -227; | cut flagged: 0
+1478 lines, tag not listed         : 200 {'open': True, 'count_fonts': 1, 'stage': 'lines', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'zzzz', 'tag_listed': False, 'error': "'zzzz' is not one of the tags keys() returned; has_key and get_feature were not called", 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | head None | calls ['keys'] | forbidden []
+1479 lines, get_feature None        : 200 {'open': True, 'count_fonts': 1, 'stage': 'lines', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'NoneType', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | head None | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+1479b lines, empty text            : 200 {'open': True, 'count_fonts': 1, 'stage': 'lines', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 0, 'lines': 0, 'pos_lines': 0, 'match_counts': {'V': 0}, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | head None | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+       'V' 0 lines; lengths [] | first: None | last: None | cut flagged: 0
+1479c shape, empty text            : 200 {'open': True, 'count_fonts': 1, 'stage': 'shape', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 0, 'lines': 0, 'pos_lines': 0, 'line_starts': {'pos': 0, 'enum_pos': 0, 'class_left_pos': 0, 'lookup': 0, 'lookupflag': 0, 'script': 0, 'language': 0, 'subtable': 0, 'class_definition': 0, 'comment': 0}, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | head (0, True) | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+1479d shape, has_key False        : 200 {'open': True, 'count_fonts': 1, 'stage': 'shape', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': False, 'note_size': 'has_key did not answer True, so get_feature was not called', 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 1, 'max_calls': 10} | head None | calls ['keys', ('has_key', 'kern')] | forbidden []
+1480 shape is request 10           : 200 {'open': True, 'count_fonts': 1, 'stage': 'shape', 'features_type': 'FTFeatures', 'keys_type': 'list', 'tags_count': 29, 'tag': 'kern', 'tag_listed': True, 'has_key': True, 'text_type': 'str', 'chars': 1099, 'lines': 48, 'pos_lines': 34, 'line_starts': {'pos': 33, 'enum_pos': 1, 'class_left_pos': 2, 'lookup': 2, 'lookupflag': 1, 'script': 1, 'language': 1, 'subtable': 1, 'class_definition': 2, 'comment': 1}, 'len_before': 29, 'len_after': 29, 'side_effect_detected': False, 'calls_so_far': 10, 'max_calls': 10} | head (300, True) | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+1480b lines is request 11: refused : 200 {'open': True, 'error': 'the limit of 10 requests per listener run is used up; restart the listener to continue', 'calls_so_far': 10, 'max_calls': 10} | head None | calls ['keys', ('has_key', 'kern'), ('get_feature', 'kern')] | forbidden []
+1481 lines, two fonts              : 200 {'open': True, 'error': 'CountFonts() is 2; the probe runs only when exactly one font is open', 'calls_so_far': 0, 'max_calls': 10} | head None | calls [] | forbidden []
+1482 lines without go              : 200 {'error': 'this probe calls font.features.keys() (stage=tags), then has_key(tag) and get_feature(tag) (stages size, shape and lines); add &go=yes to run it', 'calls_so_far': 0, 'max_calls': 10} | head None | calls [] | forbidden []
+1483 report helper on its own      : {'chars': 21, 'lines': 2, 'pos_lines': 2} | unknown stage gives the size only: {'chars': 10, 'lines': 1, 'pos_lines': 1}
+1484 static scan of the helper     : method calls: ['_re.compile', '_re.escape', '_re.match', '_re.search', 'ln.strip', 'out.update', 'pat.search', 'text.splitlines'] | subscripts: ['counts', 'found', 'h', 'hits', 'out', 'text'] | scanned chars > 1000: True
+1485 spy over all cases            : forbidden members touched: [] | every member touched anywhere: ['get_feature', 'has_key', 'keys']
