@@ -134,6 +134,7 @@ class MCPServer:
     def __init__(self, *a, **k): pass
     def tool(self): return lambda f: f
 sys.modules["mcp.server"].MCPServer = MCPServer
+sys.modules["mcp.server.mcpserver"].Context = type("Context", (), {})  # server v0.34
 sys.modules["mcp.server.mcpserver.exceptions"].ToolError = ToolError
 spec = importlib.util.spec_from_file_location("srv", find("glyphbridge_mcp_server.py"))
 srv = importlib.util.module_from_spec(spec); spec.loader.exec_module(srv)
@@ -1351,3 +1352,46 @@ except srv.ToolError as e: _w2 = "refused"
 print("19cl2 wrapper passes the approval flag :", _w1, "/", _w2)
 print("19cm MIN_LISTENER_VERSION unchanged / server version:", srv.MIN_LISTENER_VERSION, srv.SERVER_VERSION)
 srv._call_listener, srv._call_listener_post = _save19
+
+# ==== 20. server 0.34: the connected app's name goes to the listener in the X-Glyphbridge-Client header ====
+print("\n==== 20. server 0.34: client name header ====")
+import io as _io20
+from types import SimpleNamespace as _NS20
+class _Ctx20:
+    def __init__(self, session): self.session = session
+def ctx20(name=None, title=None, info=True, params=True):
+    if not params: return _Ctx20(_NS20(client_params=None))
+    return _Ctx20(_NS20(client_params=_NS20(client_info=_NS20(name=name, title=title) if info else None)))
+class _Boom20:
+    @property
+    def session(self): raise RuntimeError("no session")
+for tag, value in (("plain", "claude-code"), ("spaces", "  Claude   Desktop "), ("control chars", "a\nb\tc\x7fd\x85e"), ("61 characters", "y" * 61),
+                   ("empty", ""), ("only spaces", "   "), ("not text", 5), ("None", None)):
+    print(f"20a clean {tag:14}->", repr(srv._clean_client_name(value)))
+for tag, ctx in (("name only", ctx20("claude-code")), ("title wins", ctx20("claude-ai", "Claude")), ("blank title", ctx20("claude-ai", "  ")),
+                 ("no client_info", ctx20(info=False)), ("no client_params", ctx20(params=False)), ("session raises", _Boom20()), ("ctx None", None)):
+    srv._CLIENT["name"] = "before"; srv._note_client(ctx)
+    print(f"20b note {tag:16}->", srv._CLIENT["name"])
+srv._CLIENT["name"] = None; print("20c headers, no name      ->", srv._client_headers())
+srv._CLIENT["name"] = "Test App é"; print("20c headers, UTF-8 name   ->", srv._client_headers())
+SENT20 = []
+class _Resp20(_io20.BytesIO):
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+class _Opener20:
+    def open(self, req, timeout=None):
+        SENT20.append((req.get_method(), req.full_url.rsplit(str(srv.LISTENER_PORT), 1)[1], req.get_header("X-glyphbridge-client"), req.get_header("Content-type")))
+        return _Resp20(json.dumps({"open": True, "x": 1}).encode())
+# a fresh copy of the module: earlier sections replaced srv's listener calls with fakes
+_spec20 = importlib.util.spec_from_file_location("srv20", find("glyphbridge_mcp_server.py")); srv20 = importlib.util.module_from_spec(_spec20); _spec20.loader.exec_module(srv20)
+srv20._opener = _Opener20()
+for name in ("claude-code", None):
+    srv20._CLIENT["name"] = name; SENT20.clear()
+    srv20._call_listener("/font/current"); srv20._call_listener_post("/glyph/width", {"name": "A", "width": 600})
+    print(f"20d sent with name {name!r:14}->", SENT20)
+_src20 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
+_tools20 = _re19.findall(r"@mcp\.tool\(\)\ndef (\w+)\((.*?)\) -> dict\[str, Any\]:\n    \"\"\".*?\"\"\"\n    (.*?)\n", _src20, _re19.S)
+print("20e tools:", len(_tools20), "| every one takes ctx: Context | None = None:", all(p.rstrip().endswith("ctx: Context | None = None") for _, p, _ in _tools20),
+      "| first statement _note_client(ctx):", [t for t, _, first in _tools20 if first.strip() != "_note_client(ctx)"] == [])
+print("20f --check labels itself:", '_CLIENT["name"] = "glyphbridge --check"' in _src20.split("def _self_check")[1][:400])
+srv._CLIENT["name"] = None

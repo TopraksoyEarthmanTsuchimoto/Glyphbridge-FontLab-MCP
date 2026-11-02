@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.33)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.34)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -36,12 +36,13 @@ from urllib.parse import quote
 from typing import Any
 
 from mcp.server import MCPServer
+from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.33"            # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.34"            # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 SAVE_REMINDER = "**You must save if you want to keep these changes: use the File menu or press Ctrl+S in FontLab.**"   # shown in CHAT only, never as a FontLab dialog
 DELETE_CONFIRM_TIMEOUT_SECONDS = 120.0  # time to let a human see and answer the FontLab dialog
@@ -53,6 +54,36 @@ log = logging.getLogger("glyphbridge")
 
 # Bypass any system/browser proxy: this traffic never leaves the machine.
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+# ---- client name (v0.34): the connected app's own name (clientInfo title, else name), sent to the listener in the
+# X-Glyphbridge-Client header so FontLab's OUTPUT panel can say which app made each request. It is the app's claim, not
+# checked, and names the app, not the model. One stdio client per server process; --check sends its own label. ----
+_CLIENT = {"name": None}
+CLIENT_NAME_MAX = 40
+
+
+def _clean_client_name(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = "".join(ch for ch in value if not (ord(ch) < 32 or 127 <= ord(ch) <= 159))
+    return " ".join(text.split())[:CLIENT_NAME_MAX] or None
+
+
+def _note_client(ctx: Any) -> None:
+    """Remember the client's name from the MCP session of a tool call. Never raises: a missing name only means none is sent."""
+    if ctx is None:
+        return
+    try:
+        info = ctx.session.client_params.client_info
+        name = _clean_client_name(getattr(info, "title", None)) or _clean_client_name(getattr(info, "name", None))
+    except Exception:
+        return
+    if name:
+        _CLIENT["name"] = name
+
+
+def _client_headers() -> dict:
+    return {"X-Glyphbridge-Client": quote(_CLIENT["name"], safe="")} if _CLIENT["name"] else {}
 
 NOT_REACHABLE = (
     f"Cannot reach the Glyphbridge listener at {BASE_URL}. Make sure FontLab 8 "
@@ -163,7 +194,7 @@ def _do_request(req_or_url, path: str, timeout: float = TIMEOUT_SECONDS) -> dict
 
 def _call_listener(path: str) -> dict:
     """GET a listener endpoint and return its parsed JSON object, or raise ToolError."""
-    return _do_request(BASE_URL + path, path)
+    return _do_request(urllib.request.Request(BASE_URL + path, headers=_client_headers()), path)
 
 
 def _call_listener_post(path: str, payload: dict, timeout: float = TIMEOUT_SECONDS) -> dict:
@@ -171,7 +202,7 @@ def _call_listener_post(path: str, payload: dict, timeout: float = TIMEOUT_SECON
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         BASE_URL + path, data=body, method="POST",
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", **_client_headers()},
     )
     return _do_request(req, path, timeout=timeout)
 
@@ -2169,7 +2200,7 @@ mcp = MCPServer("Glyphbridge FontLab")
 
 
 @mcp.tool()
-def fontlab_status() -> dict[str, Any]:
+def fontlab_status(ctx: Context | None = None) -> dict[str, Any]:
     """Check whether the bridge to FontLab 8 is working, and whether a font is open.
 
     Call this first if anything else fails. It confirms the listener inside
@@ -2178,11 +2209,12 @@ def fontlab_status() -> dict[str, Any]:
     listener is older than this server expects). After changes it also counts the
     changes made through Glyphbridge in this session (see save_note: it cannot know whether the person saved).
     """
+    _note_client(ctx)
     return check_status()
 
 
 @mcp.tool()
-def get_current_font() -> dict[str, Any]:
+def get_current_font(ctx: Context | None = None) -> dict[str, Any]:
     """Get live details about the font currently open in FontLab 8.
 
     Returns family and style name, file path, glyph count, and vertical
@@ -2193,21 +2225,23 @@ def get_current_font() -> dict[str, Any]:
     empty a warning dialog is shown to the person in FontLab (once per font per session). In that case this call can
     take up to two minutes while the dialog waits for a click; that is normal, not a hang.
     """
+    _note_client(ctx)
     return read_current_font_checked()
 
 
 @mcp.tool()
-def list_glyphs() -> dict[str, Any]:
+def list_glyphs(ctx: Context | None = None) -> dict[str, Any]:
     """List the names of all glyphs in the font currently open in FontLab 8.
 
     Every font has a '.notdef' glyph (normally the first one): expect it in this list. A brand-new font may contain
     nothing else, and its .notdef is empty at first; that is normal.
     """
+    _note_client(ctx)
     return read_glyph_names()
 
 
 @mcp.tool()
-def get_glyph_outline(name: str) -> dict[str, Any]:
+def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Read the actual outline (shape) of one glyph in the font open in FontLab 8.
 
     Returns every contour with its nodes (x, y, kind, smooth), the curve type
@@ -2257,11 +2291,12 @@ def get_glyph_outline(name: str) -> dict[str, Any]:
     (an empty one comes back as empty: true, plus a warning dialog in FontLab). If a glyph's layer cannot be read at all,
     the tool raises an error that says so; that is NOT the same as the glyph being empty.
     """
+    _note_client(ctx)
     return read_glyph_outline(name)
 
 
 @mcp.tool()
-def check_notdef() -> dict[str, Any]:
+def check_notdef(ctx: Context | None = None) -> dict[str, Any]:
     """Check whether the open font has a proper .notdef glyph, and warn the person in FontLab if it does not.
 
     Every font must contain a .notdef glyph (glyph 0): it is what is shown when a character that is typed is not in
@@ -2274,11 +2309,12 @@ def check_notdef() -> dict[str, Any]:
     'agent_instruction'. While the dialog waits for a click this call can take up to two minutes; that is normal.
     get_current_font runs this check automatically.
     """
+    _note_client(ctx)
     return check_notdef_glyph()
 
 
 @mcp.tool()
-def create_glyph(name: str) -> dict[str, Any]:
+def create_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Create one new, empty glyph in the font currently open in FontLab 8.
 
     The glyph has no contours yet - this only adds it to the font by name.
@@ -2312,21 +2348,23 @@ def create_glyph(name: str) -> dict[str, Any]:
     (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
+    _note_client(ctx)
     return create_new_glyph(name)
 
 
 @mcp.tool()
-def get_glyph_width(name: str) -> dict[str, Any]:
+def get_glyph_width(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Get the advance width of one glyph in the font currently open in FontLab 8.
 
     Width is in font units, on the same scale as the font's units-per-em
     (for a 1000-upm font, typical letter widths run a few hundred units).
     """
+    _note_client(ctx)
     return read_glyph_width(name)
 
 
 @mcp.tool()
-def set_glyph_width(name: str, width: float) -> dict[str, Any]:
+def set_glyph_width(name: str, width: float, ctx: Context | None = None) -> dict[str, Any]:
     """Set the advance width of one glyph in the font currently open in FontLab 8.
 
     Width is in font units, same scale as get_glyph_width. This changes ONLY the advance width (the space the glyph takes when
@@ -2343,22 +2381,24 @@ def set_glyph_width(name: str, width: float) -> dict[str, Any]:
     (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
+    _note_client(ctx)
     return write_glyph_width(name, width)
 
 
 @mcp.tool()
-def get_glyph_sidebearings(name: str) -> dict[str, Any]:
+def get_glyph_sidebearings(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Read the left and right sidebearing, the advance width and the ink width of one glyph that has an outline.
 
     Values are in font units and are exactly what FontLab's editor panel shows: advance width = left + ink width + right.
     The glyph needs an editable layer (the person opens it once in an editor tab in FontLab); otherwise this answers with
     an error that says so. Reading changes nothing.
     """
+    _note_client(ctx)
     return read_glyph_sidebearings(name)
 
 
 @mcp.tool()
-def get_kerning(pairs: list[list[str]] | None = None, text: str | None = None, confirmed_large_read: bool | None = None) -> dict[str, Any]:
+def get_kerning(pairs: list[list[str]] | None = None, text: str | None = None, confirmed_large_read: bool | None = None, ctx: Context | None = None) -> dict[str, Any]:
     """Read FontLab's kerning for selected glyph pairs of the font currently open in FontLab 8. Reading changes nothing.
 
     Give exactly one of: pairs, a list of [left, right] glyph names such as [["A", "V"], ["T", "o"]], or text,
@@ -2373,11 +2413,12 @@ def get_kerning(pairs: list[list[str]] | None = None, text: str | None = None, c
     A pair that could not be read has an 'error' and is never a zero. Exactly one font must be open in FontLab.
     Other masters, feature-based and contextual kerning are not covered. Needs listener v0.104.
     """
+    _note_client(ctx)
     return read_kerning(pairs, text, confirmed_large_read)
 
 
 @mcp.tool()
-def set_glyph_sidebearings(name: str, left: float, right: float | None = None) -> dict[str, Any]:
+def set_glyph_sidebearings(name: str, left: float, right: float | None = None, ctx: Context | None = None) -> dict[str, Any]:
     """Set the left and right sidebearing of one glyph, in font units, in the font currently open in FontLab 8.
 
     The OUTLINE is moved (its shape is unchanged) so that the left sidebearing equals `left` and the right one equals `right`;
@@ -2396,12 +2437,13 @@ def set_glyph_sidebearings(name: str, left: float, right: float | None = None) -
     (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
+    _note_client(ctx)
     return write_glyph_sidebearings(name, left, right)
 
 
 @mcp.tool()
 def draw_polygon(name: str, points: list[list[float]] | None = None,
-                 contours: list[list[list[float]]] | None = None) -> dict[str, Any]:
+                 contours: list[list[list[float]]] | None = None, ctx: Context | None = None) -> dict[str, Any]:
     """Draw closed contours of straight line segments into an EMPTY glyph in the font currently open in FontLab 8.
 
     Give exactly one of `points` (ONE contour: a list of 3 to 500 [x, y] pairs in font units, y up, in drawing order) or
@@ -2430,11 +2472,12 @@ def draw_polygon(name: str, points: list[list[float]] | None = None,
     (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
+    _note_client(ctx)
     return write_glyph_polygon(name, points, contours)
 
 
 @mcp.tool()
-def draw_path(name: str, contours: list[list[dict[str, Any]]]) -> dict[str, Any]:
+def draw_path(name: str, contours: list[list[dict[str, Any]]], ctx: Context | None = None) -> dict[str, Any]:
     """Draw closed contours with straight AND cubic curve segments into an EMPTY glyph in the font currently open in FontLab 8.
 
     `contours` is a list of 1 to 20 contours (at most 2000 nodes in all, control points included, drawn together as ONE shape). A
@@ -2470,11 +2513,12 @@ def draw_path(name: str, contours: list[list[dict[str, Any]]]) -> dict[str, Any]
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or Ctrl+S). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
     """
+    _note_client(ctx)
     return write_glyph_path(name, contours)
 
 
 @mcp.tool()
-def check_glyph_unicode(name: str) -> dict[str, Any]:
+def check_glyph_unicode(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Check a glyph's Unicode codepoint against the Unicode standard.
 
     For glyphs named with a single character (e.g. "A"), the correct
@@ -2491,11 +2535,12 @@ def check_glyph_unicode(name: str) -> dict[str, Any]:
     it reports has_unicode and the current value, with matches_standard
     left as null and a note explaining why, rather than guessing.
     """
+    _note_client(ctx)
     return read_glyph_unicode(name)
 
 
 @mcp.tool()
-def set_glyph_unicode(name: str, codepoint: int) -> dict[str, Any]:
+def set_glyph_unicode(name: str, codepoint: int, ctx: Context | None = None) -> dict[str, Any]:
     """Set the Unicode codepoint a glyph maps to, in the font open in FontLab 8.
 
     codepoint is a plain integer (e.g. 65 for 'A' - not "U+0041" or "0x41").
@@ -2522,11 +2567,12 @@ def set_glyph_unicode(name: str, codepoint: int) -> dict[str, Any]:
     (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
+    _note_client(ctx)
     return write_glyph_unicode(name, codepoint)
 
 
 @mcp.tool()
-def delete_glyph(name: str) -> dict[str, Any]:
+def delete_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Delete one glyph from the font currently open in FontLab 8.
 
     This shows a Yes/No confirmation dialog inside FontLab itself, and only
@@ -2541,11 +2587,12 @@ def delete_glyph(name: str) -> dict[str, Any]:
     (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
+    _note_client(ctx)
     return delete_existing_glyph(name)
 
 
 @mcp.tool()
-def finish_changes() -> dict[str, Any]:
+def finish_changes(ctx: Context | None = None) -> dict[str, Any]:
     """Call this ONCE when you have finished a whole package of changes to the font (creations, width or Unicode edits,
     deletions), and never per step. It counts the changes made through Glyphbridge since the last call and returns
     'save_reminder': show it to the person in the chat in bold, exactly as written, after your summary. If nothing was
@@ -2554,6 +2601,7 @@ def finish_changes() -> dict[str, Any]:
     Glyphbridge never saves the font and never opens a dialog for this: saving is the person's job (File menu or Ctrl+S),
     and the reminder appears only in the chat. This tool changes nothing in FontLab.
     """
+    _note_client(ctx)
     return finish_change_package()
 
 
@@ -2561,6 +2609,7 @@ def finish_changes() -> dict[str, Any]:
 
 def _self_check() -> None:
     """Exercise the listener connection without Claude. Uses stdout: never runs as a server."""
+    _CLIENT["name"] = "glyphbridge --check"
     for label, fn in (
         ("fontlab_status", check_status),
         ("get_current_font", read_current_font),

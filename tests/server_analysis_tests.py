@@ -20,6 +20,7 @@ class MCPServer:
     def __init__(self,*a,**k): pass
     def tool(self): return lambda f: f
 m2.MCPServer=MCPServer
+m3.Context=type("Context",(),{})  # server v0.34 imports it for the tools' ctx parameter
 sys.modules.update({"mcp":m1,"mcp.server":m2,"mcp.server.mcpserver":m3,"mcp.server.mcpserver.exceptions":m4})
 import importlib.util
 spec=importlib.util.spec_from_file_location("srv",_find("glyphbridge_mcp_server.py")); srv=importlib.util.module_from_spec(spec); spec.loader.exec_module(srv)

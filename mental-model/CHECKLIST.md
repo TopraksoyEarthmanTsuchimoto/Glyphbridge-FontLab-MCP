@@ -15,7 +15,6 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 
 | # | Scenario | Status |
 |---|---|---|
-| 74 | K10: `font.kerning` versus kerning applied to text | TODO, high value |
 | 75 | K11: GPOS / contextual kerning, names-only probe | TODO |
 | 76 | K12: new font, test font, two fonts | PARTLY: (a) `table_size` 0 proven (168) |
 | 77 | K13: no font open | TODO |
@@ -31,7 +30,7 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 | 60 | T4: width and sidebearings on an existing glyph with legacy layers | TODO |
 | 53 | Auto sync not yet proven for: an open editor (59), existing glyphs (60), multi-layer (11), quadratic (43), big glyphs (42), after save (32) | PARTLY |
 | 21, 52, 61 | T2: one request with several writes, then ONE bold save reminder from `finish_changes`; none after a pure read | TODO |
-| 57 | No font open: every route answers `open: false` (`CountFonts()`). Only the kerning route does this today | TODO (P0.2, T12) |
+| 57 | No font open: every route answers `open: false` (`CountFonts()`, listener 0.105) | PARTLY: closing the only font proven (227); a freshly started FontLab open (T12) |
 | 63 | Two fonts open: which one the tools address | TODO (T5) |
 | 62 | Modern glyph creation without `font.update()` | TODO, low priority (T6) |
 | 22 | Layer-name derivation when glyphs disagree, or when none has a layer | stub-tested only |
@@ -75,5 +74,7 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 | # | Scenario | Status |
 |---|---|---|
 | 17, 42, 64 | Large glyphs: 1980-node request, 2001-node refusal, read 1000+ nodes, time of `Update` against the 5 s timeout | POSTPONED |
+
+Closed on 2026-11-02: row 74 (K10, test 224).
 
 Closed on 2026-11-01: rows 73a and 73b (P0.8, kerning defects A and B: listener 0.104 / server 0.33, live tests 219–223), row 33 (tests refreshed and passing on the user's machine), row 65 (K1 deployment check), row 66 (K2 listener route), row 67 (K3 POST equals GET), row 68 (K4 three pairs through the agent), row 69 (K5 `text` mode against the KERNING panel), row 70 (K6 special characters in `text`), row 71 (K7 error cases), row 72 (K8 approval flow at 250 / 251 / 324 pairs), row 73 (K9: the exception wins over the class value when names are unambiguous).

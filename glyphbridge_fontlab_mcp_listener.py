@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.104)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.106)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -20,7 +20,13 @@ No route ever saves, closes, exports or generates a font. Every write is verifie
 before success is reported.
 
 ACTIVITY LOG (v0.102): every change is reported in FontLab's OUTPUT panel as one short line, and reads
-as one summary line (see _ACTIVITY_LOG).
+as one summary line (see _ACTIVITY_LOG). Since v0.105 each line starts with the name the client sent in the
+X-Glyphbridge-Client header ("[claude-code > Glyphbridge]"), and reads answered "no font open" are listed apart.
+Since v0.106 the config entry name "glyphbridge-fontlab" is left out of the name shown: the apps send
+"local-agent-mode-glyphbridge-fontlab", which would repeat Glyphbridge ("[local-agent-mode > Glyphbridge]").
+
+NO FONT OPEN (v0.105): every product route answers {"open": false} when CountFonts() is 0 (see _open_font):
+with no font open, CurrentFont() still returns a placeholder font.
 
 Routes (GET unless marked POST):
 
@@ -113,7 +119,7 @@ import datetime
 import json
 import socket
 import time
-from urllib.parse import urlsplit, parse_qs
+from urllib.parse import urlsplit, parse_qs, unquote
 
 import fontlab as fl
 from PythonQt import QtCore
@@ -128,13 +134,15 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.104"
+VERSION = "0.106"
+ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
 
 _sock = None
 _timer = None
 _connection_announced = False
+_request_client = None  # the cleaned X-Glyphbridge-Client name of the request being served (v0.105)
 
 
 # --------------------------------------------------------------------------
@@ -157,9 +165,23 @@ _INFO_FIELDS = {
 }
 
 
+def _open_font():
+    """The current legacy font, or None when no font is open. "No font open" is CountFonts() == 0: with no font open
+    CurrentFont() still returns a placeholder fgFont (empty path and family, one glyph "Paper"), which no route may read
+    or change. When CountFonts() is missing or gives no plain number, CurrentFont() alone decides, as before v0.105."""
+    try:
+        counter = getattr(fl, "CountFonts", None)
+        count = counter() if callable(counter) else None
+    except Exception:
+        count = None
+    if type(count) is int and count == 0:
+        return None
+    return fl.CurrentFont()
+
+
 def get_current_font_info():
     """Real info about the font open in FontLab (fgFont -> font.info)."""
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
 
@@ -183,7 +205,7 @@ def get_current_font_info():
 
 
 def get_glyph_names():
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
     names = [str(g.name) for g in font.glyphs]
@@ -454,7 +476,7 @@ def create_glyph(name, scan_unicode=None):
     actually present afterward, this reports created=False with a reason,
     rather than a guessed success.
     """
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
 
@@ -533,7 +555,7 @@ def delete_glyph(name):
     afterward confirms it is actually gone. Any other outcome is reported
     as deleted=False with a specific reason - never a guessed success.
     """
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
 
@@ -625,7 +647,7 @@ def _find_glyph(font, name):
 
 
 def get_glyph_width(name):
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
     glyph = _find_glyph(font, name)
@@ -856,7 +878,7 @@ def _ensure_modern_layer(font, glyph, w, name):
 def _modern_edit_target(name, create_layer=False):
     """What a modern metric edit needs. Returns (ctx, None) or (None, reply dict): ctx has font, glyph, w, tr and layer_nodes
     (None when unreadable). A glyph whose modern layer does not exist (not opened in an editor tab yet) is a refusal."""
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return None, {"open": False}
     glyph = _find_glyph(font, name)
@@ -1412,7 +1434,7 @@ def draw_path(name, contours, rounded=None):
 
 
 def get_glyph_unicode(name):
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
     glyph = _find_glyph(font, name)
@@ -1703,7 +1725,7 @@ def _other_glyphs_with_unicode(font, name, codepoint):
 def set_glyph_unicode(name, new_codepoint):
     """Set one glyph's Unicode codepoint, verified by re-reading it
     afterward - same discipline as set_glyph_width."""
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
 
@@ -3931,7 +3953,7 @@ def get_glyph_nodes(name, extra_attrs=None, calls=None):
     Always returns x and y; `extra_attrs` are read with the same
     getattr-only, never-invoke-callables rule as debug_find_node, and are
     UNCONFIRMED attributes (probe them with /debug/findnode first)."""
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
     glyph = _find_glyph(font, name)
@@ -3979,7 +4001,7 @@ def find_nonempty_glyphs():
     pattern (touch glyph.layer, then bodyLayer) and countContours()/
     countNodes(). Reports glyphs with at least one node; also lists any
     glyph whose layer could not be read, so a skip is never silent."""
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
     nonempty, unreadable, scanned = [], [], 0
@@ -4083,7 +4105,7 @@ def check_notdef():
             "has_outline" exists and has nodes, shapes or components
             "unknown"     could not be determined (unreadable layer, several layers, a count failed): NO verdict.
     Never shows a dialog and never changes anything."""
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
     glyph, index, first_name, scanned = None, None, None, 0
@@ -4165,7 +4187,7 @@ def _show_notdef_dialog(status):
 def warn_notdef(force=False):
     """Re-check .notdef HERE (a dialog is never shown on the caller's say-so), then show the dialog if, and only if,
     .notdef is missing or empty and this font has not been warned about that status yet (unless force)."""
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
     check = check_notdef()
@@ -4322,7 +4344,7 @@ def _get_glyph_outline_legacy(name, route="body", modern=True):
     kind/smooth values are passed through untouched so unfamiliar structures
     (e.g. other drawing tools) are visible rather than normalised away.
     Cross-checks the grouped contour count against countContours()."""
-    font = fl.CurrentFont()
+    font = _open_font()
     if font is None:
         return {"open": False}
     glyph = _find_glyph(font, name)
@@ -6377,8 +6399,9 @@ def _route(method, full_path, body=b""):
             if not _connection_announced:
                 _connection_announced = True
                 ts = datetime.datetime.now().strftime("%H:%M:%S")
-                # Any local client can send it (--check, a PowerShell call), so the line does not name an agent.
-                print(f"[glyphbridge] Connected at {ts} - first request (GET /health) from a local client "
+                # Any local client can send it (--check, a PowerShell call): the name is the client's own claim (v0.105).
+                who = f'"{_request_client}" (the name the client gave, shortened as in the log)' if _request_client else "a local client"
+                print(f"[glyphbridge] Connected at {ts} - first request (GET /health) from {who} "
                       f"to this FontLab session.")
             return _build_response(200, {"status": "ok"})
 
@@ -7003,14 +7026,19 @@ def _parse_headers(head_bytes):
 # shows _ACTIVITY_RUN_SHOWN lines and then one "N more like this" line; reads are only counted and printed as one
 # "reads:" line. Both summaries are printed when a different change starts, after _ACTIVITY_IDLE_S seconds without a
 # request (checked by the poll timer), or at /shutdown. Every entry point swallows its own errors: logging can never
-# change a reply.
+# change a reply. v0.105: every line names the client that sent the X-Glyphbridge-Client header (its own claim, not
+# checked); the summaries are printed when the client changes, so one line never mixes two clients. A read answered
+# {"open": false} is listed under "no font open" instead of as a read.
 # --------------------------------------------------------------------------
 _ACTIVITY_LOG = "normal"     # "normal" (changes and read summaries), "writes" (changes only) or "off"
 _ACTIVITY_RUN_SHOWN = 3      # verified changes of one kind printed in a row before they are only counted
 _ACTIVITY_IDLE_S = 10.0      # an agent's tool calls arrive seconds apart, so a shorter pause would split one run into many
 _ACTIVITY_TEXT_MAX = 120     # longest reason or name quoted in a line
+_ACTIVITY_CLIENT_MAX = 40    # longest client name shown
+_ACTIVITY_SHORT_REPLY = 4096  # only replies up to this size are parsed for "open": false (a no-font reply is tiny)
 
-_ACT = {"kind": None, "shown": 0, "more": 0, "reads": {}, "kern_pairs": 0, "read_errors": 0, "last": 0.0, "pending": False}
+_ACT = {"kind": None, "shown": 0, "more": 0, "reads": {}, "no_font": {}, "kern_pairs": 0, "read_errors": 0, "last": 0.0,
+        "pending": False, "client": None}
 
 _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/width": "width",
                "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/glyph/polygon": "draw",
@@ -7031,7 +7059,22 @@ def _clock():
 
 
 def _act_print(text):
-    print(f"[glyphbridge] {_now_hms()} {text}")
+    print(f"[{_ACT['client'] or 'unknown agent'} > Glyphbridge] {_now_hms()} {text}")
+
+
+def _act_client(raw):
+    """The client name sent in the X-Glyphbridge-Client header (percent-encoded UTF-8), cleaned for one line, or None."""
+    if not isinstance(raw, str):
+        return None
+    text = "".join(ch for ch in unquote(raw, errors="replace") if not (ord(ch) < 32 or 127 <= ord(ch) <= 159))
+    name = " ".join(text.split())
+    at = name.lower().find(ENTRY_NAME)
+    end = at + len(ENTRY_NAME)
+    if at >= 0 and (at == 0 or name[at - 1] in "-_. ") and (end == len(name) or name[end] in "-_. "):
+        # leave out the config entry name (a whole word only), which only repeats Glyphbridge; keep the name if nothing else is left
+        rest = " ".join(part for part in (name[:at].rstrip("-_. "), name[end:].lstrip("-_. ")) if part)
+        name = rest or name
+    return name[:_ACTIVITY_CLIENT_MAX] or None
 
 
 def _act_text(value):
@@ -7056,12 +7099,15 @@ def _act_flush():
     """Print the pending run summary, then the pending reads summary, and forget both."""
     if _ACT["more"]:
         _act_print(f"{_ACT['kind']}: {_ACT['more']} more like this, all verified")
-    if _ACT["reads"]:
+    if _ACT["reads"] or _ACT["no_font"]:
         parts = [f"{label} {n} ({_ACT['kern_pairs']} pairs)" if label == "kerning" else f"{label} {n}"
                  for label, n in _ACT["reads"].items()]
         errors = f" ({_ACT['read_errors']} refused or failed)" if _ACT["read_errors"] else ""
-        _act_print("reads: " + ", ".join(parts) + errors)
-    _ACT.update(kind=None, shown=0, more=0, reads={}, kern_pairs=0, read_errors=0, pending=False)
+        segments = [", ".join(parts) + errors] if parts else []
+        if _ACT["no_font"]:
+            segments.append("no font open: " + ", ".join(f"{label} {n}" for label, n in _ACT["no_font"].items()))
+        _act_print("reads: " + "; ".join(segments))
+    _ACT.update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, pending=False)
 
 
 def _act_change(kind, text, collapsible):
@@ -7140,11 +7186,16 @@ def _act_describe_write(path, payload, code, reply):
     return f"NOT DONE {head}: {why}{changed}", False
 
 
-def _activity_note(method, raw_path, body, response):
-    """Log one served request (called by _handle with the reply about to be sent). Never raises."""
+def _activity_note(method, raw_path, body, response, client=None):
+    """Log one served request (called by _handle with the reply about to be sent and the raw X-Glyphbridge-Client
+    header). Never raises."""
     try:
         if _ACTIVITY_LOG == "off":
             return
+        client = _act_client(client)
+        if client != _ACT["client"]:
+            _act_flush()  # the pending summaries belong to the previous client
+            _ACT["client"] = client
         split = urlsplit(raw_path)
         path, query = split.path, parse_qs(split.query)
         code = int(response[9:12])
@@ -7175,11 +7226,15 @@ def _activity_note(method, raw_path, body, response):
         if path in _ACT_SILENT or _ACTIVITY_LOG == "writes":
             return
         label = _ACT_READS.get(path) or ("probe, read-only" if path.startswith("/debug/") else "other")
+        answer = reply() if code == 200 and len(response) <= _ACTIVITY_SHORT_REPLY else None
+        if isinstance(answer, dict) and answer.get("open") is False:
+            _ACT["no_font"][label] = _ACT["no_font"].get(label, 0) + 1
+            return
         _ACT["reads"][label] = _ACT["reads"].get(label, 0) + 1
         if code != 200:
             _ACT["read_errors"] += 1
         elif label == "kerning":
-            answer = reply()
+            answer = reply() if answer is None else answer
             count = answer.get("count") if isinstance(answer, dict) else None
             if isinstance(count, int) and not isinstance(count, bool):
                 _ACT["kern_pairs"] += count
@@ -7197,6 +7252,7 @@ def _activity_tick():
 
 
 def _handle(conn):
+    global _request_client
     try:
         conn.settimeout(1.0)
         data = b""
@@ -7229,14 +7285,17 @@ def _handle(conn):
             body += chunk
         body = body[:content_length]
 
+        _request_client = _act_client(headers.get("x-glyphbridge-client"))
         response = _route(method, path, body)
-        _activity_note(method, path, body, response)  # before sending: a change is logged even if the client is gone
+        # before sending: a change is logged even if the client is gone
+        _activity_note(method, path, body, response, headers.get("x-glyphbridge-client"))
         conn.sendall(response)
         if method == "GET" and path == "/shutdown":
             stop()
     except Exception:
         pass
     finally:
+        _request_client = None
         try:
             conn.close()
         except Exception:
@@ -7301,7 +7360,7 @@ def start():
 
     print(f"[glyphbridge] glyphbridge_fontlab_mcp_listener.py v{VERSION}")
     print(f"[glyphbridge] Listener started on http://{HOST}:{PORT} (main-thread polling)")
-    print("[glyphbridge] Try: GET /health, GET /version. All routes are listed at the top of this file.")
+    print("[glyphbridge] Try: GET /health, GET /version. All routes are listed at the top of glyphbridge_fontlab_mcp_listener.py.")
 
 
 start()

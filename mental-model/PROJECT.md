@@ -28,7 +28,7 @@ As of October 2026 there was only one MCP project for FontLab on GitHub which at
 
 ## Non-goals and hard limits
 
-- **No saving, exporting or generating fonts.** The human font designer saves himself if he/she wants to (save policy, [DECISIONS.md](DECISIONS.md)).
+- **No saving, exporting or generating fonts.** The human font designer saves the font, if and when they want to (save policy, [DECISIONS.md](DECISIONS.md)).
 - **Prefer small piece-by-piece of reads instead of whole-table or whole-font reads** where a few items is enough to answer the bigger question. Large reads need the person's approval.
 - No direct FontLab access from the MCP server, and no network exposure of the listener.
 - No TypeRig or other FontLab wrapper libraries. The project uses the FontLab API only, through probes ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md)).

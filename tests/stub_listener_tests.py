@@ -3681,7 +3681,7 @@ ns["_now_hms"] = lambda: "12:00:00"
 ns["_clock"] = lambda: AL_CLOCK[0]
 def al_reset(mode="normal"):
     ns["_ACTIVITY_LOG"] = mode
-    ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, kern_pairs=0, read_errors=0, last=0.0, pending=False)
+    ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
 def al(method, path, body, code, reply):
     raw = json.dumps(body).encode() if isinstance(body, (dict, list)) else (body or b"")
     ns["_activity_note"](method, path, raw, ns["_build_response"](code, reply))
@@ -4045,3 +4045,131 @@ for _m, _a, _v in _pk_saved:
         if hasattr(_m, _a): delattr(_m, _a)
     else: setattr(_m, _a, _v)
 ns["_TRYPKGKERN"]["calls"] = 0
+
+# ================= v0.105: "no font open" is CountFonts() == 0 on every product route (P0.2); the client name in the activity log =================
+print("\n==== v0.105 no font open on every product route ====")
+NF = {"cur_calls": 0, "touched": []}
+class NFPlaceholder:
+    """FontLab's placeholder font when no font is open: any use is recorded and refused."""
+    def __getattr__(self, n):
+        NF["touched"].append(n); raise RuntimeError("placeholder font touched: " + n)
+def _nf_cur():
+    NF["cur_calls"] += 1
+    return NFPlaceholder()
+_nf_saved = [(a, getattr(fl, a, None)) for a in ("CountFonts", "CurrentFont")]
+def nf_setup(count=0):
+    NF["cur_calls"] = 0; NF["touched"].clear()
+    fl.CurrentFont = _nf_cur
+    if count == "missing":
+        if hasattr(fl, "CountFonts"): delattr(fl, "CountFonts")
+    elif isinstance(count, Exception):
+        def _boom(): raise count
+        fl.CountFonts = _boom
+    else:
+        fl.CountFonts = count if count == "not callable" else (lambda: count)
+def nf_restore():
+    for a, v in _nf_saved:
+        if v is None:
+            if hasattr(fl, a): delattr(fl, a)
+        else: setattr(fl, a, v)
+def nf_post(path, payload):
+    r = ns["_route"]("POST", path, json.dumps(payload).encode())
+    h, _, b = r.partition(b"\r\n\r\n")
+    return h.split(b"\r\n")[0].decode()[9:12], json.loads(b)
+NF_GETS = ("/font/current", "/font/glyphs", "/font/nonempty", "/font/notdef", "/glyph/outline?name=A", "/glyph/width?name=A",
+           "/glyph/sidebearings?name=A", "/glyph/unicode?name=A", "/glyph/nodes?name=A", "/kerning/pairs?pairs=A:V")
+NF_POSTS = (("/glyph/create", {"name": "kn5A"}), ("/glyph/delete", {"name": "A"}), ("/glyph/width", {"name": "A", "width": 600}),
+            ("/glyph/sidebearings", {"name": "A", "left": 10, "right": 10}), ("/glyph/unicode", {"name": "A", "unicode": 66}),
+            ("/glyph/polygon", {"name": "A", "points": [[0, 0], [100, 0], [0, 100]]}),
+            ("/glyph/path", {"name": "A", "contours": [[{"x": 0, "y": 0}, {"x": 100, "y": 0}, {"x": 0, "y": 100}]]}),
+            ("/font/notdef/warn", {}))
+for p in NF_GETS:
+    nf_setup(0); c, d = call(p)
+    print(f"1420 GET  {p:28}:", c, d, "| CurrentFont calls", NF["cur_calls"], "| placeholder touched", NF["touched"])
+for p, body in NF_POSTS:
+    nf_setup(0); c, d = nf_post(p, body)
+    print(f"1421 POST {p:28}:", c, {k: d[k] for k in ("open", "set", "drawn", "created", "deleted") if k in d}, "| CurrentFont calls", NF["cur_calls"], "| placeholder touched", NF["touched"])
+for tag, count in (("1 font", 1), ("2 fonts", 2), ("raises", RuntimeError("count boom")), ("True", True), ("'0'", "0"), ("0.0", 0.0),
+                   ("None", None), ("missing", "missing"), ("not callable", "not callable")):
+    nf_setup(count); got = ns["_open_font"]()
+    print(f"1422 _open_font, CountFonts {tag:12}: font returned", isinstance(got, NFPlaceholder), "| CurrentFont calls", NF["cur_calls"])
+nf_setup(0); print("1423 _open_font, CountFonts 0           : None", ns["_open_font"]() is None, "| CurrentFont calls", NF["cur_calls"])
+nf_setup(1); c, d = call("/font/current"); print("1424 one font: the font is used          :", c, "| touched", NF["touched"][:2])
+nf_restore()
+
+print("\n==== v0.105 activity log: client name, no font open ====")
+_nl_saved = {k: ns[k] for k in ("_now_hms", "_clock")}
+ns["_now_hms"], ns["_clock"] = (lambda: "12:00:00"), (lambda: AL_CLOCK[0])
+def nl(method, path, body, code, reply, client=None):
+    raw = json.dumps(body).encode() if isinstance(body, (dict, list)) else (body or b"")
+    ns["_activity_note"](method, path, raw, ns["_build_response"](code, reply), client)
+CREATED = {"open": True, "created": True, "before_count": 3, "after_count": 4}
+al_reset(); al_case("1425 one change each from: claude-code, a percent-encoded UTF-8 name, control characters, a 60-character name:")
+nl("POST", "/glyph/create", {"name": "kn5B"}, 200, CREATED, "claude-code")
+nl("POST", "/glyph/create", {"name": "kn5C"}, 200, CREATED, "Test%20App%20%C3%A9")
+nl("POST", "/glyph/create", {"name": "kn5D"}, 200, CREATED, "a%0Ab%09c%7Fd%20%20e")
+nl("POST", "/glyph/create", {"name": "kn5E"}, 200, CREATED, "x" * 60)
+al_reset(); al_case("1426 no name, an empty name, only spaces, broken percent-encoding, not text:")
+for raw in (None, "", "%20%20", "bad%ZZname", 5):
+    nl("POST", "/glyph/create", {"name": "kn5F"}, 200, CREATED, raw)
+print("1426b broken UTF-8 becomes U+FFFD (escaped here):", ascii(ns["_act_client"]("ab%C3")))
+al_reset(); al_case("1427 two clients take turns: the summary is printed when the client changes, never mixed:")
+nl("GET", "/glyph/outline?name=A", None, 200, {"open": True}, "claude-code")
+nl("GET", "/glyph/width?name=A", None, 200, {"open": True}, "claude-code")
+nl("GET", "/glyph/outline?name=B", None, 200, {"open": True}, "claude-ai")
+al_tick(10); print("1427 client kept after the idle summary:", ns["_ACT"]["client"])
+al_reset(); al_case("1428 a run of widths is cut when another client writes:")
+for g in "ABCDE":
+    nl("POST", "/glyph/width", {"name": g, "width": 600}, 200, dict(OK_W, name=g), "claude-code")
+nl("POST", "/glyph/width", {"name": "F", "width": 600}, 200, dict(OK_W, name="F"), "claude-ai")
+al_tick(10)
+al_reset(); al_case("1429 reads answered 'no font open' are listed apart (kerning adds no pairs):")
+nl("GET", "/glyph/outline?name=A", None, 200, {"open": True}, "claude-code")
+nl("GET", "/font/current", None, 200, {"open": False}, "claude-code")
+nl("GET", "/glyph/width?name=A", None, 200, {"open": False}, "claude-code")
+nl("GET", "/kerning/pairs?pairs=A:V", None, 200, {"open": False}, "claude-code")
+nl("POST", "/kerning/pairs", {"pairs": [["A", "V"]]}, 200, {"open": False}, "claude-code")
+nl("GET", "/kerning/pairs?pairs=T:o", None, 200, {"open": True, "count": 1}, "claude-code")
+nl("GET", "/glyph/outline?name=Q", None, 500, {"error": "boom"}, "claude-code")
+al_tick(10)
+al_reset(); al_case("1430 only 'no font open' reads; a write refused for no font; a .notdef warning with no font:")
+nl("GET", "/kerning/pairs?pairs=A:V", None, 200, {"open": False}, "claude-code")
+nl("POST", "/glyph/width", {"name": "A", "width": 600}, 200, {"open": False}, "claude-code")
+nl("POST", "/font/notdef/warn", {}, 200, {"open": False}, "claude-code")
+al_tick(10)
+al_reset(); al_case("1431 a long reply is not parsed for 'open' (a no-font reply is tiny); 'open' missing is a read:")
+nl("GET", "/font/glyphs", None, 200, {"open": False, "names": ["g%04d" % i for i in range(1000)]}, "claude-code")
+nl("GET", "/glyph/width?name=A", None, 200, {"width": 500}, "claude-code")
+al_tick(10)
+al_reset(); al_case("1432 end to end through _handle: the header names the client; no font open:")
+nf_setup(0)
+_nl_c = PLConn(b"GET /glyph/width?name=A HTTP/1.1\r\nX-Glyphbridge-Client: claude-code\r\n\r\n")
+ns["_handle"](_nl_c); print("1432 reply:", pl_status(_nl_c), "| no_font", ns["_ACT"]["no_font"], "| client", ns["_ACT"]["client"], "| request client after", ns["_request_client"])
+_nl_c = PLConn(b'POST /glyph/create HTTP/1.1\r\nx-glyphbridge-client: Test%20App\r\nContent-Length: 16\r\n\r\n{"name": "kn5G"}')
+ns["_handle"](_nl_c); print("1432 reply:", pl_status(_nl_c), "| placeholder touched", NF["touched"])
+al_tick(10)
+nf_restore()
+al_reset(); al_case("1433 the 'Connected' line names the client that sent the first /health, or says a local client:")
+for raw in (b"X-Glyphbridge-Client: claude-code\r\n", b"", b"X-Glyphbridge-Client: %0A[evil]%0D\r\n"):
+    ns["_connection_announced"] = False
+    ns["_handle"](PLConn(b"GET /health HTTP/1.1\r\n" + raw + b"\r\n"))
+print("1433 request client after:", ns["_request_client"], "| announced", ns["_connection_announced"])
+for k, v in _nl_saved.items(): ns[k] = v
+al_reset(_al_saved["_ACTIVITY_LOG"])
+
+# ================= v0.106: the config entry name "glyphbridge-fontlab" is left out of the client name shown =================
+print("\n==== v0.106 the shown client name leaves out glyphbridge-fontlab ====")
+for raw in ("local-agent-mode-glyphbridge-fontlab", "Local-Agent-Mode-GlyphBridge-FontLab", "glyphbridge-fontlab", "glyphbridge-fontlab-beta",
+            "a-glyphbridge-fontlab-b", "local-agent-mode_glyphbridge-fontlab", "x%20glyphbridge-fontlab", "claude-code", "glyphbridge --check",
+            "glyphbridge", "glyphbridge-fontlab2", "y" * 50 + "-glyphbridge-fontlab"):
+    print(f"1434 {raw[:44]!r:48}->", repr(ns["_act_client"](raw)))
+_nl_saved6 = {k: ns[k] for k in ("_now_hms", "_clock")}
+ns["_now_hms"], ns["_clock"] = (lambda: "12:00:00"), (lambda: AL_CLOCK[0])
+al_reset(); al_case("1435 the line live test 228 printed, as 0.106 prints it:")
+ns["_activity_note"]("GET", "/kerning/pairs?pairs=A:V", b"", ns["_build_response"](200, {"open": True, "count": 13}), "local-agent-mode-glyphbridge-fontlab")
+al_tick(10)
+al_reset(); al_case("1436 the 'Connected' line with the same name:")
+ns["_connection_announced"] = False
+ns["_handle"](PLConn(b"GET /health HTTP/1.1\r\nX-Glyphbridge-Client: local-agent-mode-glyphbridge-fontlab\r\n\r\n"))
+for k, v in _nl_saved6.items(): ns[k] = v
+al_reset(_al_saved["_ACTIVITY_LOG"])

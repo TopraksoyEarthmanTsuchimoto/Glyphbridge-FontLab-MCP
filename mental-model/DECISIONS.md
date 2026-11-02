@@ -2,6 +2,10 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-02: the client's name in the activity log
+
+- **The log shows the name the app sends by itself** (MCP `clientInfo`), without the config entry name `glyphbridge-fontlab`. No label is set in the MCP configs. *Reason:* the user's choice: an ambiguous automatic name such as `local-agent-mode` is enough, and the configs stay untouched.
+
 ## 2026-11-01: kerning reads need exactly one open font
 
 - **`get_kerning` (listener 0.104 / server 0.33) refuses when not exactly one font is open**, and says so. *Reason:* it reads `flPackage.kerning(master)` of the workspace's current package, and which package belongs to `CurrentFont()` with several fonts open is unproven (T5). Approved with the P0.8 build; lifted only after T5.

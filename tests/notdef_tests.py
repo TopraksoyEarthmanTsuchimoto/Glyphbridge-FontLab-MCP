@@ -184,6 +184,7 @@ class MCPServer:
     def __init__(self, *a, **k): pass
     def tool(self): return lambda f: f
 sys.modules["mcp.server"].MCPServer = MCPServer
+sys.modules["mcp.server.mcpserver"].Context = type("Context", (), {})  # server v0.34
 sys.modules["mcp.server.mcpserver.exceptions"].ToolError = ToolError
 spec = importlib.util.spec_from_file_location("srv", find("glyphbridge_mcp_server.py"))
 srv = importlib.util.module_from_spec(spec); spec.loader.exec_module(srv)

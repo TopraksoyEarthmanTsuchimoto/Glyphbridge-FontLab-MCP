@@ -4,6 +4,23 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.106 / server v0.34 (2026-11-02)
+
+The shown client name leaves out the config entry name; the server is unchanged.
+- Claude Code and the Claude Desktop chat both send `local-agent-mode-glyphbridge-fontlab` (tests 225–226), so lines read `[local-agent-mode-glyphbridge-fontlab > Glyphbridge]`. `_act_client` now leaves out `glyphbridge-fontlab` (`ENTRY_NAME`, any capitalization, whole word only, with the separators next to it); a name that is only that is kept. The "Connected" line uses the same short name and says so.
+- The startup "Try:" line names the file: "All routes are listed at the top of glyphbridge_fontlab_mcp_listener.py."
+- Tests: cases 1434–1436; existing output changed in the version, startup and "Connected" lines. Mutation run: 5 of 5 killed.
+- Live check 2026-11-02 (test 229): both lines read `local-agent-mode`, as predicted.
+
+## Listener v0.105 / server v0.34 (2026-11-02)
+
+**"No font open" on every product route (P0.2), and the client's name in the activity log.**
+- **Listener, P0.2:** `_open_font()` answers "no font" when `CountFonts()` is the int 0; otherwise `CurrentFont()` decides, as before. The 13 product code paths that called `CurrentFont()` use it, so every product route answers `{"open": false}` without touching FontLab's placeholder font. The kerning route keeps its own check; the debug probes are unchanged.
+- **Listener, activity log:** every line starts with `[<client> > Glyphbridge]`, the name from the `X-Glyphbridge-Client` header (percent-decoded, control characters removed, at most 40 characters; `unknown agent` without one). The summaries are printed when the client changes. A read answered `open: false` (replies up to 4096 bytes are checked) is listed under "no font open", not as a read, and adds no kerning pairs. The "Connected" line names the client.
+- **Server:** every tool takes the MCP context (`ctx: Context | None = None`, filled in by the SDK; the tool schemas and descriptions are byte-identical to 0.33) and records the app's `title`, else its `name`; every listener request sends it, percent-encoded. `--check` sends `glyphbridge --check`. The name is the app's claim, not checked, and names the app, not the model.
+- Tests: listener cases 1420–1433, server part 20 (20a–20f), and an in-memory run with the real MCP SDK. Existing output changed in version lines, printed signatures, the activity prefix and case 761 (now refused as "no font open"). Mutation run: 10 of 10 killed.
+- Live checks 2026-11-02 (tests 225–228, FontLab 8.9.5): both Claude apps send `local-agent-mode-glyphbridge-fontlab`; with the only font closed, `fontlab_status` gave `font_open: false`, a width read and a create were refused, and the log read `reads: no font open: font info 1, width 1` and `REFUSED create kn6A: no font is open`; Arial reopened gave the K2 values unchanged.
+
 ## Listener v0.104 / server v0.33 (2026-11-01)
 
 **The fix of kerning defects A and B** ([ROADMAP.md](ROADMAP.md) P0.8; the facts it rests on: [topics/kerning.md](topics/kerning.md) §9.7–§9.9).
