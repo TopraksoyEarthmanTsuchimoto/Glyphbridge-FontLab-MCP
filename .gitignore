@@ -22,3 +22,6 @@ venv/
 # Fonts: live tests use disposable fonts, which must never be committed
 *.vfc
 *.vfj
+
+# Obsidian preferences
+.obsidian/

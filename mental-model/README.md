@@ -1,6 +1,6 @@
 # Glyphbridge for developers
 
-Glyphbridge connects AI agents to **FontLab 8**, the font editor. An agent such as Claude can then inspect and change the font that is open: outlines, metrics, Unicode values and kerning. It was built after a third-party FontLab MCP server reported successes that had not happened. Its central promise is honesty: **a reply says only what FontLab itself confirms.** Anything that could not be checked is labelled `unverified` or `unknown`, never guessed.
+Glyphbridge connects AI agents to **FontLab 8**, the font editor. An agent such as Claude can then inspect and change the font that is open: outlines, metrics, Unicode values and kerning. Its central promise is honesty: **a reply says only what FontLab itself confirms.** Anything that could not be checked is labelled `unverified` or `unknown`, never guessed.
 
 ## How it works, in one paragraph
 

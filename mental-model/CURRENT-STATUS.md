@@ -14,7 +14,7 @@ v0.97 to v0.100 only add research probes (`/debug/trypkgkern`, gated; `/debug/mo
 
 ## Environment (verified 2026-11-01)
 
-The project moved to a new Windows 11 PC and to this repository:
+The founding developer has moved the project to a new Windows 11 PC and to this repository on November 1st 2026. This change has set the project environment as:
 - Python **3.15.2**, with `mcp` **2.2.0** in the repository `venv`.
 - FontLab **8.9.5** (the earlier work was on 8.4.2).
 - The MCP connection works from **Claude Code** and from the **Claude Desktop chat**.

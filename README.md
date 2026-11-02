@@ -44,9 +44,9 @@ Please report what works.
 
 FontLab 8 has no Linux version and would need Wine. This setup is not supported or tested.
 
-## Use it every session
+## Do not forget to start the listener: necessary in every session!
 
-1. Start FontLab and open a font.
+1. Start FontLab with or without a font.
 2. Open the **Scripting** panel, open `glyphbridge_fontlab_mcp_listener.py` and run it. The Output panel shows the listener's version.
 3. In Claude, ask for example: *"Check the FontLab connection"* or *"What is the kerning between A and V?"*
 

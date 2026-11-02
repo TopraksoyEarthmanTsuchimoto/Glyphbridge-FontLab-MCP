@@ -6,7 +6,7 @@ Give AI agents reliable access to the font open in FontLab 8. With it they can i
 
 ## Design rule (binding since the start)
 
-The project replaced a third-party server that reported false successes. Therefore:
+As of October 2026 there was only one MCP project for FontLab on GitHub which at the time was observed to be far from being useful and it reported false successes. This project has been initiated to fill that void of functionality. Therefore:
 - Every failure gets a specific, honest message.
 - No write is reported successful unless the listener re-read the state afterwards.
 - Coordinates are called `verified` only when FontLab's own numbers agree.
@@ -28,8 +28,8 @@ The project replaced a third-party server that reported false successes. Therefo
 
 ## Non-goals and hard limits
 
-- **No saving, exporting or generating fonts.** The person saves (save policy, [DECISIONS.md](DECISIONS.md)).
-- **No whole-table or whole-font reads** where a few items answer the question. Large reads need the person's approval.
+- **No saving, exporting or generating fonts.** The human font designer saves himself if he/she wants to (save policy, [DECISIONS.md](DECISIONS.md)).
+- **Prefer small piece-by-piece of reads instead of whole-table or whole-font reads** where a few items is enough to answer the bigger question. Large reads need the person's approval.
 - No direct FontLab access from the MCP server, and no network exposure of the listener.
 - No TypeRig or other FontLab wrapper libraries. The project uses the FontLab API only, through probes ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md)).
 - No feature-based (GPOS), contextual or multi-master kerning in the current kerning tool.
