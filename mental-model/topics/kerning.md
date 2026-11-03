@@ -8,7 +8,7 @@
 
 **Goal and standing rule (user, 2026-10-25).** Agents must be able to read and inspect kerning, **without reading the whole table or the whole font**: a few selected glyph pairs, to save tokens. Everything below follows from that rule.
 
-**The font used:** Arial opened from the system (`path` `:/Arial: Normal`, 4548 glyphs, upm 2048, ascender 1491, descender -431, family `Arial`, style `Regular`, PostScript name `ArialMT`). FontLab 8.4.2.8950.
+**The font used:** Arial opened from the system (`path` `:/Arial: Normal`, 4548 glyphs, upm 2048, ascender 1491, descender -431, family `Arial`, style `Regular`, PostScript name `ArialMT`). FontLab 8.4.2.8950. On the new PC (2026-11-01, K2) Arial has 4651 glyphs, with its kerning unchanged (`table_size` 1370, the same 13 pair values); perhaps another Arial version, not checked.
 
 **1. What the API offers (names-only and documentation probes, nothing called).**
 - 146: `/debug/fldir?contains=kern,class,group,pair,feature` found only the module name `BuilderFeatures`; the `fgGlyph` names include `kerningLeft` and `kerningRight`. 147 read them: `A`, `V`, `T`, `a` gave 0 / 0, `o` gave `kerningLeft` 0 and `kerningRight` 84. Their meaning was NOT established (they are not the pair values: the pair `T:o` is -227); they are not used.
