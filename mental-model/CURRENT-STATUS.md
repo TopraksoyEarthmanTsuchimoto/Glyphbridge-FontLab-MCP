@@ -1,4 +1,4 @@
-Last verified: 2026-11-04 against the working tree after commit 364eea7 (listener v0.120, server v0.42, not yet committed; tests PASS, deployed copy identical)
+Last verified: 2026-11-04 against commit ab4f578 (listener v0.120, server v0.42; tests PASS, deployed copy identical)
 
 # Current status
 
@@ -51,7 +51,7 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 
 ## Next steps (the user's priority of 2026-11-01)
 
-1. **Choose the next step.** Candidates (none approved): the vertical check from `inkBox()` (519, server only); `delete_glyph` and `set_glyph_unicode` after a Power Brush write.
+1. **Choose the next step.** Candidates (none approved): the vertical check from `inkBox()` (519, server only); `delete_glyph` and `set_glyph_unicode` after a Power Brush write; the review of legacy calls (goal 6 in [PROJECT.md](PROJECT.md); the table in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10), starting with `get_glyph_width` (legacy `glyph.width`, while the writes use `advanceWidth`) and `font.info` (it disagreed with Font Info, 298).
 2. The **T-series**: T2, T3 and T4 are done; T5 is done for `get_kerning` (0.112 / 0.37), for replies naming their font (0.113 / 0.38), for five write tools (273–281), for `draw_path` and `delete_glyph` (288, 290), the read tools (309–316) and three fonts (317–331); open: two unsaved fonts with the same name, a switch during one call. Candidates for several open fonts, none approved: whether `fontlab_status` should keep sending the font's full path, an `expected_font` check on writes, per-font memory ([ROADMAP.md](ROADMAP.md) P0.5).
 3. **S1** (proposed, none approved): say so in the reminder and the tool descriptions, or find out whether the API can mark a font as changed without saving it.
 4. Candidates after that (none approved): P0.3 / P0.4, a create-font tool; P1.1, components. Required by the user, not yet designed: P1.6, kerning group membership.

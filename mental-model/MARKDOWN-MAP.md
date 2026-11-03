@@ -26,7 +26,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 |---|---|
 | [HOW-TO-GET-ORGANIZED.md](HOW-TO-GET-ORGANIZED.md) | the workflow guide this repository follows |
 | [WATCH-POINTS.md](WATCH-POINTS.md) | what was seen but is not yet explained or settled, and how an entry is settled or dropped (budget 1,250) |
-| [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) | hard rules for FontLab API calls, and dead ends not to retry |
+| [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) | hard rules for FontLab API calls, the proven calls and the legacy calls in use, and dead ends not to retry |
 | [RUNBOOK.md](RUNBOOK.md) | machine setup, restart rules, PowerShell conventions, re-verify steps, ready commands |
 | [LIVE-TESTS.md](LIVE-TESTS.md) | the K-series and T-series live tests in full |
 | [ROADMAP.md](ROADMAP.md) | work items P0–P5 and LAST; known limits |

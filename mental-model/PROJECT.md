@@ -20,12 +20,13 @@ As of October 2026 there was only one MCP project for FontLab on GitHub which at
 3. **Read kerning cheaply.** Only the pairs the task needs, using FontLab's own effective values, class kerning included ([topics/kerning.md](topics/kerning.md)).
 4. **Make new fonts usable by agents**: a create-font tool and a correct "is a font open" check (P0).
 5. **Work the same with several fonts open.** The most desirable result: any operation runs without confusion when 2, 3 or more fonts are open. Where closing the other fonts is the only way to a goal, the tool says so, and that research has shown it to be a limitation of FontLab ([DECISIONS.md](DECISIONS.md), [topics/fonts-and-sync.md](topics/fonts-and-sync.md)).
+6. **Replace legacy calls with modern ones.** Any legacy method that might have a chance to be safely replaced with a modern one should be replaced with a modern one. Each replacement is proven by the probe steps in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10, where the legacy calls in use are listed with their review state.
 
 ## Scope
 
-- FontLab 8 on Windows. macOS should work in principle but is untested. Linux would need Wine and is not supported.
+- FontLab 8 on Windows. macOS should work in principle but is untested; the code is kept macOS-compatible ([DECISIONS.md](DECISIONS.md)). Linux would need Wine and is not supported.
 - Claude Desktop and Claude Code as MCP clients. Any stdio MCP client should work.
-- The current font: the one whose window is in front. With two fonts open every tool is proven to use the font in front, and every reply names its font (T5 in [LIVE-TESTS.md](LIVE-TESTS.md)); with three fonts, two read tools and every write tool but `draw_path` are proven, and two unsaved fonts with the same name are untested (goal 5).
+- The current font: the one whose window is in front. With two fonts open every tool is proven to use the font in front, and every reply names its font (T5 in [LIVE-TESTS.md](LIVE-TESTS.md)); with three fonts, three read tools (`list_glyphs`, `get_glyph_width`, `get_kerning`) and every write tool but `draw_path` are proven, and two unsaved fonts with the same name are untested (goal 5).
 
 ## Non-goals and hard limits
 

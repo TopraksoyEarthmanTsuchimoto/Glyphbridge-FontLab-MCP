@@ -12,6 +12,7 @@
   4. **Then a row in the table**, with its test numbers. A row covers only that object, that argument form and what was seen (FontLab version, font, table state). Another object or form starts again at step 1.
 - **Using a proven call:** a product route may use only a call from the table. It needs no `go=yes`, but its stub tests must include a spy that aborts on any other member, a subscript or an iteration of the fake native object, plus a static scan of the route's source.
 - **Reporting:** a probe reply names the call it made (`call`, `calls_so_far`, `max_calls`) and its side-effect check. A call that failed is an `error` in the reply, never an empty, missing or zero result. A call that has only passed the stub tests is "stub-tested only", never "proven".
+- **Modern API first** (2026-11-04, [DECISIONS.md](DECISIONS.md)): a product route uses a legacy call only where the modern one is missing or proven worse. Each legacy call in product use gets a row in the table "Legacy calls in product use" below, with that reason and its test numbers, or "not yet reviewed".
 
 | Object | Call (argument form) | Used by | Proven by |
 |---|---|---|---|
@@ -22,6 +23,22 @@
 | `flPackage.kerning(master).groups` (`fgKerningGroups`) | `values()` (the tuples it returns were not read) | research only (`/debug/trykerngroups&stage=modes`) | 199 (§9.9) |
 | legacy `font.features` (`fgOTLayout`) | `keys()`; `has_key(tag)` and `get_feature(tag)` with a tag from `keys()` | research only (`/debug/features`) | 231–235 on Arial (§11) |
 | legacy `font.info.dict.names` (`fgStringDict`) | `keys()`, no argument (answered a plain list of text) | research only (`/debug/fontdir?stage=keys&go=yes`, listener 0.117) | 297b, 298, FontLab 8.9.5, a new unsaved font. Its sibling `font.info.dict.flags` (`fgFlagsDict`) has the same members, unproven; `del` on either is never called |
+
+**Legacy calls in product use** (inventory of listener 0.120, 2026-11-04; the modern-API-first rule above). "Not yet reviewed" means no run has shown the modern call missing or worse; the facts known so far are listed. Under goal 6 of [PROJECT.md](PROJECT.md) every row with a modern candidate is a replacement candidate: it is proven by the steps above and built only after the user's approval.
+
+| Legacy call | Used by | Modern candidate | Status |
+|---|---|---|---|
+| `fl.CurrentFont()`, `fl.CountFonts()` | every route (`_open_font`) | the current package (`flWorkspace`), already used for kerning and names | not yet reviewed. `CountFonts()` tells "no font open" where `CurrentFont()` gives a placeholder (227, 244); both views follow the window in front (262–264). Never `flPackage()` without an argument: it creates a font (the rule above); `flWorkspace.packages()` is a list never iterated or indexed |
+| `font.glyphs` (finding a glyph, listing names, scanning Unicode values) | `list_glyphs`, every glyph route (`_find_glyph`), the duplicate Unicode scan, kerning name checks | unknown | not yet reviewed |
+| `fontlab.flGlyph(fgGlyph, fgFont)`, the bridge | every modern read and write (`_modern_wrapper`) | unknown: it needs the legacy glyph | not yet reviewed. It leaks one native reference per construction ([topics/reading.md](topics/reading.md) §6) |
+| `glyph.width` (read) | `get_glyph_width` | `flGlyph.advanceWidth`, already used by the writes | not yet reviewed. Safe for F1 (486–488) |
+| `glyph.width`, and the legacy layer state for drawings | the sync check after modern writes (`_guard_classify`) | none: the check is whether the legacy view caught up | reason recorded: the check is about the legacy view itself (486–488, [DECISIONS.md](DECISIONS.md), the F1 fix) |
+| `glyph.width = N`, `glyph.update()`, `font.update()` | `set_glyph_width` on a positively empty glyph with no modern layer, when creating the layer failed | `advanceWidth` needs a modern layer | reason recorded: the modern layer is missing ([topics/geometry.md](topics/geometry.md) §8b, v0.70–v0.72; no test numbers recorded) |
+| `glyph.unicode` (read and write), `glyph.update()`, `font.update()` | `check_glyph_unicode`, `set_glyph_unicode`, `create_glyph`, the kerning `text` mode | unknown | not yet reviewed. The two updates wipe unsynced layers (134), hence the guard |
+| `font.createGlyph`, `font.removeGlyph`, `font.update()` | `create_glyph`, `delete_glyph` | modern creation is untested (T6, [CHECKLIST.md](CHECKLIST.md) row 62) | not yet reviewed. Without `font.update()` the grid did not show the new glyph (440–442); after a read of the legacy layer it wrote a flattened copy (420–423, F1) |
+| the legacy outline reader: `glyph.layer`, `glyph.layers`, `bodyLayer`, `findNode`, the layer counts, `boundingBox(matrix)`, `leftMargin` / `rightMargin`, `glyph.components` | `get_glyph_outline` when the modern side cannot be reached or its layer is missing or empty, and for `layer=strict|glayer` and `modern=no` | the modern-first route (0.120) | reason recorded: the modern layer is missing or empty ([topics/reading.md](topics/reading.md) §8p); `strict` and `glayer` name legacy layers by design |
+| the legacy `.notdef` counts | `check_notdef` and the automatic checks, when `.notdef` has no modern nodes | the modern counts, used when it has them | reason recorded: `.notdef` had no modern layer (511) |
+| `font.info` (family, style, `unitsPerEm`), `font.path` | the font headers, `get_current_font`, `get_kerning` (`units_per_em`, matching the package by path) | the font package, used for the PostScript names since 0.118 (302) | not yet reviewed. `font.info` disagreed with Font Info on names (298) |
 
 - Probe unknown objects in stages: names only (`dir`) -> read named attributes -> call whitelisted getters. Never call setters,
   `transform`/`scale`/`translate`, `remove`, `release`, `clone`, `apply*`. One question per probe. `/debug/walk` enforces this.
