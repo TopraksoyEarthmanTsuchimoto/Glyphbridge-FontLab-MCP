@@ -2,6 +2,10 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-03: K15 dropped
+
+- **K15 (a kerning POST body near and above the 1,000,000-byte limit, about 30,000 pairs) will not be run.** The limit stays stub-tested only. *Reason:* the user's choice: it adds no significant value, since agents read only the pairs a task needs and more than 250 needs the person's approval (K8), and 2,000 pairs already read in under 0.1 s (K14).
+
 ## 2026-11-03: who sent a request, facts only
 
 - **A missing client name stays missing:** the log line starts with `[Glyphbridge]`; the `.notdef` dialog drops its closing line about "an AI agent". *Reason:* the user's choice; the listener cannot know an agent sent a request (test 236: `curl`).
@@ -20,10 +24,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 - **`get_kerning` (listener 0.104 / server 0.33) refuses when not exactly one font is open**, and says so. *Reason:* it reads `flPackage.kerning(master)` of the workspace's current package, and which package belongs to `CurrentFont()` with several fonts open is unproven (T5). Approved with the P0.8 build; lifted only after T5.
 
-## 2026-11-01: listener version numbers
-
-- **Listener versions continue 0.100, 0.101, …** *Reason:* the user's choice. Versions are compared part by part, so the server reads `(0, 100)` as newer than `(0, 99)` (verified live: no `compatibility_note`).
-
 ## 2026-11-01: kerning groups
 
 - **AI agents must be able to see which groups have which members** ([ROADMAP.md](ROADMAP.md) P1.6; proposed first and built only after approval). *Supersedes* "group membership is deliberately not read". *Reason:* K9 and the KERNING panel method depended on membership, which only FontLab's Classes panel could show; the members of one group are a small read.
@@ -31,7 +31,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 ## 2026-11-01: repository workflow (migration day)
 
 - **No test may depend on the local file `savedtestfont.vfc` in the end.** Live tests build their reference glyphs in a fresh disposable font. `savedtestfont.vfc` may be used until it is no longer useful. Font files (`*.vfc`, `*.vfj`) are ignored by git. *Reason:* people who fork the repository must find everything they need in it ([ROADMAP.md](ROADMAP.md) §11).
-- **The code comments are tidied (listener 0.96, server 0.32, built in commit 23fc0c4).** Each module docstring's version history moves to `archive/` (with a short live changelog from then on), and the listener's endpoint list is corrected and completed. The MCP tool docstrings stay as they are: they are the agents' tool descriptions. The `#` comments stay next to the code they protect, and only references to session and test numbers shrink to the fact. *Reason:* about 11,000 words of history sat at the top of the two scripts.
 - **`.gitignore` lists only what this project produces.** *Reason:* the generic Python template made the repository look less maintained.
 
 - **The repository is the source of truth.** The project follows [HOW-TO-GET-ORGANIZED.md](HOW-TO-GET-ORGANIZED.md), with all documentation in `mental-model/`. *Reason:* milestone summaries had grown to about 28,000 words, and every new chat had to rebuild the context. *Supersedes* "the milestone summary is the single source of truth".

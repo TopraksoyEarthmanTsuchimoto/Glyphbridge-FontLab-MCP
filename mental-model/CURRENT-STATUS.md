@@ -45,7 +45,7 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 
 ## Next steps (the user's priority of 2026-11-01)
 
-1. **The K-series is done** except K15, which goes in the last block ([LIVE-TESTS.md](LIVE-TESTS.md)); P0.8 is done.
+1. **The K-series is done** ([LIVE-TESTS.md](LIVE-TESTS.md)); K15 was dropped ([DECISIONS.md](DECISIONS.md)); P0.8 is done.
 2. Next, the **T-series**: T4 (an existing glyph with legacy layers); T2 and T3 are done.
 3. Candidates after that (none approved): P0.3 / P0.4, a create-font tool; P1.1, components. Required by the user, not yet designed: P1.6, kerning group membership.
 
