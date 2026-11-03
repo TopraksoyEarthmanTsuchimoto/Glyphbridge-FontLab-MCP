@@ -23,7 +23,7 @@ from an elevated terminal. FontLab modern object ids (`flGlyph.id`) change betwe
 piped); numbers may print with a decimal comma, depending on the Windows locale (the JSON is fine). Read: `Invoke-RestMethod "<url>"`. POST:
 `Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8765/glyph/create" -Body '{"name":"x"}' -ContentType "application/json"`.
 
-**Test-result numbering:** a live-test command writes its output to `$HOME\N_name.txt`, N first. Either the user or the agent runs it; in Claude Code the agent can read the file itself. Use DISTINCT numbers that do not resemble earlier ones (the last used was **154b** (kerning probes 146 to 154b); **135** (File > Save) stays DEFERRED; v9's **136a / 136b** are superseded by 139a / 139b and 142; the commands **144a / 144b / 145** (T3 / T4, Appendix A2 / A3) were prepared in v10 but NEVER run; continue from **155**).
+**Test-result numbering:** a live-test command writes its output to `$HOME\N_name.txt`, N first. Either the user or the agent runs it; in Claude Code the agent can read the file itself. Use DISTINCT numbers that do not resemble earlier ones. The next free number is kept in [CURRENT-STATUS.md](CURRENT-STATUS.md). **135** (File > Save) stays DEFERRED; v9's **136a / 136b** are superseded by 139a / 139b and 142; **144a / 144b** (Appendix A2) were never run: T3 was run as tests 256–258 instead; **145** (T4, Appendix A3) is prepared, never run.
 
 **FontLab GUI facts for testing:** only the *Element* selection tool shows the transform bar (X/Y, horizontal/vertical %, rotation,
 slant). The X/Y box at the bottom shows the selected node in the *displayed* (transformed) space, one decimal. The Glyph panel's
@@ -48,7 +48,7 @@ $o='142_real_font.txt'; $h='http://127.0.0.1:8765'; function Gb($m,$p,$b){ "== $
 ```
 Expected (seen live): every write reply `synced_with_fontlab: true` and `fontlab_sync.synced: true`; the state reads `synced`; stl88 ends with x 20..420, margins 20 / 100 / 520; stl89 keeps its outline (0 / -300 / advance 0); no `display_refresh_skipped_to_protect` anywhere.
 
-**A2. T3 (the original stale scenario with the sync; stage as A1; names with a NEW prefix).** Run 144a:
+**A2. T3 (the original stale scenario with the sync; stage as A1; names with a NEW prefix).** DONE 2026-11-03 as tests 256–258, with the writes through the tools ([LIVE-TESTS.md](LIVE-TESTS.md)); kept for a re-run. Run 144a:
 ```
 $o='144a_open.txt'; $h='http://127.0.0.1:8765'; function Gb($m,$p,$b){ "== $(Get-Date -Format HH:mm:ss) $m $p $b" | Out-File $o -Append -Encoding utf8; try { if($m -eq 'GET'){ $r=Invoke-RestMethod "$h$p" } else { $r=Invoke-RestMethod "$h$p" -Method Post -Body $b -ContentType 'application/json' }; ($r | ConvertTo-Json -Depth 10 -Compress) | Out-File $o -Append -Encoding utf8 } catch { "ERR $_" | Out-File $o -Append -Encoding utf8 } }; Gb GET '/version'; Gb POST '/glyph/create' '{"name":"opn91a"}'; Gb POST '/glyph/polygon' '{"name":"opn91a","points":[[0,0],[400,0],[400,300],[0,300]]}'; Gb GET '/glyph/outline?name=opn91a'
 ```
@@ -76,7 +76,7 @@ Expected: see K2 (the values of probes 150 / 151 / 154b; `errors` 0; `table_size
 ```
 $o='156_kern_post.txt'; $h='http://127.0.0.1:8765'; function Gb($m,$p,$b){ "== $(Get-Date -Format HH:mm:ss) $m $p $b" | Out-File $o -Append -Encoding utf8; try { if($m -eq 'GET'){ $r=Invoke-RestMethod "$h$p" } else { $r=Invoke-RestMethod "$h$p" -Method Post -Body $b -ContentType 'application/json' }; ($r | ConvertTo-Json -Depth 10 -Compress) | Out-File $o -Append -Encoding utf8 } catch { "ERR $_ $($_.ErrorDetails.Message)" | Out-File $o -Append -Encoding utf8 } }; Gb POST '/kerning/pairs' '{"pairs":[["A","V"],["V","A"],["T","o"],["A","B"],["Aacute","V"],["Adieresis","V"],["T","oacute"],["T","odieresis"],["A","Wgrave.c2sc"],["Aacute","Wgrave.c2sc"],["Atilde","Ydieresis.c2sc"],["A","Tbar.c2sc"],["Aacute","Tbar.c2sc"]]}'; Gb POST '/kerning/pairs' '{"text":"AVATAR"}'
 ```
-Expected: the same `results` as A4.
+Expected: the same `results` as A4. A body with non-ASCII characters needs `-ContentType 'application/json; charset=utf-8'`: without it Windows PowerShell 5.1 does not send UTF-8, and the listener answers 400 "request body was not valid JSON" (K16, test 250).
 
 **A6. K7 (test 157): refusals and one per-pair error.**
 ```

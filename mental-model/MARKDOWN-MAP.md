@@ -18,7 +18,7 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 
 Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, has a budget of 500.
 
-**Reference totals:** 9,700 words including the root README, and 9,200 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. On 2026-11-01, CLAUDE.md (200) was added, CHECKLIST.md was raised from 1,000 to 1,300 and CURRENT-STATUS.md from 800 to 1,250. On 2026-11-03, CURRENT-STATUS.md was raised to 1,350 and DECISIONS.md from 1,200 to 1,350 ([DECISIONS.md](DECISIONS.md)).
+**Reference totals:** 9,700 words including the root README, and 9,200 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. On 2026-11-01, CLAUDE.md (200) was added, CHECKLIST.md was raised from 1,000 to 1,300 and CURRENT-STATUS.md from 800 to 1,250. On 2026-11-03, CURRENT-STATUS.md was raised to 1,350 and DECISIONS.md from 1,200 to 1,350 ([DECISIONS.md](DECISIONS.md); the CURRENT-STATUS entries and the 2026-11-03 entry are in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md)).
 
 ## Linked files (read when the task needs them; no budget)
 
