@@ -4,6 +4,17 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.120 / server v0.42 (2026-11-04)
+
+**F1: a glyph with modern nodes is read and sync-checked without the legacy layer** (facts 332–496, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8l: touching `glyph.layer` or reading `glyph.layers` of a Power Brush glyph, then any `font.update()`, flattens it; `glyph.width`, `glyph.components` and the name are safe).
+- **Listener `/glyph/outline`** (`layer=body|active`): when the glyph's modern active layer holds nodes, the reply comes from the modern layer only: `source: "modern"`, `modern_outline`, `elements` (from `_describe_modern_glyph`, without the legacy comparison), `component_count` and `shape_count` from the modern counts. No `glyph.layer`, `glyph.layers`, `bodyLayer`, `findNode` or legacy margins. An unreadable modern node count or outline gives an error, never a legacy fallback. The legacy reader runs only when the modern side cannot be reached, when the modern layer is missing or empty, for `layer=strict|glayer`, and for `modern=no`. Module switch `_MODERN_FIRST` (shipped `True`; the stub tests turn it off for the older legacy-reader cases).
+- **Listener `/font/notdef`:** a `.notdef` whose modern layer holds nodes or components is judged from the modern counts (`source: "modern"`); otherwise the legacy check runs as before.
+- **Listener sync check** (`_guard_classify`, used by the auto sync after every modern write and by the guard before `font.update()`): after a width or sidebearing write only the legacy `glyph.width` is compared with the modern advance width. Drawings and new layers keep the full check; a glyph registered by one stays "full" while it is remembered (`_guard_register`).
+- **Listener `/debug/readmodern?stage=box&go=yes`** (gated): `layer.boundingBox()` and `layer.inkBox()` on the modern layer, as plain rectangles.
+- **Server `get_glyph_outline`:** a `source: "modern"` reply gets the element transforms applied by contour counts and is checked against the modern left sidebearing and ink width. Raw and transformed coordinates are both checked; only an unambiguous match is `verified`. `verification.y_extent_checked` is `false` on this route. With `GLYPHBRIDGE_MODERN=0` the legacy reply carries a note that a Power Brush glyph may now be flattened. Older listeners are answered as before.
+- Tests: listener 1630–1667; server 25a–25w (2432 + 58 + 90 + 850 lines). Existing output changed only in the version lines and the `/debug/readmodern` stage message. Mutation run: 20 of 20 killed.
+- Not yet live-tested.
+
 ## Listener v0.119 (2026-11-03; server unchanged)
 
 **`/debug/tryrefresh`, a gated experiment for F1** ([topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8l): can a refresh of only the changed glyph replace the whole-font `font.update()` of the legacy writes?

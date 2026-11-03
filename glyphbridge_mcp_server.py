@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.41)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.42)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.41"          # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.42"         # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -2229,8 +2229,9 @@ def _cubic_contour_pieces(nodes: list, closed: Any):
     return start, pieces
 
 
-def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict) -> dict:
-    """The outline as read from FontLab's modern layer (the legacy reader is blind or stale for this glyph)."""
+def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict, modern_first: bool = False) -> dict:
+    """The outline as read from FontLab's modern layer (the legacy reader is blind or stale for this glyph, or, since
+    v0.42 with modern_first, was deliberately not used: F1)."""
     stale_margins = isinstance(mc, dict) and mc.get("agree") is not False and mc.get("margins_agree") is False
     contours_out, on_points, notes = [], [], []
     has_curves, disagree = False, []
@@ -2284,6 +2285,9 @@ def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict) -> dict:
                      f"FontLab's modern layer gives {({k: _tidy_number(x) for k, x in mod_m.items()})} (the glyph was probably changed through the API a moment ago). "
                      f"This outline was therefore read from the modern layer ({mo.get('node_count')} node(s)) and is current; no refresh is needed to trust it. "
                      "FontLab's legacy view itself refreshes only when the glyph's editor tab is closed (X) and the glyph reopened from the grid.")
+    elif modern_first:
+        notes.append(f"Read from FontLab's modern layer only ({mo.get('node_count')} node(s)). The glyph's legacy layer was deliberately not "
+                     "read: reading it can make FontLab flatten a Power Brush glyph at its next refresh.")
     else:
         notes.append(f"The legacy reader sees {data.get('node_count')} node(s) for this glyph (it lags on glyphs changed through the API), so this "
                      f"outline was read from FontLab's modern layer ({mo.get('node_count')} node(s)).")
@@ -2301,7 +2305,7 @@ def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict) -> dict:
                         for ex in _cubic_extremes(pc[1], pc[2], pc[3], pc[4]):
                             xs.append(ex[0]); ys.append(ex[1])
         box = {"left": min(xs), "right": max(xs), "bottom": min(ys), "top": max(ys)}
-    verification = {"status": "unverified", "modern_check": mc}
+    verification = {"status": "unverified"} if modern_first else {"status": "unverified", "modern_check": mc}
     if stale_margins:
         verification["legacy_margins_vs_modern"] = {"status": "mismatch", "differs": mc.get("margins_differ"), "legacy": mc.get("legacy_margins"), "modern": mc.get("modern_margins")}
     if margins is None:
@@ -2342,6 +2346,70 @@ def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict) -> dict:
         result.update({"left": _tidy_number(margins["lsb"]), "right": _tidy_number(margins["rsb"]),
                        "advance_width": _tidy_number(margins["advance"]),
                        "ink_width": _tidy_number(margins["advance"] - margins["lsb"] - margins["rsb"])})
+    return result
+
+
+def _modern_first_result(clean: str, data: dict) -> dict:
+    """v0.42 (F1, listener 0.120): the listener read a glyph that has modern nodes from the modern layer only. The element
+    transforms are applied by contour counts, as on the legacy route, and the result is checked against FontLab's modern
+    left sidebearing and ink width. Whether the modern node coordinates already include the element transform is not
+    known from a live run, so both readings are checked and only an unambiguous match is called verified. The vertical
+    extent is not checked on this route (no FontLab box yet): y_extent_checked is false."""
+    mo = data.get("modern_outline")
+    if not (isinstance(mo, dict) and mo.get("available") and isinstance(mo.get("contours"), list)):
+        raise ToolError("The listener's outline reply was malformed, so it was not trusted.")
+    el = data.get("elements") if isinstance(data.get("elements"), dict) else {}
+    shapes = el.get("shapes") if el.get("available") else None
+    mats, elements, mapping_note = None, None, None
+    if isinstance(shapes, list) and shapes:
+        counts = [sh.get("contours") for sh in shapes]
+        found = [_shape_matrix(sh) for sh in shapes]
+        if (all(isinstance(c, int) and not isinstance(c, bool) and c >= 0 for c in counts)
+                and all(m is not None for m in found) and sum(counts) == len(mo["contours"])):
+            mats = [m for m, c in zip(found, counts) for _ in range(c)]
+            elements = [{"index": si, "contours": counts[si], "shape_type": sh.get("shape_type"),
+                         "is_composite": bool(sh.get("is_composite")),
+                         "matrix": {k: _tidy_number(round(v, 6)) for k, v in zip(_MATRIX_KEYS, m)},
+                         "description": _describe_matrix(m)} for si, (sh, m) in enumerate(zip(shapes, found))]
+        else:
+            mapping_note = ("FontLab's element list does not map onto the contours read (contour counts or matrices missing or "
+                            "different), so no element transform was applied.")
+    else:
+        mapping_note = f"FontLab's element transforms could not be read ({el.get('error') or 'no element list'}), so none was applied."
+    raw = _modern_outline_result(clean, mo, None, data, modern_first=True)
+    result = raw
+    if mats is not None and not all(_is_identity(m) for m in mats):
+        moved = []
+        for ci, c in enumerate(mo["contours"]):
+            nodes = []
+            for n in c.get("nodes", []):
+                x, y = _apply_matrix(mats[ci], n["x"], n["y"])
+                nodes.append(dict(n, x=x, y=y))
+            moved.append(dict(c, nodes=nodes))
+        applied = _modern_outline_result(clean, dict(mo, contours=moved), None, data, modern_first=True)
+        for c_out, c_in in zip(applied["contours"], mo["contours"]):
+            for n_out, n_in in zip(c_out["node_list"], c_in.get("nodes", [])):
+                n_out["raw_x"], n_out["raw_y"] = _tidy_number(n_in["x"]), _tidy_number(n_in["y"])
+        ok_applied = applied["verification"]["status"] == "verified"
+        ok_raw = raw["verification"]["status"] == "verified"
+        if ok_raw and not ok_applied:
+            result["coordinate_space"] = ("FontLab view (the modern layer's coordinates already include the element transform: they match "
+                                          "FontLab's margins as read, and not with the transform applied again)")
+        else:
+            result = applied
+            result["coordinate_space"] = ("FontLab view (FontLab's element transform, read directly, has been applied; raw_x / raw_y are the "
+                                          "element's own values)")
+            if ok_applied and ok_raw:
+                result["verification"]["status"] = "unverified"
+                result["verification"]["reason"] = ("the coordinates match FontLab's horizontal margins both with and without the element "
+                                                     "transform, so the vertical placement cannot be confirmed on this route")
+    if elements is not None:
+        result["elements"] = elements
+    if mapping_note:
+        result["notes"].append(mapping_note)
+    result["verification"]["y_extent_checked"] = False
+    result["verification"]["checked_against"] = ("FontLab's modern left sidebearing and ink width (horizontal only; the vertical extent "
+                                                 "is not checked on this route)")
     return result
 
 
@@ -2416,6 +2484,8 @@ def read_glyph_outline(name: str) -> dict:
                         "on this basis. Call check_notdef to check it a different way.")
             raise ToolError(msg)
         raise ToolError(f"The outline of '{clean}' could not be read: {data['error']}")
+    if data.get("source") == "modern":
+        return _modern_first_result(clean, data)
     if not isinstance(data.get("contours"), list) or not isinstance(data.get("node_count"), int):
         raise ToolError("The listener's outline reply was malformed, so it was not trusted.")
     mc = data.get("modern_check") if isinstance(data.get("modern_check"), dict) else None
@@ -2448,6 +2518,10 @@ def read_glyph_outline(name: str) -> dict:
                                "the legacy view is stale, so these numbers should not be relied on.")
     elif not modern_off:
         _stale_legacy_check(clean, data, result, mc)
+    if modern_off:
+        result["notes"].append("GLYPHBRIDGE_MODERN=0: this outline was read through FontLab's legacy layer. If the glyph is a Power Brush "
+                               "glyph, FontLab may now flatten it at its next refresh (the next create, delete or Unicode change); "
+                               "do not save the font before checking it.")
     return result
 
 

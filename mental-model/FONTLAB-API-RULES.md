@@ -25,7 +25,8 @@
 
 - Probe unknown objects in stages: names only (`dir`) -> read named attributes -> call whitelisted getters. Never call setters,
   `transform`/`scale`/`translate`, `remove`, `release`, `clone`, `apply*`. One question per probe. `/debug/walk` enforces this.
-- **Warm-up:** touch `glyph.layer`, then read `bodyLayer` (otherwise `None` intermittently).
+- **Warm-up:** touch `glyph.layer`, then read `bodyLayer` (otherwise `None` intermittently). **On a Power Brush glyph this warm-up arms F1**, and so does reading `glyph.layers` (`glyph.width` and `glyph.components` were seen not to, 486–496): the next `font.update()` writes a flattened copy of the glyph ([topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8l); read such a glyph from the modern layer.
+- **`flLayer.boundingBox` is a property, not a method:** calling it raised "'QRectF' object is not callable" (test 519), although its docstring says `QRectF boundingBox()`; reading it without a call is untested. **`flLayer.inkBox()`** returned a QRectF equal to the ink box with the element transform applied (519); Qt names its sides y-down, so `top` is the lower y in font units.
 - Reversible value writes are not gated; destructive operations are; anything that changes UI state or constructs objects needs `go=yes`.
 - When introspection contradicts itself (attribute sometimes `None`, sometimes populated), suspect FontLab's API before the code.
 - Live tests that create glyphs go on the disposable test font; creating a glyph with a name FontLab alters leaves a glyph that may be nameless and undeletable by our tools: only the refusal in the server prevents it.

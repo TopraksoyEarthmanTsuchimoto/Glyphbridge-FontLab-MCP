@@ -33,7 +33,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 | [CHANGELOG.md](CHANGELOG.md) | one entry per release of the two scripts |
 | [LESSONS.md](LESSONS.md) | incidents and method lessons |
 | [topics/server-and-endpoints.md](topics/server-and-endpoints.md) | every server tool and listener route, switches, save policy mechanics |
-| [topics/reading.md](topics/reading.md) | how a glyph is read: kinds, transforms, layers, bridge, stale view |
+| [topics/reading.md](topics/reading.md) | how a glyph is read: kinds, transforms, layers, bridge, stale view, modern-first route |
 | [topics/notdef.md](topics/notdef.md) | the `.notdef` check and dialog |
 | [topics/names-unicode.md](topics/names-unicode.md) | glyph creation, names, Unicode |
 | [topics/geometry.md](topics/geometry.md) | width, sidebearings, polygons, curves, layer guard, v8 live record |

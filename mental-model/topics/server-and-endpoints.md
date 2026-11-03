@@ -45,6 +45,10 @@ Tool names as Claude sees them: [CLAUDE.md](../../CLAUDE.md). After a server upd
   person saved, so the numbers never claim the font is unsaved). The listener is unchanged. A test (part 8 of `create_unicode_tests.py`) guards the policy: a spy font whose save-like members
   record any call, plus a static scan of both scripts for `.save(`, `.export...(` and `.generate...(`; both were mutation-tested (a planted save call is caught). Only a live run through Claude Desktop shows
   whether the agent really says it once (section 13, item 9).
+  **No save question from FontLab (live 2026-11-03, S1, tests 460–472, [LIVE-TESTS.md](../LIVE-TESTS.md)):** when a font was changed only through the tools (a create, a Unicode
+  change, a width change), FontLab closed it, or quit, without asking whether to save; after the person's own Font > New Glyph it asked "Save changes to … before closing?" (470).
+  So a person who closes FontLab after an agent's changes loses them without a warning from FontLab; the chat reminder is the only one. Why, and whether drawings, sidebearings
+  and deletes behave the same: [WATCH-POINTS.md](../WATCH-POINTS.md).
 
 ## 3. Listener endpoints (v0.95)
 

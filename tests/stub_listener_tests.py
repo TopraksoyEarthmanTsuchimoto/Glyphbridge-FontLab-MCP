@@ -55,6 +55,9 @@ qg=types.ModuleType("PythonQt.QtGui"); qg.QMessageBox=object
 sys.modules.update({"fontlab":fl,"PythonQt":pq,"PythonQt.QtCore":qc,"PythonQt.QtGui":qg})
 src=open(_find("glyphbridge_fontlab_mcp_listener.py"),encoding="utf-8").read().replace("\nstart()\n","\n")
 ns={}; exec(compile(src,"l","exec"),ns)
+# Listener 0.120 (F1) answers a glyph with modern nodes from the modern layer only. The cases before the v0.120 block test the
+# legacy reader (still used for glyphs without modern nodes and for modern=no), so the switch is off until that block.
+ns["_MODERN_FIRST"] = False
 def call(path):
     r=ns["_route"]("GET",path); h,_,b=r.partition(b"\r\n\r\n")
     return h.split(b"\r\n")[0].decode()[9:12], json.loads(b)
@@ -4941,6 +4944,212 @@ print("1623 no product route changed    : create_glyph still calls font.update()
       "| route wired:", 'if path == "/debug/tryrefresh":' in src)
 c, d = call("/version"); print("1624 version                      :", d)
 for _m, _a, _v in _tr_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)
+ns["_MODERN_CACHE"].clear(); ns["_forget_request_font"]()
+
+
+# ================= v0.120: F1 - glyphs with modern nodes are read and sync-checked without the legacy layer =================
+# Live (332-496): touching glyph.layer or reading glyph.layers of a Power Brush glyph, then any font.update(), flattens it;
+# glyph.width, glyph.components and the name are safe. The fake legacy glyph records every access to its layer members
+# and legacy margins (SPY120), so each case can show that a read or a sync check never reached them.
+print("\n==== v0.120 F1: modern-only reads, the light sync check, the box probe ====")
+ns["_MODERN_FIRST"] = True
+SPY120 = []
+V120 = {"cfg": {}, "m": {}, "updates": []}
+class V120LLayer(Layer):                                  # a legacy layer for the legacy route (4 nodes)
+    name = "test_font"
+    def countNodes(s): return 4
+    def findNode(s, i):
+        if i >= 4: return None
+        n = Node(); n.kind = "Move" if i == 0 else "On"; n.smooth = False; return n
+class V120Glyph:                                          # legacy fgGlyph: its layer members and legacy margins are spied
+    def __init__(s, name, gid, width=639.0, layers=1):
+        s.name, s.id, s.width, s._nl = name, gid, width, layers; s.components = []; s.unicode = None
+    def _spy(s, what):
+        SPY120.append(f"{s.name}.{what}")
+    @property
+    def layer(s): s._spy("layer"); return V120LLayer() if s._nl else None
+    @property
+    def layers(s): s._spy("layers"); return [V120LLayer()] * s._nl
+    @property
+    def bodyLayer(s): s._spy("bodyLayer"); return V120LLayer() if s._nl else None
+    @property
+    def bodyLayerStrict(s): s._spy("bodyLayerStrict"); return V120LLayer() if s._nl else None
+    @property
+    def activeLayer(s): s._spy("activeLayer"); return V120LLayer() if s._nl else None
+    @property
+    def leftMargin(s): s._spy("leftMargin"); return 0.0
+    @property
+    def rightMargin(s): s._spy("rightMargin"); return 0.0
+class V120Font:
+    path = "v120.vfc"; info = types.SimpleNamespace(familyName="testfont", styleName="Regular")
+    def __init__(s): s.glyphs = V120["glyphs"]
+class V120Node:
+    def __init__(s, x, y): s.x, s.y = x, y; s.smooth = False
+    def isOn(s): return True
+    def isOff(s): return False
+    def isCurve(s): return False
+class V120Contour:
+    def __init__(s, pts): s._n = [V120Node(x, y) for x, y in pts]
+    def closed(s): return True
+    def clockwise(s): return False
+    def nodesCount(s): return len(s._n)
+    def getNodeAt(s, i):
+        if V120["cfg"].get("node_raises"): raise RuntimeError("getNodeAt boom")
+        return s._n[i]
+class V120Rect:
+    def __init__(s, l, b, r, t): s._v = dict(left=l, right=r, top=t, bottom=b, width=r - l, height=t - b)
+    def __getattr__(s, k):
+        if k.startswith("_"): raise AttributeError(k)
+        return lambda: s._v[k]
+class V120Tr:
+    def __init__(s, dx): s.m11, s.m12, s.m21, s.m22, s.dx, s.dy = 1.0, 0.0, 0.0, 1.0, dx, 0.0
+    def isIdentity(s): return s.dx == 0.0
+class V120Shape:
+    shapeType = "brush"; contoursCount = 1; isComponent = False; isComposite = True
+    def __init__(s, name): s._name = name
+    @property
+    def transform(s): return V120Tr(V120["m"][s._name]["dx"])
+class V120MLayer:
+    name = "test_font"
+    def __init__(s, gname, pts): s._g, s._c = gname, [V120Contour(pts)] if pts else []; s.shapes = [V120Shape(gname)] if pts else []
+    def nodesCount(s):
+        if V120["cfg"].get("count_text"): return "many"
+        return sum(c.nodesCount() for c in s._c)
+    def shapesCount(s): return len(s.shapes)
+    def componentsCount(s): return 0
+    def getContours(s): return list(s._c)
+    def boundingBox(s):
+        if V120["cfg"].get("box_raises"): raise RuntimeError("boundingBox boom")
+        return V120Rect(192.466, 0.0, 464.534, 700.0)
+    def inkBox(s, tr=None): return None if V120["cfg"].get("ink_none") else V120Rect(192.466, 0.0, 464.534, 700.0)
+class V120Mod:                                            # flGlyph(fgGlyph, fgFont); margins follow the element transform dx
+    def __init__(s, g, f):
+        if V120["cfg"].get("wrapper_raises"): raise RuntimeError("no modern glyph")
+        s.name, s.fgGlyphId = g.name, g.id
+        s.activeLayer = V120["layers"].get(g.name)
+    def isValid(s): return True
+    def _xs(s): return [n.x + V120["m"][s.name]["dx"] for c in s.activeLayer._c for n in c._n]
+    @property
+    def advanceWidth(s): return V120["m"][s.name]["adv"]
+    @advanceWidth.setter
+    def advanceWidth(s, v): V120["m"][s.name]["adv"] = float(v)
+    def getLSB(s, tr): return min(s._xs())
+    def getRSB(s, tr): return V120["m"][s.name]["adv"] - max(s._xs())
+    def setSB(s, l, r, mg, al, tr):                       # like FontLab on a Power Brush shape: the element transform moves
+        m = V120["m"][s.name]; raw = [x - m["dx"] for x in s._xs()]
+        m["dx"] = float(l) - min(raw); m["adv"] = float(l) + (max(raw) - min(raw)) + float(r); return True
+def _u120(w):                                             # fontlab.Update: a sync copies the modern advance to the legacy glyph
+    V120["updates"].append(w.name)
+    if V120["cfg"].get("sync", True):
+        for g in V120["glyphs"]:
+            if g.name == w.name: g.width = w.advanceWidth
+A_PTS = [(192.466, 0.0), (464.534, 0.0), (328.5, 700.0)]
+def v120_setup(**cfg):
+    V120["cfg"] = dict(cfg); V120["updates"].clear(); SPY120.clear()
+    V120["glyphs"] = [V120Glyph(".notdef", 1, 500.0, layers=0), V120Glyph("A", 2), V120Glyph("fresh", 3, 0.0, layers=0)]
+    V120["layers"] = {"A": V120MLayer("A", A_PTS), "fresh": V120MLayer("fresh", [])}
+    V120["m"] = {"A": {"dx": 0.0, "adv": 639.0}, "fresh": {"dx": 0.0, "adv": 0.0}, ".notdef": {"dx": 0.0, "adv": 500.0}}
+    if cfg.get("notdef_drawn"):
+        V120["layers"][".notdef"] = V120MLayer(".notdef", [(50.0, 0.0), (450.0, 0.0), (450.0, 700.0), (50.0, 700.0)])
+        V120["glyphs"][0]._nl = 1
+    for _m in _tf_mods:
+        _m.flGlyph = V120Mod; _m.Update = _u120; _m.CountFonts = lambda: 1; _m.CurrentFont = lambda: V120Font()
+    qg.QTransform = QTransformStub
+    ns["_AUTO_SYNC"] = True; ns["_MODERN_CACHE"].clear(); ns["_MODERN_CACHE_FONT"][0] = None
+    ns["_UNSYNCED"]["glyphs"].clear(); ns["_UNSYNCED"]["overflow"] = False; ns["_UNSYNCED"]["font"] = None
+_v120_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("flGlyph", "Update", "CountFonts", "CurrentFont")]
+def post120(path, payload):
+    r = ns["_route"]("POST", path, json.dumps(payload).encode()); h, _, b = r.partition(b"\r\n\r\n")
+    return h.split(b"\r\n")[0].decode()[9:12], json.loads(b)
+def o120(tag, q="", keys=("source", "node_count", "contour_count", "component_count", "shape_count", "layer_route", "error")):
+    SPY120.clear(); c, d = call("/glyph/outline?name=" + q)
+    print(tag, ":", c, {k: (d.get(k)[:70] if isinstance(d.get(k), str) and k == "error" else d.get(k)) for k in keys if k in d}, "| legacy members touched", SPY120)
+    return d
+
+v120_setup(); d = o120("1630 outline, modern nodes       ", "A")
+mo = d["modern_outline"]; el = d["elements"]
+print("1631 the reply                   : modern_outline available", mo["available"], "| nodes", [(n["x"], n["y"]) for n in mo["contours"][0]["nodes"]],
+      "| margins", mo.get("margins"), "| elements", el["available"], el["shapes"][0]["is_composite"], el["shapes"][0]["matrix"]["dx"],
+      "| no legacy fields:", not any(k in d for k in ("contours", "fontlab_bbox", "margins", "modern_check")))
+v120_setup(); d = o120("1632 layer=active is modern too  ", "A&layer=active")
+v120_setup(); d = o120("1633 modern=no: legacy (F1 risk) ", "A&modern=no", keys=("source", "node_count", "layer_route"))
+v120_setup(); d = o120("1634 layer=strict: legacy        ", "A&layer=strict", keys=("source", "node_count", "layer_route"))
+v120_setup(); d = o120("1635 no modern nodes: legacy     ", "fresh", keys=("source", "node_count", "layer_count", "contours"))
+v120_setup(wrapper_raises=1); d = o120("1636 modern side unreachable: legacy", "A", keys=("source", "node_count", "elements"))
+v120_setup(count_text=1); d = o120("1637 node count unreadable: error", "A")
+v120_setup(node_raises=1); d = o120("1638 outline unreadable: error   ", "A")
+v120_setup(); d = o120("1639 unknown glyph               ", "Q", keys=("open", "found", "reason"))
+for _m in _tf_mods: _m.CountFonts = lambda: 0
+SPY120.clear(); c, d = call("/glyph/outline?name=A"); print("1640 no font open               :", c, d, "| legacy members touched", SPY120)
+ns["_MODERN_FIRST"] = False; v120_setup(); ns["_MODERN_FIRST"] = False
+d = o120("1641 switch off: the legacy route ", "A", keys=("source", "node_count")); ns["_MODERN_FIRST"] = True
+# ---- the .notdef check ----
+def n120(tag):
+    SPY120.clear(); c, d = call("/font/notdef")
+    print(tag, ":", c, {k: d.get(k) for k in ("status", "source", "counts", "component_count", "layer_count", "evidence")}, "| legacy members touched", SPY120)
+v120_setup(notdef_drawn=1); n120("1642 drawn .notdef: modern only   ")
+v120_setup(); n120("1643 empty .notdef: legacy check ")
+v120_setup(notdef_drawn=1, wrapper_raises=1); n120("1644 modern unreachable: legacy   ")
+v120_setup(notdef_drawn=1, count_text=1); n120("1645 count unreadable: legacy     ")
+ns["_MODERN_FIRST"] = False; v120_setup(notdef_drawn=1); n120("1646 switch off: legacy check     "); ns["_MODERN_FIRST"] = True
+# ---- the sync check: width and sidebearing writes take the light check; drawings and new layers keep the full one ----
+def w120(tag, path, payload, keys=("set", "route", "before", "after")):
+    SPY120.clear(); c, d = post120(path, payload)
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| fontlab_sync", d.get("fontlab_sync"), "| synced", d.get("synced_with_fontlab"),
+          "| tracked", dict(ns["_guard_state"](V120Font())["glyphs"]), "| legacy members touched", SPY120)
+v120_setup(); w120("1647 width on A, Update syncs     ", "/glyph/width", {"name": "A", "width": 700})
+v120_setup(); w120("1648 sidebearings on A, syncs    ", "/glyph/sidebearings", {"name": "A", "left": 50, "right": 60}, keys=("set", "changed"))
+print("1648b the element moved         : dx", V120["m"]["A"]["dx"], "| advance", V120["m"]["A"]["adv"], "| legacy width", V120["glyphs"][1].width)
+v120_setup(sync=False); w120("1649 width, Update has no effect ", "/glyph/width", {"name": "A", "width": 700})
+SPY120.clear(); allow, rep = ns["_guard_decide"](V120Font())
+print("1650 the guard before an update  : allow", allow, "| report", {k: rep.get(k) for k in ("display_refresh", "display_refresh_skipped_to_protect")}, "| legacy members touched", SPY120)
+V120["glyphs"][1].width = 700.0; SPY120.clear(); allow, rep = ns["_guard_decide"](V120Font())
+print("1651 legacy width caught up      : allow", allow, "| report", rep, "| tracked", dict(ns["_guard_state"](V120Font())["glyphs"]), "| legacy members touched", SPY120)
+v120_setup(); _f = V120Font(); _gs = ns["_guard_state"](_f)["glyphs"]
+for _how in ("draw_polygon", "draw_path", "layer_created"):
+    _gs.clear(); ns["_guard_register"](_f, "fresh", _how); SPY120.clear(); _v = ns["_guard_classify"](_f, "fresh")
+    print("1652", f"{_how:13}", "             : light", ns["_guard_is_light"](_f, "fresh"), "| verdict", _v, "| entry", _gs.get("fresh"), "| legacy members touched", SPY120)
+_gs.clear(); ns["_guard_register"](_f, "fresh", "layer_created"); ns["_guard_register"](_f, "fresh", "width")
+print("1653 new layer, then width       : entry", _gs.get("fresh"), "| light", ns["_guard_is_light"](_f, "fresh"), "(must stay False: the full check)")
+_gs.clear(); ns["_guard_register"](_f, "A", "width"); ns["_guard_register"](_f, "A", "sidebearings")
+print("1654 width, then sidebearings    : entry", _gs.get("A"), "| light", ns["_guard_is_light"](_f, "A"))
+_gs.clear(); ns["_guard_register"](_f, "A", "sidebearings"); ns["_guard_register"](_f, "A", "draw_path")
+print("1655 sidebearings, then a drawing: entry", _gs.get("A"), "| light", ns["_guard_is_light"](_f, "A"))
+_gs.clear(); print("1656 not remembered              : light", ns["_guard_is_light"](_f, "A"), "| unknown kind:", (ns["_guard_register"](_f, "A", "other"), ns["_guard_is_light"](_f, "A"))[1])
+_gs.clear(); ns["_guard_register"](_f, "A", "width"); _real_gs = ns["_guard_state"]
+def _gs_boom(f): raise RuntimeError("state boom")
+ns["_guard_state"] = _gs_boom; print("1657 registry unreadable         : light", ns["_guard_is_light"](_f, "A"), "(the full check)"); ns["_guard_state"] = _real_gs
+_gs.clear(); ns["_guard_register"](_f, "A", "width"); V120["glyphs"][1].width = "wide"; SPY120.clear()
+print("1658 legacy width not a number   : verdict", ns["_guard_classify"](_f, "A"), "| legacy members touched", SPY120)
+V120["glyphs"][1].width = 639.0; V120["layers"]["A"] = None; SPY120.clear(); ns["_MODERN_CACHE"].clear()
+print("1659 modern layer gone           : verdict", ns["_guard_classify"](_f, "A"), "| legacy members touched", SPY120)
+V120["glyphs"].pop(1); print("1660 glyph gone                  : verdict", ns["_guard_classify"](_f, "A"))
+# ---- the gated box probe ----
+def b120(tag, q):
+    SPY120.clear(); c, d = call("/debug/readmodern?name=A&stage=box" + q)
+    print(tag, ":", c, {k: d.get(k) for k in ("error", "boundingBox()", "inkBox()", "layer_state") if k in d}, "| legacy members touched", SPY120)
+v120_setup(); b120("1661 box without go=yes          ", "")
+v120_setup(); b120("1662 box, go=yes                 ", "&go=yes")
+v120_setup(box_raises=1, ink_none=1); b120("1663 boundingBox raises, ink None", "&go=yes")
+print("1664 rect helper                 :", ns["_rect_plain"](None), "|", ns["_rect_plain"](types.SimpleNamespace(left=lambda: "x")), "|",
+      ns["_rect_plain"](types.SimpleNamespace(left=lambda: 1.0, right=lambda: 2.0, top=lambda: 3.0, bottom=lambda: 0.0, width=lambda: 1.0, height=lambda: 3.0)))
+# ---- static scan: the modern-only code paths never name a legacy layer member ----
+def _code120(a, b):                                      # the code only: docstrings, strings and comments removed
+    s = _re83.sub(r'"""(?:.|\n)*?"""', '""', src[src.index(a):src.index(b)])
+    return _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', "\n".join(l.split("#")[0] for l in s.splitlines()))
+_scan120 = {"_modern_only_outline": _code120("def _modern_only_outline(", "_MODERN_FIRST = True"),
+            "_notdef_modern_outline_counts": _code120("def _notdef_modern_outline_counts(", "def check_notdef("),
+            "light part of _guard_classify": _code120("        if _guard_is_light(font, name):", "        legacy = _tryshape_state(glyph)"),
+            "_guard_is_light": _code120("def _guard_is_light(", "def _guard_classify(")}
+for _k, _c in _scan120.items():
+    print("1665 static scan", f"{_k:30}", ": legacy members named:", _re83.findall(r"\.(?:layer|layers|bodyLayer|bodyLayerStrict|findNode|leftMargin|rightMargin|countNodes)\b|_get_body_layer|_get_layer_by_route|_glyph_layer_count|_tryshape_state|_glyph_margins", _c),
+          "| scanned chars", len(_c) > 200)
+print("1666 shipped switch              :", _re83.findall(r"(?m)^_MODERN_FIRST = (\w+)", src), "| full kinds", ns["_GUARD_FULL_KINDS"], "| light kinds", ns["_GUARD_LIGHT_KINDS"])
+c, d = call("/version"); print("1667 version                     :", d)
+for _m, _a, _v in _v120_saved:
     if _v is None:
         if hasattr(_m, _a): delattr(_m, _a)
     else: setattr(_m, _a, _v)

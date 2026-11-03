@@ -2,6 +2,12 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-04: the F1 fix (listener 0.120 / server 0.42)
+
+- **A glyph with modern nodes is read from the modern layer only**; when that read fails the reply is an error, never a legacy fallback. *Reason:* touching `glyph.layer` or reading `glyph.layers` of a Power Brush glyph lets the next `font.update()` flatten it (332–496).
+- **After a width or sidebearing write the sync check compares only the legacy width**; drawings and new layers keep the full check. *Reason:* the same facts; `glyph.width` is safe (486–488).
+- **`verified` on the modern route checks the horizontal extent only**, and the reply says `y_extent_checked: false`, until a vertical check is built. *Reason:* approved with the build, when no FontLab box was proven; 519 later found `inkBox()`.
+
 ## 2026-11-03: names read at the moment, not fixed strings
 
 - **Text shown to the person or the agent names things from facts read at that moment** (the client's own name, the font's name and file, the system's save shortcut), never from fixed strings. A name the sender gives is shown as given, ambiguous ones such as `local-agent-mode` included; a missing one stays missing. *Reason:* the user's rule after test 290, where the delete dialog said "Claude" whoever sent the request. Built in listener 0.114 / server 0.40.

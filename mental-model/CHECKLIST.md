@@ -36,7 +36,7 @@ None open: the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 11 | Multiple layers or masters | TODO (T7) |
 | 12c, 12d, 12e | Rotation, mirroring, combined transform on real data | TODO (T11), simulated only |
 | 13 | Two elements with different transforms | TODO |
-| 14 | Power Brush glyph with an element transform | PARTLY: an offset (dx −142, set by `setSB`) read `verified`, FontLab's Elements panel Δ=(-142,0) (T4, 145g, 260); scale and rotation not tested |
+| 14 | Power Brush glyph with an element transform | PARTLY: an offset (dx −142, set by `setSB`) read `verified`, FontLab's Elements panel Δ=(-142,0) (T4, 145g, 260), and on the modern route (515); scale and rotation not tested |
 | 6, 50 | Open contours, read | TODO (P1.4); assumed closed today |
 | 15, 40, 51 | A real designed letter (Arial `O`, `S`, `g`, `eacute`), read-only | TODO (P1.5), under about 150 nodes each |
 | 4 | Back To PS Curves round trip | TODO |

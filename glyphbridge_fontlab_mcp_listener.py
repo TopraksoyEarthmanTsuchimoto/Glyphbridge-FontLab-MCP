@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.119)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.120)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -32,6 +32,11 @@ the "Connected" line. Since v0.110 the launcher is shown without ".exe" and in c
 NO FONT OPEN (v0.105): every product route answers {"open": false} when CountFonts() is 0 (see _open_font):
 with no font open, CurrentFont() still returns a placeholder font.
 
+F1, POWER BRUSH GLYPHS (v0.120): touching the legacy glyph.layer or reading glyph.layers of a Power Brush glyph,
+then any font.update(), writes a flattened copy of the glyph (live 332-496; glyph.width, glyph.components and the
+name are safe). So /glyph/outline and /font/notdef read a glyph that has modern nodes from the modern layer only,
+and the sync check after a width or sidebearing write compares only the legacy width (see _guard_classify).
+
 Routes (GET unless marked POST):
 
   Status and font
@@ -50,10 +55,12 @@ Routes (GET unless marked POST):
 
   Reading glyphs
     /glyph/outline?name=X[&layer=body|active|strict|glayer][&modern=no]
-                                THE main read: contours (kind, smooth, x, y), fontlab_bbox, margins,
-                                component_count, shape_count, layer_name, elements (true element
-                                transforms through the cached modern wrapper), modern_check, and
-                                modern_outline when the legacy view disagrees with the modern layer
+                                THE main read. Since v0.120, a glyph with modern nodes is answered from the
+                                modern layer only (source "modern": modern_outline, elements, component_count,
+                                shape_count); the legacy read below runs only for a glyph without modern
+                                nodes, for layer=strict|glayer and for modern=no (F1 risk): contours (kind,
+                                smooth, x, y), fontlab_bbox, margins, component_count, shape_count, layer_name,
+                                elements, modern_check, and modern_outline when the legacy view is stale
     /glyph/width?name=X         advance width
     /glyph/sidebearings?name=X  modern lsb, rsb, advance and ink width
     /glyph/unicode?name=X       raw primary codepoint (no standard checks here: the server does that)
@@ -90,7 +97,7 @@ Routes (GET unless marked POST):
     /debug/objdir?name=X&target=...&stage=dir|read
     /debug/walk?path=...                   restricted modern-API walker (_WALK_CALL_OK whitelist)
     /debug/layerbbox?name=X&stage=...      staged probe of layer.boundingBox()
-    /debug/readmodern?name=X&stage=layer|contour|node
+    /debug/readmodern?name=X&stage=layer|contour|node   (stage=box&go=yes is GATED: layer.boundingBox(), layer.inkBox())
     /debug/classdir?name=CLASS[&members=a,b]   names and docstrings of one class; nothing is called
     /debug/fldir?contains=a,b              names in the fontlab module
     /debug/moddir?contains=a,b | module=M&contains=a,b | module=M&name=N | stage=kerntype
@@ -147,7 +154,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.119"
+VERSION = "0.120"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -463,15 +470,19 @@ def _guard_state(font):
 
 
 def _guard_register(font, name, how):
-    """Remember that `name` holds a change made through the modern API. Never raises."""
+    """Remember that `name` holds a change made through the modern API. Never raises. v0.120: a drawing or a new layer
+    marks the glyph "full" for as long as it is remembered, so a later width write does not move it to the light check."""
     try:
         st = _guard_state(font)
         if name in st["glyphs"]:
             st["glyphs"][name]["how"] = how
         elif len(st["glyphs"]) >= _UNSYNCED_MAX:
             st["overflow"] = True
+            return
         else:
             st["glyphs"][name] = {"how": how}
+        if how in _GUARD_FULL_KINDS:
+            st["glyphs"][name]["full"] = True
     except Exception:
         pass
 
@@ -524,12 +535,38 @@ def _guard_mark(font, name, how, result):
             pass
 
 
+_GUARD_FULL_KINDS = ("draw_polygon", "draw_path", "layer_created")
+_GUARD_LIGHT_KINDS = ("width", "sidebearings")
+
+
+def _guard_is_light(font, name):
+    """True when the remembered change of `name` is a width or sidebearing write and the glyph was never marked "full"."""
+    try:
+        entry = _guard_state(font)["glyphs"].get(name) or {}
+    except Exception:
+        return False
+    return entry.get("how") in _GUARD_LIGHT_KINDS and not entry.get("full")
+
+
 def _guard_classify(font, name):
-    """'gone' | 'lost' | 'synced' | 'at_risk' | 'unknown' for one remembered glyph. Read only. Never raises."""
+    """'gone' | 'lost' | 'synced' | 'at_risk' | 'unknown' for one remembered glyph. Read only. Never raises.
+    v0.120 (F1): after a width or sidebearing write, which can hit any glyph, a Power Brush one included, only the legacy
+    glyph.width is compared with the modern advance width: touching glyph.layer or reading glyph.layers would arm F1
+    (live 432-435, 490-492), glyph.width does not (486-488). Moving or widening a glyph never changes its node count.
+    Drawings and new layers (an empty glyph before, so no brush) keep the full check."""
     try:
         glyph = _find_glyph(font, name)
         if glyph is None:
             return "gone"
+        if _guard_is_light(font, name):
+            w, _how = _modern_wrapper(glyph, font)
+            modern, layer = _tryshape_modern_state(w)
+            if layer is None:
+                return "lost" if modern.get("active_layer") == "None" else "unknown"
+            lw, mw = _num(glyph.width), _num(w.advanceWidth)
+            if lw is None or mw is None:
+                return "unknown"
+            return "at_risk" if abs(lw - mw) > 0.01 else "synced"
         legacy = _tryshape_state(glyph)
         w, _how = _modern_wrapper(glyph, font)
         modern, layer = _tryshape_modern_state(w)
@@ -3429,11 +3466,33 @@ def _rm_plain(value):
     return value if (value is None or isinstance(value, (bool, int, float, str))) else f"<{type(value).__name__}>"
 
 
-def debug_read_modern(name, stage, index, node_index, via):
+def _rect_plain(rect):
+    """{"left", "right", "top", "bottom", "width", "height"} of a QRectF through its zero-argument getters, or {"error"}."""
+    if rect is None:
+        return {"error": "returned None"}
+    out = {"type": type(rect).__name__}
+    for m in ("left", "right", "top", "bottom", "width", "height"):
+        try:
+            fn = getattr(rect, m)
+            val = fn() if callable(fn) else fn
+        except Exception as exc:
+            return {"type": out["type"], "error": f"rect.{m} failed: {type(exc).__name__}: {exc}"}
+        if not isinstance(val, (int, float)) or isinstance(val, bool):
+            return {"type": out["type"], "error": f"rect.{m} was not a number ({type(val).__name__})"}
+        out[m] = float(val)
+    return out
+
+
+def debug_read_modern(name, stage, index, node_index, via, go=""):
     """READ-ONLY. How can the outline be read back from the modern active layer? No native object is indexed or iterated: only
-    getContours() results that are real Python lists / tuples are indexed."""
-    if stage not in ("layer", "contour", "node"):
-        return {"error": 'stage must be "layer", "contour" or "node"'}
+    getContours() results that are real Python lists / tuples are indexed. v0.120: stage=box (GATED, go=yes) calls
+    layer.boundingBox() and layer.inkBox() once each, both never called live before (docstrings, test 484:
+    "QRectF boundingBox()", "QRectF inkBox([QTransform tx = QTransform()])")."""
+    if stage not in ("layer", "contour", "node", "box"):
+        return {"error": 'stage must be "layer", "contour", "node" or "box"'}
+    if stage == "box" and go != "yes":
+        return {"error": "stage=box calls layer.boundingBox() and layer.inkBox() on the modern layer, never called live before. "
+                         "Add &go=yes to run it."}
     if stage == "node" and via not in ("getNodeAt", "at"):
         return {"error": 'stage=node needs &via=getNodeAt or &via=at'}
     font = fl.CurrentFont()
@@ -3458,6 +3517,11 @@ def debug_read_modern(name, stage, index, node_index, via):
             result[label] = {"error": err} if err is not None else _rm_describe(v)
         v, err = _tl_call(lambda: _call0(layer, "shapesCount"))
         result["shapesCount"] = {"error": err} if err is not None else _rm_plain(v)
+        return result
+    if stage == "box":
+        for label, fn in (("boundingBox()", lambda: layer.boundingBox()), ("inkBox()", lambda: layer.inkBox())):
+            v, err = _tl_call(fn)
+            result[label] = {"error": err} if err is not None else _rect_plain(v)
         return result
     contours, err = _tl_call(lambda: layer.getContours())
     if err is not None:
@@ -4299,6 +4363,23 @@ _NOTDEF_DIALOG_TEXT = {
 }
 
 
+def _notdef_modern_outline_counts(glyph, font):
+    """v0.120 (F1). {"nodes", "shapes", "components"} of the glyph's modern active layer when it holds nodes or
+    components, else None (no modern side, no modern layer, a count unreadable, or nothing in it: then the legacy check
+    runs, which cannot flatten anything because there is no outline). Never raises."""
+    try:
+        w, _how = _modern_wrapper(glyph, font)
+        state, layer = _tryshape_modern_state(w)
+    except Exception:
+        return None
+    if layer is None:
+        return None
+    counts = {k: state.get(k) for k in ("nodes", "shapes", "components")}
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in counts.values()):
+        return None
+    return counts if (counts["nodes"] > 0 or counts["components"] > 0) else None
+
+
 def check_notdef():
     """Read-only. Does the current font have a .notdef glyph, and does it hold any outline data?
     status: "missing"     no glyph named .notdef
@@ -4328,6 +4409,16 @@ def check_notdef():
     result["index"] = index
     if index != 0:
         notes.append(f".notdef is glyph number {index}; the OpenType spec wants it to be glyph 0")
+    modern = _notdef_modern_outline_counts(glyph, font) if _MODERN_FIRST else None
+    if modern is not None:
+        # v0.120 (F1): a .notdef with modern nodes is judged from the modern layer only; the legacy layer is not touched
+        result.update({"source": "modern", "counts": {"nodes": modern["nodes"], "shapes": modern["shapes"]},
+                       "component_count": modern["components"], "status": "has_outline",
+                       "evidence": [f"FontLab's modern layer holds nodes {modern['nodes']}, shapes {modern['shapes']}, "
+                                    f"components {modern['components']}"]})
+        if notes:
+            result["notes"] = notes
+        return result
     layers = _glyph_layer_count(glyph)
     result["layer_count"] = layers
     status = "unknown"
@@ -4529,7 +4620,59 @@ def _read_modern_outline(name):
     return result
 
 
+def _modern_only_outline(name, route):
+    """v0.120 (F1). The outline of a glyph that has modern nodes, read from the modern layer only: never glyph.layer,
+    glyph.layers, bodyLayer, findNode or the legacy margins, which can flatten a Power Brush glyph at the next
+    font.update(). Returns None when the legacy route must answer: the modern side cannot be reached, or the modern
+    layer is missing or holds no nodes (then there is no outline to flatten). A modern layer whose node count is not
+    readable, or whose outline cannot be read, gets an error and NO legacy fallback."""
+    font = _open_font()
+    if font is None:
+        return {"open": False}
+    glyph = _find_glyph(font, name)
+    if glyph is None:
+        return {"open": True, "found": False, "reason": f"no glyph named {name!r}"}
+    try:
+        w, how = _modern_wrapper(glyph, font)
+        state, layer = _tryshape_modern_state(w)
+    except Exception:
+        return None
+    if layer is None:
+        return None
+    nodes = state.get("nodes")
+    base = {"open": True, "found": True, "name": name, "source": "modern", "layer_route": route,
+            "layer_name": state.get("layer_name"), "wrapper": how}
+    if not isinstance(nodes, int) or isinstance(nodes, bool):
+        return dict(base, error=("the node count of FontLab's modern layer could not be read; the legacy layer was not "
+                                 "read instead, because reading it can flatten a Power Brush glyph"))
+    if nodes <= 0:
+        return None
+    mo = _read_modern_outline(name)
+    if not mo.get("available"):
+        return dict(base, error=(f"the outline could not be read from FontLab's modern layer ({mo.get('error')}); the legacy "
+                                 "layer was not read instead, because reading it can flatten a Power Brush glyph"))
+    desc = {}
+    try:
+        _describe_modern_glyph(w, desc)
+    except Exception as exc:
+        desc["shapes_error"] = f"{type(exc).__name__}: {exc}"
+    if desc.get("shapes_error") or not isinstance(desc.get("shapes"), list):
+        elements = {"available": False, "wrapper": how, "error": desc.get("shapes_error", "no shapes list")}
+    else:
+        elements = {"available": True, "wrapper": how, "source": "flGlyph(fgGlyph, fgFont)",
+                    "layer_name": desc.get("layer_name"), "shapes": desc["shapes"]}
+    return dict(base, node_count=mo["node_count"], contour_count=len(mo["contours"]), modern_outline=mo,
+                elements=elements, component_count=state.get("components"), shape_count=state.get("shapes"))
+
+
+_MODERN_FIRST = True   # v0.120 (F1); the stub tests switch it off to test the legacy reader
+
+
 def get_glyph_outline(name, route="body", modern=True):
+    if _MODERN_FIRST and modern and route in ("body", "active"):
+        first = _modern_only_outline(name, route)
+        if first is not None:
+            return first
     result = _get_glyph_outline_legacy(name, route, modern)
     if modern and isinstance(result, dict) and result.get("found") is True and route in ("body", "active"):
         mc = _reader_modern_check(name, result.get("node_count"), result.get("margins"))
@@ -7168,7 +7311,7 @@ def _route(method, full_path, body=b""):
         if path == "/debug/readmodern":
             names = query.get("name")
             if not names or not names[0].strip():
-                return _build_response(400, {"error": "provide ?name=<glyph>&stage=layer|contour|node[&index=K&node=I&via=getNodeAt|at]"})
+                return _build_response(400, {"error": "provide ?name=<glyph>&stage=layer|contour|node|box[&index=K&node=I&via=getNodeAt|at][&go=yes]"})
             def _qr(key, default=""):
                 return (query.get(key) or [default])[0]
             try:
@@ -7178,7 +7321,7 @@ def _route(method, full_path, body=b""):
             if not (0 <= idx <= 9999 and 0 <= nidx <= 9999):
                 return _build_response(400, {"error": '"index" and "node" must be between 0 and 9999'})
             try:
-                return _build_response(200, debug_read_modern(names[0].strip(), _qr("stage", "layer"), idx, nidx, _qr("via")))
+                return _build_response(200, debug_read_modern(names[0].strip(), _qr("stage", "layer"), idx, nidx, _qr("via"), _qr("go")))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

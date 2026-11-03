@@ -1594,3 +1594,57 @@ c24("24f a real family named Unnamed Sans  ", {}, {**_base24, "family_name": "Un
 c24("24g package_names not a dict          ", {"package_names": "x", "package_names_unavailable": ""})
 _src24 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
 print("24h no fixed placeholder test left:", 'startswith("Unnamed")' not in _src24, "| the description warns against 'unset':", "do not call a name 'unset'" in (srv.get_current_font.__doc__ or ""))
+
+print("\n==== 25. server 0.42: listener 0.120 reads a glyph with modern nodes from the modern layer only (F1); element transforms applied, horizontal check ====")
+def mf_reply(pts=((192.466, 0), (464.534, 0), (328.5, 700)), dx=0.0, margins="auto", elements="auto", **kw):
+    nodes = [{"index": i, "x": float(x), "y": float(y), "isOn": True, "isOff": False, "isCurve": False, "smooth": False} for i, (x, y) in enumerate(pts)]
+    xs = [x + dx for x, _y in pts]
+    mo = {"available": True, "contours": [{"index": 0, "closed": True, "clockwise": True, "nodesCount": len(nodes), "nodes": nodes}],
+          "node_count": len(nodes), "expected_node_count": len(nodes),
+          "margins": {"lsb": min(xs), "rsb": 639.0 - max(xs), "advance": 639.0} if margins == "auto" else margins}
+    el = ({"available": True, "wrapper": "cached", "shapes": [{"shape_type": "brush", "contours": 1, "is_component": False, "is_composite": True,
+           "matrix": {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": dx, "dy": 0.0}}]} if elements == "auto" else elements)
+    r = {"open": True, "found": True, "name": "A", "source": "modern", "layer_route": "body", "layer_name": "test_font", "node_count": len(nodes),
+         "contour_count": 1, "modern_outline": mo, "elements": el, "component_count": 0, "shape_count": 1}
+    r.update(kw); return r
+def mf(tag, reply, extra_keys=()):
+    s10_reset(); S9["get"]["/glyph/outline"] = reply
+    r = s9_try(lambda: srv.read_glyph_outline("A"))
+    if isinstance(r, str):
+        print(tag, "->", r[:160], "| requests", S9["gets"]); return r
+    v = r["verification"]
+    print(tag, "->", r.get("source"), "|", v["status"], "| y_extent_checked", v.get("y_extent_checked"), "| box", v.get("bounding_box_vs_margins"),
+          "| reason", (v.get("reason") or "")[:90], "| requests", S9["gets"], *[f"| {k} {r.get(k)}" for k in extra_keys])
+    return r
+r = mf("25a identity, Power Brush A      ", mf_reply(), ("left", "right", "advance_width", "ink_bbox"))
+print("25b  notes and space           ->", [n[:70] for n in r["notes"][1:]], "|", r["coordinate_space"][:60], "| elements", [(e["description"], e["is_composite"]) for e in r["elements"]])
+print("25c  no legacy keys            ->", sorted(k for k in r if k in ("legacy_view_was_stale", "stale_legacy_view", "modern_check")), "| modern_check in verification:", "modern_check" in r["verification"])
+r = mf("25d dx -142, raw coordinates    ", mf_reply(dx=-142.466))
+print("25e  node 0 after the transform ->", r["contours"][0]["node_list"][0], "|", r["coordinate_space"][:70], "| elements", [e["description"] for e in r["elements"]])
+_pts_moved = ((50.0, 0), (322.068, 0), (186.034, 700))
+r = mf("25f dx -142, coordinates already moved", mf_reply(pts=_pts_moved, dx=-142.466, margins={"lsb": 50.0, "rsb": 316.932, "advance": 639.0}))
+print("25g  coordinate space          ->", r["coordinate_space"][:110], "| raw_x present:", "raw_x" in r["contours"][0]["node_list"][0])
+r = mf("25h dy only: ambiguous         ", mf_reply(elements={"available": True, "shapes": [{"contours": 1, "is_composite": True, "matrix": {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": 0.0, "dy": 30.0}}]}))
+r = mf("25i margins disagree           ", mf_reply(margins={"lsb": 100.0, "rsb": 174.466, "advance": 639.0}))
+r = mf("25j margins unreadable         ", mf_reply(margins=None))
+r = mf("25k elements unreadable        ", mf_reply(elements={"available": False, "error": "no shapes list"}))
+print("25l  the note                   ->", [n for n in r["notes"] if "transform" in n])
+r = mf("25m element list does not map   ", mf_reply(elements={"available": True, "shapes": [{"contours": 2, "matrix": {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": 9.0, "dy": 0.0}}]}))
+print("25n  the note                   ->", [n for n in r["notes"] if "map" in n], "| elements key:", "elements" in r)
+mf("25o listener error (modern side) ", {"open": True, "found": True, "name": "A", "source": "modern", "error": "the outline could not be read from FontLab's modern layer (x); the legacy layer was not read instead, because reading it can flatten a Power Brush glyph"})
+mf("25p malformed modern reply      ", mf_reply(modern_outline={"available": False, "error": "x"}))
+mf("25q no modern_outline at all    ", mf_reply(modern_outline=None))
+r = mf("25r a component count           ", mf_reply(component_count=2))
+print("25s  component note             ->", [n for n in r["notes"] if "component" in n])
+_curve = {"available": True, "contours": [{"index": 0, "closed": True, "clockwise": False, "nodesCount": 4, "nodes": [
+    {"x": 0.0, "y": 0.0, "isOn": True, "isCurve": False}, {"x": 100.0, "y": 0.0, "isOn": True, "isCurve": False},
+    {"x": 100.0, "y": 100.0, "isOn": True, "isCurve": False}, {"x": 0.0, "y": 100.0, "isOn": True, "isCurve": False}]}],
+    "node_count": 4, "expected_node_count": 4, "margins": {"lsb": 10.0, "rsb": 10.0, "advance": 120.0}}
+r = mf("25t dx 10 on a square           ", mf_reply(modern_outline=_curve, elements={"available": True, "shapes": [{"contours": 1, "matrix": {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": 10.0, "dy": 0.0}}]}))
+os.environ["GLYPHBRIDGE_MODERN"] = "0"
+r, _n = read15(legacy_reply(0, {"left": 0.0, "right": 100.0, "width": 500.0}), sb_reply(0, 100, 500))
+print("25u GLYPHBRIDGE_MODERN=0        ->", S9["gets"][:1], "| F1 note:", [n[:60] for n in (r.get("notes", []) if isinstance(r, dict) else []) if "Power Brush" in n] if isinstance(r, dict) else r[:100])
+del os.environ["GLYPHBRIDGE_MODERN"]
+r, _n = read15(legacy_reply(0, {"left": 0.0, "right": 100.0, "width": 500.0}), sb_reply(0, 100, 500))
+print("25v an older listener (no source) ->", (r.get("verification", {}).get("status") if isinstance(r, dict) else r[:80]), "| F1 note:", any("Power Brush" in n for n in r.get("notes", [])) if isinstance(r, dict) else None)
+print("25w version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
