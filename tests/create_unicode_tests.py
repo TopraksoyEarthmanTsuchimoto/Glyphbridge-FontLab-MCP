@@ -1520,7 +1520,7 @@ def _refuse22():
     srv22._call_listener("/glyph/width?name=A"); raise srv22.ToolError("refused")
 H22["queue"][:] = [_hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2)]
 try: srv22._with_font(_refuse22)
-except srv22.ToolError as e: print("22o a refusal still updates the remembered font:", srv22._FONT_SEEN)
+except srv22.ToolError as e: print("22o a refusal still updates the remembered font:", srv22._FONT_SEEN, "| message:", str(e))
 H22["queue"][:] = [_hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2)]
 r = srv22.get_glyph_width("A"); print("22p next call, same font: no font_changed:", "font_changed" not in r)
 H22["queue"][:] = [_hdr22("Arial", "Regular", "f6f6f6f6f6f6", 2)]
@@ -1535,3 +1535,22 @@ _src22 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
 _tools22 = _re19.findall(r"@mcp\.tool\(\)\ndef (\w+)\((?:.|\n)*?\n    return (.*)\n", _src22)
 print("22r every tool returns through _with_font:", len(_tools22), [n for n, ret in _tools22 if not ret.startswith("_with_font(")])
 print("22s headers read inside _do_request    :", "_note_font_headers(getattr(resp, \"headers\", None))" in _src22[_src22.index("def _do_request("):_src22.index("def _call_listener(")])
+# v0.39: a ToolError carries the font_note (test 277: a failed first call after a window switch hid the switch).
+def _refuse_unknown22():
+    srv22._call_listener("/glyph/width?name=A"); raise srv22.OutcomeUnknown("timed out")
+for lbl, seen, hdr, fn in (("22w a refusal after a switch         ", ("testfont Regular", "b2b2b2b2b2b2"), _hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2), _refuse22),
+                           ("22x one font, no switch: unchanged  ", ("Arial Regular", "a1a1a1a1a1a1"), _hdr22("Arial", "Regular", "a1a1a1a1a1a1", 1), _refuse22),
+                           ("22y OutcomeUnknown keeps its class  ", ("testfont Regular", "b2b2b2b2b2b2"), _hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2), _refuse_unknown22),
+                           ("22z older listener: unchanged       ", ("testfont Regular", "b2b2b2b2b2b2"), _hdr22(), _refuse22)):
+    srv22._FONT_SEEN.update(name=seen[0], key=seen[1], seen=True); H22["queue"][:] = [hdr]
+    try: srv22._with_font(fn)
+    except srv22.ToolError as e: print(lbl, ":", type(e).__name__, "|", str(e), "| args", len(e.args))
+srv22._FONT_SEEN.update(name="testfont Regular", key="b2b2b2b2b2b2", seen=True)
+H22["queue"][:] = [_hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2), _hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2)]
+try: srv22._with_font(_refuse22)
+except srv22.ToolError as e: print("22w2 a refusal after a switch carries the switch:", "changed since the previous" in str(e))
+r = srv22.get_glyph_width("A"); print("22w3 the call after it: no font_changed:", "font_changed" not in r)
+srv22._FONT_SEEN.update(name="testfont Regular", key="b2b2b2b2b2b2", seen=True); H22["queue"][:] = [_hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2)]
+try: srv22.get_glyph_width("")
+except srv22.ToolError as e: print("22x2 refused before any listener call:", str(e), "| remembered font kept:", srv22._FONT_SEEN["name"])
+H22["queue"][:] = []

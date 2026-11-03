@@ -1,6 +1,6 @@
 # Watch points
 
-What was seen in FontLab, in the tools or in agent behaviour and is **not yet explained or settled**. A proven fact belongs in its topic file, an open scenario in [CHECKLIST.md](CHECKLIST.md), a known limit in [ROADMAP.md](ROADMAP.md). Word budget: 750 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
+What was seen in FontLab, in the tools or in agent behaviour and is **not yet explained or settled**. A proven fact belongs in its topic file, an open scenario in [CHECKLIST.md](CHECKLIST.md), a known limit in [ROADMAP.md](ROADMAP.md). Word budget: 950 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
 
 ## How an entry lives
 
@@ -15,7 +15,8 @@ What was seen in FontLab, in the tools or in agent behaviour and is **not yet ex
 - **`updated_fg_glyphs` after a write** (2026-11-03, T4: 145b, 145e). The probe's list went from 0 to 4 ids after the width write on `testglyph2`, and held 1 id after the width write on `A`. Not predicted; no tool depends on it.
 - **Arial on this PC** (2026-11-01, K2). 4651 glyphs here, 4548 on the old PC; the kerning is unchanged (`table_size` 1370, the same 13 pair values). Perhaps another Arial version: not checked.
 - **Arial's `kern` feature against its table** (2026-11-03, K11). 1,417 `pos` lines against 1,370 table entries, although the 20 pairs compared agree.
-- **FontLab 8.9.5 against 8.4.2** (since 2026-11-01). No difference seen. Writes seen on 8.9.5: `create_glyph`, `draw_polygon`, `set_glyph_width` and `set_glyph_sidebearings` on new glyphs (K9 setup, 190, 253) and on two existing glyphs (T4), and a declined `delete_glyph` (190). The other writes: not yet.
+- **FontLab 8.9.5 against 8.4.2** (since 2026-11-01). No difference seen. Writes seen on 8.9.5: `create_glyph`, `draw_polygon`, `set_glyph_width` and `set_glyph_sidebearings` on new glyphs (K9 setup, 190, 253) and on two existing glyphs (T4), a declined `delete_glyph` (190), and `set_glyph_unicode` (280). The other writes: not yet.
+- **Identical font tabs** (2026-11-03, T5: 277–281). With a `.vfc` and its Explorer copy open, both tabs read "fullname of test font" and the Fonts panel listed "testfont" twice as "Regular"; only the tab order told them apart. Open: does FontLab show the file name anywhere for a person to check? Agents should not ask the person to tell such fonts apart by title.
 
 ## Agents and clients
 

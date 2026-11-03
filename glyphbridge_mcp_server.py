@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.38)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.39)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.38"          # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.39"          # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 SAVE_REMINDER = "**You must save if you want to keep these changes: use the File menu or press Ctrl+S in FontLab.**"   # shown in CHAT only, never as a FontLab dialog
 DELETE_CONFIRM_TIMEOUT_SECONDS = 120.0  # time to let a human see and answer the FontLab dialog
@@ -330,7 +330,8 @@ def _do_request(req_or_url, path: str, timeout: float = TIMEOUT_SECONDS) -> dict
 # ---- which font a reply came from (v0.38, listener 0.113; goal 5 of PROJECT.md) ----
 # The listener names the font each request used in three headers: family/style, a short hash of its path ("none" when the path
 # is empty; the path itself is never sent) and CountFonts(). Each tool reply then gains font and fonts_open, and font_note when
-# several fonts are open or the font in front changed. An older listener sends no headers: nothing is added.
+# several fonts are open or the font in front changed; since v0.39 a ToolError gets the font_note appended to its message (test
+# 277: a failed first call after a window switch hid the switch). An older listener sends no headers: nothing is added.
 _FONT_CALLS: list = []                         # (name, key, fonts_open) of each listener reply in the current tool call
 _FONT_SEEN = {"name": None, "key": None, "seen": False}   # the font of the previous tool call in this server process
 _FONT_KEY_RE = re.compile(r"^[0-9a-f]{12}$")
@@ -396,15 +397,22 @@ def _font_fields(calls: list, result: Any) -> dict:
 
 
 def _with_font(fn: Any, *args: Any) -> Any:
-    """Run one tool's work and add the font fields to its reply. A refusal (an exception) still updates the remembered font."""
+    """Run one tool's work and add the font fields to its reply. A refusal (an exception) still updates the remembered font, and a
+    ToolError carries the font_note at the end of its message (the same exception object, so its class is kept)."""
     _FONT_CALLS.clear()
     result = None
+    refusal = None
     try:
         result = fn(*args)
+    except ToolError as exc:
+        refusal = exc
+        raise
     finally:
         calls = list(_FONT_CALLS)
         _FONT_CALLS.clear()
         fields = _font_fields(calls, result)
+        if refusal is not None and fields.get("font_note"):
+            refusal.args = (f"{refusal} {fields['font_note']}",) + refusal.args[1:]
     if isinstance(result, dict) and fields:
         result.update(fields)
     return result

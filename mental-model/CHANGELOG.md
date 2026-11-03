@@ -4,6 +4,14 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Server v0.39 (2026-11-03)
+
+**An error reply names its font too (test 277).** The first call after a font window switch failed ("No glyph named …") and carried no font fields, while the server had already recorded the new font, so the switch was reported nowhere.
+- **Server:** `_with_font` appends the `font_note` to the message of a `ToolError` raised by the tool, by changing the same exception object (an `OutcomeUnknown` keeps its class and still counts as an uncertain change). Unchanged: errors raised before any listener call, errors without a note (one font, no switch), errors with no font open or from an older listener, and all successful replies. The listener stays at 0.113.
+- Tests: server part 22: 22o now prints the message; new 22w–22z, 22w2, 22w3, 22x2 (805 lines). Existing output changed otherwise only in the version lines. Mutation run: 4 of 4 killed (no note appended; a new exception losing the class; the note appended without a `font_note`, killed only by a crash; only `OutcomeUnknown` caught).
+- Live 2026-11-03 (tests 282–284, FontLab 8.9.5, two copies of the test font): after one click on the other tab, a read of a missing glyph ended with the switch note ("another font with the same name … from a different file"); the next read showed no `font_changed`.
+- Correction to v0.38 below: the font headers never carry the path, but `fontlab_status` and `get_current_font` do report it (test 273).
+
 ## Listener v0.113 / server v0.38 (2026-11-03)
 
 **Every reply names its font (goal 5, ROADMAP P0.5 (a)).**

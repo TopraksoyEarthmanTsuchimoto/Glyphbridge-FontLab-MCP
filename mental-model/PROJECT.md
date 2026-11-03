@@ -25,7 +25,7 @@ As of October 2026 there was only one MCP project for FontLab on GitHub which at
 
 - FontLab 8 on Windows. macOS should work in principle but is untested. Linux would need Wine and is not supported.
 - Claude Desktop and Claude Code as MCP clients. Any stdio MCP client should work.
-- The current font: the one whose window is in front. With several fonts open, `get_kerning` is proven (T5 in [LIVE-TESTS.md](LIVE-TESTS.md)); the other tools are untested there (goal 5).
+- The current font: the one whose window is in front. With several fonts open, `get_kerning` and five write tools are proven, and every reply names its font (T5 in [LIVE-TESTS.md](LIVE-TESTS.md)); the other tools are untested there (goal 5).
 
 ## Non-goals and hard limits
 

@@ -2,6 +2,10 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-03: WATCH-POINTS.md budget 950
+
+- **The WATCH-POINTS.md budget goes from 750 to 950 words.** *Supersedes* the 750 of the watch-points entry below. *Reason:* the user's choice, after tests 273–281 brought the file to 656 words with 10 open entries.
+
 ## 2026-11-03: several open fonts
 
 - **`get_kerning` with several fonts open** (listener 0.112 / server 0.37, tests 265–268): it uses the current package only when its `path` is not empty and equals the current font's path, and otherwise refuses with the reason. *Supersedes* "kerning reads need exactly one open font" (2026-11-01, archived). *Reason:* the user approved it after T5 (262–264) showed that both views follow the font window in front and that `path` tells the fonts apart.

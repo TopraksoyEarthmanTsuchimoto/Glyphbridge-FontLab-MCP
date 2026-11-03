@@ -21,7 +21,7 @@ FontLab 8
    - `MIN_LISTENER_VERSION` is `(0, 82)`. Newer tools check the listener version they need before sending anything.
    - Request timeout: 5 s by default, longer for kerning reads and for dialogs that wait for a click.
    - Every request carries the app's own name and, read once at startup from the operating system, the file name of the program that started the server (`X-Glyphbridge-Client`, `X-Glyphbridge-Launcher`; v0.34, v0.35 / v0.36).
-   - Every listener reply that used a font names it in three headers: family and style, a short hash of its path, and the number of open fonts (`X-Glyphbridge-Font`, `-Font-Key`, `-Fonts-Open`; v0.113 / v0.38). The server adds `font` and `fonts_open` to each tool reply, and `font_note` when several fonts are open or the font in front changed. The path never leaves the listener.
+   - Every listener reply that used a font names it in three headers: family and style, a short hash of its path, and the number of open fonts (`X-Glyphbridge-Font`, `-Font-Key`, `-Fonts-Open`; v0.113 / v0.38). The server adds `font` and `fonts_open` to each tool reply, and `font_note` when several fonts are open or the font in front changed. These headers never carry the path; `fontlab_status` and `get_current_font` do report it (test 273).
 
 Effect of the split: the AI app starts the server in its own Python with its own libraries. FontLab access stays in one small HTTP surface, so every FontLab call is easy to audit and can be tested with stubs.
 
