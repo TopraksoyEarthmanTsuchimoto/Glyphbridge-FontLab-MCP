@@ -21,7 +21,7 @@ but not recommended. Agents must expect `.notdef` in every font and must never t
 
 **Dialog:** `POST /font/notdef/warn` re-checks inside the listener (never on the caller's say-so) and shows a modal
 `QMessageBox.Information` with an OK button (title "Glyphbridge: .notdef glyph"; wording in `_NOTDEF_DIALOG_TEXT`, one text for
-`empty`, one for `missing`, plus a line saying it is shown once per font per session). At most once per font **path** per listener
+`empty`, one for `missing`; since 0.109 without the closing line that said it is shown once and that "an AI agent" read the font). At most once per font **path** per listener
 run (`_NOTDEF_WARNED`); `force: true` repeats it. Fonts with an empty or shared path share one memory slot. While the dialog is
 open the listener answers nothing else: live-verified (a plain `/health` request timed out after 5 s while the dialog was open), so a second
 request cannot stack a second dialog. Live-verified through Claude Desktop: the host tool call simply waits for the click, even for 90 s.

@@ -1395,3 +1395,68 @@ print("20e tools:", len(_tools20), "| every one takes ctx: Context | None = None
       "| first statement _note_client(ctx):", [t for t, _, first in _tools20 if first.strip() != "_note_client(ctx)"] == [])
 print("20f --check labels itself:", '_CLIENT["name"] = "glyphbridge --check"' in _src20.split("def _self_check")[1][:400])
 srv._CLIENT["name"] = None
+
+# ==== 21. server 0.35: the launcher names (file names only) go to the listener in the X-Glyphbridge-Launcher header ====
+print("\n==== 21. server 0.35: launcher names header ====")
+for tag, value in (("plain", "claude.exe"), ("Windows path", r"C:\Program Files\Claude\claude.exe"), ("macOS path", "/Applications/Claude.app/Contents/MacOS/Claude"),
+                   ("control chars", "a\nb\tc.exe"), ("61 characters", "w" * 61), ("ends in slash", "dir/"), ("empty", ""), ("not text", 5), ("None", None)):
+    print(f"21a clean {tag:14}->", repr(srv._clean_launcher_name(value)))
+def fake21(table):
+    return lambda pid: table.get(pid)
+CODE21 = {100: ("python.exe", 90, 50), 90: ("python.exe", 80, 40), 80: ("claude.exe", 70, 30), 70: ("claude.exe", 60, 20), 60: ("explorer.exe", 1, 10)}
+for tag, table, pid, skip in (
+        ("Code session, venv           ", CODE21, 100, True),
+        ("chat, venv                   ", {**CODE21, 80: ("claude.exe", 60, 30)}, 100, True),
+        ("no venv: no skip             ", CODE21, 100, False),
+        ("venv, parent named otherwise ", {**CODE21, 100: ("python.exe", 80, 50)}, 100, True),
+        ("venv, a python further up    ", {100: ("python.exe", 80, 50), 80: ("claude.exe", 90, 30), 90: ("python.exe", 70, 25), 70: ("explorer.exe", 1, 10)}, 100, True),
+        ("venv, name in other case     ",{**CODE21, 90: ("Python.EXE", 80, 40)}, 100, True),
+        ("three pythons: skip only once", {**CODE21, 80: ("python.exe", 70, 30)}, 100, True),
+        ("reused id: level 2 is younger", {**CODE21, 70: ("claude.exe", 60, 35)}, 100, True),
+        ("reused id: level 1 is younger", {**CODE21, 80: ("claude.exe", 70, 45)}, 100, True),
+        ("same start time is accepted  ", {**CODE21, 80: ("claude.exe", 70, 40), 70: ("claude.exe", 60, 40)}, 100, True),
+        ("level 1 start unreadable     ", {**CODE21, 80: ("claude.exe", 70, None)}, 100, True),
+        ("level 2 start unreadable     ",{**CODE21, 70: ("claude.exe", 60, None)}, 100, True),
+        ("own start unreadable         ", {**CODE21, 100: ("python.exe", 90, None)}, 100, True),
+        ("own process missing          ", CODE21, 999, True),
+        ("parent id 0                  ", {100: ("python.exe", 0, 50)}, 100, False),
+        ("parent gone                  ", {100: ("python.exe", 90, 50)}, 100, False),
+        ("only the venv launcher above ", {100: ("python.exe", 90, 50), 90: ("python.exe", 5, 40)}, 100, True),
+        ("a name that cleans to nothing", {**CODE21, 80: ("  ", 70, 30)}, 100, True),
+        ("a path as process name       ", {**CODE21, 80: ("/usr/bin/zsh", 70, 30)}, 100, True)):
+    print(f"21b walk {tag}->", srv._walk_launchers(fake21(table), pid, skip))
+_spec21 = importlib.util.spec_from_file_location("srv21", find("glyphbridge_mcp_server.py")); srv21 = importlib.util.module_from_spec(_spec21); _spec21.loader.exec_module(srv21)
+print("21c importing the module reads nothing:", srv21._LAUNCHER["value"] is None)
+def _raise21(*a): raise OSError("no snapshot")
+for tag, os_name, platform, prefix, win, mac in (
+        ("Windows, venv          ", "nt", "win32", "venv", lambda: fake21(CODE21), None),
+        ("Windows, no venv       ", "nt", "win32", "base", lambda: fake21(CODE21), None),
+        ("Windows, snapshot fails", "nt", "win32", "venv", _raise21, None),
+        ("Windows, nothing above ", "nt", "win32", "venv", lambda: fake21({100: ("python.exe", 0, 50)}), None),
+        ("macOS                  ", "posix", "darwin", "venv", None, fake21({100: ("Python", 80, (5, 0)), 80: ("Claude", 70, (4, 0)), 70: ("launchd", 0, (1, 0))})),
+        ("macOS, libproc fails   ", "posix", "darwin", "venv", None, _raise21),
+        ("Linux                  ", "posix", "linux", "venv", lambda: fake21(CODE21), fake21(CODE21))):
+    srv21.os = _NS20(name=os_name, getpid=lambda: 100)
+    srv21.sys = _NS20(platform=platform, prefix=prefix, base_prefix="base")
+    srv21._windows_process_info, srv21._mac_process_info = win, mac
+    print(f"21d read {tag}->", repr(srv21._read_launcher()))
+srv20._opener = _Opener20()
+SENT21 = []
+class _Opener21:
+    def open(self, req, timeout=None):
+        SENT21.append((req.full_url.rsplit(str(srv20.LISTENER_PORT), 1)[1], req.get_header("X-glyphbridge-client"), req.get_header("X-glyphbridge-launcher")))
+        return _Resp20(json.dumps({"open": True, "x": 1}).encode())
+srv20._opener = _Opener21()
+for name, launcher in (("claude-code", "claude.exe < claude.exe"), (None, "Claude < launchd"), ("claude-code", None), (None, None), ("x", "é.exe < a.exe")):
+    srv20._CLIENT["name"], srv20._LAUNCHER["value"] = name, launcher; SENT21.clear()
+    srv20._call_listener("/font/current"); srv20._call_listener_post("/glyph/width", {"name": "A", "width": 600})
+    print(f"21e sent {name!r:14} {launcher!r:26}->", SENT21)
+srv20._CLIENT["name"] = srv20._LAUNCHER["value"] = None
+_main21 = _src20.split('if __name__ == "__main__":')
+_block21 = _src20[_src20.index("# ---- launcher names (v0.35)"):_src20.index("# --------------------------------------------------------------------------", _src20.index("def _read_launcher"))]
+_code21 = "\n".join(l.split("#")[0] for l in _re19.sub(r'"""(?:.|\n)*?"""', '""', _block21).splitlines())
+_calls21 = [l for l in _src20.splitlines() if "_read_launcher()" in l and "def _read_launcher" not in l]
+print("21f read once, only when run as a program:", len(_calls21) == 1 and _calls21[0] in _main21[-1],
+      "| privacy scan of the launcher code, forbidden words found:",
+      [w for w in ("environ", "argv", "CommandLine", "QueryFullProcessImageName", "GetModuleFileName", ".uid", ".gid", "getlogin", "getpass", "expanduser", "pwd", "print(")
+       if w in _code21], "| scanned chars > 3000:", len(_code21) > 3000)

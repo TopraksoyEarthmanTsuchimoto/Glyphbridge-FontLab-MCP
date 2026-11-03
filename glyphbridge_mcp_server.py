@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.34)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.36)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.34"            # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.36"          # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 SAVE_REMINDER = "**You must save if you want to keep these changes: use the File menu or press Ctrl+S in FontLab.**"   # shown in CHAT only, never as a FontLab dialog
 DELETE_CONFIRM_TIMEOUT_SECONDS = 120.0  # time to let a human see and answer the FontLab dialog
@@ -83,7 +83,141 @@ def _note_client(ctx: Any) -> None:
 
 
 def _client_headers() -> dict:
-    return {"X-Glyphbridge-Client": quote(_CLIENT["name"], safe="")} if _CLIENT["name"] else {}
+    headers = {"X-Glyphbridge-Client": quote(_CLIENT["name"], safe="")} if _CLIENT["name"] else {}
+    if _LAUNCHER["value"]:
+        headers["X-Glyphbridge-Launcher"] = quote(_LAUNCHER["value"], safe="")
+    return headers
+
+
+# ---- launcher names (v0.35): the FILE NAME of the program that started this server process (two levels in v0.35,
+# one since v0.36), read ONCE when the server starts and sent unchanged in the X-Glyphbridge-Launcher header
+# ("claude.exe"; the listener shows it as "CLAUDE"). Privacy: file names only, never a path, an argument, an environment variable or a user
+# name, and nothing leaves 127.0.0.1. Windows: one Toolhelp process snapshot plus each process's start time; macOS:
+# libproc's proc_pidinfo (written and stub-tested, never run on a Mac); other systems: nothing. A parent that started
+# after its child is a reused process id and ends the walk. Any failure sends no header: no guess. A file name is only
+# a name: it does not prove what the program is, and it says nothing about the model. ----
+_LAUNCHER = {"value": None}
+LAUNCHER_LEVELS = 1  # v0.36: the second level only said how the app itself was opened (Explorer, launchd, a terminal)
+
+
+def _clean_launcher_name(value: Any) -> str | None:
+    """The file name part of a process name (any path dropped), cleaned like a client name, or None."""
+    if not isinstance(value, str):
+        return None
+    return _clean_client_name(re.split(r"[\\/]", value)[-1])
+
+
+def _walk_launchers(info: Any, pid: int, skip_own_launcher: bool) -> list[str]:
+    """Up to LAUNCHER_LEVELS file names above process pid. info(pid) gives (name, parent pid, start) or None.
+    skip_own_launcher: Windows runs a venv's Scripts\\python.exe as a launcher that starts the real interpreter, so
+    one parent with this process's own file name is passed over, once."""
+    me = info(pid)
+    if not me or me[2] is None:
+        return []
+    names, child, skipped = [], me, False
+    while len(names) < LAUNCHER_LEVELS:
+        parent = info(child[1]) if child[1] else None
+        if not parent or parent[2] is None or parent[2] > child[2]:
+            break
+        if skip_own_launcher and not skipped and not names and str(parent[0]).lower() == str(me[0]).lower():
+            skipped = True
+        else:
+            name = _clean_launcher_name(parent[0])
+            if not name:
+                break
+            names.append(name)
+        child = parent
+    return names
+
+
+def _windows_process_info() -> Any:
+    """info(pid) for _walk_launchers from one Toolhelp snapshot; the start time comes from GetProcessTimes."""
+    import ctypes
+    from ctypes import wintypes
+
+    class _Entry(ctypes.Structure):
+        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ProcessID", wintypes.DWORD),
+                    ("th32DefaultHeapID", ctypes.c_size_t), ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+                    ("th32ParentProcessID", wintypes.DWORD), ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD),
+                    ("szExeFile", ctypes.c_wchar * 260)]
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    k32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    k32.Process32FirstW.argtypes = k32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(_Entry)]
+    k32.OpenProcess.restype = wintypes.HANDLE
+    k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    k32.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    snapshot = k32.CreateToolhelp32Snapshot(0x2, 0)  # TH32CS_SNAPPROCESS
+    if not snapshot or snapshot == ctypes.c_void_p(-1).value:
+        raise OSError("no process snapshot")
+    table = {}
+    try:
+        entry = _Entry()
+        entry.dwSize = ctypes.sizeof(_Entry)
+        ok = k32.Process32FirstW(snapshot, ctypes.byref(entry))
+        while ok:
+            table[entry.th32ProcessID] = (entry.szExeFile, entry.th32ParentProcessID)
+            ok = k32.Process32NextW(snapshot, ctypes.byref(entry))
+    finally:
+        k32.CloseHandle(snapshot)
+
+    def start_time(pid: int) -> int | None:
+        handle = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return None
+        try:
+            times = [wintypes.FILETIME() for _ in range(4)]
+            if not k32.GetProcessTimes(handle, *(ctypes.byref(t) for t in times)):
+                return None
+            return (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+        finally:
+            k32.CloseHandle(handle)
+
+    def info(pid: int) -> Any:
+        if pid not in table:
+            return None
+        name, parent = table[pid]
+        return name, parent, start_time(pid)
+
+    return info
+
+
+def _mac_process_info(pid: int) -> Any:
+    """info(pid) for _walk_launchers through libproc (PROC_PIDTBSDINFO). The structure also holds user and group ids:
+    they are never read out of it."""
+    import ctypes
+
+    class _BsdInfo(ctypes.Structure):
+        _fields_ = [(n, ctypes.c_uint32) for n in ("flags", "status", "xstatus", "pid", "ppid", "uid", "gid", "ruid",
+                                                    "rgid", "svuid", "svgid", "rfu_1")] + \
+                   [("comm", ctypes.c_char * 16), ("name", ctypes.c_char * 32)] + \
+                   [(n, ctypes.c_uint32) for n in ("nfiles", "pgid", "pjobc", "tdev", "tpgid")] + \
+                   [("nice", ctypes.c_int32), ("start_sec", ctypes.c_uint64), ("start_usec", ctypes.c_uint64)]
+
+    lib = ctypes.CDLL("/usr/lib/libproc.dylib")
+    data = _BsdInfo()
+    if lib.proc_pidinfo(ctypes.c_int(pid), ctypes.c_int(3), ctypes.c_uint64(0), ctypes.byref(data),
+                        ctypes.c_int(ctypes.sizeof(data))) != ctypes.sizeof(data):
+        return None
+    name = (data.name or data.comm).decode("utf-8", "replace")
+    return name, data.ppid, (data.start_sec, data.start_usec)
+
+
+def _read_launcher() -> str | None:
+    """The launcher text for the header, or None. Never raises."""
+    try:
+        if os.name == "nt":
+            info = _windows_process_info()
+            names = _walk_launchers(info, os.getpid(), sys.prefix != sys.base_prefix)
+        elif sys.platform == "darwin":
+            names = _walk_launchers(_mac_process_info, os.getpid(), False)
+        else:
+            return None
+    except Exception:
+        return None
+    return " < ".join(names) or None
 
 NOT_REACHABLE = (
     f"Cannot reach the Glyphbridge listener at {BASE_URL}. Make sure FontLab 8 "
@@ -2675,6 +2809,7 @@ def _self_check() -> None:
 
 
 if __name__ == "__main__":
+    _LAUNCHER["value"] = _read_launcher()  # once, at startup (v0.35); never when the file is imported by the tests
     if ("--check" in sys.argv or "--with-write-test" in sys.argv or "--outline" in sys.argv
             or "--notdef-warn" in sys.argv):
         _self_check()

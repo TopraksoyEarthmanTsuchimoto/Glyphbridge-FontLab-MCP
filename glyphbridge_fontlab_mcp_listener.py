@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.108)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.110)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -24,6 +24,10 @@ as one summary line (see _ACTIVITY_LOG). Since v0.105 each line starts with the 
 X-Glyphbridge-Client header ("[claude-code > Glyphbridge]"), and reads answered "no font open" are listed apart.
 Since v0.106 the config entry name "glyphbridge-fontlab" is left out of the name shown: the apps send
 "local-agent-mode-glyphbridge-fontlab", which would repeat Glyphbridge ("[local-agent-mode > Glyphbridge]").
+Since v0.109 a line without a client name starts with "[Glyphbridge]" (no guessed name), and the first time a client
+name comes with a new X-Glyphbridge-Launcher value (the file name of the program that started the server, read by the
+server from the operating system) one line names both ("[glyphbridge] local-agent-mode | CLAUDE"); the first pair is in
+the "Connected" line. Since v0.110 the launcher is shown without ".exe" and in capitals, alike on Windows and macOS.
 
 NO FONT OPEN (v0.105): every product route answers {"open": false} when CountFonts() is 0 (see _open_font):
 with no font open, CurrentFont() still returns a placeholder font.
@@ -138,7 +142,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.108"
+VERSION = "0.110"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -147,6 +151,8 @@ _sock = None
 _timer = None
 _connection_announced = False
 _request_client = None  # the cleaned X-Glyphbridge-Client name of the request being served (v0.105)
+_request_launcher = None  # the X-Glyphbridge-Launcher value of the request being served, as shown (v0.109, v0.110)
+_announced_clients = set()  # (client, launcher) pairs already named in this listener run (v0.109)
 
 
 # --------------------------------------------------------------------------
@@ -4094,7 +4100,7 @@ _NOTDEF_TITLE = "Glyphbridge: .notdef glyph"
 _NOTDEF_EXPLAIN = (
     "The .notdef is the glyph that shows when your font doesn't contain a character that is being typed. "
     "It is usually drawn as a rectangle, often with a question mark or an X inside, as the OpenType "
-    "specification recommends.\n\n(Shown once per font per session by Glyphbridge, because an AI agent read this font.)")
+    "specification recommends.")
 _NOTDEF_DIALOG_TEXT = {
     "empty": "It looks like you haven't created a proper .notdef glyph yet. " + _NOTDEF_EXPLAIN,
     "missing": "Your font has no glyph named .notdef. Every font needs one (it must be glyph 0). " + _NOTDEF_EXPLAIN,
@@ -6566,9 +6572,11 @@ def _route(method, full_path, body=b""):
                 _connection_announced = True
                 ts = datetime.datetime.now().strftime("%H:%M:%S")
                 # Any local client can send it (--check, a PowerShell call): the name is the client's own claim (v0.105).
-                who = f'"{_request_client}" (the name the client gave, shortened as in the log)' if _request_client else "a local client"
-                print(f"[glyphbridge] Connected at {ts} - first request (GET /health) from {who} "
-                      f"to this FontLab session.")
+                who = f'"{_request_client}"' if _request_client else "a local client"
+                if _request_launcher:  # v0.109: the program that started the server; this pair needs no line of its own
+                    who += f" | {_request_launcher}"
+                    _announced_clients.add((_request_client, _request_launcher))
+                print(f"[glyphbridge] Connected at {ts} - first request (GET /health) from {who}.")
             return _build_response(200, {"status": "ok"})
 
         if path == "/version":
@@ -7201,13 +7209,16 @@ def _parse_headers(head_bytes):
 # request (checked by the poll timer), or at /shutdown. Every entry point swallows its own errors: logging can never
 # change a reply. v0.105: every line names the client that sent the X-Glyphbridge-Client header (its own claim, not
 # checked); the summaries are printed when the client changes, so one line never mixes two clients. A read answered
-# {"open": false} is listed under "no font open" instead of as a read.
+# {"open": false} is listed under "no font open" instead of as a read. v0.109: a line without a client name starts with
+# "[Glyphbridge]" (no guessed name); a new (client, X-Glyphbridge-Launcher) pair gets one "[glyphbridge] <client> |
+# <LAUNCHER>" line in every log mode, like the "Connected" line.
 # --------------------------------------------------------------------------
 _ACTIVITY_LOG = "normal"     # "normal" (changes and read summaries), "writes" (changes only) or "off"
 _ACTIVITY_RUN_SHOWN = 3      # verified changes of one kind printed in a row before they are only counted
 _ACTIVITY_IDLE_S = 10.0      # an agent's tool calls arrive seconds apart, so a shorter pause would split one run into many
 _ACTIVITY_TEXT_MAX = 120     # longest reason or name quoted in a line
 _ACTIVITY_CLIENT_MAX = 40    # longest client name shown
+_ACTIVITY_LAUNCHER_MAX = 40  # longest launcher name shown (the server sends one file name of at most 40 characters)
 _ACTIVITY_SHORT_REPLY = 4096  # only replies up to this size are parsed for "open": false (a no-font reply is tiny)
 
 _ACT = {"kind": None, "shown": 0, "more": 0, "reads": {}, "no_font": {}, "kern_pairs": 0, "read_errors": 0, "last": 0.0,
@@ -7232,7 +7243,8 @@ def _clock():
 
 
 def _act_print(text):
-    print(f"[{_ACT['client'] or 'unknown agent'} > Glyphbridge] {_now_hms()} {text}")
+    who = f"[{_ACT['client']} > Glyphbridge]" if _ACT["client"] else "[Glyphbridge]"
+    print(f"{who} {_now_hms()} {text}")
 
 
 def _act_client(raw):
@@ -7248,6 +7260,29 @@ def _act_client(raw):
         rest = " ".join(part for part in (name[:at].rstrip("-_. "), name[end:].lstrip("-_. ")) if part)
         name = rest or name
     return name[:_ACTIVITY_CLIENT_MAX] or None
+
+
+def _act_launcher(raw):
+    """The X-Glyphbridge-Launcher value (percent-encoded UTF-8, a file name such as "claude.exe") as shown, or None:
+    cleaned for one line, only the first name when an older server sent "a < b" (v0.109), one final ".exe" removed and
+    in capitals ("CLAUDE"; a macOS name has no extension, v0.110). The server's own reading, not checked here."""
+    if not isinstance(raw, str):
+        return None
+    text = "".join(ch for ch in unquote(raw, errors="replace") if not (ord(ch) < 32 or 127 <= ord(ch) <= 159))
+    name = " ".join(text.split()).split(" < ")[0].strip()
+    if name.lower().endswith(".exe"):
+        name = name[:-4].rstrip()
+    return name.upper()[:_ACTIVITY_LAUNCHER_MAX] or None
+
+
+def _act_announce(client, launcher):
+    """Print one "[glyphbridge] <client> | <LAUNCHER>" line the first time a (client, launcher) pair comes in this
+    listener run; the pending summaries go first. Without a launcher nothing is printed (v0.109, v0.110)."""
+    if not launcher or (client, launcher) in _announced_clients:
+        return
+    _announced_clients.add((client, launcher))
+    _act_flush()
+    print(f"[glyphbridge] {client} | {launcher}" if client else f"[glyphbridge] {launcher}")
 
 
 def _act_text(value):
@@ -7359,13 +7394,14 @@ def _act_describe_write(path, payload, code, reply):
     return f"NOT DONE {head}: {why}{changed}", False
 
 
-def _activity_note(method, raw_path, body, response, client=None):
+def _activity_note(method, raw_path, body, response, client=None, launcher=None):
     """Log one served request (called by _handle with the reply about to be sent and the raw X-Glyphbridge-Client
-    header). Never raises."""
+    and X-Glyphbridge-Launcher headers). Never raises."""
     try:
+        client = _act_client(client)
+        _act_announce(client, _act_launcher(launcher))
         if _ACTIVITY_LOG == "off":
             return
-        client = _act_client(client)
         if client != _ACT["client"]:
             _act_flush()  # the pending summaries belong to the previous client
             _ACT["client"] = client
@@ -7425,7 +7461,7 @@ def _activity_tick():
 
 
 def _handle(conn):
-    global _request_client
+    global _request_client, _request_launcher
     try:
         conn.settimeout(1.0)
         data = b""
@@ -7459,16 +7495,17 @@ def _handle(conn):
         body = body[:content_length]
 
         _request_client = _act_client(headers.get("x-glyphbridge-client"))
+        _request_launcher = _act_launcher(headers.get("x-glyphbridge-launcher"))
         response = _route(method, path, body)
         # before sending: a change is logged even if the client is gone
-        _activity_note(method, path, body, response, headers.get("x-glyphbridge-client"))
+        _activity_note(method, path, body, response, headers.get("x-glyphbridge-client"), headers.get("x-glyphbridge-launcher"))
         conn.sendall(response)
         if method == "GET" and path == "/shutdown":
             stop()
     except Exception:
         pass
     finally:
-        _request_client = None
+        _request_client = _request_launcher = None
         try:
             conn.close()
         except Exception:
@@ -7525,6 +7562,7 @@ def start():
         return
 
     _connection_announced = False  # a fresh listener session gets its own first-connect announcement
+    _announced_clients.clear()     # and its own "New client" lines
     _sock = s
     _timer = QtCore.QTimer()
     _timer.setInterval(POLL_MS)

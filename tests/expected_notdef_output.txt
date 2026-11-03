@@ -18,13 +18,13 @@
 2a  empty -> shown: True | already_warned: False | dialogs: 1
     icon: Information | buttons: Ok 
     title: Glyphbridge: .notdef glyph 
-    text : "It looks like you haven't created a proper .notdef glyph yet. The .notdef is the glyph that shows when your font doesn't contain a character that is being typed. It is usually drawn as a rectangle, often with a question mark or an X inside, as the OpenType specification recommends.\n\n(Shown once per font per session by Glyphbridge, because an AI agent read this font.)"
+    text : "It looks like you haven't created a proper .notdef glyph yet. The .notdef is the glyph that shows when your font doesn't contain a character that is being typed. It is usually drawn as a rectangle, often with a question mark or an X inside, as the OpenType specification recommends."
 2b  second call, same font -> shown: False | already_warned: True | dialogs: 1
 2c  force=true -> shown: True | dialogs: 2
 2d  force="yes" (not boolean true) -> shown: False | already_warned: True
 2e  different font path -> shown: True | dialogs: 3
 2f  missing -> shown: True | status: missing 
-    text : "Your font has no glyph named .notdef. Every font needs one (it must be glyph 0). The .notdef is the glyph that shows when your font doesn't contain a character that is being typed. It is usually drawn as a rectangle, often with a question mark or an X inside, as the OpenType specification recommends.\n\n(Shown once per font per session by Glyphbridge, because an AI agent read this font.)"
+    text : "Your font has no glyph named .notdef. Every font needs one (it must be glyph 0). The .notdef is the glyph that shows when your font doesn't contain a character that is being typed. It is usually drawn as a rectangle, often with a question mark or an X inside, as the OpenType specification recommends."
 2g  drawn    -> status: has_outline | shown: False | dialogs: 0 | no warning needed: .notdef has an outline
 2g  unknown  -> status: unknown | shown: False | dialogs: 0 | could not be determined, so no warning was shown
 2g  two lyrs -> status: unknown | shown: False | dialogs: 0 | could not be determined, so no warning was shown

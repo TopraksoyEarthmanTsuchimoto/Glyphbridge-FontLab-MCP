@@ -2,6 +2,16 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-03: who sent a request, facts only
+
+- **A missing client name stays missing:** the log line starts with `[Glyphbridge]`; the `.notdef` dialog drops its closing line about "an AI agent". *Reason:* the user's choice; the listener cannot know an agent sent a request (test 236: `curl`).
+- **The server sends the file name of the program that started it (option C)**, read once at startup with the standard library on Windows and macOS; the listener shows it without `.exe`, in capitals, once per new pair. Only file names: no path, argument, environment variable, user name or other app's file; a failure shows nothing. *Reason:* the user's choice: a system fact, no new dependency. Rejected: command lines, app configs, self-naming, `psutil`.
+- **`local-agent-mode` stays as sent** for now.
+
+## 2026-11-03: CURRENT-STATUS and DECISIONS budgets
+
+- **The CURRENT-STATUS.md budget goes from 1,250 to 1,350 words, and the DECISIONS.md budget (active part) from 1,200 to 1,350.** The reference totals become 9,700 including the root README, and 9,200 for the startup core files. *Supersedes* the 2026-11-01 CURRENT-STATUS budget entry (archived). *Reason:* the user's choice; CURRENT-STATUS used 1,197 of 1,250 words and DECISIONS 1,207 of 1,200, with the rest of the K-series and the T-series still to record.
+
 ## 2026-11-03: proven container calls on native objects
 
 - **Container access (`[]`, `get`, `keys`, `values`, `items`, `has_key`, iteration) on a native FontLab object is forbidden until proven, per object and call form.** The proven calls form one table in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10, with their test numbers. This replaces the blanket ban and its two one-off exceptions (the kerning `get`, the K11 `keys()`). *Reason:* the user's choice, the tidiest option. The ban rests on one crash (`font.shapes`), the `keys()` exception was noticed only after the live runs, and one proof path keeps the rules and the reports consistent.
@@ -13,10 +23,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 ## 2026-11-01: kerning reads need exactly one open font
 
 - **`get_kerning` (listener 0.104 / server 0.33) refuses when not exactly one font is open**, and says so. *Reason:* it reads `flPackage.kerning(master)` of the workspace's current package, and which package belongs to `CurrentFont()` with several fonts open is unproven (T5). Approved with the P0.8 build; lifted only after T5.
-
-## 2026-11-01: CURRENT-STATUS budget
-
-- **The CURRENT-STATUS.md budget goes from 900 to 1,000 words, then to 1,250.** The reference totals become 9,450 including the root README, and 8,950 for the startup core files. *Reason:* the user's choice; the file used 845 of 900 words, then 935 of 1,000, with the activity log, P0.8 and the rest of the K-series still to record.
 
 ## 2026-11-01: listener version numbers
 

@@ -11,14 +11,14 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [README.md](README.md) | introduction for outside developers | 700 |
 | [PROJECT.md](PROJECT.md) | goals, scope, non-goals, design rule | 850 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | processes, APIs, verification model, tools, layout | 1,600 |
-| [CURRENT-STATUS.md](CURRENT-STATUS.md) | where the project stands and what comes next | 1,250 |
-| [DECISIONS.md](DECISIONS.md) | active decisions with dates and reasons | 1,200 (active part) |
+| [CURRENT-STATUS.md](CURRENT-STATUS.md) | where the project stands and what comes next | 1,350 |
+| [DECISIONS.md](DECISIONS.md) | active decisions with dates and reasons | 1,350 (active part) |
 | [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 900 |
 | [CHECKLIST.md](CHECKLIST.md) | open scenarios | 1,300 |
 
 Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, has a budget of 500.
 
-**Reference totals:** 9,450 words including the root README, and 8,950 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. On 2026-11-01, CLAUDE.md (200) was added, CHECKLIST.md was raised from 1,000 to 1,300 and CURRENT-STATUS.md from 800 to 1,250 ([DECISIONS.md](DECISIONS.md)).
+**Reference totals:** 9,700 words including the root README, and 9,200 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. On 2026-11-01, CLAUDE.md (200) was added, CHECKLIST.md was raised from 1,000 to 1,300 and CURRENT-STATUS.md from 800 to 1,250. On 2026-11-03, CURRENT-STATUS.md was raised to 1,350 and DECISIONS.md from 1,200 to 1,350 ([DECISIONS.md](DECISIONS.md)).
 
 ## Linked files (read when the task needs them; no budget)
 

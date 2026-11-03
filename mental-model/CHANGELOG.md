@@ -4,6 +4,24 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.110 / server v0.36 (2026-11-03)
+
+**One launcher, shown briefly and alike on Windows and macOS.**
+- **Server:** reads one level only (`LAUNCHER_LEVELS = 1`): the second name only said how the app itself was opened (Explorer, launchd, a terminal), and Explorer's own names follow the system language. The file name is sent unchanged.
+- **Listener:** shows the launcher without one final `.exe` (any case) and in capitals (`claude.exe` -> `CLAUDE`; a macOS name has no extension), at most 40 characters; from an older server's `a < b` only the first name. Lines: `Connected at … - first request (GET /health) from "local-agent-mode" | CLAUDE.` and, for a later new pair, `[glyphbridge] local-agent-mode | CLAUDE` (without a name: `[glyphbridge] CLAUDE`). The Connected line no longer says "(the name the client gave, shortened as in the log)", "started by" or "to this FontLab session".
+- Tests: cases 1490 (display rule: `.exe` case, `x.exe.exe`, `é`, `ß`, an older two-name value) and 1491–1497 updated; server part 21 walks give one name. Existing output changed otherwise only in the Connected lines and the version lines. Mutation run: 41 of 42 killed (26 listener, 16 server); the first run's survivor S3 (an unreadable start time on the first launcher accepted) led to the walk case "level 1 start unreadable"; S5 (the venv skip after a name) is equivalent with one level.
+- Live 2026-11-03 (tests 240–242, Arial), every line as predicted: the Code tab's `fontlab_status` gave `Connected at 03:16:41 - first request (GET /health) from "local-agent-mode" | CLAUDE.`; `curl` gave `[Glyphbridge] 03:16:55 reads: font info 1`; the Desktop chat (241) gave only `[local-agent-mode > Glyphbridge] 03:17:33 reads: font info 1` (same pair, no second line). Not live: macOS, a second pair in one listener run.
+
+## Listener v0.109 / server v0.35 (2026-11-03)
+
+**Facts only about who sent a request:** no guessed client name, and the programs that started the server.
+- **Listener, no guesses:** a line without a client name starts with `[Glyphbridge]` (was `[unknown agent > Glyphbridge]`; test 236 showed the sender was `curl`). The `.notdef` dialog no longer ends with "(Shown once per font per session by Glyphbridge, because an AI agent read this font.)"; it still appears at most once per font and listener run.
+- **Listener, launcher:** reads the `X-Glyphbridge-Launcher` header (percent-decoded, control characters removed, at most 90 characters). The first time a client name comes with a new launcher value in a listener run, it prints `[glyphbridge] New client: <name>, started by <launcher>` (without a name: `New client, started by …`), after the pending summaries and in every log mode. The first pair is named in the "Connected" line instead. No header, no line. Summaries still split by client name only.
+- **Server:** reads once at startup (never on import) the file names of the two programs above its process, and sends them as `X-Glyphbridge-Launcher: claude.exe < claude.exe`. File names only: no path, argument, environment variable or user name. Windows: one Toolhelp process snapshot plus each process's start time; in a venv, one parent with the server's own file name (the venv launcher) is skipped. A parent that started after its child (a reused process id), or whose start time is unreadable, ends the walk. macOS: libproc `proc_pidinfo`, written and stub-tested, never run on a Mac. Other systems, or any failure: no header. Tool schemas unchanged.
+- Tests: listener cases 1490–1499, server part 21 (21a–21f, with a privacy scan of the launcher code). Existing output changed only in the version lines, the 86 `unknown agent` prefixes and the two `.notdef` texts. Mutation run: 33 of 33 killed (17 listener, 16 server; two first survivors led to cases 1491b and the walk "a python further up"). The real Windows calls (`_windows_process_info`) and the macOS calls are not reachable by stubs.
+- Before the build, outside FontLab: a research script read `claude.exe < explorer.exe` above the Desktop chat's servers and `claude.exe < claude.exe` above the Code sessions' servers; the built reader gave `powershell.exe < cmd.exe` and `bash.exe < bash.exe` from two shells.
+- Live 2026-11-03 (tests 237–239, Arial): the Code tab's `fontlab_status` gave the Connected line with `started by claude.exe < explorer.exe`. The prediction `claude.exe < claude.exe` was **wrong**: the call came through a server the Desktop app started, not the one the Code session started from `.mcp.json` (process list). The Desktop chat (238) gave no new line, as revised: same launcher. `curl` (239) gave `[Glyphbridge] 02:13:19 reads: font info 1`.
+
 ## Listener v0.108 / server v0.34 (2026-11-03)
 
 **Two more stages for `/debug/features` (K11)**; the server is unchanged.
@@ -11,7 +29,7 @@ Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listene
 - `stage=lines&tag=T&contains=a,b,c&go=yes`: the size, and only the lines that name 1–3 glyph or class names (`A-Z a-z 0-9 . _ - @`, 1–63 characters) as whole words: at most 20 per name, each cut at 200 characters. Only `stage=lines` takes `contains`.
 - The same calls, gate, one-font rule and cap (10 requests per listener run, all stages together) as v0.107.
 - Tests: cases 1470–1485; existing output changed in the version lines, the reworded go and stage messages (1440–1443) and the scan of 1466 (the helper's local names). Mutation run: 25 of 25 killed (13 of v0.107, 12 new), each by a case, not only by a scan.
-- Not yet run in FontLab.
+- Live 2026-11-03 on Arial: tests 233 (`shape`) and 234 (`lines`), [topics/kerning.md](topics/kerning.md) §11.
 
 ## Listener v0.107 / server v0.34 (2026-11-03)
 

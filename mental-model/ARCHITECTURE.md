@@ -16,10 +16,11 @@ FontLab 8
    - FontLab gives background threads no CPU while it idles, so a `QTimer` polls a non-blocking socket every 25 ms on the main thread. Every `fontlab` call therefore runs on FontLab's main thread, and a long request keeps FontLab busy.
    - It imports `QMessageBox` from `PythonQt.QtGui`, falling back to `PythonQt.QtWidgets`.
    - While a FontLab dialog it opened is waiting for a click, nothing else is served, and other calls time out (live-verified).
-   - It prints one short line per change, and a summary of reads, in FontLab's OUTPUT panel, built only from each request and its reply (v0.102), naming the client that sent it (v0.105): [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4.
+   - It prints one short line per change, and a summary of reads, in FontLab's OUTPUT panel, built only from each request and its reply (v0.102), naming the client that sent it (v0.105) and, once per new client, the program that started the server (v0.109, `| CLAUDE` since v0.110): [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4.
 2. **Server** (`glyphbridge_mcp_server.py`, `SERVER_VERSION` in the file). A normal MCP server, launched over stdio by the AI app. It **never imports `fontlab`**. All interpretation lives here: curve rebuild, transform maths, verification, name rules, Unicode instructions, save-policy bookkeeping, and the `agent_instruction` texts.
    - `MIN_LISTENER_VERSION` is `(0, 82)`. Newer tools check the listener version they need before sending anything.
    - Request timeout: 5 s by default, longer for kerning reads and for dialogs that wait for a click.
+   - Every request carries the app's own name and, read once at startup from the operating system, the file name of the program that started the server (`X-Glyphbridge-Client`, `X-Glyphbridge-Launcher`; v0.34, v0.35 / v0.36).
 
 Effect of the split: the AI app starts the server in its own Python with its own libraries. FontLab access stays in one small HTTP surface, so every FontLab call is easy to audit and can be tested with stubs.
 

@@ -4380,3 +4380,59 @@ fl.CurrentFont = _ft_cur
 if _ft_cf is not None: fl.CountFonts = _ft_cf
 elif hasattr(fl, "CountFonts"): delattr(fl, "CountFonts")
 ns["_FEATURES"]["calls"] = 0
+
+# ================= v0.109 / v0.110: no guessed client name; the launcher name (X-Glyphbridge-Launcher) in one line per new pair =================
+print("\n==== v0.109 / v0.110 launcher name, no guessed client name ====")
+_lc_saved = {k: ns[k] for k in ("_now_hms", "_clock")}
+ns["_now_hms"], ns["_clock"] = (lambda: "12:00:00"), (lambda: AL_CLOCK[0])
+def lc(path, reply, client=None, launcher=None, method="GET", code=200, body=b""):
+    ns["_activity_note"](method, path, body, ns["_build_response"](code, reply), client, launcher)
+def lc_fresh():
+    ns["_announced_clients"].clear(); ns["_connection_announced"] = False; al_reset()
+LC_CODE = "claude.exe"
+LC_CHAT = "powershell.exe"
+LC_NAME = "local-agent-mode-glyphbridge-fontlab"
+for raw in (LC_CODE, "Claude.EXE", "Claude", "x.exe.exe", "node", "%C3%A9.exe", "stra%C3%9Fe", ".exe", " .exe", "app .exe", "exe",
+            "claude.exe%20%3C%20explorer.exe", "claude.exe < explorer.exe", "%20%3C%20b.exe", "a%0Ab%09c%7Fd%20%20e", "z" * 100, "", "%20%20", None, 5,
+            "bad%ZZname"):
+    print(f"1490 launcher {str(raw)[:40]!r:44}->", repr(ns["_act_launcher"](raw)))
+print("1490b broken UTF-8 becomes U+FFFD (escaped here):", ascii(ns["_act_launcher"]("ab%C3")))
+lc_fresh(); al_case("1491 the first /health names client and launcher in 'Connected'; that pair gets no second line:")
+ns["_handle"](PLConn(b"GET /health HTTP/1.1\r\nX-Glyphbridge-Client: " + LC_NAME.encode() + b"\r\nX-Glyphbridge-Launcher: " + LC_CODE.encode() + b"\r\n\r\n"))
+lc("/font/current", {"open": True}, LC_NAME, LC_CODE)
+print("1491 pairs:", sorted(ns["_announced_clients"]), "| request launcher after:", ns["_request_launcher"])
+al_case("1491b a later request through _handle with a new launcher gets its 'New client' line:")
+ns["_handle"](PLConn(b"GET /health HTTP/1.1\r\nX-Glyphbridge-Client: " + LC_NAME.encode() + b"\r\nX-Glyphbridge-Launcher: bash.exe\r\n\r\n"))
+ns["_handle"](PLConn(b"GET /health HTTP/1.1\r\nX-Glyphbridge-Client: " + LC_NAME.encode() + b"\r\nX-Glyphbridge-Launcher: bash.exe\r\n\r\n"))
+al_case("1492 the same name from another launcher: pending reads first, then one 'New client' line, never twice:")
+lc("/glyph/width?name=A", {"open": True}, LC_NAME, LC_CHAT)
+lc("/glyph/width?name=B", {"open": True}, LC_NAME, LC_CHAT)
+lc("/glyph/width?name=C", {"open": True}, LC_NAME, LC_CODE)
+al_tick(10)
+lc_fresh(); al_case("1493 a launcher without a client name; then no launcher at all (curl, PowerShell): no line, prefix [Glyphbridge]:")
+lc("/font/current", {"open": True}, None, LC_CHAT)
+lc("/font/current", {"open": True}, None, None)
+lc("/font/current", {"open": True}, "", "%20")
+al_tick(10)
+print("1493 pairs:", sorted(ns["_announced_clients"], key=str))
+lc_fresh(); al_case("1494 a change from a client without a name has the [Glyphbridge] prefix:")
+lc("/glyph/create", {"open": True, "created": True, "before_count": 3, "after_count": 4}, None, None, "POST", body=b'{"name": "lc1A"}')
+lc_fresh(); al_case("1495 log mode off: the 'New client' line is still printed, nothing else:")
+al_reset("off")
+lc("/glyph/create", {"open": True, "created": True, "before_count": 3, "after_count": 4}, LC_NAME, LC_CODE, "POST", body=b'{"name": "lc1B"}')
+lc("/font/current", {"open": True}, LC_NAME, LC_CODE)
+al_tick(10)
+lc_fresh(); al_case("1496 'Connected' with a launcher but no client name; with neither:")
+ns["_handle"](PLConn(b"GET /health HTTP/1.1\r\nX-Glyphbridge-Launcher: " + LC_CHAT.encode() + b"\r\n\r\n"))
+ns["_connection_announced"] = False
+ns["_handle"](PLConn(b"GET /health HTTP/1.1\r\n\r\n"))
+print("1496 pairs:", sorted(ns["_announced_clients"], key=str))
+lc_fresh(); al_case("1497 an evil launcher value is one clean line; a long one is cut at 40 characters:")
+lc("/font/current", {"open": True}, "claude-code", "x.exe%0A%5Bglyphbridge%5D%20fake%0D")
+lc("/font/current", {"open": True}, "claude-code", "y" * 120)
+print("1498 start() clears the pairs:", "_announced_clients.clear()" in src[src.index("def start("):],
+      "| _handle resets the request launcher:", "_request_client = _request_launcher = None" in src[src.index("def _handle("):src.index("def _poll(")])
+print("1499 .notdef texts end:", [t[-40:] for t in ns["_NOTDEF_DIALOG_TEXT"].values()], "| 'AI agent' in the source:", "an AI agent read" in src)
+for k, v in _lc_saved.items(): ns[k] = v
+ns["_announced_clients"].clear(); ns["_connection_announced"] = False
+al_reset(_al_saved["_ACTIVITY_LOG"])
