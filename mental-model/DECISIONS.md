@@ -2,6 +2,19 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-03: several open fonts
+
+- **`get_kerning` with several fonts open** (listener 0.112 / server 0.37, tests 265–268): it uses the current package only when its `path` is not empty and equals the current font's path, and otherwise refuses with the reason. *Supersedes* "kerning reads need exactly one open font" (2026-11-01, archived). *Reason:* the user approved it after T5 (262–264) showed that both views follow the font window in front and that `path` tells the fonts apart.
+- **Goal: every operation works with 2, 3 or more fonts open, without confusion.** Closing the other fonts is the last resort, only where it is the only way to a goal. Then the tool tells the person to close them, and why: a limitation of how FontLab is built, shown by research, which Glyphbridge cannot work around. Until research has shown that, the message says the case is not supported yet. *Reason:* the user's choice, within the design rule of honest messages ([PROJECT.md](PROJECT.md)).
+
+## 2026-11-03: DECISIONS.md budget 1,700
+
+- **The DECISIONS.md budget (active part) goes from 1,350 to 1,450 words, then on the same day to 1,700**; the reference totals become 10,050 including the root README, and 9,550 for the startup core files. Three entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md): the CLAUDE.md and CHECKLIST.md budgets of 2026-11-01 (the budgets are in [MARKDOWN-MAP.md](MARKDOWN-MAP.md), their totals were out of date) and the K-series priority of 2026-10-27 (the K-series is done). *Reason:* the user's choice; after the watch-points decision the file used 1,313 of 1,350 words, with the decision on `get_kerning` and several fonts still to come; that decision left 36 words, hence 1,700.
+
+## 2026-11-03: watch points get their own file
+
+- **The watch points move from CURRENT-STATUS.md to a new [WATCH-POINTS.md](WATCH-POINTS.md)**, with a budget of 750 words; it is not a startup core file. CURRENT-STATUS keeps the number of open entries and a link; the list of test numbers in use moves to [LIVE-TESTS.md](LIVE-TESTS.md). The CURRENT-STATUS budget stays at 1,350. *Reason:* the user's idea: CURRENT-STATUS had reached 1,338 of 1,350 words, a third of it watch points, and observations that are not yet explained are one kind of fact with their own life: recorded, then settled into a topic file or dropped.
+
 ## 2026-11-03: K15 dropped
 
 - **K15 (a kerning POST body near and above the 1,000,000-byte limit, about 30,000 pairs) will not be run.** The limit stays stub-tested only. *Reason:* the user's choice: it adds no significant value, since agents read only the pairs a task needs and more than 250 needs the person's approval (K8), and 2,000 pairs already read in under 0.1 s (K14).
@@ -20,10 +33,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 - **The log shows the name the app sends by itself** (MCP `clientInfo`), without the config entry name `glyphbridge-fontlab`. No label is set in the MCP configs. *Reason:* the user's choice: an ambiguous automatic name such as `local-agent-mode` is enough, and the configs stay untouched.
 
-## 2026-11-01: kerning reads need exactly one open font
-
-- **`get_kerning` (listener 0.104 / server 0.33) refuses when not exactly one font is open**, and says so. *Reason:* it reads `flPackage.kerning(master)` of the workspace's current package, and which package belongs to `CurrentFont()` with several fonts open is unproven (T5). Approved with the P0.8 build; lifted only after T5.
-
 ## 2026-11-01: kerning groups
 
 - **AI agents must be able to see which groups have which members** ([ROADMAP.md](ROADMAP.md) P1.6; proposed first and built only after approval). *Supersedes* "group membership is deliberately not read". *Reason:* K9 and the KERNING panel method depended on membership, which only FontLab's Classes panel could show; the members of one group are a small read.
@@ -34,8 +43,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 - **`.gitignore` lists only what this project produces.** *Reason:* the generic Python template made the repository look less maintained.
 
 - **The repository is the source of truth.** The project follows [HOW-TO-GET-ORGANIZED.md](HOW-TO-GET-ORGANIZED.md), with all documentation in `mental-model/`. *Reason:* milestone summaries had grown to about 28,000 words, and every new chat had to rebuild the context. *Supersedes* "the milestone summary is the single source of truth".
-- **CLAUDE.md joins the core set with a 200-word budget.** The reference total becomes 8,700 words including the root README, and 8,200 for the startup core files. *Reason:* Claude Code reads CLAUDE.md automatically, so it costs context in every session.
-- **The CHECKLIST.md budget goes from 1,000 to 1,300 words.** The reference totals become 9,000 including the root README, and 8,500 for the startup core files. *Reason:* the first version used 994 of 1,000 words, which left no room for new scenarios.
 - **`tests/README.md` stays in `tests/`**, an exception to the "all Markdown in `mental-model/`" rule. *Reason:* the user's choice, so it stays next to the harnesses it describes.
 - **The repository is public.** Live files contain no personal paths, names, time zones or locales. *Reason:* the user's choice. The v11 summary snapshot was trimmed of those details before the first push.
 - **The project folder is the cloned repository.** The scripts stay at the root, and the server uses its own `venv` there (Python 3.15.2, `mcp==2.2.0`, ignored by git). *Reason:* `run_all.py` reads the scripts from the parent of `tests/`, and the MCP configs point at the root.
@@ -47,7 +54,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 - **Read only the pairs a task needs, never the whole kerning table or font.** *Reason:* token cost.
 - **There are no hard limits, but there is a threshold at 250 pairs.** Above it the agent must warn the person, say how many pairs and why, and ask. Only after a yes may it repeat the call with `confirmed_large_read=true`. *Reason:* the user's words: "Let there be no hard limits and let there be a threshold at 250."
-- **Priority: the K-series of kerning live tests comes before the T-series.**
 
 ## 2026-10-24: v10 session
 

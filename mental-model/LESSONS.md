@@ -28,6 +28,8 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 
 - **FontLab is the oracle; stubs are not FontLab.** Several theories that looked right in stubs were wrong live ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md), §9).
 - **Predict before you measure.** For curve tests, compute the exact extents independently and write them down before drawing. Agreement only means something then.
+- **Predictions must include how FontLab stores numbers.** The T4 prediction for sidebearings 50 / 60 shifted the nodes by the exact −52.1548; FontLab moved them by a whole −52 (test 145c). Ask whether a target can be reached in whole units before predicting it.
+- **A write can land in the element transform, not in the nodes.** In 145f the node list of `A` was unchanged while its margins had moved: `setSB` had set the Power Brush element's dx to −142. Read the element matrix before concluding anything from node lists.
 - **Mutation testing finds missing tests.** A surviving mutation showed, for example, that a shipped default was tested only after the harness had already changed it.
 - **A GUI that did not change does not prove a write failed.** FontLab caches editor numbers per tab ([topics/fonts-and-sync.md](topics/fonts-and-sync.md), §8f).
 - **Stale tool descriptions:** after a server update Claude may show old tool texts until Claude Desktop has been fully restarted a second time.

@@ -19,12 +19,13 @@ As of October 2026 there was only one MCP project for FontLab on GitHub which at
 2. **Write geometry a designer needs.** Today: width, sidebearings, and closed straight and cubic contours into an empty glyph. Next: open contours, several shapes, editing existing outlines (P2).
 3. **Read kerning cheaply.** Only the pairs the task needs, using FontLab's own effective values, class kerning included ([topics/kerning.md](topics/kerning.md)).
 4. **Make new fonts usable by agents**: a create-font tool and a correct "is a font open" check (P0).
+5. **Work the same with several fonts open.** The most desirable result: any operation runs without confusion when 2, 3 or more fonts are open. Where closing the other fonts is the only way to a goal, the tool says so, and that research has shown it to be a limitation of FontLab ([DECISIONS.md](DECISIONS.md), [topics/fonts-and-sync.md](topics/fonts-and-sync.md)).
 
 ## Scope
 
 - FontLab 8 on Windows. macOS should work in principle but is untested. Linux would need Wine and is not supported.
 - Claude Desktop and Claude Code as MCP clients. Any stdio MCP client should work.
-- One font at a time: the current font. Two open fonts are untested (T5 in [LIVE-TESTS.md](LIVE-TESTS.md)).
+- The current font: the one whose window is in front. With several fonts open, `get_kerning` is proven (T5 in [LIVE-TESTS.md](LIVE-TESTS.md)); the other tools are untested there (goal 5).
 
 ## Non-goals and hard limits
 

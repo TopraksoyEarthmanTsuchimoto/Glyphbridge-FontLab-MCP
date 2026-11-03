@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.36)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.38)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -32,7 +32,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 from typing import Any
 
 from mcp.server import MCPServer
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.36"          # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.38"          # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 SAVE_REMINDER = "**You must save if you want to keep these changes: use the File menu or press Ctrl+S in FontLab.**"   # shown in CHAT only, never as a FontLab dialog
 DELETE_CONFIRM_TIMEOUT_SECONDS = 120.0  # time to let a human see and answer the FontLab dialog
@@ -297,6 +297,7 @@ def _do_request(req_or_url, path: str, timeout: float = TIMEOUT_SECONDS) -> dict
     try:
         with _opener.open(req_or_url, timeout=timeout) as resp:
             raw = resp.read()
+            _note_font_headers(getattr(resp, "headers", None))
     except urllib.error.HTTPError as exc:
         try:
             detail = exc.read().decode("utf-8", "replace")[:300]
@@ -324,6 +325,89 @@ def _do_request(req_or_url, path: str, timeout: float = TIMEOUT_SECONDS) -> dict
     if not isinstance(data, dict):
         raise OutcomeUnknown(f"The listener's reply to {path} had an unexpected shape.")
     return data
+
+
+# ---- which font a reply came from (v0.38, listener 0.113; goal 5 of PROJECT.md) ----
+# The listener names the font each request used in three headers: family/style, a short hash of its path ("none" when the path
+# is empty; the path itself is never sent) and CountFonts(). Each tool reply then gains font and fonts_open, and font_note when
+# several fonts are open or the font in front changed. An older listener sends no headers: nothing is added.
+_FONT_CALLS: list = []                         # (name, key, fonts_open) of each listener reply in the current tool call
+_FONT_SEEN = {"name": None, "key": None, "seen": False}   # the font of the previous tool call in this server process
+_FONT_KEY_RE = re.compile(r"^[0-9a-f]{12}$")
+FONT_NAME_MAX = 100
+
+
+def _clean_font_text(value: str) -> str:
+    text = "".join(ch for ch in value if not (ord(ch) < 32 or 127 <= ord(ch) <= 159))
+    return " ".join(text.split())[:FONT_NAME_MAX]
+
+
+def _note_font_headers(headers: Any) -> None:
+    """Record the font a listener reply names. Never raises; a reply without the headers records nothing."""
+    try:
+        raw = headers.get("X-Glyphbridge-Font") if headers is not None else None
+        if not isinstance(raw, str):
+            return
+        family, sep, style = raw.partition("/")
+        name = " ".join(x for x in (_clean_font_text(unquote(family)), _clean_font_text(unquote(style)) if sep else "") if x) or None
+        key = headers.get("X-Glyphbridge-Font-Key")
+        key = key if isinstance(key, str) and _FONT_KEY_RE.match(key) else None
+        count = headers.get("X-Glyphbridge-Fonts-Open")
+        count = int(count) if isinstance(count, str) and count.isdigit() and len(count) <= 4 else None
+        _FONT_CALLS.append((name, key, count))
+    except Exception:
+        pass
+
+
+def _same_font(a: tuple, b: tuple) -> bool:
+    """Two (name, key) identities: the path hashes decide when both exist, otherwise the names."""
+    if a[1] is not None and b[1] is not None:
+        return a[1] == b[1]
+    return a[0] == b[0]
+
+
+def _font_fields(calls: list, result: Any) -> dict:
+    """The font fields for one tool call, and the remembered font for the next call."""
+    if not calls:
+        return {}
+    name, key, count = calls[-1]
+    fields: dict = {"font": name, "fonts_open": count}
+    notes = []
+    shown = name or "a font without a name"
+    if count is not None and count > 1:
+        notes.append(f"{count} fonts are open in FontLab; this call used {shown}, the font whose window is in front. Name it when you report.")
+        if key is None:
+            notes.append("This font has no file path (a new, unsaved font), so a switch to another unsaved font of the same name cannot be noticed.")
+    if any(not _same_font((n, k), (name, key)) for n, k, _ in calls[:-1]):
+        fields["font_changed_during_call"] = True
+        notes.append("The font in front changed during this call, so its parts may have used different fonts.")
+        if isinstance(result, dict) and result.get("font_modified") is True:
+            fields["change_target_uncertain"] = True
+            notes.append("Check in FontLab which font received this change before doing anything else.")
+    if _FONT_SEEN["seen"] and not _same_font((_FONT_SEEN["name"], _FONT_SEEN["key"]), (name, key)):
+        fields["font_changed"] = {"from": _FONT_SEEN["name"], "to": name}
+        now = shown if _FONT_SEEN["name"] != name else f"another font with the same name, {shown}, from a different file"
+        notes.append(f"The font in front changed since the previous Glyphbridge call (was {_FONT_SEEN['name'] or 'a font without a name'}, now {now}): "
+                     "make sure this is the font the person means before any further change.")
+    _FONT_SEEN.update(name=name, key=key, seen=True)
+    if notes:
+        fields["font_note"] = " ".join(notes)
+    return fields
+
+
+def _with_font(fn: Any, *args: Any) -> Any:
+    """Run one tool's work and add the font fields to its reply. A refusal (an exception) still updates the remembered font."""
+    _FONT_CALLS.clear()
+    result = None
+    try:
+        result = fn(*args)
+    finally:
+        calls = list(_FONT_CALLS)
+        _FONT_CALLS.clear()
+        fields = _font_fields(calls, result)
+    if isinstance(result, dict) and fields:
+        result.update(fields)
+    return result
 
 
 def _call_listener(path: str) -> dict:
@@ -894,7 +978,13 @@ def read_kerning(pairs: Any = None, text: Any = None, confirmed_large_read: Any 
     upm = data.get("units_per_em")
     master = data.get("master")
     master_count = data.get("master_count")
+    fonts_open = data.get("fonts_open")
+    matched_by = data.get("matched_by")
+    family = data.get("family_name")
     reply = {"mode": "pairs" if pairs is not None else "text",
+             "fonts_open": fonts_open if isinstance(fonts_open, int) and not isinstance(fonts_open, bool) and fonts_open >= 1 else None,
+             "matched_by": matched_by if matched_by in ("only font", "path") else None,
+             "family_name": family if isinstance(family, str) and 1 <= len(family) <= 63 and family.isprintable() else None,
              "master": master if isinstance(master, str) and 1 <= len(master) <= 63 and master.isprintable() else None,
              "master_count": master_count if isinstance(master_count, int) and not isinstance(master_count, bool) and master_count >= 1 else None,
              "units_per_em": _tidy_number(upm) if isinstance(upm, (int, float)) and not isinstance(upm, bool) else None,
@@ -905,6 +995,10 @@ def read_kerning(pairs: Any = None, text: Any = None, confirmed_large_read: Any 
         reply["large_read_confirmed"] = True
     if reply["table_size"] == 0:
         instruction += " table_size is 0: the current master's kerning table is empty, so this master has no kerning at all."
+    if reply["fonts_open"] is not None and reply["fonts_open"] > 1:
+        which = f" ({reply['family_name']})" if reply["family_name"] else ""
+        instruction += (f" {reply['fonts_open']} fonts are open in FontLab; this was read from the current one, the font whose window is in front{which}, "
+                        "matched to its kerning table by its file path. Say which font when you report the values.")
     if reply["master_count"] is not None and reply["master_count"] > 1:
         instruction += f" This font has {reply['master_count']} masters; only the current one was read. Say so when you report the values."
     if data.get("side_effect_detected") is True:
@@ -2344,7 +2438,7 @@ def fontlab_status(ctx: Context | None = None) -> dict[str, Any]:
     changes made through Glyphbridge in this session (see save_note: it cannot know whether the person saved).
     """
     _note_client(ctx)
-    return check_status()
+    return _with_font(check_status)
 
 
 @mcp.tool()
@@ -2360,7 +2454,7 @@ def get_current_font(ctx: Context | None = None) -> dict[str, Any]:
     take up to two minutes while the dialog waits for a click; that is normal, not a hang.
     """
     _note_client(ctx)
-    return read_current_font_checked()
+    return _with_font(read_current_font_checked)
 
 
 @mcp.tool()
@@ -2371,7 +2465,7 @@ def list_glyphs(ctx: Context | None = None) -> dict[str, Any]:
     nothing else, and its .notdef is empty at first; that is normal.
     """
     _note_client(ctx)
-    return read_glyph_names()
+    return _with_font(read_glyph_names)
 
 
 @mcp.tool()
@@ -2426,7 +2520,7 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     the tool raises an error that says so; that is NOT the same as the glyph being empty.
     """
     _note_client(ctx)
-    return read_glyph_outline(name)
+    return _with_font(read_glyph_outline, name)
 
 
 @mcp.tool()
@@ -2444,7 +2538,7 @@ def check_notdef(ctx: Context | None = None) -> dict[str, Any]:
     get_current_font runs this check automatically.
     """
     _note_client(ctx)
-    return check_notdef_glyph()
+    return _with_font(check_notdef_glyph)
 
 
 @mcp.tool()
@@ -2483,7 +2577,7 @@ def create_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
-    return create_new_glyph(name)
+    return _with_font(create_new_glyph, name)
 
 
 @mcp.tool()
@@ -2494,7 +2588,7 @@ def get_glyph_width(name: str, ctx: Context | None = None) -> dict[str, Any]:
     (for a 1000-upm font, typical letter widths run a few hundred units).
     """
     _note_client(ctx)
-    return read_glyph_width(name)
+    return _with_font(read_glyph_width, name)
 
 
 @mcp.tool()
@@ -2516,7 +2610,7 @@ def set_glyph_width(name: str, width: float, ctx: Context | None = None) -> dict
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
-    return write_glyph_width(name, width)
+    return _with_font(write_glyph_width, name, width)
 
 
 @mcp.tool()
@@ -2528,7 +2622,7 @@ def get_glyph_sidebearings(name: str, ctx: Context | None = None) -> dict[str, A
     an error that says so. Reading changes nothing.
     """
     _note_client(ctx)
-    return read_glyph_sidebearings(name)
+    return _with_font(read_glyph_sidebearings, name)
 
 
 @mcp.tool()
@@ -2544,11 +2638,12 @@ def get_kerning(pairs: list[list[str]] | None = None, text: str | None = None, c
     Values are in font units and are the numbers FontLab applies, read from the kerning table of the current master, class (group) kerning
     included; negative = closer. Each result says its source: 'glyph : glyph', 'glyph : class', 'class : glyph' (with the class named),
     'class : class', or 'none' (no entry: value 0, kerned false). Report the source; never guess whether a value comes from a class.
-    A pair that could not be read has an 'error' and is never a zero. Exactly one font must be open in FontLab.
-    Other masters, feature-based and contextual kerning are not covered. Needs listener v0.104.
+    A pair that could not be read has an 'error' and is never a zero. It reads the current font, the one whose window is in front in
+    FontLab; with several fonts open it refuses when that font cannot be matched to its kerning table (for example a new, unsaved font).
+    Other masters, feature-based and contextual kerning are not covered. Needs listener v0.104 (several open fonts: v0.112).
     """
     _note_client(ctx)
-    return read_kerning(pairs, text, confirmed_large_read)
+    return _with_font(read_kerning, pairs, text, confirmed_large_read)
 
 
 @mcp.tool()
@@ -2572,7 +2667,7 @@ def set_glyph_sidebearings(name: str, left: float, right: float | None = None, c
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
-    return write_glyph_sidebearings(name, left, right)
+    return _with_font(write_glyph_sidebearings, name, left, right)
 
 
 @mcp.tool()
@@ -2607,7 +2702,7 @@ def draw_polygon(name: str, points: list[list[float]] | None = None,
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
-    return write_glyph_polygon(name, points, contours)
+    return _with_font(write_glyph_polygon, name, points, contours)
 
 
 @mcp.tool()
@@ -2648,7 +2743,7 @@ def draw_path(name: str, contours: list[list[dict[str, Any]]], ctx: Context | No
     (File menu or Ctrl+S). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
-    return write_glyph_path(name, contours)
+    return _with_font(write_glyph_path, name, contours)
 
 
 @mcp.tool()
@@ -2670,7 +2765,7 @@ def check_glyph_unicode(name: str, ctx: Context | None = None) -> dict[str, Any]
     left as null and a note explaining why, rather than guessing.
     """
     _note_client(ctx)
-    return read_glyph_unicode(name)
+    return _with_font(read_glyph_unicode, name)
 
 
 @mcp.tool()
@@ -2702,7 +2797,7 @@ def set_glyph_unicode(name: str, codepoint: int, ctx: Context | None = None) -> 
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
-    return write_glyph_unicode(name, codepoint)
+    return _with_font(write_glyph_unicode, name, codepoint)
 
 
 @mcp.tool()
@@ -2722,7 +2817,7 @@ def delete_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
-    return delete_existing_glyph(name)
+    return _with_font(delete_existing_glyph, name)
 
 
 @mcp.tool()
@@ -2736,7 +2831,7 @@ def finish_changes(ctx: Context | None = None) -> dict[str, Any]:
     and the reminder appears only in the chat. This tool changes nothing in FontLab.
     """
     _note_client(ctx)
-    return finish_change_package()
+    return _with_font(finish_change_package)
 
 
 # --------------------------------------------------------------------------

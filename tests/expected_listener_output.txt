@@ -1,6 +1,6 @@
 [glyphbridge] Connected at HH:MM:SS - first request (GET /health) from a local client.
 /health ('200', {'status': 'ok'})
-/version ('200', {'version': '0.110'})
+/version ('200', {'version': '0.113'})
 /font/current ('200', {'open': True, 'path': 'x', 'glyph_count': 3, 'family_name': 'F', 'style_name': 'R', 'postscript_font_name': '', 'postscript_full_name': '', 'units_per_em': 1000, 'ascender': 800, 'descender': -200, 'cap_height': 700, 'x_height': 500, 'weight_class': 400})
 /font/glyphs ('200', {'open': True, 'count': 3, 'names': ['A', 'empty', 'B']})
 /glyph/width?name=A ('200', {'open': True, 'found': True, 'name': 'A', 'width': 500.0})
@@ -264,7 +264,7 @@ shape_count in outline: 1
 207 bad route       : unknown route 'bogus': use rou
 208 unknown tri glyph: False no glyph named 'trinope'
 209 no font open    : {'open': False}
-210 version         : {'version': '0.110'}
+210 version         : {'version': '0.113'}
 220 legacy lsb refused: True refused: the legacy setters glyph.leftMargin / glyph.rightMa | leftMargin 0.0 | calls []
 221 legacy rsb refused: True | rightMargin -500.0
 222 legacy width still allowed: glyph.width = 600.0 | width 600.0
@@ -369,7 +369,7 @@ shape_count in outline: 1
 339 negative width   : 400 "width" must not be negative
 340 unknown glyph    : {'open': True, 'found': False, 'set': False, 'reason': "no glyph named 'nope'", 'before': None, 'after': None}
 341 no font          : {'open': False}
-342 version          : {'version': '0.110'}
+342 version          : {'version': '0.113'}
 343 state            : 200 {'is_none': True} 0 | findLayer {'is_none': True} | nocreate {'is_none': True} | ref True | calls [('findLayer', 'Master'), ('getLayerByName', 'Master', False)]
 344 create without go: 200 refused: stage=create can change the fon | calls []
 345 findLayerCreate  : 200 w.findLayerCreate('Master') | returned {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | same {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | rebuilt built {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
@@ -386,14 +386,14 @@ shape_count in outline: 1
 356 no name          : 400
 357 unknown glyph    : {'open': True, 'found': False, 'reason': "no glyph named 'nope'", 'font_master': {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}}
 358 no font          : {'open': False}
-359 version          : {'version': '0.110'}
+359 version          : {'version': '0.113'}
 360 font_master      : 200 {'is_none': False, 'type': 'FmLayer', 'public_names': ['id', 'isBodyLayer', 'isMasterLayer', 'mutate', 'name'], 'name': 'test_font', 'id': 7, 'isMasterLayer': True, 'isBodyLayer': False}
 361 master, no glyph : False test_font
 362 create has no section: False
 363 master is None   : {'is_none': True}
 364 master raises    : {'error': 'RuntimeError: no master'}
 365 no master member : {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}
-366 version          : {'version': '0.110'}
+366 version          : {'version': '0.113'}
 400 width, new glyph  : 200 {'set': True, 'route': 'modern', 'layer_created': 'test_font', 'before': 0.0, 'after': 600.0} | calls [('findLayerCreate', 'fresh', 'test_font'), ('advanceWidth', 'fresh', 600.0)]
 401 width again       : True modern | layer_created None | creates 1
 402 names disagree    : True legacy_empty_glyph | the glyphs of this font have different layer names (['Alpha' | creates [] | legacy width 600.0
@@ -430,7 +430,7 @@ shape_count in outline: 1
 434 reader, agree     : 3 | modern_check {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True}
 435 reader, modern=no : False
 436 reader, no modern : 3 | modern_check {'available': True, 'modern_layer': False}
-437 version           : {'version': '0.110'}
+437 version           : {'version': '0.113'}
 440 stage=layer       : 200 1 | getContours {'type': 'list', 'python_sequence': True, 'len': 1} | getShapes {'type': 'list', 'python_sequence': True, 'len': 1} | shapes {'type': 'R73Native', 'python_sequence': False, 'len': 2} | shapesCount 1
 441 stage=contour     : 1 True False 4 {'type': 'list', 'python_sequence': True, 'len': 4}
 442 node via getNodeAt: {'type': 'R73Node', 'x': 400, 'y': 300, 'isOn': True, 'isOff': False, 'isCurve': False, 'smooth': False, 'index': 2} | calls [('getNodeAt', 2)]
@@ -453,7 +453,7 @@ shape_count in outline: 1
 459 no modern layer    : this glyph has no modern active layer, so there is nothing to read
 460 no font            : {'open': False}
 461 read-only          : calls [] | shapes still 1
-462 version           : {'version': '0.110'}
+462 version           : {'version': '0.113'}
 470 modern_outline    : True | nodes 5 of 5 | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0} | check agree False
 471 contour 0         : {'index': 0, 'closed': True, 'clockwise': True, 'nodesCount': 5}
 472 nodes             : [(10.0, 20.0, True), (410.0, 20.0, True), (410.0, 220.0, True), (210.0, 320.0, True), (10.0, 220.0, True)]
@@ -469,7 +469,7 @@ shape_count in outline: 1
 482 count mismatch    : {'available': False, 'error': 'read 5 nodes but the layer reports 6: the outline is not trusted'}
 483 too many nodes    : {'available': False, 'error': 'the layer has 5 nodes, more than the 3 that are read'}
 484 no QTransform     : margins key False | available True
-485 version           : {'version': '0.110'}
+485 version           : {'version': '0.113'}
 490 two contours      : 200 {'drawn': True, 'points': 8, 'contours': 2, 'contour_sizes': [4, 4], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': True}, 'layer_created': 'test_font'} | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 8, 'components': 0}
 491 calls             : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'flContour', 'addShape']
 492 read back         : True | contours 2 [4, 4]
@@ -489,7 +489,7 @@ shape_count in outline: 1
 506 second contour dropped: False | after drawing, the layer reads 1 shape(s), 4 node(s) and 1 contour(s); expected 1, 8 and 2 | changed True | checks {'shapes_ok': True, 'nodes_ok': False, 'contours_ok': False}
 507 getContours unreadable: True | checks {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': None}
 508 not empty         : False | the glyph's layer is not KNOWN to be empty (needs  | calls []
-509 version           : {'version': '0.110'}
+509 version           : {'version': '0.113'}
 510 curve probe        : 200 curve | call node(index 1).convertToCurve(False) | returned True | nodes_added 2 | may_change False
     before             : 4 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '2: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '3: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
     after              : 6 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '2: (268.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '3: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '4: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '5: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
@@ -507,7 +507,7 @@ shape_count in outline: 1
 520 bogus stage        : unknown stage 'bogus' for route=modern: use stage=names or stage=build or stage=attach or stage=refresh
 521 bogus variant      : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
 522 curve without go   : 200 refused: this probe can change the font 
-523 version           : {'version': '0.110'}
+523 version           : {'version': '0.113'}
 524 curve2 normal | may_change False | keys []
     A plan: convertToCurve(False) on node 1; setPoint(1, QPointF(100, 60 | error: None | note: None | final_as_expected: True
       step getNodeAt(1).convertToCurve(False) | returned True | error None | as_expected None | n 6
@@ -592,7 +592,7 @@ shape_count in outline: 1
 537 QPointF missing    : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 538 curve2 without go  : 200 refused: this probe can change the font 
 539 variant=curve still works: 2 1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False
-540 version           : {'version': '0.110'}
+540 version           : {'version': '0.113'}
 541 build (dry run)   : 200 curve3 | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | may_change False | layer shapes/nodes 0 0
     calls             : ['flContour([5 QPointF])', 'contour.closed = True', 'getNodeAt(2).convertToCurve(False)', 'setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))', 'flShape()', 'shape.shapeData', 'shapeData.addContour(contour)']
     notes             : ['detached nodes before attach: 0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 1: (300.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 2: (355.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 3: (400.0, 45.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 4: (400.0, 100.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 5: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 6: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', "after adding the contour, the detached shape reads {'contoursCount': 1, 'hasContours': True, 'isEmpty': False}"]
@@ -617,7 +617,7 @@ shape_count in outline: 1
 557 attach without go : 200 refused: this probe can change the font 
 558 second attach refused: True | layer 1 7
 559 variant=single unchanged: single {'nodesCount': 3, 'closed': True, 'clockwise': False}
-560 version           : {'version': '0.110'}
+560 version           : {'version': '0.113'}
 561 curve3 whole-number handles: None | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | calls ['setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))']
 562 curve3 attach     : True {'shapes': 1, 'nodes': 7} | layer 1 7
 563 curve3, FontLab rounds everything: None | layer 1 7
@@ -684,7 +684,7 @@ shape_count in outline: 1
 573 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 574 curve4 without go : 200 refused: this probe can change the font 
 575 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-576 version           : {'version': '0.110'}
+576 version           : {'version': '0.113'}
 577 curve5, everything works (stub assumptions) | may_change False | error None
      T1 closing segment: convertToCurve(False) on node 0 of a square | {'returned': True, 'handle_indices': [4, 5], 'nodesCount': 6}
      T2a convertToCurve(True) on node 1 of a square | {'returned': True, 'smooth_flags': [False, False, False, True, False, False]}
@@ -740,7 +740,7 @@ shape_count in outline: 1
 586 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 587 curve5 without go : 200 refused: this probe can change the font 
 588 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-589 version           : {'version': '0.110'}
+589 version           : {'version': '0.113'}
 600 one curved segment       : {'drawn': True, 'nodes_match': True, 'points': 4, 'segments_curved': 1, 'contour_sizes': [6], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 601 nodes read back       : [[(0.0, 0.0, 'on', False), (400.0, 0.0, 'on', False), (500.0, 100.0, 'h', False), (500.0, 300.0, 'h', False), (400.0, 400.0, 'on', False), (0.0, 400.0, 'on', False)]] | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 6, 'components': 0} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
 602 calls                 : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'convertToCurve', 'addShape'] | layer_created test_font
@@ -800,7 +800,7 @@ shape_count in outline: 1
 667 second draw refused   : False | the glyph's layer is not KNOWN to be empty (needs 
 668 plain triangle via path : {'drawn': True, 'nodes_match': True, 'points': 3, 'segments_curved': 0, 'contour_sizes': [3], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 669 no convert calls      : 0
-671 version               : {'version': '0.110'}
+671 version               : {'version': '0.113'}
 672 pure helpers          : 3.0 -2.0 0.0 0.0 0.0 -3.0
 700 first draw             : True | layer_created test_font | layer (1, 6, 1) | creates 1
 701 legacy view lags       : True | wrapper activeLayer None
@@ -812,7 +812,7 @@ shape_count in outline: 1
 708 findLayer missing        : False | the glyph may already have a layer (the glyph has no findLayer to ask with), so no layer was created | creates 0 | layer None
 709 glyph without layer, nobody answers yes: True | layer_created test_font | creates 1
 710 width on a glyph with no layer still works: True modern | layer_created test_font | creates 1
-711 version                : {'version': '0.110'}
+711 version                : {'version': '0.113'}
 720 state, nothing open        : 200 {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': None} | constructed False | attached False | calls []
 721 default stage is state     : 200 state
 722 construct without go       : 200 stage=construct constructs ONE native flPackage object (it is not attached to anything). Add &go=yes to run it. | calls []
@@ -826,6 +826,8 @@ shape_count in outline: 1
 730 attach                     : 200 flWorkspace.instance().addPackage(package) | return None | error None | before {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': False} | after {'CountFonts': 1, 'CurrentFont': 'font', 'packages_len': 1, 'currentPackage': {'isNull': False, 'name': ''}, 'hasPackage': True} | calls ['flPackage()', 'addPackage']
 731 second attach refused      : 200 addPackage was already attempted in this listener run; resta | addPackage calls 1
 732 state after attach         : {'CountFonts': 1, 'CurrentFont': 'font', 'packages_len': 1, 'currentPackage': {'isNull': False, 'name': ''}, 'hasPackage': True} | constructed True | attached True
+732b state names the package   : {'path': '', 'fileName': '<error: RuntimeError: no file name>'} | packages_type list
+732c state, a saved package    : 200 {'CountFonts': 2, 'CurrentFont': 'font', 'packages_len': 2, 'currentPackage': {'isNull': False, 'name': ''}, 'hasPackage': True} {'path': 'C:/fonts/saved.vfc', 'fileName': 'saved.vfc'} | packages_type list | forbidden []
 733 addPackage raises          : 200 | error RuntimeError: addPackage refused | attached True | after {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': False}
 734 no retry after a failure   : 200 addPackage was already attempted in this listener run; resta | addPackage calls 1
 735 constructor raises         : 200 flPackage() raised RuntimeError: ctor refused; nothing was a | constructed False | package None
@@ -834,7 +836,7 @@ shape_count in outline: 1
 738 no flPackage class         : 200 the fontlab module has no flPackage class; nothing was constructed | constructed False
 739 forbidden members called   : [] | calls ['flPackage()', 'addPackage']
 740 static scan of the probe   : forbidden call syntax found: [] | real addPackage calls: 1 | scanned chars > 3000: True
-741 version                    : {'version': '0.110'}
+741 version                    : {'version': '0.113'}
 750 first glyph of a new font, polygon    : {'drawn': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
 751 what was read             : ['cp', 'defaultMaster', 'glyphsCount', 'isNull', 'master', 'masters', 'mastersCount', 'packages', 'upm'] | reads 9
 752 first glyph, width               : {'set': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
@@ -882,7 +884,7 @@ shape_count in outline: 1
 797 other glyphs, with source    : ('test_font', None, 'other glyphs') | reads []
 798 forbidden members called, whole run: [] | addShape calls 1
 799 static scan of the fallback  : forbidden call syntax found: [] | scanned chars > 3000: True
-800 version                      : {'version': '0.110'}
+800 version                      : {'version': '0.113'}
 810 state, one font open               : 200 {'stage': 'state', 'state': {'package_isChanged': False, 'workspace_isChanged': False, 'package_glyphsCount': 1}, 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 811 default stage is state           : 200 {'stage': 'state', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 812 package_update without go        : 200 {'error': "stage=package_update calls flPackage.update() ONCE on the font's package. Add &go=yes to run it."} | calls []
@@ -913,7 +915,7 @@ shape_count in outline: 1
 842 the module has no CountFonts     : 200 {'error': 'the fontlab module has no CountFonts, so the number of open fonts is unknown', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 843 forbidden members called    : [] | calls ['flPackage.update()', 'flWorkspace.update()']
 844 static scan of the probe     : forbidden call syntax found: [] | real update calls: 1 | scanned chars > 3000: True
-845 version                      : {'version': '0.110'}
+845 version                      : {'version': '0.113'}
 850 no go                         : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 851 go must be exactly yes           : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 852 unknown how                      : 200 {'error': 'how must be "plain" (createGlyph only) or "legacy_update" (createGlyph, then font.update())'} | names ['.notdef', 'A'] | calls []
@@ -945,7 +947,7 @@ shape_count in outline: 1
 878 forbidden members called     : [] | calls ['createGlyph', 'createGlyph', 'update'] | names ['.notdef', 'A', 'P1', 'P2']
 879 static scan of the probe     : forbidden call syntax found: [] | real createGlyph calls: 1 | real font.update calls: 1 | scanned chars > 2000: True
 880 create_glyph itself unchanged: True | still calls font.update(): True
-881 version                      : {'version': '0.110'}
+881 version                      : {'version': '0.113'}
 890 nothing tracked: update runs       : 200 {'created': True} | calls ['createGlyph', 'font.update'] | layers ['ref'] | tracked []
 891 draw: reply says not synced         : 200 {'drawn': True, 'synced_with_fontlab': False} | calls [] | layers ['fresh', 'ref'] | tracked ['fresh']
 891b durability note present  : True | mentions create_glyph: True
@@ -978,7 +980,7 @@ shape_count in outline: 1
 913 no regression: duplicate name   : 200 {'created': False}
 914 static scan of the guard     : forbidden call syntax found: [] | scanned chars > 3000: True
 915 every legacy update is guarded: [(1, 1, 1), (1, 1, 1), (1, 1, 2), (1, 1, 2)]
-916 version                      : {'version': '0.110'}
+916 version                      : {'version': '0.113'}
 917 sidebearings change remembered: 200 {'set': True, 'changed': True, 'synced_with_fontlab': False} | tracked ['tri']
 918 same values again: not remembered: {'set': True, 'changed': False, 'synced_with_fontlab': None} | tracked []
 920 margins agree                    : 200 node_count 3 | check {'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True} | modern_outline None
@@ -1001,7 +1003,7 @@ shape_count in outline: 1
 936 margins argument not a dict  : {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True}
 937 direct compare, missing key  : {'margins_agree': None, 'margins_note': 'the legacy margins are not numbers, so they could not be compared'}
 938 static scan of the compare   : forbidden call syntax found: [] | getLSB / getRSB reads in the helper: 1 | scanned chars > 1500: True
-939 version                      : {'version': '0.110'}
+939 version                      : {'version': '0.113'}
 940 state, drawn glyph                  : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'components': 0}, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
 940b                              : {'found': True, 'legacy_layers': 0, 'modern': 'present', 'modern_nodes': 4, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'} | registry {'fresh': 'at_risk'} | counters {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}
 941 state, updatedFgGlyphs ids          : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'components': 0}, 'updated_fg_glyphs': {'count': 2, 'ids': [5, 7]}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
@@ -1089,7 +1091,7 @@ shape_count in outline: 1
 981 forbidden members called     : [] | pkg.update / other recorded package calls: []
 982 static scan of the probe     : forbidden call syntax found: [] | real calls: Update 2 UpdateAll 1 fillFgData 1 prepareFontGateData 1 addGlyph 1 flGlyph() 1 | scanned chars > 6000: True
 983 no other tool changed        : True | create_glyph still calls font.update(): True
-984 version                      : {'version': '0.110'}
+984 version                      : {'version': '0.113'}
 990 polygon, Update syncs           : 200 {'drawn': True} | synced_with_fontlab True | fontlab_sync {'attempted': True, 'verdict': 'synced', 'synced': True} | note Glyphbridge asked Font | calls [('Update', 'M88Mod')] | tracked []
 990b                              : unsynced note gone: True | layer kept: True | legacy layers: 1
 991 polygon, Update has no effect     : 200 {'drawn': True} | synced_with_fontlab False | fontlab_sync {'attempted': True, 'verdict': 'at_risk', 'synced': False} | note This change exists onl | calls [('Update', 'M88Mod')] | tracked ['fresh']
@@ -1114,7 +1116,7 @@ shape_count in outline: 1
 1005 calls over all cases        : UpdateAll called: False | forbidden: [] | Update calls: 10 | all Update args are the modern wrapper: True
 1006 static scan of the sync     : forbidden call syntax found: [] | upd(w) calls: 1 | scanned chars > 900: True
 1007 constants                   : shipped default ['True'] | synced note mentions legacy view: True
-1008 version                     : {'version': '0.110'}
+1008 version                     : {'version': '0.113'}
 
 ==== v0.90 /debug/fontdir ====
 1010 dir                     : 200 {'open': True, 'count_fonts': 1, 'stage': 'dir', 'font_type': 'FDFont'} | names ['boom', 'familyName', 'flag', 'kerning', 'lenboom', 'method', 'nolen', 'nothing', 'unitsPerEm'] | doc len None | touched [] | called []
@@ -1304,42 +1306,42 @@ shape_count in outline: 1
 ==== v0.94 /kerning/pairs (v0.104: the master's table, explicit keys) ====
 1140 no parameter                 : 400 {'error': 'provide exactly one of pairs (GET: ?pairs=A:V,T:o; POST: a list of [left, right] glyph names) or text (2 or more characters)'} | gets 0 | forbidden []
 1141 both parameters              : 400 {'error': 'provide exactly one of pairs (GET: ?pairs=A:V,T:o; POST: a list of [left, right] glyph names) or text (2 or more characters)'} | gets 0 | forbidden []
-1142 pairs: direct pairs          : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 4, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
+1142 pairs: direct pairs          : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 4, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'V', 'right': 'A', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'T', 'right': 'o', 'value': -227.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'A', 'right': 'B', 'value': 0, 'kerned': False, 'source': 'none'}
-1143 pairs: class kerning         : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 5, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 13 | forbidden []
+1143 pairs: class kerning         : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 5, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 13 | forbidden []
        {'left': 'A', 'right': 'Wgrave.c2sc', 'value': -76.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'value': -76.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'W'}
        {'left': 'Atilde', 'right': 'Ydieresis.c2sc', 'value': -152.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}
        {'left': 'A', 'right': 'Tbar.c2sc', 'value': -80.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'Aacute', 'right': 'Tbar.c2sc', 'value': -80.0, 'kerned': True, 'source': 'class : glyph', 'left_class': 'Aring'}
-1144 pairs: get gets a tuple of str : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1144 pairs: get gets a tuple of str : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
 1144b keys passed to get           : [(('A', False), ('V', False))] | touched only get: ['get']
-1145 pairs: duplicates, spaces     : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 3 | forbidden []
+1145 pairs: duplicates, spaces     : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 3 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
-1146 pairs: unknown glyph names    : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 4, 'errors': 3, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1146 pairs: unknown glyph names    : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 4, 'errors': 3, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'Q', 'right': 'V', 'error': "no glyph named 'Q'"}
        {'left': 'A', 'right': 'Qq', 'error': "no glyph named 'Qq'"}
        {'left': 'Q', 'right': 'Qq', 'error': "no glyph named 'Q', 'Qq'"}
-1147 get raises / odd values per pair : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 6, 'errors': 5, 'table_size': 1370, 'side_effect_detected': False} | gets 6 | forbidden []
+1147 get raises / odd values per pair : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 6, 'errors': 5, 'table_size': 1370, 'side_effect_detected': False} | gets 6 | forbidden []
        {'left': 'A', 'right': 'V', 'error': 'kerning.get raised RuntimeError: get boom (asking the glyph : glyph entry)'}
        {'left': 'V', 'right': 'A', 'error': 'kerning.get returned an unexpected str (asking the glyph : glyph entry)'}
        {'left': 'T', 'right': 'o', 'error': 'kerning.get returned an unexpected bool (asking the glyph : glyph entry)'}
        {'left': 'A', 'right': 'B', 'error': 'kerning.get returned a number that is not finite (asking the glyph : glyph entry)'}
        {'left': 'o', 'right': 'o', 'error': 'kerning.get returned a number that is not finite (asking the glyph : glyph entry)'}
        {'left': 'A', 'right': 'space', 'value': -113.0, 'kerned': True, 'source': 'glyph : glyph'}
-1148 get returns 0.0 (not kerned)   : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
+1148 get returns 0.0 (not kerned)   : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
        {'left': 'o', 'right': 'o', 'value': 0.0, 'kerned': False, 'source': 'glyph : glyph'}
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
-1149 forty pairs allowed          : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 40, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 40 | forbidden []
+1149 forty pairs allowed          : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 40, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 40 | forbidden []
        (40 results; distinct: ["{'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}"] )
-1150 300 pairs: no cap            : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 300, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 300 | forbidden []
+1150 300 pairs: no cap            : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 300, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 300 | forbidden []
        (300 results; distinct: ["{'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}"] )
 1151 bad pairs 'A'               : 400 {'error': "pair 1 ('A') must look like NAME:NAME with glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -"} | gets 0 | forbidden []
 1151 bad pairs 'A:V:B'           : 400 {'error': "pair 1 ('A:V:B') must look like NAME:NAME with glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -"} | gets 0 | forbidden []
@@ -1354,59 +1356,59 @@ shape_count in outline: 1
 1151 bad pairs '%C3%A9:V'        : 400 {'error': "pair 1 ('é:V') must look like NAME:NAME with glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -"} | gets 0 | forbidden []
 1151 bad pairs 'A:V:'            : 400 {'error': "pair 1 ('A:V:') must look like NAME:NAME with glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -"} | gets 0 | forbidden []
 1151 bad pairs '::'              : 400 {'error': "pair 1 ('::') must look like NAME:NAME with glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -"} | gets 0 | forbidden []
-1152 text: AV                     : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1152 text: AV                     : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'chars': 'AV', 'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
-1153 text: AVA o                  : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 4, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
+1153 text: AVA o                  : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 4, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
        {'chars': 'AV', 'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'chars': 'VA', 'left': 'V', 'right': 'A', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'chars': 'A ', 'left': 'A', 'right': 'space', 'value': -113.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'chars': ' T', 'left': 'space', 'right': 'T', 'value': 0, 'kerned': False, 'source': 'none'}
-1154 text: with space             : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
+1154 text: with space             : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
        {'chars': 'A ', 'left': 'A', 'right': 'space', 'value': -113.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'chars': ' V', 'left': 'space', 'right': 'V', 'value': -37.0, 'kerned': True, 'source': 'glyph : glyph'}
-1155 text: unmapped letter        : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 2, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1155 text: unmapped letter        : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 2, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'chars': 'AZ', 'left': 'A', 'right': None, 'error': "character 'Z' (U+005A): no glyph has this codepoint as its primary Unicode"}
        {'chars': 'ZV', 'left': None, 'right': 'V', 'error': "character 'Z' (U+005A): no glyph has this codepoint as its primary Unicode"}
-1156 text: ambiguous codepoint    : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1156 text: ambiguous codepoint    : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'chars': 'Ax', 'left': 'A', 'right': None, 'error': "character 'x' (U+0078): several glyphs have this codepoint (x, x.alt2), which one is meant is not known"}
-1157 text: non-ASCII (UTF-8)      : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1157 text: non-ASCII (UTF-8)      : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'chars': 'éA', 'left': 'eacute', 'right': 'A', 'value': 0, 'kerned': False, 'source': 'none'}
-1157b text: 7 glyphs share a code : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1157b text: 7 glyphs share a code : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'chars': 'yA', 'left': None, 'right': 'A', 'error': "character 'y' (U+0079): several glyphs have this codepoint (y, y.1, y.2, y.3, y.4), which one is meant is not known"}
-1147b get returns -inf           : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1147b get returns -inf           : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'error': 'kerning.get returned a number that is not finite (asking the glyph : glyph entry)'}
-1158 text: plus sign is a space   : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
+1158 text: plus sign is a space   : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
        {'chars': 'A ', 'left': 'A', 'right': 'space', 'value': -113.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'chars': ' V', 'left': 'space', 'right': 'V', 'value': -37.0, 'kerned': True, 'source': 'glyph : glyph'}
 1159 text: one character          : 400 {'error': 'text: at least 2 characters are needed (got 1)'} | gets 0 | forbidden []
-1160 text: 41 characters allowed  : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 40, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 40 | forbidden []
+1160 text: 41 characters allowed  : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 40, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 40 | forbidden []
        (40 results; distinct: ["{'chars': 'AV', 'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}", "{'chars': 'VA', 'left': 'V', 'right': 'A', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}"] )
-1161 text: 300 characters: no cap : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 299, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 299 | forbidden []
+1161 text: 300 characters: no cap : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 299, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 299 | forbidden []
        (299 results; distinct: ["{'chars': 'AV', 'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}", "{'chars': 'VA', 'left': 'V', 'right': 'A', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}"] )
 1162 text: control character      : 400 {'error': 'text must not contain control characters'} | gets 0 | forbidden []
 1162b text: DEL character         : 400 {'error': 'text must not contain control characters'} | gets 0 | forbidden []
 1162c text: C1 control U+0080     : 400 {'error': 'text must not contain control characters'} | gets 0 | forbidden []
-1162d text: U+00A0 is not control : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 2, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1162d text: U+00A0 is not control : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 2, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'chars': 'A\xa0', 'left': 'A', 'right': None, 'error': "character '\\xa0' (U+00A0): no glyph has this codepoint as its primary Unicode"}
        {'chars': '\xa0V', 'left': None, 'right': 'V', 'error': "character '\\xa0' (U+00A0): no glyph has this codepoint as its primary Unicode"}
 1163 text: tab and DEL            : 400 {'error': 'text must not contain control characters'} | gets 0 | forbidden []
-1164 text: unreadable glyph exists, unmapped char  : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1164 text: unreadable glyph exists, unmapped char  : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'chars': 'AZ', 'left': 'A', 'right': None, 'error': "character 'Z' (U+005A): no glyph has this codepoint as its primary Unicode; 1 glyphs could not be read, so this is no proof that none has it"}
-1165 text: unreadable glyph, mapped chars still work : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1165 text: unreadable glyph, mapped chars still work : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'chars': 'AV', 'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
-1166 table size changes: side effect : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': True} | gets 1 | forbidden []
+1166 table size changes: side effect : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': True} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
-1167 len() raises                  : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': None, 'side_effect_detected': None} | gets 1 | forbidden []
+1167 len() raises                  : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': None, 'side_effect_detected': None} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
 1168 glyph list unreadable          : 200 {'open': True, 'error': 'the glyph list could not be read: RuntimeError: glyph list boom'} | gets 0 | forbidden []
 1169 package kerning raises       : 200 {'open': True, 'error': "the kerning table of master 'Regular' is not reachable: RuntimeError: no kerning"} | gets 0 | forbidden []
 1170 table get not callable       : 200 {'open': True, 'error': "the kerning table's get is not callable"} | gets 0 | forbidden []
 1171 table has no get             : 200 {'open': True, 'error': "the kerning table of master 'Regular' is not reachable: AttributeError: 'object' object has no attribute 'get'"} | gets 0 | forbidden []
-1172 font.info unreadable        : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': None, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1172 font.info unreadable        : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': None, 'master': 'Regular', 'master_count': 1, 'units_per_em': None, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
-1172b unitsPerEm is True         : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': None, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1172b unitsPerEm is True         : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': None, 'master': 'Regular', 'master_count': 1, 'units_per_em': None, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
-1172c unitsPerEm is a string     : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': None, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1172c unitsPerEm is a string     : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': None, 'master': 'Regular', 'master_count': 1, 'units_per_em': None, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
 1173 CountFonts 0: not open      : 200 {'open': False} | gets 0 | forbidden []
 1173b CurrentFont never asked      : True
@@ -1417,28 +1419,28 @@ shape_count in outline: 1
 1177 function raises: HTTP 500    : 500 {'error': 'RuntimeError: probe boom'} | gets 0 | forbidden []
 1178 no per-run cap: 61st request  : 200 [{'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}]
 1179 spy over all cases          : forbidden members touched: [] | every member touched anywhere: ['get', 'package.getAllGroups', 'package.isNull', 'package.kerning', 'package.master', 'package.masters']
-1180 static scan                 : kerning members used: ['get'] | getter( calls: 2 | forbidden syntax: [] | subscripts: ['by_name', 'entry', 'groups', 'hit', 'holders', 'names', 'parts', 'text'] | font members used: ['glyphs', 'info'] | pkg members used: ['getAllGroups', 'kerning'] | no gate needed (no go= in source): True | scanned chars > 3000: True
+1180 static scan                 : kerning members used: ['get'] | getter( calls: 2 | forbidden syntax: [] | subscripts: ['by_name', 'entry', 'groups', 'hit', 'holders', 'names', 'parts', 'text'] | font members used: ['glyphs', 'info', 'path'] | pkg members used: ['getAllGroups', 'kerning'] | no gate needed (no go= in source): True | scanned chars > 3000: True
 1181 constants and routes        : cap constant gone: True | GET and POST routes registered: True
-1182 POST pairs: class kerning    : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 5, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 8 | forbidden []
+1182 POST pairs: class kerning    : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 5, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 8 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'value': -76.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'W'}
        {'left': 'A', 'right': 'Tbar.c2sc', 'value': -80.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'T', 'right': 'o', 'value': -227.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'A', 'right': 'B', 'value': 0, 'kerned': False, 'source': 'none'}
-1183 POST text                    : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 4, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
+1183 POST text                    : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 4, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
        {'chars': 'AV', 'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'chars': 'VA', 'left': 'V', 'right': 'A', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'chars': 'A ', 'left': 'A', 'right': 'space', 'value': -113.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'chars': ' T', 'left': 'space', 'right': 'T', 'value': 0, 'kerned': False, 'source': 'none'}
-1184 POST names are stripped       : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1184 POST names are stripped       : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
-1185 POST 5000 pairs: no cap       : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 5000, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 5000 | forbidden []
+1185 POST 5000 pairs: no cap       : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 5000, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 5000 | forbidden []
        (5000 results; distinct: ["{'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}"] )
 1185b gets made                    : 5000
-1186 POST 3000 characters of text  : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2999, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2999 | forbidden []
+1186 POST 3000 characters of text  : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2999, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2999 | forbidden []
        (2999 results; distinct: ["{'chars': 'AV', 'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}", "{'chars': 'VA', 'left': 'V', 'right': 'A', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}"] )
 1186b gets made                    : 2999
-1187 POST equals GET             : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
+1187 POST equals GET             : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'T', 'right': 'o', 'value': -227.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'A', 'right': 'Wgrave.c2sc', 'value': -76.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}
@@ -1471,11 +1473,11 @@ shape_count in outline: 1
 1213 POST body not JSON           : 400 {'error': 'request body was not valid JSON'} | gets 0 | forbidden []
 1214 POST body not UTF-8          : 400 {'error': 'request body was not valid JSON'} | gets 0 | forbidden []
 1215 POST empty body              : 400 {'error': 'provide exactly one of pairs (GET: ?pairs=A:V,T:o; POST: a list of [left, right] glyph names) or text (2 or more characters)'} | gets 0 | forbidden []
-1216 POST unknown glyph           : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1216 POST unknown glyph           : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'Q', 'right': 'V', 'error': "no glyph named 'Q'"}
 1217 POST no font open           : 200 {'open': False} | gets 0 | forbidden []
-1218 POST side effect flagged    : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': True} | gets 1 | forbidden []
+1218 POST side effect flagged    : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': True} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
 1219 POST function raises: 500   : 500 {'error': 'RuntimeError: probe boom'} | gets 0 | forbidden []
 1221 direct: pairs is a number     : {'bad_request': 'pairs must be a string like A:V,T:o or a list of [left, right] lists'} | gets 0
@@ -1486,62 +1488,79 @@ shape_count in outline: 1
 1220 POST route registered once   : True | spy: forbidden members touched: [] | members touched anywhere: ['get', 'package.getAllGroups', 'package.isNull', 'package.kerning', 'package.master', 'package.masters']
 
 ==== v0.104 /kerning/pairs: classes, order of entries, master, one font ====
-1430 four entries: glyph : glyph : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1430 four entries: glyph : glyph : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'value': -10.0, 'kerned': True, 'source': 'glyph : glyph'}
 1430b keys asked, in order         : [(('Aacute', False), ('Wgrave.c2sc', False))]
-1431 then glyph : class wins     : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
+1431 then glyph : class wins     : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'value': -20.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}
-1432 then class : glyph wins     : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 3 | forbidden []
+1432 then class : glyph wins     : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 3 | forbidden []
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'value': -30.0, 'kerned': True, 'source': 'class : glyph', 'left_class': 'Aring'}
-1433 class : class only           : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
+1433 class : class only           : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'value': -76.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'W'}
 1433b keys asked, in order         : [(('Aacute', False), ('Wgrave.c2sc', False)), (('Aacute', False), ('W', True)), (('Aring', True), ('Wgrave.c2sc', False)), (('Aring', True), ('W', True))]
-1434 defect B: glyph Aring is also a class name : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
+1434 defect B: glyph Aring is also a class name : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
        {'left': 'Aring', 'right': 'Wgrave.c2sc', 'value': -30.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}
        {'left': 'Aring', 'right': 'W.c2sc', 'value': -30.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}
-1435 explicit 0 exception wins over -76 : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
+1435 explicit 0 exception wins over -76 : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'value': 0.0, 'kerned': False, 'source': 'glyph : class', 'right_class': 'W'}
-1436 a Both class on both sides   : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 8 | forbidden []
+1436 a Both class on both sides   : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 8 | forbidden []
        {'left': 'x', 'right': 'x', 'value': -40.0, 'kerned': True, 'source': 'class : class', 'left_class': 'xboth', 'right_class': 'xboth'}
        {'left': 'A', 'right': 'x', 'value': 0, 'kerned': False, 'source': 'none'}
        {'left': 'x', 'right': 'A', 'value': 0, 'kerned': False, 'source': 'none'}
-1437 id missing from the list    : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1437 id missing from the list    : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'error': "glyph 'A' belongs to kerning class id 999, which FontLab's class list does not contain"}
        {'left': 'T', 'right': 'o', 'value': -227.0, 'kerned': True, 'source': 'glyph : glyph'}
-1438 id listed twice             : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1438 id listed twice             : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'Wgrave.c2sc', 'error': "glyph 'Wgrave.c2sc' belongs to kerning class id 201, which FontLab's class list names twice"}
        {'left': 'T', 'right': 'o', 'value': -227.0, 'kerned': True, 'source': 'glyph : glyph'}
-1439 kerningLeft is True      : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1439 kerningLeft is True      : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'left': 'Aacute', 'right': 'V', 'error': "glyph 'Aacute': kerningLeft is not a plain number (bool)"}
-1439b kerningLeft is a string  : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1439b kerningLeft is a string  : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'left': 'Aacute', 'right': 'V', 'error': "glyph 'Aacute': kerningLeft is not a plain number (str)"}
-1439c kerningLeft is 101.0     : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1439c kerningLeft is 101.0     : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'left': 'Aacute', 'right': 'V', 'error': "glyph 'Aacute': kerningLeft is not a plain number (float)"}
-1439d kerningLeft is None      : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1439d kerningLeft is None      : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'left': 'Aacute', 'right': 'V', 'error': "glyph 'Aacute': kerningLeft is not a plain number (NoneType)"}
-1440 kerningLeft and kerningRight raise : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1440 kerningLeft and kerningRight raise : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'Aacute', 'right': 'V', 'error': "glyph 'Aacute': kerningLeft could not be read (RuntimeError: left boom); glyph 'V': kerningRight could not be read (RuntimeError: right boom)"}
        {'left': 'T', 'right': 'o', 'value': -227.0, 'kerned': True, 'source': 'glyph : glyph'}
-1441 getAllGroups raises         : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 2, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1441 getAllGroups raises         : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 2, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'Aacute', 'right': 'V', 'error': "glyph 'Aacute' belongs to kerning class id 101, but the class names could not be read: flPackage.getAllGroups() failed (RuntimeError: groups boom)"}
        {'left': 'T', 'right': 'o', 'value': -227.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'A', 'right': 'Wgrave.c2sc', 'error': "glyph 'Wgrave.c2sc' belongs to kerning class id 201, but the class names could not be read: flPackage.getAllGroups() failed (RuntimeError: groups boom)"}
 1441b getAllGroups calls           : 1
-1442 getAllGroups not a list     : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1442 getAllGroups not a list     : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'left': 'Aacute', 'right': 'V', 'error': "glyph 'Aacute' belongs to kerning class id 101, but the class names could not be read: flPackage.getAllGroups() returned a str, not a list"}
-1443 getAllGroups not callable   : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1443 getAllGroups not callable   : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'left': 'Aacute', 'right': 'V', 'error': "glyph 'Aacute' belongs to kerning class id 101, but the class names could not be read: flPackage.getAllGroups is not callable"}
 1444 60 class pairs: getAllGroups calls: 1
 1444b no class ids: getAllGroups calls : 0
-1445 the id only in a non-kerning group : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
+1445 the id only in a non-kerning group : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 0 | forbidden []
        {'left': 'Aacute', 'right': 'V', 'error': "glyph 'Aacute' belongs to kerning class id 101, which FontLab's class list does not contain"}
-1446 malformed entries skipped    : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
+1446 malformed entries skipped    : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 2 | forbidden []
        {'left': 'Aacute', 'right': 'V', 'error': "glyph 'Aacute' belongs to kerning class id 101, which FontLab's class list does not contain"}
        {'left': 'A', 'right': 'Wgrave.c2sc', 'value': -76.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}
-1447 two fonts open              : 200 {'open': True, 'error': '2 fonts are open: the kerning table can be matched to the current font only when exactly one font is open, so close the other fonts (without saving them if they are test fonts) and ask again'} | gets 0 | forbidden []
-1447b POST, three fonts open      : 200 {'open': True, 'error': '3 fonts are open: the kerning table can be matched to the current font only when exactly one font is open, so close the other fonts (without saving them if they are test fonts) and ask again'} | gets 0 | forbidden []
+1447 two fonts open              : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 2, 'matched_by': 'path', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+       {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
+1447b POST, three fonts open      : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 3, 'matched_by': 'path', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+       {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
 1448 two packages                : 200 {'open': True, 'error': 'the kerning table could not be matched to the current font: the workspace holds 2 packages, not exactly 1'} | gets 0 | forbidden []
-1449 two masters, current Bold   : 200 {'open': True, 'mode': 'pairs', 'master': 'Bold', 'master_count': 2, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+1447c one font: package path reads : only font 0
+1447d two fonts: package path reads: 1
+1447e two fonts, paths differ      : 200 {'open': True, 'error': "2 fonts are open and the current font could not be matched to its kerning table: the current package's path differs from the current font's path (was another font window brought to the front?). Bring a saved font's window to the front, or close the other fonts (without saving them if they are test fonts), and ask again"} | gets 0 | forbidden []
+1447f current font has no path     : 200 {'open': True, 'error': "2 fonts are open and the current font could not be matched to its kerning table: the current font has no file path (a new, unsaved font). Bring a saved font's window to the front, or close the other fonts (without saving them if they are test fonts), and ask again"} | gets 0 | forbidden []
+1447g   package path read          : 0
+1447h font path is None            : 200 {'open': True, 'error': "2 fonts are open and the current font could not be matched to its kerning table: the current font has no file path (a new, unsaved font). Bring a saved font's window to the front, or close the other fonts (without saving them if they are test fonts), and ask again"} | gets 0 | forbidden []
+1447i font path raises             : 200 {'open': True, 'error': "2 fonts are open and the current font could not be matched to its kerning table: the current font's path could not be read (RuntimeError: path boom). Bring a saved font's window to the front, or close the other fonts (without saving them if they are test fonts), and ask again"} | gets 0 | forbidden []
+1447j package path empty           : 200 {'open': True, 'error': "2 fonts are open and the current font could not be matched to its kerning table: the current package has no path. Bring a saved font's window to the front, or close the other fonts (without saving them if they are test fonts), and ask again"} | gets 0 | forbidden []
+1447k package path not a string    : 200 {'open': True, 'error': "2 fonts are open and the current font could not be matched to its kerning table: the current package has no path. Bring a saved font's window to the front, or close the other fonts (without saving them if they are test fonts), and ask again"} | gets 0 | forbidden []
+1447l package path raises          : 200 {'open': True, 'error': "2 fonts are open and the current font could not be matched to its kerning table: path could not be read (RuntimeError: pkg path boom). Bring a saved font's window to the front, or close the other fonts (without saving them if they are test fonts), and ask again"} | gets 0 | forbidden []
+1447m package is null              : 200 {'open': True, 'error': "2 fonts are open and the current font could not be matched to its kerning table: the current package is null or its state is unknown. Bring a saved font's window to the front, or close the other fonts (without saving them if they are test fonts), and ask again"} | gets 0 | forbidden []
+1447n package null state unknown   : 200 {'open': True, 'error': "2 fonts are open and the current font could not be matched to its kerning table: the current package is null or its state is unknown. Bring a saved font's window to the front, or close the other fonts (without saving them if they are test fonts), and ask again"} | gets 0 | forbidden []
+1447o CountFonts gives -1          : 200 {'open': True, 'error': 'CountFonts() gave -1, so the kerning table cannot be matched to the current font'} | gets 0 | forbidden []
+1447p two fonts, packages() not used : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 2, 'matched_by': 'path', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+       {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
+1449 two masters, current Bold   : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Bold', 'master_count': 2, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
 1449b kerning() asked for          : [('Bold',)]
 1450 current master unlisted     : 200 {'open': True, 'error': "the current master could not be read as one of the font's masters"} | gets 0 | forbidden []
@@ -1550,29 +1569,29 @@ shape_count in outline: 1
 1450d master raises             : 200 {'open': True, 'error': "the current master could not be read as one of the font's masters (master could not be read (RuntimeError: master boom))"} | gets 0 | forbidden []
 1451 package kerning not callable : 200 {'open': True, 'error': "the kerning table of master 'Regular' is not reachable: TypeError: flPackage.kerning is not callable"} | gets 0 | forbidden []
 1451b kerning(master) raises     : 200 {'open': True, 'error': "the kerning table of master 'Regular' is not reachable: RuntimeError: kerning() boom"} | gets 0 | forbidden []
-1453 get raises on a class key    : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 3 | forbidden []
+1453 get raises on a class key    : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 3 | forbidden []
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'error': 'kerning.get raised RuntimeError: get boom (asking the glyph : class entry)'}
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
-1454 odd answer on a class key    : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
+1454 odd answer on a class key    : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'error': 'kerning.get returned an unexpected str (asking the class : class entry)'}
-1454b NaN on a class key         : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
+1454b NaN on a class key         : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'error': 'kerning.get returned a number that is not finite (asking the class : class entry)'}
-1455 text: a class glyph          : 200 {'open': True, 'mode': 'text', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 5 | forbidden []
+1455 text: a class glyph          : 200 {'open': True, 'mode': 'text', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 5 | forbidden []
        {'chars': 'ÁV', 'left': 'Aacute', 'right': 'V', 'value': 0, 'kerned': False, 'source': 'none'}
        {'chars': 'VÃ', 'left': 'V', 'right': 'Atilde', 'value': 0, 'kerned': False, 'source': 'none'}
        {'chars': 'ÃA', 'left': 'Atilde', 'right': 'A', 'value': 0, 'kerned': False, 'source': 'none'}
 1455b keys asked, in order         : [(('Aacute', False), ('V', False)), (('Aring', True), ('V', False)), (('V', False), ('Atilde', False)), (('Atilde', False), ('A', False)), (('Aring', True), ('A', False))]
-1456 POST: classes as in 1143     : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 5, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 13 | forbidden []
+1456 POST: classes as in 1143     : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 5, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 13 | forbidden []
        {'left': 'A', 'right': 'Wgrave.c2sc', 'value': -76.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'value': -76.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'W'}
        {'left': 'Atilde', 'right': 'Ydieresis.c2sc', 'value': -152.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}
        {'left': 'A', 'right': 'Tbar.c2sc', 'value': -80.0, 'kerned': True, 'source': 'glyph : glyph'}
        {'left': 'Aacute', 'right': 'Tbar.c2sc', 'value': -80.0, 'kerned': True, 'source': 'class : glyph', 'left_class': 'Aring'}
-1457 the kc1 case: glyph : class over class : glyph : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 7 | forbidden []
+1457 the kc1 case: glyph : class over class : glyph : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 3, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 7 | forbidden []
        {'left': 'Aacute', 'right': 'Wgrave.c2sc', 'value': -50.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}
        {'left': 'Atilde', 'right': 'Wgrave.c2sc', 'value': -101.0, 'kerned': True, 'source': 'class : glyph', 'left_class': 'Aring'}
        {'left': 'Aacute', 'right': 'W.c2sc', 'value': -50.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}
-1458 a class pair needs both ids   : 200 {'open': True, 'mode': 'pairs', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
+1458 a class pair needs both ids   : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 4 | forbidden []
        {'left': 'Aacute', 'right': 'V', 'value': 0, 'kerned': False, 'source': 'none'}
        {'left': 'V', 'right': 'Wgrave.c2sc', 'value': 0, 'kerned': False, 'source': 'none'}
 1459 no plain key, no legacy table : forbidden over 1140-1458: []
@@ -1707,12 +1726,12 @@ shape_count in outline: 1
 1328 poll: health, shutdown, version : raised None | accepts 2 | left 1 | socket closed True | timer stopped True | listener running False
 1329 replies                       : 200 {"status": "ok"} | 200 {"status": "shutting down"} | (nothing sent) | closed True True
 1330 poll: one request, then none : raised None | accepts 2 | left 0 | socket closed False | timer stopped False | listener running True
-1331 reply                         : 200 {"version": "0.110"}
+1331 reply                         : 200 {"version": "0.113"}
 1332 poll after stop()             : returns quietly
 [glyphbridge] Listener stopped.
 1333 poll: shutdown as 8th request : raised None | accepts 8 | left 0 | socket closed True | timer stopped True | listener running False
 1334 start() prints:
-[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.110
+[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.113
 [glyphbridge] Listener started on http://127.0.0.1:8765 (main-thread polling)
 [glyphbridge] Try: GET /health, GET /version. All routes are listed at the top of glyphbridge_fontlab_mcp_listener.py.
 1334 start() result                : socket set True | timer started True | interval 25 | signal timeout()
@@ -1956,7 +1975,7 @@ shape_count in outline: 1
 1422 _open_font, CountFonts missing     : font returned True | CurrentFont calls 1
 1422 _open_font, CountFonts not callable: font returned True | CurrentFont calls 1
 1423 _open_font, CountFonts 0           : None True | CurrentFont calls 0
-1424 one font: the font is used          : 500 | touched ['path']
+1424 one font: the font is used          : 500 | touched ['info', 'path']
 
 ==== v0.105 activity log: client name, no font open ====
 1425 one change each from: claude-code, a percent-encoded UTF-8 name, control characters, a 60-character name:
@@ -2184,3 +2203,25 @@ shape_count in outline: 1
 [glyphbridge] claude-code | YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
 1498 start() clears the pairs: True | _handle resets the request launcher: True
 1499 .notdef texts end: ['s the OpenType specification recommends.', 's the OpenType specification recommends.'] | 'AI agent' in the source: False
+
+==== v0.113 font headers ====
+1510 one font, /font/current         : {'X-Glyphbridge-Font': 'Arial/Regular', 'X-Glyphbridge-Font-Key': '5c8bffd678ad', 'X-Glyphbridge-Fonts-Open': '1'}
+1510b key is sha1(path)[:12]           : True | path not in the head: True
+1511 /version after it: no font headers: {}
+[glyphbridge] Connected at HH:MM:SS - first request (GET /health) from a local client.
+1511b /health: no font headers         : {}
+1512 two fonts, a width read (glyph missing): {'X-Glyphbridge-Font': 'testfont/Regular', 'X-Glyphbridge-Font-Key': '0f884b28f174', 'X-Glyphbridge-Fonts-Open': '2'}
+1513 non-ASCII, a slash and a control character: {'X-Glyphbridge-Font': '%C3%9Cn%C3%AFcode%20Sans%2FPro/BoldItalic', 'X-Glyphbridge-Font-Key': 'b068b4e25951', 'X-Glyphbridge-Fonts-Open': '3'} | decodes to: ['Ünïcode Sans/Pro', 'BoldItalic']
+1514 a long family name is cut at 100   : 100
+1515 empty path                        : {'X-Glyphbridge-Font': 'Unnamed/Regular', 'X-Glyphbridge-Font-Key': 'none', 'X-Glyphbridge-Fonts-Open': '2'}
+1515 path None                         : {'X-Glyphbridge-Font': 'Unnamed/Regular', 'X-Glyphbridge-Font-Key': 'none', 'X-Glyphbridge-Fonts-Open': '2'}
+1515 path raises                       : {'X-Glyphbridge-Font': 'Unnamed/Regular', 'X-Glyphbridge-Font-Key': 'none', 'X-Glyphbridge-Fonts-Open': '2'}
+1515 path not text                     : {'X-Glyphbridge-Font': 'Unnamed/Regular', 'X-Glyphbridge-Font-Key': 'none', 'X-Glyphbridge-Fonts-Open': '2'}
+1516 font.info raises                  : {'X-Glyphbridge-Font': '/', 'X-Glyphbridge-Font-Key': '5c8bffd678ad', 'X-Glyphbridge-Fonts-Open': '1'}
+1516b familyName raises, styleName a number: {'X-Glyphbridge-Font': '/', 'X-Glyphbridge-Font-Key': '5c8bffd678ad', 'X-Glyphbridge-Fonts-Open': '1'}
+1517 no font open (CountFonts 0)       : {}
+1517b no CountFonts: no count header    : {'X-Glyphbridge-Font': 'Arial/Regular', 'X-Glyphbridge-Font-Key': '5c8bffd678ad'}
+1518 the kerning route names its font   : {'X-Glyphbridge-Font': 'Arial/Regular', 'X-Glyphbridge-Font-Key': 'e326d67b7ddc', 'X-Glyphbridge-Fonts-Open': '2'}
+1519 _build_response keeps the font of the request until the next one: True
+1519b the next request forgets it       : True
+1519c _handle forgets it in finally     : True

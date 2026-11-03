@@ -26,6 +26,7 @@ Scope and non-goals: [PROJECT.md](PROJECT.md).
 | where the project stands and what is next | [CURRENT-STATUS.md](CURRENT-STATUS.md) |
 | why something is the way it is | [DECISIONS.md](DECISIONS.md) |
 | which scenarios are still unproven | [CHECKLIST.md](CHECKLIST.md) |
+| what was seen but is not yet explained | [WATCH-POINTS.md](WATCH-POINTS.md) |
 | the FontLab API traps that crash FontLab | [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) |
 | how a subsystem works (reading, geometry, kerning, …) | `topics/`, listed in [MARKDOWN-MAP.md](MARKDOWN-MAP.md) |
 | how AI agents are expected to work here | [AGENTS.md](../AGENTS.md) |
@@ -33,4 +34,4 @@ Scope and non-goals: [PROJECT.md](PROJECT.md).
 
 ## Status in one line
 
-Listener 0.110 and server 0.36 run on Windows 11 with FontLab 8.9.5. Reading, writing basic geometry and reading kerning (from the current master's table, with its source) work. Components, multi-master fonts and saving workflows are open. See [CURRENT-STATUS.md](CURRENT-STATUS.md).
+Listener 0.113 and server 0.38 run on Windows 11 with FontLab 8.9.5. Reading, writing basic geometry and reading kerning (from the current master's table, with its source) work. Components, multi-master fonts and saving workflows are open. See [CURRENT-STATUS.md](CURRENT-STATUS.md).

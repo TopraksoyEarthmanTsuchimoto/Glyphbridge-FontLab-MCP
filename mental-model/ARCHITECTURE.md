@@ -21,6 +21,7 @@ FontLab 8
    - `MIN_LISTENER_VERSION` is `(0, 82)`. Newer tools check the listener version they need before sending anything.
    - Request timeout: 5 s by default, longer for kerning reads and for dialogs that wait for a click.
    - Every request carries the app's own name and, read once at startup from the operating system, the file name of the program that started the server (`X-Glyphbridge-Client`, `X-Glyphbridge-Launcher`; v0.34, v0.35 / v0.36).
+   - Every listener reply that used a font names it in three headers: family and style, a short hash of its path, and the number of open fonts (`X-Glyphbridge-Font`, `-Font-Key`, `-Fonts-Open`; v0.113 / v0.38). The server adds `font` and `fonts_open` to each tool reply, and `font_note` when several fonts are open or the font in front changed. The path never leaves the listener.
 
 Effect of the split: the AI app starts the server in its own Python with its own libraries. FontLab access stays in one small HTTP surface, so every FontLab call is easy to audit and can be tested with stubs.
 
@@ -51,7 +52,7 @@ Every write is reported as successful only after a re-read agrees. Drawings are 
 | `.notdef` | `check_notdef` (+ automatic checks) | `/font/notdef`, `/font/notdef/warn` | [notdef](topics/notdef.md) |
 | names, Unicode | `create_glyph`, `delete_glyph`, `check_glyph_unicode`, `set_glyph_unicode` | `/glyph/create`, `/glyph/delete`, `/glyph/unicode` | [names-unicode](topics/names-unicode.md) |
 | geometry | `set_glyph_width`, `set_glyph_sidebearings`, `draw_polygon`, `draw_path` | `/glyph/width`, `/glyph/sidebearings`, `/glyph/polygon`, `/glyph/path` | [geometry](topics/geometry.md) |
-| kerning | `get_kerning` | GET/POST `/kerning/pairs` (the current master's table; exactly one open font) | [kerning](topics/kerning.md) |
+| kerning | `get_kerning` | GET/POST `/kerning/pairs` (the current master's table of the font in front; with several fonts open, matched by path) | [kerning](topics/kerning.md) |
 | save policy | `finish_changes` | none (server bookkeeping) | [server-and-endpoints](topics/server-and-endpoints.md) §2 |
 | research | none | `/debug/...` probes, gated by `go=yes` where they change anything | [server-and-endpoints](topics/server-and-endpoints.md) §3 |
 

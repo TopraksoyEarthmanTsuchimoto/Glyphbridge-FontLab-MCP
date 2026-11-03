@@ -1324,7 +1324,7 @@ for label, extra in (("19x17 master and count", {}), ("19x18 master missing", di
     r = k19(rep, pairs=[["A", "V"]]); print(label.ljust(31), ":", {k: r[k] for k in ("master", "master_count")}, "| masters note", "only the current one was read" in r["agent_instruction"])
 r = k19(okreply([{"left": "A", "right": "V", "value": -1.0}], table_size=0), pairs=[["A", "V"]]); print("19x27 empty master table note       :", r["agent_instruction"][-200:])
 r = k19({"open": True, "error": "2 fonts are open: the kerning table can be matched to the current font only when exactly one font is open, so close the other fonts"}, pairs=[["A", "V"]]); print("19x28 two fonts: listener error     :", r)
-print("19x29 tool docstring                :", "listener v0.104" in srv.get_kerning.__doc__, "| source named:", "never guess whether a value comes from a class" in srv.get_kerning.__doc__, "| one font:", "Exactly one font" in srv.get_kerning.__doc__)
+print("19x29 tool docstring                :", "listener v0.104" in srv.get_kerning.__doc__, "| source named:", "never guess whether a value comes from a class" in srv.get_kerning.__doc__, "| current font (v0.37):", "whose window is in front" in srv.get_kerning.__doc__)
 r = k19(okreply(many(2)), version="0.94", pairs=[["A", "V"]] * 2); print("19dh small read, listener 0.94     :", r[:95], "| kerning requests", len(k19reads()))
 r = k19(okreply(many(1)), pairs=[["A", "V"]]); print("19di request shape                 :", k19reads()[0][0], sorted(k19reads()[0][1]), "| only POST", k19other() == [])
 r = k19(okreply(many(1), mode="text"), text="AV"); print("19dj text request shape            :", k19reads()[0][0], k19reads()[0][1], "| only POST", k19other() == [])
@@ -1351,6 +1351,18 @@ try: _w2 = srv.get_kerning(pairs=[["A", "V"]] * 251, confirmed_large_read=True)[
 except srv.ToolError as e: _w2 = "refused"
 print("19cl2 wrapper passes the approval flag :", _w1, "/", _w2)
 print("19cm MIN_LISTENER_VERSION unchanged / server version:", srv.MIN_LISTENER_VERSION, srv.SERVER_VERSION)
+# server 0.37: which font was read, with several fonts open (listener 0.112)
+K19["version"] = "0.112"
+for _lbl, _extra in (("19dn two fonts, matched by path  ", dict(fonts_open=2, matched_by="path", family_name="Arial")),
+                     ("19do one font                    ", dict(fonts_open=1, matched_by="only font", family_name="Arial")),
+                     ("19dp two fonts, no family name   ", dict(fonts_open=2, matched_by="path", family_name=None)),
+                     ("19dq odd values dropped          ", dict(fonts_open=True, matched_by="guess", family_name="x" * 64)),
+                     ("19dr older listener: no fields   ", dict())):
+    K19["reply"] = okreply([{"left": "A", "right": "V", "value": -152.0}], **_extra)
+    _r = srv.read_kerning(pairs=[["A", "V"]])
+    _ins = _r["agent_instruction"]
+    print(_lbl, ":", {k: _r[k] for k in ("fonts_open", "matched_by", "family_name")}, "| names the font:", "fonts are open in FontLab" in _ins, "(Arial)" in _ins, "| say which:", "Say which font" in _ins)
+print("19ds docstring: front window, no one-font rule:", "whose window is in front" in srv.get_kerning.__doc__, "Exactly one font must be open" not in srv.get_kerning.__doc__, "v0.112" in srv.get_kerning.__doc__)
 srv._call_listener, srv._call_listener_post = _save19
 
 # ==== 20. server 0.34: the connected app's name goes to the listener in the X-Glyphbridge-Client header ====
@@ -1460,3 +1472,66 @@ print("21f read once, only when run as a program:", len(_calls21) == 1 and _call
       "| privacy scan of the launcher code, forbidden words found:",
       [w for w in ("environ", "argv", "CommandLine", "QueryFullProcessImageName", "GetModuleFileName", ".uid", ".gid", "getlogin", "getpass", "expanduser", "pwd", "print(")
        if w in _code21], "| scanned chars > 3000:", len(_code21) > 3000)
+
+# ==== 22. server 0.38: every reply names its font (listener 0.113 headers) ====
+print("\n==== 22. server 0.38: the font a reply came from ====")
+import email.message as _em22
+from urllib.parse import quote
+H22 = {"queue": []}
+def _hdr22(family=None, style="Regular", key="aaaaaaaaaaaa", count=1, raw=None):
+    m = _em22.Message()
+    if raw is not None:
+        for k, v in raw.items(): m[k] = v
+    elif family is not None:
+        m["X-Glyphbridge-Font"] = quote(family, safe="") + "/" + quote(style, safe="")
+        m["X-Glyphbridge-Font-Key"] = key
+        if count is not None: m["X-Glyphbridge-Fonts-Open"] = str(count)
+    return m
+class _Opener22:
+    def open(self, req, timeout=None):
+        r = _Resp20(json.dumps({"open": True, "found": True, "width": 600.0}).encode())
+        r.headers = H22["queue"].pop(0) if H22["queue"] else _hdr22()
+        return r
+_spec22 = importlib.util.spec_from_file_location("srv22", find("glyphbridge_mcp_server.py")); srv22 = importlib.util.module_from_spec(_spec22); _spec22.loader.exec_module(srv22)
+srv22._opener = _Opener22()
+def w22(label, *hdrs):
+    H22["queue"][:] = list(hdrs)
+    r = srv22.get_glyph_width("A")
+    print(label, ":", {k: r[k] for k in r if k not in ("name", "width")})
+w22("22a first call, one font            ", _hdr22("Arial", "Regular", "a1a1a1a1a1a1", 1))
+w22("22b same font again                 ", _hdr22("Arial", "Regular", "a1a1a1a1a1a1", 1))
+w22("22c two fonts open                  ", _hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2))
+w22("22d the font in front changed       ", _hdr22("testfont", "Regular", "b2b2b2b2b2b2", 2))
+w22("22e older listener: no headers      ", _hdr22())
+w22("22f after it: same font, no change  ", _hdr22("testfont", "Regular", "b2b2b2b2b2b2", 2))
+w22("22g an unsaved font, two open       ", _hdr22("Unnamed", "Regular", "none", 2))
+w22("22h another unsaved font, same name ", _hdr22("Unnamed", "Regular", "none", 2))
+w22("22i same name, other path           ", _hdr22("Unnamed", "Regular", "c3c3c3c3c3c3", 2))
+w22("22j malformed key and count         ", _hdr22(raw={"X-Glyphbridge-Font": "Ari%0Aal/Reg%07ular", "X-Glyphbridge-Font-Key": "XYZ", "X-Glyphbridge-Fonts-Open": "two"}))
+w22("22k non-ASCII name, no style part   ", _hdr22(raw={"X-Glyphbridge-Font": quote("Ünïcode Sans", safe=""), "X-Glyphbridge-Font-Key": "d4d4d4d4d4d4"}))
+w22("22l empty family and style          ", _hdr22(raw={"X-Glyphbridge-Font": "/", "X-Glyphbridge-Font-Key": "e5e5e5e5e5e5", "X-Glyphbridge-Fonts-Open": "2"}))
+def _two_calls22(modified):
+    srv22._call_listener("/glyph/width?name=A"); srv22._call_listener("/glyph/width?name=A")
+    return {"font_modified": modified}
+for lbl, mod in (("22m changed during a write call ", True), ("22n changed during a read call  ", None)):
+    H22["queue"][:] = [_hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2), _hdr22("testfont", "Regular", "b2b2b2b2b2b2", 2)]
+    print(lbl, ":", srv22._with_font(_two_calls22, mod))
+def _refuse22():
+    srv22._call_listener("/glyph/width?name=A"); raise srv22.ToolError("refused")
+H22["queue"][:] = [_hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2)]
+try: srv22._with_font(_refuse22)
+except srv22.ToolError as e: print("22o a refusal still updates the remembered font:", srv22._FONT_SEEN)
+H22["queue"][:] = [_hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2)]
+r = srv22.get_glyph_width("A"); print("22p next call, same font: no font_changed:", "font_changed" not in r)
+H22["queue"][:] = [_hdr22("Arial", "Regular", "f6f6f6f6f6f6", 2)]
+r = srv22.get_glyph_width("A"); print("22t same name, another path: changed :", r.get("font_changed"), "| note says another file:", "from a different file" in r.get("font_note", ""))
+H22["queue"][:] = [_hdr22("Arial Renamed", "Regular", "f6f6f6f6f6f6", 2)]
+r = srv22.get_glyph_width("A"); print("22u same path, renamed: not changed :", r.get("font_changed"))
+H22["queue"][:] = [_hdr22("Leaked", "Regular", "0a0a0a0a0a0a", 2), _hdr22()]
+srv22._call_listener("/glyph/width?name=A")
+r = srv22.get_glyph_width("A"); print("22v a call outside a tool does not leak into the next tool:", {k: r[k] for k in r if k.startswith("font")})
+print("22q finish_changes makes no listener call: no font fields:", [k for k in srv22.finish_changes() if k.startswith("font")])
+_src22 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
+_tools22 = _re19.findall(r"@mcp\.tool\(\)\ndef (\w+)\((?:.|\n)*?\n    return (.*)\n", _src22)
+print("22r every tool returns through _with_font:", len(_tools22), [n for n, ret in _tools22 if not ret.startswith("_with_font(")])
+print("22s headers read inside _do_request    :", "_note_font_headers(getattr(resp, \"headers\", None))" in _src22[_src22.index("def _do_request("):_src22.index("def _call_listener(")])

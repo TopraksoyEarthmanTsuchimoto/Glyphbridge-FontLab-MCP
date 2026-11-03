@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.110)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.113)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -77,7 +77,8 @@ Routes (GET unless marked POST):
     /kerning/pairs?pairs=A:V,T:o  or  ?text=AVATAR
                                 FontLab's effective kerning per pair from the current master's table
                                 (v0.104), class kerning included; source says which kind of entry
-                                answered; exactly one font must be open
+                                answered; with several fonts open the current one is matched to its
+                                table by path (v0.112)
     POST /kerning/pairs         {"pairs": [[left, right], ...]} or {"text": "..."}: the same for large
                                 reads (body read up to 1,000,000 bytes)
 
@@ -124,10 +125,11 @@ Routes (GET unless marked POST):
 """
 
 import datetime
+import hashlib
 import json
 import socket
 import time
-from urllib.parse import urlsplit, parse_qs, unquote
+from urllib.parse import urlsplit, parse_qs, quote, unquote
 
 import fontlab as fl
 from PythonQt import QtCore
@@ -142,7 +144,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.110"
+VERSION = "0.113"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -186,7 +188,59 @@ def _open_font():
         count = None
     if type(count) is int and count == 0:
         return None
-    return fl.CurrentFont()
+    font = fl.CurrentFont()
+    if font is not None:
+        _note_request_font(font, count)
+    return font
+
+
+# v0.113: the font a request used goes back in three response headers, so the server can name it in every reply and see a
+# switched font window (goal 5 of PROJECT.md). The listener runs on FontLab's main thread, so the font cannot change between a
+# route's work and its reply. The path itself never leaves the listener: only a short hash of it ("none" when it is empty).
+_REQUEST_FONT = {"used": False, "family": "", "style": "", "key": "none", "count": None}
+_FONT_TEXT_MAX = 100
+
+
+def _font_text(info, attr):
+    """A name field of font.info as plain text without control characters, or "" when unreadable. Never raises."""
+    try:
+        value = getattr(info, attr)
+    except Exception:
+        return ""
+    if not isinstance(value, str):
+        return ""
+    return "".join(ch for ch in value if not (ord(ch) < 32 or 127 <= ord(ch) <= 159))[:_FONT_TEXT_MAX]
+
+
+def _note_request_font(font, count):
+    """Remember the font this request uses (family, style, path hash, CountFonts()). Never raises."""
+    try:
+        info = font.info
+    except Exception:
+        info = None
+    try:
+        path = font.path
+    except Exception:
+        path = None
+    key = hashlib.sha1(path.encode("utf-8")).hexdigest()[:12] if isinstance(path, str) and path else "none"
+    _REQUEST_FONT.update(used=True, family=_font_text(info, "familyName") if info is not None else "",
+                         style=_font_text(info, "styleName") if info is not None else "", key=key,
+                         count=count if type(count) is int else None)
+
+
+def _forget_request_font():
+    _REQUEST_FONT.update(used=False, family="", style="", key="none", count=None)
+
+
+def _font_headers():
+    """The three header lines for the font this request used, or "" when it used none."""
+    if not _REQUEST_FONT["used"]:
+        return ""
+    lines = (f"X-Glyphbridge-Font: {quote(_REQUEST_FONT['family'], safe='')}/{quote(_REQUEST_FONT['style'], safe='')}\r\n"
+             f"X-Glyphbridge-Font-Key: {_REQUEST_FONT['key']}\r\n")
+    if _REQUEST_FONT["count"] is not None:
+        lines += f"X-Glyphbridge-Fonts-Open: {_REQUEST_FONT['count']}\r\n"
+    return lines
 
 
 def get_current_font_info():
@@ -1504,6 +1558,40 @@ def _kern_group_names(pkg):
     return (names, twice), None
 
 
+def _kern_package_by_path(mod, font):
+    """(package, None) or (None, reason). READ ONLY. With several fonts open, the workspace's current package is taken for the current
+    font only when both have the same, non-empty path (T5, tests 262-264: CurrentFont() and flWorkspace.currentPackage follow the font
+    window in front together; the package name is empty, a new unsaved font has an empty path). packages() is never looked into."""
+    try:
+        font_path = font.path
+    except Exception as exc:
+        return None, f"the current font's path could not be read ({type(exc).__name__}: {exc})"
+    if not isinstance(font_path, str) or not font_path:
+        return None, "the current font has no file path (a new, unsaved font)"
+    try:
+        ws = mod.flWorkspace.instance()
+    except Exception as exc:
+        return None, f"the workspace could not be reached ({type(exc).__name__}: {exc})"
+    pkg, err = _pkg_get(ws, "currentPackage")
+    if err is not None:
+        return None, err
+    if pkg is None:
+        return None, "the workspace has no current package"
+    is_null, err = _pkg_get(pkg, "isNull")
+    if err is not None:
+        return None, err
+    if is_null is not False:
+        return None, "the current package is null or its state is unknown"
+    pkg_path, err = _pkg_get(pkg, "path")
+    if err is not None:
+        return None, err
+    if not isinstance(pkg_path, str) or not pkg_path:
+        return None, "the current package has no path"
+    if pkg_path != font_path:
+        return None, "the current package's path differs from the current font's path (was another font window brought to the front?)"
+    return pkg, None
+
+
 def get_kerning_pairs(pairs=None, text=None):
     """v0.104 - READ-ONLY kerning lookup in the table FontLab uses: flPackage.kerning(current master) (P0.8; live tests 191-218). The
     legacy font.kerning is never read: it misses kerning made in FontLab's GUI (defect A). Every pair is asked with explicit keys
@@ -1511,8 +1599,9 @@ def get_kerning_pairs(pairs=None, text=None):
     class (defect B). A glyph's classes come from its kerningLeft / kerningRight group ids, named by ONE flPackage.getAllGroups() per
     request when any id is not 0. FontLab's order (tests 176, 192-213, both creation orders): glyph : glyph, glyph : class,
     class : glyph, class : class; the first entry that exists answers, and its kind is reported as source. No entry: value 0,
-    kerned false, source "none". Exactly one font must be open, so that the workspace's current package is this font. Two input forms,
-    exactly one of them:
+    kerned false, source "none". With one font open the workspace's current package is this font; with several (v0.112) the current
+    package is used only when its path is not empty and equals the current font's path (_kern_package_by_path). The reply names
+    fonts_open, matched_by ("only font" or "path") and family_name. Two input forms, exactly one of them:
       pairs  'A:V,T:o'  1 or more pairs of glyph names, no upper limit; the POST route sends a list of [left, right] lists (A-Z a-z 0-9 . _ -; ':' and ',' cannot occur in such names)
       text   2 or more characters; each character is mapped to the ONE glyph whose primary Unicode it is; the pairs are the neighbours.
     A name that is not a glyph, a character that maps to no glyph or to several, an unreadable or unnamed class id, a failed get() and
@@ -1557,15 +1646,25 @@ def get_kerning_pairs(pairs=None, text=None):
     font = fl.CurrentFont()
     if font is None:
         return {"open": False}
+    _note_request_font(font, count)
     if count is None:
         return {"open": True, "error": "the number of open fonts could not be read (CountFonts() gave no plain number), so the kerning table "
                                        "cannot be matched to the current font"}
-    if count != 1:
-        return {"open": True, "error": f"{count} fonts are open: the kerning table can be matched to the current font only when exactly one font "
-                                       "is open, so close the other fonts (without saving them if they are test fonts) and ask again"}
-    ws, pkg, why = _trysync_target(_sys.modules.get("fontlab") or fl)
-    if ws is None:
-        return {"open": True, "error": f"the kerning table could not be matched to the current font: {why}"}
+    if count < 1:
+        return {"open": True, "error": f"CountFonts() gave {count}, so the kerning table cannot be matched to the current font"}
+    mod = _sys.modules.get("fontlab") or fl
+    if count == 1:
+        ws, pkg, why = _trysync_target(mod)
+        if ws is None:
+            return {"open": True, "error": f"the kerning table could not be matched to the current font: {why}"}
+        matched_by = "only font"
+    else:
+        pkg, why = _kern_package_by_path(mod, font)
+        if pkg is None:
+            return {"open": True, "error": f"{count} fonts are open and the current font could not be matched to its kerning table: {why}. "
+                                           "Bring a saved font's window to the front, or close the other fonts (without saving them if they "
+                                           "are test fonts), and ask again"}
+        matched_by = "path"
     masters, err = _pkg_get(pkg, "masters")
     if err is not None:
         return {"open": True, "error": f"the font's masters could not be read: {err}"}
@@ -1699,8 +1798,15 @@ def get_kerning_pairs(pairs=None, text=None):
             upm = raw_upm
     except Exception:
         upm = None
-    return {"open": True, "mode": "text" if have_text else "pairs", "master": master, "master_count": len(masters), "units_per_em": upm,
-            "count": len(wanted), "errors": sum(1 for e in wanted if "error" in e), "table_size": len_before,
+    family = None
+    try:
+        raw_family = font.info.familyName
+        if isinstance(raw_family, str):
+            family = raw_family
+    except Exception:
+        family = None
+    return {"open": True, "mode": "text" if have_text else "pairs", "fonts_open": count, "matched_by": matched_by, "family_name": family,
+            "master": master, "master_count": len(masters), "units_per_em": upm, "count": len(wanted), "errors": sum(1 for e in wanted if "error" in e), "table_size": len_before,
             "side_effect_detected": (len_before != len_after) if (len_before is not None and len_after is not None) else None,
             "results": wanted}
 
@@ -5443,7 +5549,9 @@ def _tryfont_read(obj, attr):
 
 
 def _tryfont_workspace_state(mod, pkg=None):
-    """Read-only look at the legacy and the modern view of 'which fonts are open'."""
+    """Read-only look at the legacy and the modern view of 'which fonts are open'. Since v0.111 it also reads the current
+    package's path and fileName (T5: its name is empty, so it cannot be told from another package by name) and the type
+    name of what packages() returns, which is never iterated or indexed (an unproven container call)."""
     out = {}
     try:
         out["CountFonts"] = _tryfont_plain(mod.CountFonts())
@@ -5477,7 +5585,9 @@ def _tryfont_workspace_state(mod, pkg=None):
         return out
     out["workspace"] = "ok"
     try:
-        out["packages_len"] = len(ws.packages())
+        packages = ws.packages()
+        out["packages_type"] = type(packages).__name__
+        out["packages_len"] = len(packages)
     except Exception as exc:
         out["packages_len"] = f"<error: {type(exc).__name__}: {exc}>"
     try:
@@ -5488,7 +5598,8 @@ def _tryfont_workspace_state(mod, pkg=None):
             out["currentPackage"] = None
         else:
             out["currentPackage"] = {"type": type(cp).__name__, "isNull": _tryfont_read(cp, "isNull"),
-                                     "name": _tryfont_read(cp, "name")}
+                                     "name": _tryfont_read(cp, "name"), "path": _tryfont_read(cp, "path"),
+                                     "fileName": _tryfont_read(cp, "fileName")}
     except Exception as exc:
         out["currentPackage"] = f"<error: {type(exc).__name__}: {exc}>"
     if pkg is not None:
@@ -6555,12 +6666,14 @@ def _build_response(status, payload):
         f"HTTP/1.1 {status} {_REASONS.get(status, 'Error')}\r\n"
         "Content-Type: application/json\r\n"
         f"Content-Length: {len(body)}\r\n"
+        + _font_headers() +
         "Connection: close\r\n\r\n"
     )
     return head.encode("ascii") + body
 
 
 def _route(method, full_path, body=b""):
+    _forget_request_font()           # v0.113: each request names only the font it used itself
     split = urlsplit(full_path)
     path = split.path
     query = parse_qs(split.query)
@@ -7506,6 +7619,7 @@ def _handle(conn):
         pass
     finally:
         _request_client = _request_launcher = None
+        _forget_request_font()
         try:
             conn.close()
         except Exception:

@@ -11,19 +11,17 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 3. Run `.\venv\Scripts\python.exe glyphbridge_mcp_server.py --check --outline NAME` and compare.
 4. Add the captured case to `tests/` and record the result. Never save after a live write test; quit FontLab without saving.
 
-## Kerning (priority, details in [LIVE-TESTS.md](LIVE-TESTS.md))
+## Kerning
 
-| # | Scenario | Status |
-|---|---|---|
+None open: the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 
 ## Sync, fonts and agent level
 
 | # | Scenario | Status |
 |---|---|---|
-| 60 | T4: width and sidebearings on an existing glyph with legacy layers | TODO |
-| 53 | Auto sync not yet proven for: existing glyphs (60), multi-layer (11), quadratic (43), big glyphs (42), after save (32) | PARTLY |
+| 53 | Auto sync not yet proven for: multi-layer (11), quadratic (43), big glyphs (42), after save (32) | PARTLY |
 | 57 | No font open: every route answers `open: false` (`CountFonts()`, listener 0.105) | PARTLY: every read route proven, after closing the only font (227) and in a freshly started FontLab (244); writes with no font open: one create refused (227), the rest stub-only (T12) |
-| 63 | Two fonts open: which one the tools address | TODO (T5) |
+| 63 | Several fonts open: which one the tools address | PARTLY: `CurrentFont()` and the current package follow the window in front (262–264); `get_kerning` reads that font, matched by path, with 2 and 3 fonts, and refuses an unsaved one (265–268); every reply names its font and a switched window is reported (269–272); the write tools and two unsaved fonts untested live ([topics/fonts-and-sync.md](topics/fonts-and-sync.md)) |
 | 62 | Modern glyph creation without `font.update()` | TODO, low priority (T6) |
 | 22 | Layer-name derivation when glyphs disagree, or when none has a layer | stub-tested only |
 | 32 | Save and reopen after API-drawn geometry | DEFERRED by the user (T9) |
@@ -38,7 +36,7 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 | 11 | Multiple layers or masters | TODO (T7) |
 | 12c, 12d, 12e | Rotation, mirroring, combined transform on real data | TODO (T11), simulated only |
 | 13 | Two elements with different transforms | TODO |
-| 14 | Power Brush glyph with an element transform | TODO |
+| 14 | Power Brush glyph with an element transform | PARTLY: an offset (dx −142, set by `setSB`) read `verified`, FontLab's Elements panel Δ=(-142,0) (T4, 145g, 260); scale and rotation not tested |
 | 6, 50 | Open contours, read | TODO (P1.4); assumed closed today |
 | 15, 40, 51 | A real designed letter (Arial `O`, `S`, `g`, `eacute`), read-only | TODO (P1.5), under about 150 nodes each |
 | 4 | Back To PS Curves round trip | TODO |
@@ -67,7 +65,7 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 |---|---|---|
 | 17, 42, 64 | Large glyphs: 1980-node request, 2001-node refusal, read 1000+ nodes, time of `Update` against the 5 s timeout | POSTPONED |
 
-Closed on 2026-11-03: rows 21, 52, 61 (T2, tests 253–255), row 59 (T3, tests 256–258), row 75 (K11 on Arial, tests 158, 230–235), row 76 (K12: (a) test 168, (b) test 243; (c) handed to T5, row 63), row 77 (K13, tests 227 and 244), row 78 (K14, tests 245 and 246), row 80 (K16, tests 247–252); row 79 (K15) dropped by the user's decision.
+Closed on 2026-11-03: row 60 (T4, tests 145a–g, 259 and 260), rows 21, 52, 61 (T2, tests 253–255), row 59 (T3, tests 256–258), row 75 (K11 on Arial, tests 158, 230–235), row 76 (K12: (a) test 168, (b) test 243; (c) handed to T5, row 63), row 77 (K13, tests 227 and 244), row 78 (K14, tests 245 and 246), row 80 (K16, tests 247–252); row 79 (K15) dropped by the user's decision.
 
 Closed on 2026-11-02: row 74 (K10, test 224).
 

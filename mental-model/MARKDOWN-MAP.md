@@ -12,19 +12,20 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [PROJECT.md](PROJECT.md) | goals, scope, non-goals, design rule | 850 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | processes, APIs, verification model, tools, layout | 1,600 |
 | [CURRENT-STATUS.md](CURRENT-STATUS.md) | where the project stands and what comes next | 1,350 |
-| [DECISIONS.md](DECISIONS.md) | active decisions with dates and reasons | 1,350 (active part) |
+| [DECISIONS.md](DECISIONS.md) | active decisions with dates and reasons | 1,700 (active part) |
 | [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 900 |
 | [CHECKLIST.md](CHECKLIST.md) | open scenarios | 1,300 |
 
-Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, has a budget of 500.
+Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, has a budget of 500, and [WATCH-POINTS.md](WATCH-POINTS.md) a budget of 750 (2026-11-03, [DECISIONS.md](DECISIONS.md)).
 
-**Reference totals:** 9,700 words including the root README, and 9,200 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. On 2026-11-01, CLAUDE.md (200) was added, CHECKLIST.md was raised from 1,000 to 1,300 and CURRENT-STATUS.md from 800 to 1,250. On 2026-11-03, CURRENT-STATUS.md was raised to 1,350 and DECISIONS.md from 1,200 to 1,350 ([DECISIONS.md](DECISIONS.md); the CURRENT-STATUS entries and the 2026-11-03 entry are in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md)).
+**Reference totals:** 10,050 words including the root README, and 9,550 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. On 2026-11-01, CLAUDE.md (200) was added, CHECKLIST.md was raised from 1,000 to 1,300 and CURRENT-STATUS.md from 800 to 1,250. On 2026-11-03, CURRENT-STATUS.md was raised to 1,350 and DECISIONS.md from 1,200 to 1,350, then to 1,450 and 1,700 ([DECISIONS.md](DECISIONS.md); the earlier budget entries are in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md)).
 
 ## Linked files (read when the task needs them; no budget)
 
 | File | Role |
 |---|---|
 | [HOW-TO-GET-ORGANIZED.md](HOW-TO-GET-ORGANIZED.md) | the workflow guide this repository follows |
+| [WATCH-POINTS.md](WATCH-POINTS.md) | what was seen but is not yet explained or settled, and how an entry is settled or dropped (budget 750) |
 | [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) | hard rules for FontLab API calls, and dead ends not to retry |
 | [RUNBOOK.md](RUNBOOK.md) | machine setup, restart rules, PowerShell conventions, re-verify steps, ready commands |
 | [LIVE-TESTS.md](LIVE-TESTS.md) | the K-series and T-series live tests in full |
@@ -54,7 +55,7 @@ Older notes refer to sections by number ("section 8p"). The linked files keep th
 
 | v11 section | Live file |
 |---|---|
-| header (status, what changed v8–v11) | CURRENT-STATUS, DECISIONS; history only in the archive |
+| header (status, what changed v8–v11) | CURRENT-STATUS, DECISIONS, WATCH-POINTS; history only in the archive |
 | §0 design rule | PROJECT |
 | §1 architecture | ARCHITECTURE; operational part in RUNBOOK |
 | §2, §3 | topics/server-and-endpoints |

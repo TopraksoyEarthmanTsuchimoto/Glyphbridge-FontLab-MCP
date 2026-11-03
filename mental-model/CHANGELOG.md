@@ -4,6 +4,29 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.113 / server v0.38 (2026-11-03)
+
+**Every reply names its font (goal 5, ROADMAP P0.5 (a)).**
+- **Listener:** `_open_font()` and the kerning route remember the font a request used (`_note_request_font`: `font.info.familyName` / `styleName` without control characters, at most 100 characters each; the first 12 hex digits of the SHA-1 of `font.path`, or `none` for an empty or unreadable path; `CountFonts()`). `_build_response()` sends them as `X-Glyphbridge-Font` (family and style, percent-encoded, joined by `/`), `X-Glyphbridge-Font-Key` and `X-Glyphbridge-Fonts-Open` (only when the count is a plain number). `_route()` and `_handle()` forget the font at each request, so `/health`, `/version`, the probes and a request that used no font get no headers. JSON replies are unchanged; the path never leaves the listener.
+- **Server:** `_do_request` records the headers of each listener reply; every tool returns through `_with_font`, which adds `font` and `fonts_open`, and `font_note` when several fonts are open, the font has no path, or the font changed. `font_changed` (from / to) compares with the previous tool call in this server process: the path hashes decide when both exist, otherwise the names (two unsaved fonts of the same name cannot be told apart, and the note says so; the same name from another file is named as such). A change inside one call adds `font_changed_during_call`, and on a write `change_target_uncertain`. A refusal still updates the remembered font; an older listener adds nothing.
+- Tests: listener cases 1510–1519c, and 1424 now shows `font.info` read with one font open. Server part 22 (22a–22v). Existing output changed otherwise only in the version lines. Mutation run: 23 of 23 killed (10 listener, 13 server); the first run's two survivors (no reset per tool call; names deciding over path hashes) led to cases 22t–22v.
+- Live 2026-11-03 (tests 269–272, FontLab 8.9.5): no font open gave no font fields; one font was named without a note; a switch between Arial and the test font was reported in both directions with the note.
+
+## Listener v0.112 / server v0.37 (2026-11-03)
+
+**`get_kerning` with several fonts open (T5).**
+- **Listener `/kerning/pairs`:** with one font open nothing changes (`_trysync_target`, the package path is not read). With two or more, the new `_kern_package_by_path` takes the workspace's current package only when the current font's `path` is a non-empty string, the package is not null, and its `path` is the same non-empty string; otherwise it refuses, naming the check that failed, and suggests bringing a saved font to the front or closing the other fonts. `CountFonts()` below 1 is refused. `packages()` is not used on this route. The reply adds `fonts_open`, `matched_by` (`"only font"` or `"path"`) and `family_name` (`font.info.familyName`, or null).
+- **Server:** passes `fonts_open`, `matched_by` and `family_name` on (odd values become null). With more than one font open, the instruction says which font was read (the one whose window is in front, matched by its file path) and asks the agent to name it. The tool description no longer says "Exactly one font must be open"; it says the tool reads the font in front and may refuse with several fonts open.
+- Tests: listener cases 1447 and 1447b now read (matching paths), new 1447c–1447p (one font never reads the package path; two fonts read it once; differing, empty, `None`, unreadable or non-text paths; a null or unknown package; `CountFonts()` −1; `packages()` unused); every kerning reply line gained the three fields; the static scan lists `path` among the font members read. Server cases 19dn–19ds, and 19x29 checks the new sentence. Existing output changed otherwise only in the version lines. Mutation run: 12 of 12 killed (8 listener, 4 server).
+- Live 2026-11-03 (tests 265–268, FontLab 8.9.5): Arial in front read with `matched_by` `path` and its known values; the test font in front read after one click; a new unsaved font in front (3 fonts) refused with the path reason.
+
+## Listener v0.111 / server v0.36 (2026-11-03)
+
+**`/debug/tryfont?stage=state` tells packages apart (T5)**; the server is unchanged.
+- The current package is also reported with its `path` and `fileName` (the same `_tryfont_read` as the `construct` stage), because its `name` is empty even for a saved font (test 261). The type name of what `flWorkspace.packages()` returns is reported as `packages_type`; it is never iterated or indexed (an unproven container call, [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10). The `construct` and `attach` stages show the same fields in their workspace snapshots.
+- Tests: cases 732b (a new package: empty path, a failing `fileName` reported as text) and 732c (a saved package: its path and file name, no forbidden call). Existing output changed only in the version lines. Mutation run: 3 of 3 killed (no `path` read, no `packages_type`, `fileName` read from `name`).
+- Live 2026-11-03 (T5, tests 262–264, Arial and `savedtestfont.vfc` open): `path` matched `CurrentFont()`'s path in each state, `fileName` ends in `.xfo`, `packages_type` is `list`.
+
 ## Listener v0.110 / server v0.36 (2026-11-03)
 
 **One launcher, shown briefly and alike on Windows and macOS.**

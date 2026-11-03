@@ -1,4 +1,4 @@
-Last verified: 2026-11-03 against the working tree after c39459b (listener v0.110, server v0.36; tests PASS, deployed copy identical)
+Last verified: 2026-11-03 against the working tree of the first commit after efb0c99 (listener v0.113, server v0.38; tests PASS, deployed copy identical)
 
 # Current status
 
@@ -6,11 +6,11 @@ Last verified: 2026-11-03 against the working tree after c39459b (listener v0.11
 
 | Part | Version | md5 (as committed) |
 |---|---|---|
-| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.110"` | `6f432f56af289d9a54b0e4c21a340648` (373,526 bytes) |
-| server `glyphbridge_mcp_server.py` | `SERVER_VERSION = "0.36"`, `MIN_LISTENER_VERSION` (0, 82) | `ce2c67321b49f6f3798bf51a9a4b90d9` (155,383 bytes) |
-| tests | 4 harnesses | PASS at **2186 + 58 + 90 + 768** lines |
+| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.113"` | `28f62e265074f17389ae325c65ba4224` (379,032 bytes) |
+| server `glyphbridge_mcp_server.py` | `SERVER_VERSION = "0.38"`, `MIN_LISTENER_VERSION` (0, 82) | `5a0779b4b669c8035a095a5c7660aab1` (161,052 bytes) |
+| tests | 4 harnesses | PASS at **2227 + 58 + 90 + 798** lines |
 
-`get_kerning` needs listener 0.104 (server 0.33). What each release changed: [CHANGELOG.md](CHANGELOG.md).
+`get_kerning` needs listener 0.104 (server 0.33); with several fonts open, 0.112 / 0.37. What each release changed: [CHANGELOG.md](CHANGELOG.md).
 
 ## Environment (verified 2026-11-01)
 
@@ -26,11 +26,12 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 ## What works (live-proven in FontLab)
 
 - **Reading:** outlines with element transforms (scale, offset, slant), cubic and quadratic outlines, Power Brush output, widths, sidebearings, the stale-view fallback. → [topics/reading.md](topics/reading.md)
-- **Writing:** create and delete glyphs (name safety rules), Unicode set and clear, width, sidebearings, closed straight and cubic contours into an empty glyph, auto sync after every modern write, also with the glyph's editor tab open (T3, 257). → [topics/geometry.md](topics/geometry.md), [topics/names-unicode.md](topics/names-unicode.md), [topics/fonts-and-sync.md](topics/fonts-and-sync.md)
+- **Writing:** create and delete glyphs (name safety rules), Unicode set and clear, width, sidebearings, closed straight and cubic contours into an empty glyph, auto sync after every modern write, also with the glyph's editor tab open (T3, 257) and on an existing glyph with a legacy layer, in a font opened from a file (T4, 145a–g, 259, 260: a plain contour and a Power Brush shape). → [topics/geometry.md](topics/geometry.md), [topics/names-unicode.md](topics/names-unicode.md), [topics/fonts-and-sync.md](topics/fonts-and-sync.md)
 - **`.notdef`** check and one-time dialog. → [topics/notdef.md](topics/notdef.md)
 - **Activity log** in FontLab's OUTPUT panel: one line per change and one summary of reads, naming the client (`local-agent-mode`) and, once, the program that started the server (`| CLAUDE`); live tests 190, 191, 225–229, 236–242. Stub-tested only: REFUSED / FAILED lines, unsynced or warned results, the `writes` / `off` modes, the flush at `/shutdown`. → [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4
 - **No font open** (P0.2): with the only font closed in a running FontLab, `fontlab_status` gave `font_open: false`, and a width read and a create were refused; Arial reopened read as before (227, 228). In a freshly started FontLab (K13, 244) all 8 read routes answered `open: false`, the placeholder glyph `Paper` included, with no dialog. Not seen live: the other write tools (stub only). → [topics/fonts-and-sync.md](topics/fonts-and-sync.md)
-- **Kerning** (K1–K14 and K16, 2026-11-01 to 2026-11-03; each test in [LIVE-TESTS.md](LIVE-TESTS.md)): **since 0.104 / 0.33** `get_kerning` reads the current master's table, reports each value's `source`, and needs exactly one open font (live 219–223). Proven: the listener route by GET and POST (K2, K3); the agent reading only the pairs asked for (K4) and asking before more than 250 (K8); `text` mode equal to the KERNING panel (K5) and its special characters (K6); errors never read as zero (K7); an exception winning over its class value (K9); a FontLab text line applying the same kerning (K10); Arial's `kern` feature (decompiled GPOS) equal to the table in 20 pairs (K11); a `.vfc` opened from a file, with an empty table and panel (K12); 250 and 2,000 pairs read in under 0.1 s each on Arial, FontLab responsive (K14); `+`, `&`, `%`, a space and `é` arrive intact by every route (K16). → [topics/kerning.md](topics/kerning.md) §10, §11
+- **Several fonts open** (T5, 262–272): `CurrentFont()` and the current package follow the font window in front; `get_kerning` reads that font with 2 and 3 fonts open, matched by path, and refuses an unsaved one. Since 0.113 / 0.38 every reply names its font and reports a switched font window (269–272); the write tools are not yet tested live with several fonts; the goal is that every operation works with several fonts ([PROJECT.md](PROJECT.md)). → [topics/fonts-and-sync.md](topics/fonts-and-sync.md)
+- **Kerning** (K1–K14 and K16, 2026-11-01 to 2026-11-03, each test in [LIVE-TESTS.md](LIVE-TESTS.md)): **since 0.104 / 0.33** `get_kerning` reads the current master's table and reports each value's `source` (live 219–223); with several fonts open it reads the font in front, matched by path, and names it (0.112 / 0.37, 265–268). Proven: GET and POST, the agent reading only the pairs it needs and asking above 250, `text` mode equal to the KERNING panel with its special characters, errors never read as zero, an exception winning over its class, a FontLab text line and Arial's `kern` feature agreeing with the table, an empty table, timings up to 2,000 pairs. → [topics/kerning.md](topics/kerning.md) §10, §11
 
 ## Fixed defects
 
@@ -46,18 +47,12 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 ## Next steps (the user's priority of 2026-11-01)
 
 1. **The K-series is done** ([LIVE-TESTS.md](LIVE-TESTS.md)); K15 was dropped ([DECISIONS.md](DECISIONS.md)); P0.8 is done.
-2. Next, the **T-series**: T4 (an existing glyph with legacy layers); T2 and T3 are done.
+2. The **T-series**: T2, T3 and T4 are done; T5 is done for `get_kerning` (0.112 / 0.37) and for replies naming their font (0.113 / 0.38). Candidates for several open fonts, none approved: a live test of the write tools with two fonts, an `expected_font` check on writes, per-font memory ([ROADMAP.md](ROADMAP.md) P0.5).
 3. Candidates after that (none approved): P0.3 / P0.4, a create-font tool; P1.1, components. Required by the user, not yet designed: P1.6, kerning group membership.
 
-Tests 155 to 258 are used (K-series, P0.8 research and checks, 189–190 the v0.101 check and the activity log, 225–229 the checks of 0.105 / 0.106, 158 and 230–235 K11, 236–242 the sender tests, 243 K12(b), 244 K13, 245–246 K14, 247–252 K16, 253–255 T2, 256–258 T3; details in [LIVE-TESTS.md](LIVE-TESTS.md) and [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4); the next free test number is **259**. Large-glyph and very-large-read tests stay in the LAST block.
+The next free test number is **273**; the numbers in use: [LIVE-TESTS.md](LIVE-TESTS.md). Large-glyph and very-large-read tests stay in the LAST block.
 
 ## Contradictions and watch points
 
-- **Arial differs on this PC.** It has **4651** glyphs; the old PC had 4548. It may be a different Arial version, but its kerning is unchanged: K2 read `table_size` 1370 and the same 13 pair values as the old probes.
-- An agent may answer a read from an earlier reply instead of reading (T2, 254: the width, and it said so); asked to read "now", it read.
-- Agents guessed whether a kerning value comes from a direct pair or a class (K5; K8: missing pairs "may sit in GPOS lookups"). Since 0.104 / 0.33 the reply names the `source`, and in test 223 the Desktop agent reported it without guessing. Watch it in later agent-level tests.
-- Arial's `kern` feature has 1,417 `pos` lines, its kerning table 1,370 entries: the difference is unexplained (K11).
-- **New, stricter:** `get_kerning` needs exactly one open font (test 221) until T5 shows which package belongs to the current font.
-- **The client name is the app's own claim** and names the app, not the model; both Claude apps send the same name. The launcher does not tell them apart on this PC either: the Desktop app starts the servers for both (237–238); a file name is not proof. A name with non-ASCII characters would print as such in the OUTPUT panel: not seen, not tested in FontLab.
-- The change counter showed 9 in a Claude Code session that made no changes, also after a full FontLab restart, and 20 at the start of a later one: the server process outlived the earlier sessions (inferred). After a full Claude Desktop restart `fontlab_status` showed no counter (a fresh server; consistent with that).
-- FontLab 8.9.5 versus 8.4.2: no difference seen. Writes on 8.9.5: only `create_glyph`, `draw_polygon`, `set_glyph_width` and `set_glyph_sidebearings` on new glyphs of new fonts (K9 setup, tests 190, 253), all verified, and a declined `delete_glyph` (190).
+- Between the documents and the code: none known (checked 2026-11-03).
+- Open watch points (seen, not yet explained or settled): **9**, in [WATCH-POINTS.md](WATCH-POINTS.md).

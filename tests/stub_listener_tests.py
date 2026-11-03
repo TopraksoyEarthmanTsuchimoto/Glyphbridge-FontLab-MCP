@@ -2000,6 +2000,14 @@ c, d = call("/debug/tryfont?stage=attach&go=yes")
 print("731 second attach refused      :", c, d["error"][:60], "| addPackage calls", TF["calls"].count("addPackage"))
 c, d = call("/debug/tryfont?stage=state")
 print("732 state after attach         :", tf_ws(d), "| constructed", d["constructed"], "| attached", d["attached"])
+_cp = d["workspace_state"].get("currentPackage") or {}
+print("732b state names the package   :", {k: _cp.get(k) for k in ("path", "fileName")}, "| packages_type", d["workspace_state"].get("packages_type"))
+class TFSavedPackage(TFPackage):
+    path = "C:/fonts/saved.vfc"
+    fileName = "saved.vfc"
+TF["packages"].append(TFSavedPackage()); c, d = call("/debug/tryfont?stage=state")
+_cp = d["workspace_state"].get("currentPackage") or {}
+print("732c state, a saved package    :", c, tf_ws(d), {k: _cp.get(k) for k in ("path", "fileName")}, "| packages_type", d["workspace_state"].get("packages_type"), "| forbidden", TF["forbidden"])
 tf_reset(add_raises=1); call("/debug/tryfont?stage=construct&go=yes"); c, d = call("/debug/tryfont?stage=attach&go=yes")
 print("733 addPackage raises          :", c, "| error", d["call_error"], "| attached", d["attached"], "| after", tf_ws(d, "workspace_after"))
 c, d = call("/debug/tryfont?stage=attach&go=yes")
@@ -3016,7 +3024,7 @@ ns["_TRYGROUPS"]["calls"] = 0
 # ================= v0.94 / v0.104: GET /kerning/pairs (read-only; the master's table through flPackage, explicit keys; spies) =================
 print("\n==== v0.94 /kerning/pairs (v0.104: the master's table, explicit keys) ====")
 KP = {"touched": [], "forbidden": [], "gets": [], "mode": {}, "len": 1370, "len_after": None, "len_raises": False, "all_touched": set(), "cur_calls": 0, "glyph_boom": False,
-      "groups_calls": 0, "kerning_args": [], "cfg": {}, "ever": []}
+      "groups_calls": 0, "kerning_args": [], "cfg": {}, "ever": [], "pkg_path_reads": 0}
 _KP_FORBIDDEN = ("set", "remove", "clear", "addGroup", "deleteGroup", "deleteAllGroups", "renameGroup", "scale", "setPlainPairs", "asDict", "getPlainPairs",
                  "getPlainPairsDict", "items", "keys", "values", "has_key", "hasGroupKerning", "groups")
 _KP_LEFT = {"Aring": (101, ("Aacute", "Atilde", "Aring"))}               # left classes: name -> (id, members); the glyph's kerningLeft holds the id
@@ -3082,8 +3090,14 @@ _KP_GLYPHS = [KPGlyph(n, u) for n, u in (("A", 65), ("V", 86), ("T", 84), ("o", 
               ("W.c2sc", None), ("Wgrave.c2sc", None), ("Ydieresis.c2sc", None), ("Tbar.c2sc", None), ("x", 120), ("x.alt2", 120), ("y", 121), ("y.1", 121), ("y.2", 121), ("y.3", 121), ("y.4", 121), ("y.5", 121), ("y.6", 121), ("zero", 0), (".notdef", None))]
 class KPInfo:
     unitsPerEm = 2048.0
+    familyName = "Kern Test"
 class KPFont:
     info = KPInfo()
+    @property
+    def path(self):
+        v = KP["cfg"].get("font_path", "C:/fonts/kern.vfc")
+        if isinstance(v, Exception): raise v
+        return v
     @property
     def kerning(self):
         KP["forbidden"].append("font.kerning (the legacy table)"); KP["ever"].append("font.kerning")
@@ -3092,7 +3106,7 @@ class KPFont:
     def glyphs(self):
         if KP["glyph_boom"]: raise RuntimeError("glyph list boom")
         return list(_KP_GLYPHS)
-_KP_PKG_OK = ("isNull", "masters", "master", "kerning", "getAllGroups")
+_KP_PKG_OK = ("isNull", "masters", "master", "kerning", "getAllGroups", "path")
 class KPPackage:
     def __getattribute__(self, n):
         if not n.startswith("_"):
@@ -3100,7 +3114,13 @@ class KPPackage:
             if n not in _KP_PKG_OK:
                 KP["forbidden"].append("package." + n); raise SystemExit("FORBIDDEN package member touched: " + n)
         return object.__getattribute__(self, n)
-    def isNull(self): return False
+    def isNull(self): return KP["cfg"].get("is_null", False)
+    @property
+    def path(self):
+        KP["pkg_path_reads"] += 1
+        v = KP["cfg"].get("pkg_path", "C:/fonts/kern.vfc")
+        if isinstance(v, Exception): raise v
+        return v
     @property
     def masters(self):
         v = KP["cfg"].get("masters", ["Regular"])
@@ -3143,7 +3163,7 @@ class KPWorkspace:
 KP_WS = KPWorkspace()
 def kp_setup(count=1, cur="font", mode=None, **cfg):
     KP["touched"].clear(); KP["forbidden"].clear(); KP["gets"].clear(); KP["mode"] = mode or {}; KP["len_after"] = None; KP["len_raises"] = False; KP["cur_calls"] = 0; KP["glyph_boom"] = False
-    KP["groups_calls"] = 0; KP["kerning_args"].clear(); KP["cfg"] = dict(cfg)
+    KP["groups_calls"] = 0; KP["kerning_args"].clear(); KP["cfg"] = dict(cfg); KP["pkg_path_reads"] = 0
     def _cur():
         KP["cur_calls"] += 1
         return None if cur is None else (cfg["font"]() if "font" in cfg else KPFont())
@@ -3308,6 +3328,21 @@ kpc("1446 malformed entries skipped   ", _KPQ + "Aacute:V,A:Wgrave.c2sc")
 kp_setup(count=2); kpc("1447 two fonts open             ", _KPQ + "A:V")
 kp_setup(count=3); kpp("1447b POST, three fonts open     ", {"pairs": [["A", "V"]]})
 kp_setup(packages=2); kpc("1448 two packages               ", _KPQ + "A:V")
+# v0.112: with several fonts open the current package is matched to the current font by path (T5)
+print("1447c one font: package path reads :", (kp_setup(), call(_KPQ + "A:V"))[1][1].get("matched_by"), KP["pkg_path_reads"])
+kp_setup(count=2); call(_KPQ + "A:V"); print("1447d two fonts: package path reads:", KP["pkg_path_reads"])
+kp_setup(count=2, pkg_path="C:/fonts/other.vfc"); kpc("1447e two fonts, paths differ     ", _KPQ + "A:V")
+kp_setup(count=2, font_path=""); kpc("1447f current font has no path    ", _KPQ + "A:V")
+print("1447g   package path read          :", KP["pkg_path_reads"])
+kp_setup(count=2, font_path=None); kpc("1447h font path is None           ", _KPQ + "A:V")
+kp_setup(count=2, font_path=RuntimeError("path boom")); kpc("1447i font path raises            ", _KPQ + "A:V")
+kp_setup(count=2, pkg_path=""); kpc("1447j package path empty          ", _KPQ + "A:V")
+kp_setup(count=2, pkg_path=7); kpc("1447k package path not a string   ", _KPQ + "A:V")
+kp_setup(count=2, pkg_path=RuntimeError("pkg path boom")); kpc("1447l package path raises         ", _KPQ + "A:V")
+kp_setup(count=2, is_null=True); kpc("1447m package is null             ", _KPQ + "A:V")
+kp_setup(count=2, is_null=None); kpc("1447n package null state unknown  ", _KPQ + "A:V")
+kp_setup(count=-1); kpc("1447o CountFonts gives -1         ", _KPQ + "A:V")
+kp_setup(count=2, packages=5); kpc("1447p two fonts, packages() not used", _KPQ + "A:V")
 kp_setup(masters=["Regular", "Bold"], master="Bold"); kpc("1449 two masters, current Bold  ", _KPQ + "A:V")
 print("1449b kerning() asked for          :", KP["kerning_args"])
 kp_setup(master="Ghost"); kpc("1450 current master unlisted    ", _KPQ + "A:V")
@@ -4436,3 +4471,67 @@ print("1499 .notdef texts end:", [t[-40:] for t in ns["_NOTDEF_DIALOG_TEXT"].val
 for k, v in _lc_saved.items(): ns[k] = v
 ns["_announced_clients"].clear(); ns["_connection_announced"] = False
 al_reset(_al_saved["_ACTIVITY_LOG"])
+
+from urllib.parse import unquote
+# ================= v0.113: the font a request used, in three response headers =================
+print("\n==== v0.113 font headers ====")
+import hashlib as _hl113
+_fh_saved = (fl.CurrentFont, getattr(fl, "CountFonts", None))
+class FHInfo:
+    def __init__(self, family, style): self._f, self._s = family, style
+    @property
+    def familyName(self):
+        if isinstance(self._f, Exception): raise self._f
+        return self._f
+    @property
+    def styleName(self):
+        if isinstance(self._s, Exception): raise self._s
+        return self._s
+class FHFont:
+    def __init__(self, family="Arial", style="Regular", path="C:/fonts/arial.vfc", info_raises=False):
+        self._info, self._path, self._raise = FHInfo(family, style), path, info_raises
+        self.glyphs = []
+    @property
+    def info(self):
+        if self._raise: raise RuntimeError("info boom")
+        return self._info
+    @property
+    def path(self):
+        if isinstance(self._path, Exception): raise self._path
+        return self._path
+def fh_setup(font, count=1):
+    fl.CurrentFont = lambda: font
+    fl.CountFonts = (lambda: count) if count != "missing" else None
+    if count == "missing": del fl.CountFonts
+def fh_head(method, path, body=b""):
+    raw = ns["_route"](method, path, body) if method == "GET" else ns["_route"](method, path, body)
+    head = raw.partition(b"\r\n\r\n")[0].decode("ascii")
+    return {k: v for k, v in (l.split(": ", 1) for l in head.split("\r\n")[1:]) if k.startswith("X-Glyphbridge")}, head
+fh_setup(FHFont(), 1); h, head = fh_head("GET", "/font/current")
+print("1510 one font, /font/current         :", h)
+print("1510b key is sha1(path)[:12]           :", h.get("X-Glyphbridge-Font-Key") == _hl113.sha1(b"C:/fonts/arial.vfc").hexdigest()[:12], "| path not in the head:", "arial.vfc" not in head and "C:/fonts" not in head)
+h, _ = fh_head("GET", "/version"); print("1511 /version after it: no font headers:", h)
+h, _ = fh_head("GET", "/health"); print("1511b /health: no font headers         :", h)
+fh_setup(FHFont("testfont", "Regular", "C:/fonts/savedtestfont.vfc"), 2); h, _ = fh_head("GET", "/glyph/width?name=A")
+print("1512 two fonts, a width read (glyph missing):", h)
+fh_setup(FHFont("Ünïcode Sans/Pro", "Bold\nItalic", "C:/fonts/u.vfc"), 3); h, _ = fh_head("GET", "/font/current")
+print("1513 non-ASCII, a slash and a control character:", h, "| decodes to:", [unquote(x) for x in h["X-Glyphbridge-Font"].split("/")])
+fh_setup(FHFont("F" * 150, "S", "C:/fonts/long.vfc"), 1); h, _ = fh_head("GET", "/font/current")
+print("1514 a long family name is cut at 100   :", len(unquote(h["X-Glyphbridge-Font"].split("/")[0])))
+for tag, path in (("empty path   ", ""), ("path None    ", None), ("path raises  ", RuntimeError("path boom")), ("path not text", 7)):
+    fh_setup(FHFont("Unnamed", "Regular", path), 2); h, _ = fh_head("GET", "/font/current")
+    print(f"1515 {tag}                     :", h)
+fh_setup(FHFont(info_raises=True), 1); h, _ = fh_head("GET", "/font/current"); print("1516 font.info raises                  :", h)
+fh_setup(FHFont(family=RuntimeError("family boom"), style=5), 1); h, _ = fh_head("GET", "/font/current"); print("1516b familyName raises, styleName a number:", h)
+fh_setup(FHFont(), 0); h, _ = fh_head("GET", "/font/current"); print("1517 no font open (CountFonts 0)       :", h)
+fh_setup(FHFont(), "missing"); h, _ = fh_head("GET", "/font/current"); print("1517b no CountFonts: no count header    :", h)
+fh_setup(FHFont("Arial", "Regular", ":/Arial: Normal"), 2); h, _ = fh_head("GET", "/kerning/pairs?pairs=A:V")
+print("1518 the kerning route names its font   :", h)
+fh_setup(FHFont(), 1); ns["_route"]("GET", "/font/current"); _r = ns["_build_response"](200, {"x": 1})
+print("1519 _build_response keeps the font of the request until the next one:", b"X-Glyphbridge-Font:" in _r)
+ns["_route"]("GET", "/version"); print("1519b the next request forgets it       :", b"X-Glyphbridge-" not in ns["_build_response"](200, {"x": 1}))
+print("1519c _handle forgets it in finally     :", "_forget_request_font()" in src[src.index("def _handle("):src.index("def _poll(")])
+fl.CurrentFont = _fh_saved[0]
+if _fh_saved[1] is not None: fl.CountFonts = _fh_saved[1]
+elif hasattr(fl, "CountFonts"): del fl.CountFonts
+ns["_forget_request_font"]()
