@@ -2775,7 +2775,7 @@ fd_setup(count="1"); fds("1028b CountFonts returns '1'   ", "/debug/fontdir?stag
 fd_setup(count="missing"); fds("1029 module has no CountFonts", "/debug/fontdir?stage=sub&attr=familyName")
 fd_setup(count=2); fds("1030 two fonts: count reported ", "/debug/fontdir?stage=dir")
 _fd_real = ns["debug_font_dir"]
-def _fd_boom(stage, attr, members=None): raise RuntimeError("probe boom")
+def _fd_boom(stage, attr, members=None, go=None): raise RuntimeError("probe boom")
 ns["debug_font_dir"] = _fd_boom; fd_setup(); fds("1031 probe raises: HTTP 500     ", "/debug/fontdir?stage=dir"); ns["debug_font_dir"] = _fd_real
 _fd_src = src[src.index("def debug_font_dir("):src.index("# /debug/tryfont (v0.83)")]
 _fd_code = _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _fd_src)
@@ -2783,7 +2783,7 @@ _fd_code = "\n".join(l.split("#")[0] for l in _fd_code.splitlines())
 print("1032 static scan                 : forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|set\w*|add\w*|clear\w*|append|get|keys|values|items|assign\w*|replace\w*|delete\w*)\(", _fd_code),
       "| val() calls:", len(_re83.findall(r"\bval\(", _fd_code)), "| font.X( calls:", _re83.findall(r"\bfont\.\w+\(", _fd_code),
       "| subscripts on other objects:", [s for s in _re83.findall(r"\b(\w+)\[", _fd_code) if s not in ("result", "d", "out", "entry")], "| len() calls:", _fd_code.count("len("), "| getattr(font,:", _fd_code.count("getattr(font,"), "| scanned chars > 1500:", len(_fd_src) > 1500)
-print("1033 route is read-only          :", "go=yes" not in _fd_src and "/debug/fontdir" in src and src.count('path == "/debug/fontdir"') == 1)
+print("1033 read-only but for the gated keys stage:", "go=yes" not in _fd_src[:_fd_src.index("def _fontdir_keys(")] and _fd_src.count('go != "yes"') == 1 and "/debug/fontdir" in src and src.count('path == "/debug/fontdir"') == 1)
 # ---- v0.91: stage=member ----
 def fdm(tag, path):
     c, d = call(path)
@@ -4534,4 +4534,279 @@ print("1519c _handle forgets it in finally     :", "_forget_request_font()" in s
 fl.CurrentFont = _fh_saved[0]
 if _fh_saved[1] is not None: fl.CountFonts = _fh_saved[1]
 elif hasattr(fl, "CountFonts"): del fl.CountFonts
+ns["_forget_request_font"]()
+
+# ================= v0.114: the delete dialog names the client and the font of the request =================
+print("\n==== v0.114 delete dialog text ====")
+_dd_saved = (fl.CurrentFont, getattr(fl, "CountFonts", None), ns["QMessageBox"])
+def dd(label, client, font, count, glyph="w6a_one"):
+    fh_setup(font, count); ns["_forget_request_font"](); ns["_request_client"] = client
+    ns["_open_font"]()
+    print(label, ":", repr(ns["_deletion_text"](glyph)))
+dd("1520 client, saved font, one font open  ", "local-agent-mode", FHFont("testfont", "Regular", "D:/fonts/savedtestfont-b.vfc"), 1)
+dd("1521 client, unsaved font, two open     ", "local-agent-mode", FHFont("Unnamed", "Regular", ""), 2)
+dd("1522 no client name, saved, three open  ", None, FHFont("Arial", "Regular", ":/Arial: Normal"), 3)
+dd("1523 no family or style name            ", "claude-code", FHFont("", "", "C:/f/x.vfc"), 1)
+dd("1524 a Windows path with backslashes    ", "claude-code", FHFont("Back", "Bold", "C:\\fonts\\back.vfc"), 2)
+dd("1525 path None, no CountFonts           ", "claude-code", FHFont("Unnamed1", "Regular", None), "missing")
+dd("1526 path raises                        ", "claude-code", FHFont("Raise", "Regular", RuntimeError("path boom")), 1)
+dd("1526b path not text                     ", "claude-code", FHFont("Seven", "Regular", 7), 1)
+dd("1527 a path ending in a slash           ", "claude-code", FHFont("Slash", "Regular", "C:/fonts/"), 1)
+dd("1528 control characters, a long file    ", "claude-code", FHFont("Ctl\nFam", "Reg\tular", "C:/f/" + "n" * 150 + ".vfc"), 1)
+dd("1528b control character in the file name", "claude-code", FHFont("Ctl", "Regular", "C:/f/a\nb.vfc"), 1)
+print("1529 the client name is the log's cleaned name:", [ns["_act_client"](raw) for raw in ("local-agent-mode-glyphbridge-fontlab", "x%0A%5Bfake%5D", "c" * 80)])
+ns["_forget_request_font"](); ns["_request_client"] = "claude-code"
+print("1530 no font noted in this request     :", repr(ns["_deletion_text"]("w6a_one")))
+class DDBox:                                  # recording QMessageBox
+    Warning, Yes, No = "Warning", 16384, 65536
+    seen = []
+    answer = 16384
+    def __init__(self, icon, title, text, buttons): DDBox.seen.append((icon, title, text, buttons))
+    def setDefaultButton(self, b): DDBox.seen.append(("default", b))
+    def exec_(self): return DDBox.answer
+ns["QMessageBox"] = DDBox
+fh_setup(FHFont("Unnamed", "Regular", ""), 2); ns["_forget_request_font"](); ns["_request_client"] = "local-agent-mode"; ns["_open_font"]()
+yes = ns["_confirm_deletion"]("w6a_one"); DDBox.answer = 65536; no = ns["_confirm_deletion"]("w6a_one")
+print("1531 the dialog shows that text        :", DDBox.seen[0][1], "|", DDBox.seen[0][2] == ns["_deletion_text"]("w6a_one"), "| default", DDBox.seen[1], "| Yes ->", yes, "| No ->", no)
+fh_setup(FHFont("testfont", "Regular", "D:/fonts/savedtestfont-b.vfc"), 2); h, head = fh_head("GET", "/font/current")
+print("1532 the file name never goes into a header:", "savedtestfont-b" not in head, "| headers:", h)
+print("1533 no fixed agent name in the listener:", "Claude" not in src, "| _confirm_deletion uses _deletion_text:", "_deletion_text(name)" in src[src.index("def _confirm_deletion("):src.index("def delete_glyph(")],
+      "| delete_glyph reads the font before the dialog:", src.index("_open_font()", src.index("def delete_glyph(")) < src.index("_confirm_deletion(name)", src.index("def delete_glyph(")))
+fl.CurrentFont = _dd_saved[0]; ns["QMessageBox"] = _dd_saved[2]; ns["_request_client"] = None
+if _dd_saved[1] is not None: fl.CountFonts = _dd_saved[1]
+elif hasattr(fl, "CountFonts"): del fl.CountFonts
+ns["_forget_request_font"]()
+
+# ================= v0.115: /debug/fontdir stage=memberdir (one member of a sub-object, names only) =================
+print("\n==== v0.115 /debug/fontdir stage=memberdir ====")
+class FDInfoDict:
+    """the member under test: records every non-dunder access and every container call (there must be none)."""
+    __doc__ = "Font info dictionaries"
+    def __getattribute__(self, n):
+        if not n.startswith("__"): FD["touched"].append("dict." + n)
+        return object.__getattribute__(self, n)
+    def __len__(self): FD["called"].append("dict.len"); return 4
+    def __iter__(self): FD["called"].append("dict.iter"); return iter(())
+    def __getitem__(self, k): FD["called"].append("dict.getitem"); return 1
+    def __contains__(self, k): FD["called"].append("dict.contains"); return True
+    def keys(self): FD["called"].append("dict.keys"); return []
+    def get(self, k): FD["called"].append("dict.get"); return 1
+    def has_key(self, k): FD["called"].append("dict.has_key"); return True
+class FDDirBoom:
+    def __dir__(self): raise RuntimeError("dir boom")
+class FDInfo:
+    def __getattribute__(self, n):
+        if not n.startswith("__"): FD["touched"].append("info." + n)
+        return object.__getattribute__(self, n)
+    dict = FDInfoDict(); familyName = "Unnamed1"; nothing = None; dirboom = FDDirBoom()
+    def method(self): FD["called"].append("info.method"); return "called!"
+    @property
+    def bad(self): raise RuntimeError("member boom")
+    _hid = "secret"
+FDFont.info = FDInfo()
+def fdd(tag, path):
+    c, d = call(path)
+    print(tag, ":", c, {k: (v if k != "member_doc" else (len(v) if isinstance(v, str) else v)) for k, v in d.items()}, "| touched", list(FD["touched"]), "| called", list(FD["called"]))
+    return c, d
+fd_setup(); c, d = fdd("1534 info.dict: type, doc, names   ", "/debug/fontdir?stage=memberdir&attr=info&members=dict")
+print("1534b no len, iteration or key lookup on it:", not any(x.startswith("dict.") for x in FD["called"]), "| only 'dict' read on info:", [t for t in FD["touched"] if t.startswith("info.")] == ["info.dict"])
+fd_setup(); fdd("1535 a method is never called      ", "/debug/fontdir?stage=memberdir&attr=info&members=method")
+fd_setup(); fdd("1536 a plain value is not returned ", "/debug/fontdir?stage=memberdir&attr=info&members=familyName")
+fd_setup(); fdd("1537 a None member                 ", "/debug/fontdir?stage=memberdir&attr=info&members=nothing")
+fd_setup(); fdd("1538 member getattr raises         ", "/debug/fontdir?stage=memberdir&attr=info&members=bad")
+fd_setup(); fdd("1539 dir() of the member raises    ", "/debug/fontdir?stage=memberdir&attr=info&members=dirboom")
+for tag, q in (("1540 two names refused            ", "dict,method"), ("1540b no name refused            ", ""), ("1540c only spaces refused        ", "%20%20"),
+               ("1540d spaces around a name trimmed", "%20dict%20"), ("1541 unknown member              ", "zzz"), ("1541b private member refused     ", "_hid"),
+               ("1541c bad identifier refused      ", "a.b"), ("1541d a call is refused         ", "dict()")):
+    fd_setup(); fdd(tag, "/debug/fontdir?stage=memberdir&attr=info&members=" + q)
+fd_setup(); fdd("1542 no members parameter         ", "/debug/fontdir?stage=memberdir&attr=info")
+fd_setup(); fdd("1543 attr is a plain value        ", "/debug/fontdir?stage=memberdir&attr=familyName&members=dict")
+fd_setup(); fdd("1543b attr is a callable (not called)", "/debug/fontdir?stage=memberdir&attr=method&members=dict")
+fd_setup(count=0); fdd("1544 CountFonts 0: not open       ", "/debug/fontdir?stage=memberdir&attr=info&members=dict")
+fd_setup(); fdd("1545 bad stage names all four     ", "/debug/fontdir?stage=deeper&attr=info&members=dict")
+_fdd_src = src[src.index('    if stage in ("memberdir", "keys"):'):src.index('    if stage == "member":')]
+_fdd_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\n]|\.)*"', '""', _fdd_src).splitlines())
+print("1546 static scan of memberdir    : len() calls:", _fdd_code.count("len("), "| mv( calls:", _fdd_code.count("mv("), "| container syntax on mv:",
+      _re83.findall(r"\bmv\s*\[|\bmv\.(?:get|keys|values|items|has_key)\b|\bin\s+mv\b|\biter\(|\blist\(mv|\bdict\(mv", _fdd_code), "| scanned chars > 800:", len(_fdd_code) > 800,
+      "| still read-only:", "go=yes" not in _fdd_src)
+del FDFont.info
+fl.CurrentFont = _fd_cur
+if _fd_cf is not None: fl.CountFonts = _fd_cf
+elif hasattr(fl, "CountFonts"): del fl.CountFonts
+
+# ================= v0.116: stage=memberdir takes a dotted path of up to 3 steps (names only) =================
+print("\n==== v0.116 /debug/fontdir stage=memberdir, dotted path ====")
+class FDSpy:
+    """a node of the walk: records every non-dunder access and every container call (there must be none)."""
+    def __init__(self, tag, **members):
+        object.__setattr__(self, "_tag", tag)
+        for k, v in members.items(): object.__setattr__(self, k, v)
+    def __getattribute__(self, n):
+        if not n.startswith("_"): FD["touched"].append(object.__getattribute__(self, "_tag") + "." + n)
+        return object.__getattribute__(self, n)
+    def __len__(self): FD["called"].append(self._tag + ".len"); return 2
+    def __iter__(self): FD["called"].append(self._tag + ".iter"); return iter(())
+    def __getitem__(self, k): FD["called"].append(self._tag + ".getitem"); return 1
+    def __contains__(self, k): FD["called"].append(self._tag + ".contains"); return True
+def _fdd_meth(): FD["called"].append("meth()"); return "called!"
+class FDDeepBoom:
+    @property
+    def boom(self): raise RuntimeError("deep boom")
+FDInfo.deep = FDSpy("deep", flags=FDSpy("flags", names=FDSpy("names", leaf=FDSpy("leaf"))), num=7, nothing=None, meth=_fdd_meth,
+                    dirboom=FDDirBoom(), raiser=FDDeepBoom(), names=FDSpy("names2"))
+FDFont.info = FDInfo()
+for tag, q in (("1547 two steps: deep.flags              ", "deep.flags"),
+               ("1548 three steps: deep.flags.names      ", "deep.flags.names"),
+               ("1549 four steps refused                 ", "deep.flags.names.leaf"),
+               ("1550 the last step a plain value        ", "deep.num"),
+               ("1550b the last step None                ", "deep.nothing"),
+               ("1551 the last step a callable, not called", "deep.meth"),
+               ("1552 a plain value mid-path ends it     ", "deep.num.real"),
+               ("1552b a callable mid-path ends it, not called", "deep.meth.x"),
+               ("1553 an unknown second step             ", "deep.zzz"),
+               ("1553b an unknown first step             ", "zzz.flags"),
+               ("1554 an empty step refused              ", "deep..flags"),
+               ("1554b a private step refused            ", "deep._tag"),
+               ("1554c a call step refused               ", "deep.meth()"),
+               ("1555 spaces around steps trimmed        ", "%20deep%20.%20flags%20"),
+               ("1556 getattr of a deeper step raises    ", "deep.raiser.boom"),
+               ("1557 dir() of a step raises             ", "deep.dirboom.x"),
+               ("1558 a dotted path with a comma refused ", "deep.flags,deep.num"),
+               ("1559 a single name is reported as before", "dict")):
+    fd_setup(); fdd(tag, "/debug/fontdir?stage=memberdir&attr=info&members=" + q)
+fd_setup(); fdd("1560 a method at the end: dict.has_key  ", "/debug/fontdir?stage=memberdir&attr=info&members=dict.has_key")
+print("1561 no container call anywhere:", not any(x.endswith((".len", ".iter", ".getitem", ".contains")) for x in FD["called"]), "| meth never called:", "meth()" not in FD["called"])
+_fdd_src2 = src[src.index('    if stage in ("memberdir", "keys"):'):src.index('    if stage == "member":')]
+_fdd_code2 = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\n]|\.)*"', '""', _fdd_src2).splitlines())
+print("1562 static scan of the walk     : len() calls:", _fdd_code2.count("len("), "(the step count only:", _fdd_code2.count("len(steps)"), ") | obj( / mv( calls:", len(_re83.findall(r"\b(?:obj|mv)\(", _fdd_code2)),
+      "| container syntax:", _re83.findall(r"\b(?:obj|mv|val)\s*\[|\b(?:obj|mv|val)\.(?:get|keys|values|items|has_key)\b|\bin\s+(?:obj|mv|val)\b|\biter\(|\blist\((?:obj|mv|val)", _fdd_code2),
+      "| getattr(obj, s) once:", _fdd_code2.count("getattr(obj, s)") == 1, "| max steps", ns["_MEMBERDIR_MAX_STEPS"])
+del FDFont.info; del FDInfo.deep
+fl.CurrentFont = _fd_cur
+if _fd_cf is not None: fl.CountFonts = _fd_cf
+elif hasattr(fl, "CountFonts"): del fl.CountFonts
+
+# ================= v0.117: /debug/fontdir stage=keys (ONE gated keys() call at the end of a memberdir path) =================
+print("\n==== v0.117 /debug/fontdir stage=keys ====")
+class FDKeyed:
+    """an fgStringDict stand-in: records every call; only keys() may ever be called, and only once per request."""
+    def __init__(self, result=None, raise_on_keys=False): self._r, self._raise = result, raise_on_keys
+    def keys(self):
+        FD["called"].append("keys")
+        if self._raise: raise RuntimeError("keys boom")
+        return self._r
+    def has_key(self, k): FD["called"].append("has_key"); return True
+    def value(self, k): FD["called"].append("value"); return "v"
+    def asDict(self): FD["called"].append("asDict"); return {}
+    def __len__(self): FD["called"].append("len"); return 1
+    def __iter__(self): FD["called"].append("iter"); return iter(())
+setattr(FDKeyed, "del", lambda self, k: FD["called"].append("del"))
+class FDNative:
+    """a result that is not a plain list: it must not be iterated."""
+    def __iter__(self): FD["called"].append("result.iter"); return iter(("x",))
+    def __len__(self): FD["called"].append("result.len"); return 1
+class FDKeysAttr:
+    keys = ["not", "callable"]
+class FDNoKeys:
+    def other(self): return 1
+FDInfo.kd = FDSpy("kd", names=FDKeyed(["familyName", "styleName"]), tup=FDKeyed(("a", "b")), mixed=FDKeyed(["a", 7]),
+                  native=FDKeyed(FDNative()), many=FDKeyed([f"k{i}" for i in range(250)]), boom=FDKeyed(raise_on_keys=True),
+                  dirty=FDKeyed(["ok\nkey", "L" * 150]), attrkeys=FDKeysAttr(), nokeys=FDNoKeys(), num=5, meth=_fdd_meth, empty=FDKeyed([]))
+FDFont.info = FDInfo()
+def fdk(tag, q):
+    fd_setup(); c, d = call("/debug/fontdir?stage=keys&attr=info&" + q)
+    shown = {k: v for k, v in d.items() if k not in ("open", "count_fonts", "stage", "font_type", "attr", "value_type")}
+    if isinstance(shown.get("keys"), list) and len(shown["keys"]) > 6: shown["keys"] = shown["keys"][:3] + ["..."] + shown["keys"][-2:]
+    print(tag, ":", c, shown, "| called", list(FD["called"]))
+fdk("1563 no go: says what it would call   ", "members=kd.names")
+fdk("1563b go=no: not called               ", "members=kd.names&go=no")
+fdk("1563c go=YES: not called (exact yes)  ", "members=kd.names&go=YES")
+fdk("1564 go=yes: ONE keys() call          ", "members=kd.names&go=yes")
+fdk("1564b an empty list                   ", "members=kd.empty&go=yes")
+fdk("1565 a tuple of text                  ", "members=kd.tup&go=yes")
+fdk("1566 a non-text entry: type only      ", "members=kd.mixed&go=yes")
+fdk("1567 a native result: never iterated  ", "members=kd.native&go=yes")
+fdk("1568 250 keys: 200 returned, cut      ", "members=kd.many&go=yes")
+fdk("1569 control characters, a long key   ", "members=kd.dirty&go=yes")
+fdk("1570 keys() raises                    ", "members=kd.boom&go=yes")
+fdk("1571 keys is not callable             ", "members=kd.attrkeys&go=yes")
+fdk("1572 no keys member                   ", "members=kd.nokeys&go=yes")
+fdk("1573 the path ends at a plain value   ", "members=kd.num&go=yes")
+fdk("1573b the path ends at a callable     ", "members=kd.meth&go=yes")
+fdk("1574 the path rules apply: 4 steps    ", "members=kd.names.a.b&go=yes")
+fdk("1574b no members                      ", "go=yes")
+fd_setup(); c, d = call("/debug/fontdir?stage=keys&attr=familyName&members=x&go=yes"); print("1575 attr a plain value               :", c, d.get("error"), "| called", list(FD["called"]))
+fd_setup(); c, d = call("/debug/fontdir?stage=what&attr=info"); print("1576 bad stage names all five          :", d)
+_fk_src = src[src.index("def _fontdir_keys("):src.index("# /debug/tryfont (v0.83)")]
+_fk_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\n]|\.)*"', '""', _fk_src).splitlines())
+print("1577 static scan of _fontdir_keys: calls of the fetched member:", len(_re83.findall(r"\bcall\(\)", _fk_code)), "| go checked before the call:", _fk_src.index('go != "yes"') < _fk_src.index("got = call()"),
+      "| members fetched by getattr:", _re83.findall(r'getattr\(obj, "(\w+)"\)', _fk_src), "| other calls:", _re83.findall(r"\.(?:has_key|asDict|value|del|get|items|values)\(", _fk_code),
+      "| subscripts:", [x for x in _re83.findall(r"\b(\w+)\[", _fk_code) if x != "result"],
+      "| got read only after the list/tuple check:", _fk_src.index("type(got) in (list, tuple)") < _fk_src.index("for k in got") < _fk_src.index("enumerate(got)"))
+_fk_route = src[src.index('if path == "/debug/fontdir":'):src.index('if path == "/debug/tryfont":')]
+print("1578 the route passes go             :", 'query.get("go")' in _fk_route and "members, go)" in _fk_route, "| keys stage listed in the docstring:", "stage=keys&...&go=yes" in src[:src.index('"""', 3)])
+del FDFont.info; del FDInfo.kd
+fl.CurrentFont = _fd_cur
+if _fd_cf is not None: fl.CountFonts = _fd_cf
+elif hasattr(fl, "CountFonts"): del fl.CountFonts
+
+# ================= v0.118: /font/current also reads the names FontLab keeps in the font package =================
+print("\n==== v0.118 /font/current package_names ====")
+_pn_saved = (fl.CurrentFont, getattr(fl, "CountFonts", None), getattr(_fm, "flWorkspace", None))
+PN = {"called": []}
+class PNPkg:
+    """a font package: only the five name attributes, path and isNull may be read; every call is recorded."""
+    def __init__(self, path="", is_null=False, **names):
+        self.path, self.isNull = path, is_null
+        base = {"psn": "W6aTest-Regular", "ffn": "Unnamed1 Regular", "tfn": "Unnamed1", "tsn": "Regular", "sgn": "Unnamed1"}
+        base.update(names)
+        for k, v in base.items():
+            setattr(self, k, v)
+    def close(self): PN["called"].append("close")
+    def store_font_info(self): PN["called"].append("store_font_info")
+class PNRaising:
+    def __get__(self, obj, owner): raise RuntimeError("psn boom")
+class PNWs:
+    def __init__(self, pkg, n): self.currentPackage, self._n = pkg, n
+    def packages(self): return [self.currentPackage] * self._n
+def pn_setup(font, count, pkg, npk=1, ws_raises=False):
+    fl.CurrentFont = lambda: font
+    if count == "missing":
+        if hasattr(fl, "CountFonts"): del fl.CountFonts
+    else:
+        fl.CountFonts = lambda: count
+    class _WS:
+        @staticmethod
+        def instance():
+            if ws_raises: raise RuntimeError("workspace boom")
+            return PNWs(pkg, npk)
+    _fm.flWorkspace = _WS
+    PN["called"].clear()
+def pn(tag, font, count, pkg, **kw):
+    pn_setup(font, count, pkg, **kw); c, d = call("/font/current")
+    print(tag, ":", c, {k: v for k, v in d.items() if k.startswith("package") or k == "postscript_font_name"}, "| calls", PN["called"])
+pn("1579 one unsaved font: names read        ", FHFont("Unnamed1", "Regular", ""), 1, PNPkg())
+pn("1580 two fonts, same path: matched       ", FHFont("testfont", "Regular", "D:/f/a.vfc"), 2, PNPkg("D:/f/a.vfc", psn="testfont-Regular"))
+pn("1581 two fonts, paths differ             ", FHFont("testfont", "Regular", "D:/f/a.vfc"), 2, PNPkg("D:/f/b.vfc"))
+pn("1582 two unsaved fonts                   ", FHFont("Unnamed1", "Regular", ""), 2, PNPkg(""))
+pn("1583 one font, but two packages          ", FHFont("Unnamed1", "Regular", ""), 1, PNPkg(), npk=2)
+pn("1584 the workspace raises                ", FHFont("Unnamed1", "Regular", ""), 1, PNPkg(), ws_raises=True)
+pn("1585 no CountFonts                       ", FHFont("Unnamed1", "Regular", ""), "missing", PNPkg())
+pn("1585b CountFonts gives -1               ", FHFont("Unnamed1", "Regular", ""), -1, PNPkg())
+pn("1586 the package is null                 ", FHFont("Unnamed1", "Regular", ""), 1, PNPkg(is_null=True))
+_odd = PNPkg(ffn=7, tfn=lambda: PN["called"].append("tfn()"), sgn="Ctl" + chr(10) + "Group")
+pn("1587 not text, a callable, control chars ", FHFont("Unnamed1", "Regular", ""), 1, _odd)
+class PNPkgRaise(PNPkg):
+    psn = PNRaising()
+    def __init__(self):
+        for k, v in {"path": "", "isNull": False, "ffn": "F", "tfn": "T", "tsn": "S", "sgn": "G"}.items(): object.__setattr__(self, k, v)
+pn("1588 reading psn raises                  ", FHFont("Unnamed1", "Regular", ""), 1, PNPkgRaise())
+_pn_src = src[src.index("def _package_names("):src.index("def get_glyph_names(")]
+_pn_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\n]|\.)*"', '""', _pn_src).splitlines())
+print("1589 static scan of _package_names: calls on pkg:", _re83.findall(r"\bpkg\.\w+\(|\bpkg\(|\bvalue\(", _pn_code), "| attributes read:", _re83.findall(r"getattr\((\w+), (\w+)\)", _pn_src),
+      "| names read:", ns["_PACKAGE_NAME_FIELDS"], "| /font/current calls it:", "_package_names(font, _REQUEST_FONT[" in src[src.index("def get_current_font_info("):src.index("def _package_names(")])
+fl.CurrentFont = _pn_saved[0]
+if _pn_saved[1] is not None: fl.CountFonts = _pn_saved[1]
+elif hasattr(fl, "CountFonts"): del fl.CountFonts
+if _pn_saved[2] is not None: _fm.flWorkspace = _pn_saved[2]
 ns["_forget_request_font"]()

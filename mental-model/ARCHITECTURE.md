@@ -31,7 +31,7 @@ Effect of the split: the AI app starts the server in its own Python with its own
 - **Modern** objects (`flGlyph`, `flLayer`, `flShape`, `flPackage`) give the real element transforms, the drawing calls (`addContour`/`addShape`), `setSB` and `advanceWidth`, and the sync call `fontlab.Update(flGlyph)`.
 - The bridge `fontlab.flGlyph(fgGlyph, fgFont)` leaks one native reference per construction. The listener therefore caches one wrapper per glyph and validates it before reuse: [topics/reading.md](topics/reading.md) §6.
 - **Writes** go through the modern API. Right after each one the listener calls `Update(<flGlyph>)` (auto sync), so the legacy view catches up. A guard skips the legacy `font.update()` while any changed glyph might still be unsynced, because that call can throw unsynced work away: [topics/fonts-and-sync.md](topics/fonts-and-sync.md).
-- **Reads** prefer the modern layer and cross-check modern and legacy margins. A stale legacy view is answered from the modern layer: [topics/reading.md](topics/reading.md).
+- **Reads** prefer the modern layer and cross-check modern and legacy margins. A stale legacy view is answered from the modern layer: [topics/reading.md](topics/reading.md). The PostScript names come from the font package, where FontLab keeps what Font Info shows; the legacy `font.info` can disagree (listener 0.118, [topics/fonts-and-sync.md](topics/fonts-and-sync.md)).
 - Some FontLab objects crash FontLab natively when used the wrong way, for example indexing a native object. Those rules are in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md).
 
 ## Verification model

@@ -2,22 +2,16 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
-## 2026-11-03: WATCH-POINTS.md budget 950
+## 2026-11-03: names read at the moment, not fixed strings
 
-- **The WATCH-POINTS.md budget goes from 750 to 950 words.** *Supersedes* the 750 of the watch-points entry below. *Reason:* the user's choice, after tests 273–281 brought the file to 656 words with 10 open entries.
+- **Text shown to the person or the agent names things from facts read at that moment** (the client's own name, the font's name and file, the system's save shortcut), never from fixed strings. A name the sender gives is shown as given, ambiguous ones such as `local-agent-mode` included; a missing one stays missing. *Reason:* the user's rule after test 290, where the delete dialog said "Claude" whoever sent the request. Built in listener 0.114 / server 0.40.
+- **Not pursued** (the user's choice): the fixed "all 132 groups of Arial" in a debug note, and "FontLab 8" in tool descriptions and the unreachable message (the project's scope; no fact can be read there).
+- **PostScript names come from the font package** (design C, listener 0.118 / server 0.41): the values FontLab's Font Info shows; no name is reported as "not set", since whether FontLab derived it or a person typed it cannot be read. *Reason:* tests 291–300 found no such marker, and showed the legacy `font.info` disagreeing with Font Info (298).
 
 ## 2026-11-03: several open fonts
 
 - **`get_kerning` with several fonts open** (listener 0.112 / server 0.37, tests 265–268): it uses the current package only when its `path` is not empty and equals the current font's path, and otherwise refuses with the reason. *Supersedes* "kerning reads need exactly one open font" (2026-11-01, archived). *Reason:* the user approved it after T5 (262–264) showed that both views follow the font window in front and that `path` tells the fonts apart.
 - **Goal: every operation works with 2, 3 or more fonts open, without confusion.** Closing the other fonts is the last resort, only where it is the only way to a goal. Then the tool tells the person to close them, and why: a limitation of how FontLab is built, shown by research, which Glyphbridge cannot work around. Until research has shown that, the message says the case is not supported yet. *Reason:* the user's choice, within the design rule of honest messages ([PROJECT.md](PROJECT.md)).
-
-## 2026-11-03: DECISIONS.md budget 1,700
-
-- **The DECISIONS.md budget (active part) goes from 1,350 to 1,450 words, then on the same day to 1,700**; the reference totals become 10,050 including the root README, and 9,550 for the startup core files. Three entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md): the CLAUDE.md and CHECKLIST.md budgets of 2026-11-01 (the budgets are in [MARKDOWN-MAP.md](MARKDOWN-MAP.md), their totals were out of date) and the K-series priority of 2026-10-27 (the K-series is done). *Reason:* the user's choice; after the watch-points decision the file used 1,313 of 1,350 words, with the decision on `get_kerning` and several fonts still to come; that decision left 36 words, hence 1,700.
-
-## 2026-11-03: watch points get their own file
-
-- **The watch points move from CURRENT-STATUS.md to a new [WATCH-POINTS.md](WATCH-POINTS.md)**, with a budget of 750 words; it is not a startup core file. CURRENT-STATUS keeps the number of open entries and a link; the list of test numbers in use moves to [LIVE-TESTS.md](LIVE-TESTS.md). The CURRENT-STATUS budget stays at 1,350. *Reason:* the user's idea: CURRENT-STATUS had reached 1,338 of 1,350 words, a third of it watch points, and observations that are not yet explained are one kind of fact with their own life: recorded, then settled into a topic file or dropped.
 
 ## 2026-11-03: K15 dropped
 
@@ -52,7 +46,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 - **The project folder is the cloned repository.** The scripts stay at the root, and the server uses its own `venv` there (Python 3.15.2, `mcp==2.2.0`, ignored by git). *Reason:* `run_all.py` reads the scripts from the parent of `tests/`, and the MCP configs point at the root.
 - **Claude Code uses a committed `.mcp.json` with relative paths.** *Reason:* it works without user-specific paths in a public repository (verified).
 - **The old `Notes\` folder stays out of the repository.** *Reason:* the user's choice.
-- **The user commits and pushes with GitHub Desktop.** Agents do not commit unless asked.
 
 ## 2026-10-27: kerning (v11 session)
 
@@ -61,13 +54,11 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 ## 2026-10-24: v10 session
 
-- The user may restart FontLab without saving at any moment, so live tests must be re-runnable and must state their stage.
 - **File > Save tests (T9 and similar) are deferred** until the user says otherwise.
 
 ## October 2026: v8 session (exact day not recorded)
 
 - **Tests with glyphs above about 150 nodes go to the very end** (the LAST block). *Reason:* they are costly in tokens and time.
-- **The approval phrase for builds is "Yes. Build vX as described."** Nothing is built before it.
 
 ## October 2026: server v0.18 (exact day not recorded)
 

@@ -1402,7 +1402,7 @@ for name in ("claude-code", None):
     srv20._call_listener("/font/current"); srv20._call_listener_post("/glyph/width", {"name": "A", "width": 600})
     print(f"20d sent with name {name!r:14}->", SENT20)
 _src20 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
-_tools20 = _re19.findall(r"@mcp\.tool\(\)\ndef (\w+)\((.*?)\) -> dict\[str, Any\]:\n    \"\"\".*?\"\"\"\n    (.*?)\n", _src20, _re19.S)
+_tools20 = _re19.findall(r"@_tool\(\)\ndef (\w+)\((.*?)\) -> dict\[str, Any\]:\n    \"\"\".*?\"\"\"\n    (.*?)\n", _src20, _re19.S)
 print("20e tools:", len(_tools20), "| every one takes ctx: Context | None = None:", all(p.rstrip().endswith("ctx: Context | None = None") for _, p, _ in _tools20),
       "| first statement _note_client(ctx):", [t for t, _, first in _tools20 if first.strip() != "_note_client(ctx)"] == [])
 print("20f --check labels itself:", '_CLIENT["name"] = "glyphbridge --check"' in _src20.split("def _self_check")[1][:400])
@@ -1532,7 +1532,7 @@ srv22._call_listener("/glyph/width?name=A")
 r = srv22.get_glyph_width("A"); print("22v a call outside a tool does not leak into the next tool:", {k: r[k] for k in r if k.startswith("font")})
 print("22q finish_changes makes no listener call: no font fields:", [k for k in srv22.finish_changes() if k.startswith("font")])
 _src22 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
-_tools22 = _re19.findall(r"@mcp\.tool\(\)\ndef (\w+)\((?:.|\n)*?\n    return (.*)\n", _src22)
+_tools22 = _re19.findall(r"@_tool\(\)\ndef (\w+)\((?:.|\n)*?\n    return (.*)\n", _src22)
 print("22r every tool returns through _with_font:", len(_tools22), [n for n, ret in _tools22 if not ret.startswith("_with_font(")])
 print("22s headers read inside _do_request    :", "_note_font_headers(getattr(resp, \"headers\", None))" in _src22[_src22.index("def _do_request("):_src22.index("def _call_listener(")])
 # v0.39: a ToolError carries the font_note (test 277: a failed first call after a window switch hid the switch).
@@ -1554,3 +1554,43 @@ srv22._FONT_SEEN.update(name="testfont Regular", key="b2b2b2b2b2b2", seen=True);
 try: srv22.get_glyph_width("")
 except srv22.ToolError as e: print("22x2 refused before any listener call:", str(e), "| remembered font kept:", srv22._FONT_SEEN["name"])
 H22["queue"][:] = []
+
+# ---------------------------------------------------------------- 23. server 0.40: the save shortcut ----
+print("\n==== 23. server 0.40: the save shortcut is read from the system the server runs on ====")
+_plat23 = sys.platform
+_src23 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
+_tools23 = _re19.findall(r"@_tool\(\)\ndef (\w+)\(", _src23)
+for _p23 in ("win32", "darwin", "linux"):
+    sys.platform = _p23
+    try:
+        _spec23 = importlib.util.spec_from_file_location("srv23" + _p23, find("glyphbridge_mcp_server.py")); m23 = importlib.util.module_from_spec(_spec23); _spec23.loader.exec_module(m23)
+    finally:
+        sys.platform = _plat23
+    _docs23 = [getattr(m23, n).__doc__ or "" for n in _tools23]
+    m23._call_listener = lambda path: {"/health": {"status": "ok"}, "/font/current": {"open": False}, "/version": {"version": "0.114"}}[path]
+    m23._CHANGES["session"] = 1
+    _note23 = m23.check_status().get("save_note", "")
+    other = "Ctrl+S" if m23.SAVE_SHORTCUT == "Cmd+S" else "Cmd+S"
+    print(f"23a {_p23:<7}: SAVE_SHORTCUT {m23.SAVE_SHORTCUT} | reminder: {m23.SAVE_REMINDER}")
+    print(f"23b {_p23:<7}: tools {len(_tools23)} | descriptions naming it {sum(m23.SAVE_SHORTCUT in d for d in _docs23)} | naming the other {sum(other in d for d in _docs23)}"
+          f" | placeholder left {sum('SAVE_KEYS' in d for d in _docs23)} | save_note names it: {_note23.endswith(f'File menu or {m23.SAVE_SHORTCUT}.')}")
+print("23c the shortcuts are written once each:", _src23.count("Ctrl+S"), _src23.count("Cmd+S"), "| every tool is registered through _tool():", "@mcp.tool()" not in _src23)
+
+# ---------------------------------------------------------------- 24. server 0.41: PostScript names from the font package ----
+print("\n==== 24. server 0.41: the PostScript names FontLab's Font Info shows (font package), with their source ====")
+_base24 = {"open": True, "path": None, "glyph_count": 2, "family_name": "Unnamed1", "style_name": "Regular", "postscript_font_name": "Unnamed1-Regular",
+           "postscript_full_name": "Unnamed1 Regular", "units_per_em": 1000.0}
+_pkg24 = {"psn": "W6aTest-Regular", "ffn": "Unnamed1 Regular", "tfn": "Unnamed1", "tsn": "Regular", "sgn": "Unnamed1"}
+def c24(tag, extra, base=None):
+    r = srv._clean_font({**(base or _base24), **extra})
+    print(tag, ":", {k: v for k, v in r.items() if k.startswith(("postscript", "legacy", "package"))}, "| notes:", r.get("notes"))
+c24("24a package equals the older view     ", {"package_names": {**_pkg24, "psn": "Unnamed1-Regular"}, "package_matched_by": "only font"})
+c24("24b test 298: package differs         ", {"package_names": _pkg24, "package_matched_by": "only font"})
+c24("24b2 the full name differs too         ", {"package_names": {**_pkg24, "ffn": "W6a Test Regular"}, "package_matched_by": "path"})
+c24("24c psn unreadable in the package     ", {"package_names": {**_pkg24, "psn": None}, "package_matched_by": "path", "package_name_errors": ["psn could not be read (RuntimeError: x)"]})
+c24("24d package not matched (two unsaved) ", {"package_names_unavailable": "2 fonts are open and this font's package could not be matched to it: the current font has no file path (a new, unsaved font)"})
+c24("24e an older listener                 ", {})
+c24("24f a real family named Unnamed Sans  ", {}, {**_base24, "family_name": "Unnamed Sans", "postscript_font_name": "UnnamedSans-Regular", "postscript_full_name": "Unnamed Sans Regular"})
+c24("24g package_names not a dict          ", {"package_names": "x", "package_names_unavailable": ""})
+_src24 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
+print("24h no fixed placeholder test left:", 'startswith("Unnamed")' not in _src24, "| the description warns against 'unset':", "do not call a name 'unset'" in (srv.get_current_font.__doc__ or ""))

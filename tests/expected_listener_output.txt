@@ -1,7 +1,7 @@
 [glyphbridge] Connected at HH:MM:SS - first request (GET /health) from a local client.
 /health ('200', {'status': 'ok'})
-/version ('200', {'version': '0.113'})
-/font/current ('200', {'open': True, 'path': 'x', 'glyph_count': 3, 'family_name': 'F', 'style_name': 'R', 'postscript_font_name': '', 'postscript_full_name': '', 'units_per_em': 1000, 'ascender': 800, 'descender': -200, 'cap_height': 700, 'x_height': 500, 'weight_class': 400})
+/version ('200', {'version': '0.118'})
+/font/current ('200', {'open': True, 'path': 'x', 'glyph_count': 3, 'family_name': 'F', 'style_name': 'R', 'postscript_font_name': '', 'postscript_full_name': '', 'units_per_em': 1000, 'ascender': 800, 'descender': -200, 'cap_height': 700, 'x_height': 500, 'weight_class': 400, 'package_names_unavailable': "the number of open fonts is unknown or not a positive number, so the font's package cannot be matched to it"})
 /font/glyphs ('200', {'open': True, 'count': 3, 'names': ['A', 'empty', 'B']})
 /glyph/width?name=A ('200', {'open': True, 'found': True, 'name': 'A', 'width': 500.0})
 /glyph/unicode?name=A ('200', {'open': True, 'found': True, 'name': 'A', 'unicode': 65})
@@ -264,7 +264,7 @@ shape_count in outline: 1
 207 bad route       : unknown route 'bogus': use rou
 208 unknown tri glyph: False no glyph named 'trinope'
 209 no font open    : {'open': False}
-210 version         : {'version': '0.113'}
+210 version         : {'version': '0.118'}
 220 legacy lsb refused: True refused: the legacy setters glyph.leftMargin / glyph.rightMa | leftMargin 0.0 | calls []
 221 legacy rsb refused: True | rightMargin -500.0
 222 legacy width still allowed: glyph.width = 600.0 | width 600.0
@@ -369,7 +369,7 @@ shape_count in outline: 1
 339 negative width   : 400 "width" must not be negative
 340 unknown glyph    : {'open': True, 'found': False, 'set': False, 'reason': "no glyph named 'nope'", 'before': None, 'after': None}
 341 no font          : {'open': False}
-342 version          : {'version': '0.113'}
+342 version          : {'version': '0.118'}
 343 state            : 200 {'is_none': True} 0 | findLayer {'is_none': True} | nocreate {'is_none': True} | ref True | calls [('findLayer', 'Master'), ('getLayerByName', 'Master', False)]
 344 create without go: 200 refused: stage=create can change the fon | calls []
 345 findLayerCreate  : 200 w.findLayerCreate('Master') | returned {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | same {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | rebuilt built {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
@@ -386,14 +386,14 @@ shape_count in outline: 1
 356 no name          : 400
 357 unknown glyph    : {'open': True, 'found': False, 'reason': "no glyph named 'nope'", 'font_master': {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}}
 358 no font          : {'open': False}
-359 version          : {'version': '0.113'}
+359 version          : {'version': '0.118'}
 360 font_master      : 200 {'is_none': False, 'type': 'FmLayer', 'public_names': ['id', 'isBodyLayer', 'isMasterLayer', 'mutate', 'name'], 'name': 'test_font', 'id': 7, 'isMasterLayer': True, 'isBodyLayer': False}
 361 master, no glyph : False test_font
 362 create has no section: False
 363 master is None   : {'is_none': True}
 364 master raises    : {'error': 'RuntimeError: no master'}
 365 no master member : {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}
-366 version          : {'version': '0.113'}
+366 version          : {'version': '0.118'}
 400 width, new glyph  : 200 {'set': True, 'route': 'modern', 'layer_created': 'test_font', 'before': 0.0, 'after': 600.0} | calls [('findLayerCreate', 'fresh', 'test_font'), ('advanceWidth', 'fresh', 600.0)]
 401 width again       : True modern | layer_created None | creates 1
 402 names disagree    : True legacy_empty_glyph | the glyphs of this font have different layer names (['Alpha' | creates [] | legacy width 600.0
@@ -430,7 +430,7 @@ shape_count in outline: 1
 434 reader, agree     : 3 | modern_check {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True}
 435 reader, modern=no : False
 436 reader, no modern : 3 | modern_check {'available': True, 'modern_layer': False}
-437 version           : {'version': '0.113'}
+437 version           : {'version': '0.118'}
 440 stage=layer       : 200 1 | getContours {'type': 'list', 'python_sequence': True, 'len': 1} | getShapes {'type': 'list', 'python_sequence': True, 'len': 1} | shapes {'type': 'R73Native', 'python_sequence': False, 'len': 2} | shapesCount 1
 441 stage=contour     : 1 True False 4 {'type': 'list', 'python_sequence': True, 'len': 4}
 442 node via getNodeAt: {'type': 'R73Node', 'x': 400, 'y': 300, 'isOn': True, 'isOff': False, 'isCurve': False, 'smooth': False, 'index': 2} | calls [('getNodeAt', 2)]
@@ -453,7 +453,7 @@ shape_count in outline: 1
 459 no modern layer    : this glyph has no modern active layer, so there is nothing to read
 460 no font            : {'open': False}
 461 read-only          : calls [] | shapes still 1
-462 version           : {'version': '0.113'}
+462 version           : {'version': '0.118'}
 470 modern_outline    : True | nodes 5 of 5 | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0} | check agree False
 471 contour 0         : {'index': 0, 'closed': True, 'clockwise': True, 'nodesCount': 5}
 472 nodes             : [(10.0, 20.0, True), (410.0, 20.0, True), (410.0, 220.0, True), (210.0, 320.0, True), (10.0, 220.0, True)]
@@ -469,7 +469,7 @@ shape_count in outline: 1
 482 count mismatch    : {'available': False, 'error': 'read 5 nodes but the layer reports 6: the outline is not trusted'}
 483 too many nodes    : {'available': False, 'error': 'the layer has 5 nodes, more than the 3 that are read'}
 484 no QTransform     : margins key False | available True
-485 version           : {'version': '0.113'}
+485 version           : {'version': '0.118'}
 490 two contours      : 200 {'drawn': True, 'points': 8, 'contours': 2, 'contour_sizes': [4, 4], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': True}, 'layer_created': 'test_font'} | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 8, 'components': 0}
 491 calls             : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'flContour', 'addShape']
 492 read back         : True | contours 2 [4, 4]
@@ -489,7 +489,7 @@ shape_count in outline: 1
 506 second contour dropped: False | after drawing, the layer reads 1 shape(s), 4 node(s) and 1 contour(s); expected 1, 8 and 2 | changed True | checks {'shapes_ok': True, 'nodes_ok': False, 'contours_ok': False}
 507 getContours unreadable: True | checks {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': None}
 508 not empty         : False | the glyph's layer is not KNOWN to be empty (needs  | calls []
-509 version           : {'version': '0.113'}
+509 version           : {'version': '0.118'}
 510 curve probe        : 200 curve | call node(index 1).convertToCurve(False) | returned True | nodes_added 2 | may_change False
     before             : 4 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '2: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '3: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
     after              : 6 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '2: (268.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '3: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '4: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '5: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
@@ -507,7 +507,7 @@ shape_count in outline: 1
 520 bogus stage        : unknown stage 'bogus' for route=modern: use stage=names or stage=build or stage=attach or stage=refresh
 521 bogus variant      : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
 522 curve without go   : 200 refused: this probe can change the font 
-523 version           : {'version': '0.113'}
+523 version           : {'version': '0.118'}
 524 curve2 normal | may_change False | keys []
     A plan: convertToCurve(False) on node 1; setPoint(1, QPointF(100, 60 | error: None | note: None | final_as_expected: True
       step getNodeAt(1).convertToCurve(False) | returned True | error None | as_expected None | n 6
@@ -592,7 +592,7 @@ shape_count in outline: 1
 537 QPointF missing    : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 538 curve2 without go  : 200 refused: this probe can change the font 
 539 variant=curve still works: 2 1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False
-540 version           : {'version': '0.113'}
+540 version           : {'version': '0.118'}
 541 build (dry run)   : 200 curve3 | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | may_change False | layer shapes/nodes 0 0
     calls             : ['flContour([5 QPointF])', 'contour.closed = True', 'getNodeAt(2).convertToCurve(False)', 'setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))', 'flShape()', 'shape.shapeData', 'shapeData.addContour(contour)']
     notes             : ['detached nodes before attach: 0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 1: (300.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 2: (355.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 3: (400.0, 45.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 4: (400.0, 100.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 5: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 6: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', "after adding the contour, the detached shape reads {'contoursCount': 1, 'hasContours': True, 'isEmpty': False}"]
@@ -617,7 +617,7 @@ shape_count in outline: 1
 557 attach without go : 200 refused: this probe can change the font 
 558 second attach refused: True | layer 1 7
 559 variant=single unchanged: single {'nodesCount': 3, 'closed': True, 'clockwise': False}
-560 version           : {'version': '0.113'}
+560 version           : {'version': '0.118'}
 561 curve3 whole-number handles: None | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | calls ['setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))']
 562 curve3 attach     : True {'shapes': 1, 'nodes': 7} | layer 1 7
 563 curve3, FontLab rounds everything: None | layer 1 7
@@ -684,7 +684,7 @@ shape_count in outline: 1
 573 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 574 curve4 without go : 200 refused: this probe can change the font 
 575 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-576 version           : {'version': '0.113'}
+576 version           : {'version': '0.118'}
 577 curve5, everything works (stub assumptions) | may_change False | error None
      T1 closing segment: convertToCurve(False) on node 0 of a square | {'returned': True, 'handle_indices': [4, 5], 'nodesCount': 6}
      T2a convertToCurve(True) on node 1 of a square | {'returned': True, 'smooth_flags': [False, False, False, True, False, False]}
@@ -740,7 +740,7 @@ shape_count in outline: 1
 586 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 587 curve5 without go : 200 refused: this probe can change the font 
 588 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-589 version           : {'version': '0.113'}
+589 version           : {'version': '0.118'}
 600 one curved segment       : {'drawn': True, 'nodes_match': True, 'points': 4, 'segments_curved': 1, 'contour_sizes': [6], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 601 nodes read back       : [[(0.0, 0.0, 'on', False), (400.0, 0.0, 'on', False), (500.0, 100.0, 'h', False), (500.0, 300.0, 'h', False), (400.0, 400.0, 'on', False), (0.0, 400.0, 'on', False)]] | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 6, 'components': 0} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
 602 calls                 : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'convertToCurve', 'addShape'] | layer_created test_font
@@ -800,7 +800,7 @@ shape_count in outline: 1
 667 second draw refused   : False | the glyph's layer is not KNOWN to be empty (needs 
 668 plain triangle via path : {'drawn': True, 'nodes_match': True, 'points': 3, 'segments_curved': 0, 'contour_sizes': [3], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 669 no convert calls      : 0
-671 version               : {'version': '0.113'}
+671 version               : {'version': '0.118'}
 672 pure helpers          : 3.0 -2.0 0.0 0.0 0.0 -3.0
 700 first draw             : True | layer_created test_font | layer (1, 6, 1) | creates 1
 701 legacy view lags       : True | wrapper activeLayer None
@@ -812,7 +812,7 @@ shape_count in outline: 1
 708 findLayer missing        : False | the glyph may already have a layer (the glyph has no findLayer to ask with), so no layer was created | creates 0 | layer None
 709 glyph without layer, nobody answers yes: True | layer_created test_font | creates 1
 710 width on a glyph with no layer still works: True modern | layer_created test_font | creates 1
-711 version                : {'version': '0.113'}
+711 version                : {'version': '0.118'}
 720 state, nothing open        : 200 {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': None} | constructed False | attached False | calls []
 721 default stage is state     : 200 state
 722 construct without go       : 200 stage=construct constructs ONE native flPackage object (it is not attached to anything). Add &go=yes to run it. | calls []
@@ -836,7 +836,7 @@ shape_count in outline: 1
 738 no flPackage class         : 200 the fontlab module has no flPackage class; nothing was constructed | constructed False
 739 forbidden members called   : [] | calls ['flPackage()', 'addPackage']
 740 static scan of the probe   : forbidden call syntax found: [] | real addPackage calls: 1 | scanned chars > 3000: True
-741 version                    : {'version': '0.113'}
+741 version                    : {'version': '0.118'}
 750 first glyph of a new font, polygon    : {'drawn': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
 751 what was read             : ['cp', 'defaultMaster', 'glyphsCount', 'isNull', 'master', 'masters', 'mastersCount', 'packages', 'upm'] | reads 9
 752 first glyph, width               : {'set': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
@@ -884,7 +884,7 @@ shape_count in outline: 1
 797 other glyphs, with source    : ('test_font', None, 'other glyphs') | reads []
 798 forbidden members called, whole run: [] | addShape calls 1
 799 static scan of the fallback  : forbidden call syntax found: [] | scanned chars > 3000: True
-800 version                      : {'version': '0.113'}
+800 version                      : {'version': '0.118'}
 810 state, one font open               : 200 {'stage': 'state', 'state': {'package_isChanged': False, 'workspace_isChanged': False, 'package_glyphsCount': 1}, 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 811 default stage is state           : 200 {'stage': 'state', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 812 package_update without go        : 200 {'error': "stage=package_update calls flPackage.update() ONCE on the font's package. Add &go=yes to run it."} | calls []
@@ -915,7 +915,7 @@ shape_count in outline: 1
 842 the module has no CountFonts     : 200 {'error': 'the fontlab module has no CountFonts, so the number of open fonts is unknown', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 843 forbidden members called    : [] | calls ['flPackage.update()', 'flWorkspace.update()']
 844 static scan of the probe     : forbidden call syntax found: [] | real update calls: 1 | scanned chars > 3000: True
-845 version                      : {'version': '0.113'}
+845 version                      : {'version': '0.118'}
 850 no go                         : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 851 go must be exactly yes           : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 852 unknown how                      : 200 {'error': 'how must be "plain" (createGlyph only) or "legacy_update" (createGlyph, then font.update())'} | names ['.notdef', 'A'] | calls []
@@ -947,7 +947,7 @@ shape_count in outline: 1
 878 forbidden members called     : [] | calls ['createGlyph', 'createGlyph', 'update'] | names ['.notdef', 'A', 'P1', 'P2']
 879 static scan of the probe     : forbidden call syntax found: [] | real createGlyph calls: 1 | real font.update calls: 1 | scanned chars > 2000: True
 880 create_glyph itself unchanged: True | still calls font.update(): True
-881 version                      : {'version': '0.113'}
+881 version                      : {'version': '0.118'}
 890 nothing tracked: update runs       : 200 {'created': True} | calls ['createGlyph', 'font.update'] | layers ['ref'] | tracked []
 891 draw: reply says not synced         : 200 {'drawn': True, 'synced_with_fontlab': False} | calls [] | layers ['fresh', 'ref'] | tracked ['fresh']
 891b durability note present  : True | mentions create_glyph: True
@@ -980,7 +980,7 @@ shape_count in outline: 1
 913 no regression: duplicate name   : 200 {'created': False}
 914 static scan of the guard     : forbidden call syntax found: [] | scanned chars > 3000: True
 915 every legacy update is guarded: [(1, 1, 1), (1, 1, 1), (1, 1, 2), (1, 1, 2)]
-916 version                      : {'version': '0.113'}
+916 version                      : {'version': '0.118'}
 917 sidebearings change remembered: 200 {'set': True, 'changed': True, 'synced_with_fontlab': False} | tracked ['tri']
 918 same values again: not remembered: {'set': True, 'changed': False, 'synced_with_fontlab': None} | tracked []
 920 margins agree                    : 200 node_count 3 | check {'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True} | modern_outline None
@@ -1003,7 +1003,7 @@ shape_count in outline: 1
 936 margins argument not a dict  : {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True}
 937 direct compare, missing key  : {'margins_agree': None, 'margins_note': 'the legacy margins are not numbers, so they could not be compared'}
 938 static scan of the compare   : forbidden call syntax found: [] | getLSB / getRSB reads in the helper: 1 | scanned chars > 1500: True
-939 version                      : {'version': '0.113'}
+939 version                      : {'version': '0.118'}
 940 state, drawn glyph                  : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'components': 0}, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
 940b                              : {'found': True, 'legacy_layers': 0, 'modern': 'present', 'modern_nodes': 4, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'} | registry {'fresh': 'at_risk'} | counters {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}
 941 state, updatedFgGlyphs ids          : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'components': 0}, 'updated_fg_glyphs': {'count': 2, 'ids': [5, 7]}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
@@ -1091,7 +1091,7 @@ shape_count in outline: 1
 981 forbidden members called     : [] | pkg.update / other recorded package calls: []
 982 static scan of the probe     : forbidden call syntax found: [] | real calls: Update 2 UpdateAll 1 fillFgData 1 prepareFontGateData 1 addGlyph 1 flGlyph() 1 | scanned chars > 6000: True
 983 no other tool changed        : True | create_glyph still calls font.update(): True
-984 version                      : {'version': '0.113'}
+984 version                      : {'version': '0.118'}
 990 polygon, Update syncs           : 200 {'drawn': True} | synced_with_fontlab True | fontlab_sync {'attempted': True, 'verdict': 'synced', 'synced': True} | note Glyphbridge asked Font | calls [('Update', 'M88Mod')] | tracked []
 990b                              : unsynced note gone: True | layer kept: True | legacy layers: 1
 991 polygon, Update has no effect     : 200 {'drawn': True} | synced_with_fontlab False | fontlab_sync {'attempted': True, 'verdict': 'at_risk', 'synced': False} | note This change exists onl | calls [('Update', 'M88Mod')] | tracked ['fresh']
@@ -1116,7 +1116,7 @@ shape_count in outline: 1
 1005 calls over all cases        : UpdateAll called: False | forbidden: [] | Update calls: 10 | all Update args are the modern wrapper: True
 1006 static scan of the sync     : forbidden call syntax found: [] | upd(w) calls: 1 | scanned chars > 900: True
 1007 constants                   : shipped default ['True'] | synced note mentions legacy view: True
-1008 version                     : {'version': '0.113'}
+1008 version                     : {'version': '0.118'}
 
 ==== v0.90 /debug/fontdir ====
 1010 dir                     : 200 {'open': True, 'count_fonts': 1, 'stage': 'dir', 'font_type': 'FDFont'} | names ['boom', 'familyName', 'flag', 'kerning', 'lenboom', 'method', 'nolen', 'nothing', 'unitsPerEm'] | doc len None | touched [] | called []
@@ -1142,7 +1142,7 @@ shape_count in outline: 1
 1023 bad identifier ''             : 200 {'error': 'stage=sub and stage=member need attr=<plain identifier without a leading underscore>'} | names None | doc len None | touched [] | called []
 1023b sub without attr         : 200 {'error': 'stage=sub and stage=member need attr=<plain identifier without a leading underscore>'} | names None | doc len None | touched [] | called []
 1023c attr with spaces is trimmed : 200 {'open': True, 'count_fonts': 1, 'stage': 'sub', 'font_type': 'FDFont', 'attr': 'familyName', 'value_type': 'str', 'value': 'Arial'} | names None | doc len None | touched [] | called []
-1024 bad stage                 : 200 {'error': 'stage must be "dir", "sub" or "member"'} | names None | doc len None | touched [] | called []
+1024 bad stage                 : 200 {'error': 'stage must be "dir", "sub", "member", "memberdir" or "keys"'} | names None | doc len None | touched [] | called []
 1025 CountFonts 0: not open   : 200 {'open': False, 'count_fonts': 0, 'note': 'CountFonts() is 0: no font is open (CurrentFont() would only return a placeholder)'} | names None | doc len None | touched [] | called []
 1025b CurrentFont never asked      : True
 1026 CurrentFont None         : 200 {'open': False} | names None | doc len None | touched [] | called []
@@ -1152,8 +1152,8 @@ shape_count in outline: 1
 1029 module has no CountFonts : 200 {'open': True, 'count_fonts': None, 'stage': 'sub', 'font_type': 'FDFont', 'attr': 'familyName', 'value_type': 'str', 'value': 'Arial'} | names None | doc len None | touched [] | called []
 1030 two fonts: count reported  : 200 {'open': True, 'count_fonts': 2, 'stage': 'dir', 'font_type': 'FDFont'} | names ['boom', 'familyName', 'flag', 'kerning', 'lenboom', 'method', 'nolen', 'nothing', 'unitsPerEm'] | doc len None | touched [] | called []
 1031 probe raises: HTTP 500      : 500 {'error': 'probe boom'} | names None | doc len None | touched [] | called []
-1032 static scan                 : forbidden syntax: [] | val() calls: 0 | font.X( calls: [] | subscripts on other objects: [] | len() calls: 3 | getattr(font,: 1 | scanned chars > 1500: True
-1033 route is read-only          : True
+1032 static scan                 : forbidden syntax: [] | val() calls: 0 | font.X( calls: [] | subscripts on other objects: [] | len() calls: 6 | getattr(font,: 1 | scanned chars > 1500: True
+1033 read-only but for the gated keys stage: True
 1034 members of kerning        : 200 {'open': True, 'count_fonts': 1, 'stage': 'member', 'font_type': 'FDFont', 'attr': 'kerning', 'value_type': 'FDKern'} | touched ['get', 'hasGroupKerning', 'groups', 'sub', 'nolenobj', 'flagm'] | called []
        get {'type': 'method', 'callable': True, 'called': False, 'doc': 400}
        hasGroupKerning {'type': 'method', 'callable': True, 'called': False, 'doc': None}
@@ -1199,7 +1199,7 @@ shape_count in outline: 1
        get {'type': 'method', 'callable': True, 'called': False, 'doc': 400}
 1050b doc length                   : 400
 1051 sub stage unchanged        : 200 {'open': True, 'count_fonts': 1, 'stage': 'sub', 'font_type': 'FDFont', 'attr': 'kerning', 'value_type': 'FDKern', 'len': 3} | names ['bad', 'flagm', 'get', 'groups', 'hasGroupKerning', 'nolenobj', 'sub'] | doc len 400 | touched [] | called []
-1053 static scan (member stage)  : mv() calls: 0 | val() calls: 0 | getattr(val,: 1 | len() calls: 3 | subscripts on other objects: [] | forbidden syntax: []
+1053 static scan (member stage)  : mv() calls: 0 | val() calls: 0 | getattr(val,: 1 | len() calls: 6 | subscripts on other objects: [] | forbidden syntax: []
 
 ==== v0.92 /debug/trykern ====
 1060 no go: nothing runs         : 200 {'error': 'this probe calls font.kerning.get((a, b)) ONCE (a read); add &go=yes to run it', 'calls_so_far': 0, 'max_calls': 20} | get calls [] | touched [] | forbidden []
@@ -1726,12 +1726,12 @@ shape_count in outline: 1
 1328 poll: health, shutdown, version : raised None | accepts 2 | left 1 | socket closed True | timer stopped True | listener running False
 1329 replies                       : 200 {"status": "ok"} | 200 {"status": "shutting down"} | (nothing sent) | closed True True
 1330 poll: one request, then none : raised None | accepts 2 | left 0 | socket closed False | timer stopped False | listener running True
-1331 reply                         : 200 {"version": "0.113"}
+1331 reply                         : 200 {"version": "0.118"}
 1332 poll after stop()             : returns quietly
 [glyphbridge] Listener stopped.
 1333 poll: shutdown as 8th request : raised None | accepts 8 | left 0 | socket closed True | timer stopped True | listener running False
 1334 start() prints:
-[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.113
+[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.118
 [glyphbridge] Listener started on http://127.0.0.1:8765 (main-thread polling)
 [glyphbridge] Try: GET /health, GET /version. All routes are listed at the top of glyphbridge_fontlab_mcp_listener.py.
 1334 start() result                : socket set True | timer started True | interval 25 | signal timeout()
@@ -2225,3 +2225,104 @@ shape_count in outline: 1
 1519 _build_response keeps the font of the request until the next one: True
 1519b the next request forgets it       : True
 1519c _handle forgets it in finally     : True
+
+==== v0.114 delete dialog text ====
+1520 client, saved font, one font open   : 'local-agent-mode (via Glyphbridge) is requesting to delete the glyph \'w6a_one\' from the font "testfont Regular" (file savedtestfont-b.vfc).\n\nAllow this deletion?'
+1521 client, unsaved font, two open      : 'local-agent-mode (via Glyphbridge) is requesting to delete the glyph \'w6a_one\' from the font "Unnamed Regular" (not saved to a file yet; 1 of 2 open fonts, the one whose window is in front).\n\nAllow this deletion?'
+1522 no client name, saved, three open   : 'A request through Glyphbridge asks to delete the glyph \'w6a_one\' from the font "Arial Regular" (file Arial: Normal; 1 of 3 open fonts, the one whose window is in front).\n\nAllow this deletion?'
+1523 no family or style name             : "claude-code (via Glyphbridge) is requesting to delete the glyph 'w6a_one' from a font without a name (file x.vfc).\n\nAllow this deletion?"
+1524 a Windows path with backslashes     : 'claude-code (via Glyphbridge) is requesting to delete the glyph \'w6a_one\' from the font "Back Bold" (file back.vfc; 1 of 2 open fonts, the one whose window is in front).\n\nAllow this deletion?'
+1525 path None, no CountFonts            : 'claude-code (via Glyphbridge) is requesting to delete the glyph \'w6a_one\' from the font "Unnamed1 Regular" (not saved to a file yet).\n\nAllow this deletion?'
+1526 path raises                         : 'claude-code (via Glyphbridge) is requesting to delete the glyph \'w6a_one\' from the font "Raise Regular" (its file could not be read).\n\nAllow this deletion?'
+1526b path not text                      : 'claude-code (via Glyphbridge) is requesting to delete the glyph \'w6a_one\' from the font "Seven Regular" (its file could not be read).\n\nAllow this deletion?'
+1527 a path ending in a slash            : 'claude-code (via Glyphbridge) is requesting to delete the glyph \'w6a_one\' from the font "Slash Regular".\n\nAllow this deletion?'
+1528 control characters, a long file     : 'claude-code (via Glyphbridge) is requesting to delete the glyph \'w6a_one\' from the font "CtlFam Regular" (file nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn).\n\nAllow this deletion?'
+1528b control character in the file name : 'claude-code (via Glyphbridge) is requesting to delete the glyph \'w6a_one\' from the font "Ctl Regular" (file ab.vfc).\n\nAllow this deletion?'
+1529 the client name is the log's cleaned name: ['local-agent-mode', 'x[fake]', 'cccccccccccccccccccccccccccccccccccccccc']
+1530 no font noted in this request     : "claude-code (via Glyphbridge) is requesting to delete the glyph 'w6a_one' from the font whose window is in front.\n\nAllow this deletion?"
+1531 the dialog shows that text        : Glyphbridge: Confirm Deletion | True | default ('default', 65536) | Yes -> True | No -> False
+1532 the file name never goes into a header: True | headers: {'X-Glyphbridge-Font': 'testfont/Regular', 'X-Glyphbridge-Font-Key': 'd76c935d9775', 'X-Glyphbridge-Fonts-Open': '2'}
+1533 no fixed agent name in the listener: True | _confirm_deletion uses _deletion_text: True | delete_glyph reads the font before the dialog: True
+
+==== v0.115 /debug/fontdir stage=memberdir ====
+1534 info.dict: type, doc, names    : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'dict', 'member_type': 'FDInfoDict', 'member_doc': 22, 'public_names': ['get', 'has_key', 'keys']} | touched ['info.dict'] | called []
+1534b no len, iteration or key lookup on it: True | only 'dict' read on info: True
+1535 a method is never called       : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'method', 'member_type': 'method', 'member_doc': None, 'callable': True, 'called': False} | touched ['info.method'] | called []
+1536 a plain value is not returned  : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'familyName', 'member_type': 'str', 'member_doc': 400, 'member_is_plain_value': True} | touched ['info.familyName'] | called []
+1537 a None member                  : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'nothing', 'member_type': 'NoneType', 'member_doc': 31, 'member_is_plain_value': True} | touched ['info.nothing'] | called []
+1538 member getattr raises          : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'bad', 'error': 'getattr of the member raised: RuntimeError: member boom'} | touched ['info.bad'] | called []
+1539 dir() of the member raises     : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'dirboom', 'member_type': 'FDDirBoom', 'member_doc': None, 'public_names': '<dir failed: RuntimeError: dir boom>'} | touched ['info.dirboom'] | called []
+1540 two names refused             : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': 'stage=memberdir needs members=<exactly one name, or a dotted path of up to 3 names>'} | touched [] | called []
+1540b no name refused             : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': 'stage=memberdir needs members=<exactly one name, or a dotted path of up to 3 names>'} | touched [] | called []
+1540c only spaces refused         : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': 'stage=memberdir needs members=<exactly one name, or a dotted path of up to 3 names>'} | touched [] | called []
+1540d spaces around a name trimmed : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'dict', 'member_type': 'FDInfoDict', 'member_doc': 22, 'public_names': ['get', 'has_key', 'keys']} | touched ['info.dict'] | called []
+1541 unknown member               : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': "'zzz' is not a public member of this object (run stage=sub first)"} | touched [] | called []
+1541b private member refused      : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': "'_hid' is not a plain identifier without a leading underscore"} | touched [] | called []
+1541c bad identifier refused       : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': "'a' is not a public member of this object (run stage=sub first)"} | touched [] | called []
+1541d a call is refused          : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': "'dict()' is not a plain identifier without a leading underscore"} | touched [] | called []
+1542 no members parameter          : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': 'stage=memberdir needs members=<exactly one name, or a dotted path of up to 3 names>'} | touched [] | called []
+1543 attr is a plain value         : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'familyName', 'value_type': 'str', 'error': 'stage=memberdir needs an attribute that is an object (use stage=sub first)'} | touched [] | called []
+1543b attr is a callable (not called) : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'method', 'value_type': 'method', 'error': 'stage=memberdir needs an attribute that is an object (use stage=sub first)'} | touched [] | called []
+1544 CountFonts 0: not open        : 200 {'open': False, 'count_fonts': 0, 'note': 'CountFonts() is 0: no font is open (CurrentFont() would only return a placeholder)'} | touched [] | called []
+1545 bad stage names all four      : 200 {'error': 'stage must be "dir", "sub", "member", "memberdir" or "keys"'} | touched [] | called []
+1546 static scan of memberdir    : len() calls: 1 | mv( calls: 0 | container syntax on mv: [] | scanned chars > 800: True | still read-only: True
+
+==== v0.116 /debug/fontdir stage=memberdir, dotted path ====
+1547 two steps: deep.flags               : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'deep.flags', 'path_types': ['FDSpy'], 'member_type': 'FDSpy', 'member_doc': 98, 'public_names': ['names']} | touched ['info.deep', 'deep.flags'] | called []
+1548 three steps: deep.flags.names       : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'deep.flags.names', 'path_types': ['FDSpy', 'FDSpy'], 'member_type': 'FDSpy', 'member_doc': 98, 'public_names': ['leaf']} | touched ['info.deep', 'deep.flags', 'flags.names'] | called []
+1549 four steps refused                  : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': 'members: at most 3 steps in a dotted path'} | touched [] | called []
+1550 the last step a plain value         : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'deep.num', 'path_types': ['FDSpy'], 'member_type': 'int', 'member_doc': 400, 'member_is_plain_value': True} | touched ['info.deep', 'deep.num'] | called []
+1550b the last step None                 : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'deep.nothing', 'path_types': ['FDSpy'], 'member_type': 'NoneType', 'member_doc': 31, 'member_is_plain_value': True} | touched ['info.deep', 'deep.nothing'] | called []
+1551 the last step a callable, not called : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'deep.meth', 'path_types': ['FDSpy'], 'member_type': 'function', 'member_doc': None, 'callable': True, 'called': False} | touched ['info.deep', 'deep.meth'] | called []
+1552 a plain value mid-path ends it      : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'deep.num.real', 'path_types': ['FDSpy', 'int'], 'error': "the path stops at 'deep.num': it is a plain value of type int"} | touched ['info.deep', 'deep.num'] | called []
+1552b a callable mid-path ends it, not called : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'deep.meth.x', 'path_types': ['FDSpy', 'function'], 'error': "the path stops at 'deep.meth': it is a callable (never called) of type function"} | touched ['info.deep', 'deep.meth'] | called []
+1553 an unknown second step              : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'deep.zzz', 'path_types': ['FDSpy'], 'error': "'zzz' is not a public member of deep"} | touched ['info.deep'] | called []
+1553b an unknown first step              : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': "'zzz' is not a public member of this object (run stage=sub first)"} | touched [] | called []
+1554 an empty step refused               : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': "'' is not a plain identifier without a leading underscore"} | touched [] | called []
+1554b a private step refused             : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': "'_tag' is not a plain identifier without a leading underscore"} | touched [] | called []
+1554c a call step refused                : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': "'meth()' is not a plain identifier without a leading underscore"} | touched [] | called []
+1555 spaces around steps trimmed         : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'deep.flags', 'path_types': ['FDSpy'], 'member_type': 'FDSpy', 'member_doc': 98, 'public_names': ['names']} | touched ['info.deep', 'deep.flags'] | called []
+1556 getattr of a deeper step raises     : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'deep.raiser.boom', 'path_types': ['FDSpy', 'FDDeepBoom'], 'error': "getattr of 'deep.raiser.boom' raised: RuntimeError: deep boom"} | touched ['info.deep', 'deep.raiser'] | called []
+1557 dir() of a step raises              : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'deep.dirboom.x', 'path_types': ['FDSpy', 'FDDirBoom'], 'error': 'dir() of deep.dirboom failed: RuntimeError: dir boom'} | touched ['info.deep', 'deep.dirboom'] | called []
+1558 a dotted path with a comma refused  : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'error': 'stage=memberdir needs members=<exactly one name, or a dotted path of up to 3 names>'} | touched [] | called []
+1559 a single name is reported as before : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'dict', 'member_type': 'FDInfoDict', 'member_doc': 22, 'public_names': ['get', 'has_key', 'keys']} | touched ['info.dict'] | called []
+1560 a method at the end: dict.has_key   : 200 {'open': True, 'count_fonts': 1, 'stage': 'memberdir', 'font_type': 'FDFont', 'attr': 'info', 'value_type': 'FDInfo', 'member': 'dict.has_key', 'path_types': ['FDInfoDict'], 'member_type': 'method', 'member_doc': None, 'callable': True, 'called': False} | touched ['info.dict', 'dict.has_key'] | called []
+1561 no container call anywhere: True | meth never called: True
+1562 static scan of the walk     : len() calls: 1 (the step count only: 1 ) | obj( / mv( calls: 0 | container syntax: [] | getattr(obj, s) once: True | max steps 3
+
+==== v0.117 /debug/fontdir stage=keys ====
+1563 no go: says what it would call    : 200 {'member': 'kd.names', 'path_types': ['FDSpy'], 'member_type': 'FDKeyed', 'would_call': 'kd.names.keys()', 'called': False, 'note': 'a container call on a native FontLab object (FONTLAB-API-RULES §10): add go=yes to call it once'} | called []
+1563b go=no: not called                : 200 {'member': 'kd.names', 'path_types': ['FDSpy'], 'member_type': 'FDKeyed', 'would_call': 'kd.names.keys()', 'called': False, 'note': 'a container call on a native FontLab object (FONTLAB-API-RULES §10): add go=yes to call it once'} | called []
+1563c go=YES: not called (exact yes)   : 200 {'member': 'kd.names', 'path_types': ['FDSpy'], 'member_type': 'FDKeyed', 'would_call': 'kd.names.keys()', 'called': False, 'note': 'a container call on a native FontLab object (FONTLAB-API-RULES §10): add go=yes to call it once'} | called []
+1564 go=yes: ONE keys() call           : 200 {'member': 'kd.names', 'path_types': ['FDSpy'], 'member_type': 'FDKeyed', 'would_call': 'kd.names.keys()', 'called': True, 'result_type': 'list', 'count': 2, 'keys': ['familyName', 'styleName'], 'cut': False} | called ['keys']
+1564b an empty list                    : 200 {'member': 'kd.empty', 'path_types': ['FDSpy'], 'member_type': 'FDKeyed', 'would_call': 'kd.empty.keys()', 'called': True, 'result_type': 'list', 'count': 0, 'keys': [], 'cut': False} | called ['keys']
+1565 a tuple of text                   : 200 {'member': 'kd.tup', 'path_types': ['FDSpy'], 'member_type': 'FDKeyed', 'would_call': 'kd.tup.keys()', 'called': True, 'result_type': 'tuple', 'count': 2, 'keys': ['a', 'b'], 'cut': False} | called ['keys']
+1566 a non-text entry: type only       : 200 {'member': 'kd.mixed', 'path_types': ['FDSpy'], 'member_type': 'FDKeyed', 'would_call': 'kd.mixed.keys()', 'called': True, 'result_type': 'list', 'note': 'the result is not a plain list or tuple of text: reported by its type only, not read'} | called ['keys']
+1567 a native result: never iterated   : 200 {'member': 'kd.native', 'path_types': ['FDSpy'], 'member_type': 'FDKeyed', 'would_call': 'kd.native.keys()', 'called': True, 'result_type': 'FDNative', 'note': 'the result is not a plain list or tuple of text: reported by its type only, not read'} | called ['keys']
+1568 250 keys: 200 returned, cut       : 200 {'member': 'kd.many', 'path_types': ['FDSpy'], 'member_type': 'FDKeyed', 'would_call': 'kd.many.keys()', 'called': True, 'result_type': 'list', 'count': 250, 'keys': ['k0', 'k1', 'k2', '...', 'k198', 'k199'], 'cut': True} | called ['keys']
+1569 control characters, a long key    : 200 {'member': 'kd.dirty', 'path_types': ['FDSpy'], 'member_type': 'FDKeyed', 'would_call': 'kd.dirty.keys()', 'called': True, 'result_type': 'list', 'count': 2, 'keys': ['okkey', 'LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL'], 'cut': False} | called ['keys']
+1570 keys() raises                     : 200 {'member': 'kd.boom', 'path_types': ['FDSpy'], 'member_type': 'FDKeyed', 'would_call': 'kd.boom.keys()', 'called': True, 'error': 'keys() raised: RuntimeError: keys boom'} | called ['keys']
+1571 keys is not callable              : 200 {'member': 'kd.attrkeys', 'path_types': ['FDSpy'], 'member_type': 'FDKeysAttr', 'error': 'kd.attrkeys.keys is not callable (type list)'} | called []
+1572 no keys member                    : 200 {'member': 'kd.nokeys', 'path_types': ['FDSpy'], 'member_type': 'FDNoKeys', 'error': 'kd.nokeys has no public member named keys'} | called []
+1573 the path ends at a plain value    : 200 {'member': 'kd.num', 'path_types': ['FDSpy'], 'member_type': 'int', 'error': 'stage=keys needs an object at the end of the path (not a plain value, not a callable)'} | called []
+1573b the path ends at a callable      : 200 {'member': 'kd.meth', 'path_types': ['FDSpy'], 'member_type': 'function', 'error': 'stage=keys needs an object at the end of the path (not a plain value, not a callable)'} | called []
+1574 the path rules apply: 4 steps     : 200 {'error': 'members: at most 3 steps in a dotted path'} | called []
+1574b no members                       : 200 {'error': 'stage=keys needs members=<exactly one name, or a dotted path of up to 3 names>'} | called []
+1575 attr a plain value               : 200 stage=keys needs an attribute that is an object (use stage=sub first) | called []
+1576 bad stage names all five          : {'error': 'stage must be "dir", "sub", "member", "memberdir" or "keys"'}
+1577 static scan of _fontdir_keys: calls of the fetched member: 1 | go checked before the call: True | members fetched by getattr: ['keys'] | other calls: [] | subscripts: [] | got read only after the list/tuple check: True
+1578 the route passes go             : True | keys stage listed in the docstring: True
+
+==== v0.118 /font/current package_names ====
+1579 one unsaved font: names read         : 200 {'postscript_font_name': None, 'package_names': {'psn': 'W6aTest-Regular', 'ffn': 'Unnamed1 Regular', 'tfn': 'Unnamed1', 'tsn': 'Regular', 'sgn': 'Unnamed1'}, 'package_matched_by': 'only font'} | calls []
+1580 two fonts, same path: matched        : 200 {'postscript_font_name': None, 'package_names': {'psn': 'testfont-Regular', 'ffn': 'Unnamed1 Regular', 'tfn': 'Unnamed1', 'tsn': 'Regular', 'sgn': 'Unnamed1'}, 'package_matched_by': 'path'} | calls []
+1581 two fonts, paths differ              : 200 {'postscript_font_name': None, 'package_names_unavailable': "2 fonts are open and this font's package could not be matched to it: the current package's path differs from the current font's path (was another font window brought to the front?)"} | calls []
+1582 two unsaved fonts                    : 200 {'postscript_font_name': None, 'package_names_unavailable': "2 fonts are open and this font's package could not be matched to it: the current font has no file path (a new, unsaved font)"} | calls []
+1583 one font, but two packages           : 200 {'postscript_font_name': None, 'package_names_unavailable': "the font's package could not be reached: the workspace holds 2 packages, not exactly 1"} | calls []
+1584 the workspace raises                 : 200 {'postscript_font_name': None, 'package_names_unavailable': "the font's package could not be reached: the workspace's packages could not be counted (RuntimeError: workspace boom)"} | calls []
+1585 no CountFonts                        : 200 {'postscript_font_name': None, 'package_names_unavailable': "the number of open fonts is unknown or not a positive number, so the font's package cannot be matched to it"} | calls []
+1585b CountFonts gives -1                : 200 {'postscript_font_name': None, 'package_names_unavailable': "the number of open fonts is unknown or not a positive number, so the font's package cannot be matched to it"} | calls []
+1586 the package is null                  : 200 {'postscript_font_name': None, 'package_names_unavailable': "the font's package could not be reached: the current package is null or its state is unknown"} | calls []
+1587 not text, a callable, control chars  : 200 {'postscript_font_name': None, 'package_names': {'psn': 'W6aTest-Regular', 'ffn': None, 'tfn': None, 'tsn': 'Regular', 'sgn': 'CtlGroup'}, 'package_matched_by': 'only font', 'package_name_errors': ['ffn is not text (int)', 'tfn is a callable (not called) (function)']} | calls []
+1588 reading psn raises                   : 200 {'postscript_font_name': None, 'package_names': {'psn': None, 'ffn': 'F', 'tfn': 'T', 'tsn': 'S', 'sgn': 'G'}, 'package_matched_by': 'only font', 'package_name_errors': ['psn could not be read (RuntimeError: psn boom)']} | calls []
+1589 static scan of _package_names: calls on pkg: [] | attributes read: [('pkg', 'attr')] | names read: ('psn', 'ffn', 'tfn', 'tsn', 'sgn') | /font/current calls it: True

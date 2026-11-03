@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.113)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.118)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -37,7 +37,8 @@ Routes (GET unless marked POST):
   Status and font
     /health                     {"status": "ok"}
     /version                    {"version": VERSION}
-    /font/current               live info about the current font
+    /font/current               live info about the current font; since v0.118 also the names FontLab keeps in the
+                                font package (package_names: psn ffn tfn tsn sgn), when the package is matched to the font
     /font/glyphs                glyph names of the current font
     /font/nonempty              which glyphs hold outline data; layerless glyphs (an empty .notdef) are
                                 listed as unreadable here, while /font/notdef and /glyph/outline call
@@ -94,7 +95,8 @@ Routes (GET unless marked POST):
     /debug/fldir?contains=a,b              names in the fontlab module
     /debug/moddir?contains=a,b | module=M&contains=a,b | module=M&name=N | stage=kerntype
                                            names in modules ALREADY loaded (never imports); type of font.kerning
-    /debug/fontdir?stage=dir|sub|member    names-only probe of the font object (kerning research)
+    /debug/fontdir?stage=dir|sub|member|memberdir    names-only probe of the font object (kerning and font-info research)
+    /debug/fontdir?stage=keys&...&go=yes   GATED: ONE keys() call at the end of a memberdir path (font-info research)
     /debug/currentshapes                   modern shapes of the glyph open in the editor
 
   Gated debug probes (their changing stages refuse without go=yes; see the comment above each function)
@@ -144,7 +146,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.113"
+VERSION = "0.118"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -197,8 +199,17 @@ def _open_font():
 # v0.113: the font a request used goes back in three response headers, so the server can name it in every reply and see a
 # switched font window (goal 5 of PROJECT.md). The listener runs on FontLab's main thread, so the font cannot change between a
 # route's work and its reply. The path itself never leaves the listener: only a short hash of it ("none" when it is empty).
-_REQUEST_FONT = {"used": False, "family": "", "style": "", "key": "none", "count": None}
+# v0.114: the file name (the path's last part) is kept as well, for the delete dialog only; it is never sent in a header.
+# "saved": True (a path), False (no path: None or empty, a font never saved) or None (the path could not be read).
+_REQUEST_FONT = {"used": False, "family": "", "style": "", "key": "none", "saved": None, "file": "", "count": None}
 _FONT_TEXT_MAX = 100
+
+
+def _plain_text(value):
+    """value without control characters, cut at _FONT_TEXT_MAX, or "" when it is not text. Never raises."""
+    if not isinstance(value, str):
+        return ""
+    return "".join(ch for ch in value if not (ord(ch) < 32 or 127 <= ord(ch) <= 159))[:_FONT_TEXT_MAX]
 
 
 def _font_text(info, attr):
@@ -207,29 +218,29 @@ def _font_text(info, attr):
         value = getattr(info, attr)
     except Exception:
         return ""
-    if not isinstance(value, str):
-        return ""
-    return "".join(ch for ch in value if not (ord(ch) < 32 or 127 <= ord(ch) <= 159))[:_FONT_TEXT_MAX]
+    return _plain_text(value)
 
 
 def _note_request_font(font, count):
-    """Remember the font this request uses (family, style, path hash, CountFonts()). Never raises."""
+    """Remember the font this request uses (family, style, path hash, file name, CountFonts()). Never raises."""
     try:
         info = font.info
     except Exception:
         info = None
     try:
         path = font.path
+        saved = bool(path) if path is None or isinstance(path, str) else None
     except Exception:
-        path = None
-    key = hashlib.sha1(path.encode("utf-8")).hexdigest()[:12] if isinstance(path, str) and path else "none"
+        path, saved = None, None
+    key = hashlib.sha1(path.encode("utf-8")).hexdigest()[:12] if saved else "none"
     _REQUEST_FONT.update(used=True, family=_font_text(info, "familyName") if info is not None else "",
-                         style=_font_text(info, "styleName") if info is not None else "", key=key,
+                         style=_font_text(info, "styleName") if info is not None else "", key=key, saved=saved,
+                         file=_plain_text(path.replace("\\", "/").rsplit("/", 1)[-1]).strip() if saved else "",
                          count=count if type(count) is int else None)
 
 
 def _forget_request_font():
-    _REQUEST_FONT.update(used=False, family="", style="", key="none", count=None)
+    _REQUEST_FONT.update(used=False, family="", style="", key="none", saved=None, file="", count=None)
 
 
 def _font_headers():
@@ -265,7 +276,56 @@ def get_current_font_info():
             result[out_name] = None
             result.setdefault("errors", []).append(f"{out_name} ({attr}): {exc}")
 
+    result.update(_package_names(font, _REQUEST_FONT["count"]))
     return result
+
+
+# v0.118: FontLab keeps the names Font Info shows in the font's package; the legacy font.info can disagree. Test 298: after the
+# PostScript field was set to W6aTest-Regular in Font Info, font.info.postscriptFontName still read Unnamed1-Regular, while
+# flPackage.psn read W6aTest-Regular (test 300; ffn = Full name, tfn = Family name, tsn = Style name, sgn = Style group).
+_PACKAGE_NAME_FIELDS = ("psn", "ffn", "tfn", "tsn", "sgn")
+
+
+def _package_names(font, count):
+    """{"package_names": {...}, "package_matched_by": ...} or {"package_names_unavailable": reason}. READ ONLY: the five name
+    attributes of the workspace's current package, only when that package is proven to be this font: the only font open
+    (_trysync_target), or, with several fonts, the same non-empty path (_kern_package_by_path). Each attribute is read once; a
+    callable is never called, and a value that is not text is reported as None with the reason. Never raises."""
+    try:
+        import sys as _sys
+        mod = _sys.modules.get("fontlab") or fl
+        if type(count) is not int or count < 1:
+            return {"package_names_unavailable": "the number of open fonts is unknown or not a positive number, so the font's package "
+                                                 "cannot be matched to it"}
+        if count == 1:
+            ws, pkg, why = _trysync_target(mod)
+            if ws is None:
+                return {"package_names_unavailable": f"the font's package could not be reached: {why}"}
+            matched_by = "only font"
+        else:
+            pkg, why = _kern_package_by_path(mod, font)
+            if pkg is None:
+                return {"package_names_unavailable": f"{count} fonts are open and this font's package could not be matched to it: {why}"}
+            matched_by = "path"
+        names, errors = {}, []
+        for attr in _PACKAGE_NAME_FIELDS:
+            try:
+                value = getattr(pkg, attr)
+            except Exception as exc:
+                names[attr] = None
+                errors.append(f"{attr} could not be read ({type(exc).__name__}: {exc})")
+                continue
+            if isinstance(value, str):
+                names[attr] = _plain_text(value)
+            else:
+                names[attr] = None
+                errors.append(f"{attr} is {'a callable (not called)' if callable(value) else 'not text'} ({type(value).__name__})")
+        out = {"package_names": names, "package_matched_by": matched_by}
+        if errors:
+            out["package_name_errors"] = errors
+        return out
+    except Exception as exc:
+        return {"package_names_unavailable": f"the font's package could not be read ({type(exc).__name__}: {exc})"}
 
 
 def get_glyph_names():
@@ -596,6 +656,32 @@ def create_glyph(name, scan_unicode=None):
     return result
 
 
+def _deletion_text(name):
+    """The question of the delete dialog, built only from facts of this request (v0.114): the name the client sent in
+    X-Glyphbridge-Client, as the activity log shows it, and the font _open_font() noted (family and style, its file name or
+    that it is not saved, and how many fonts are open). A missing client name stays missing: no agent name is guessed."""
+    who = (f"{_request_client} (via Glyphbridge) is requesting to delete" if _request_client
+           else "A request through Glyphbridge asks to delete")
+    font = _REQUEST_FONT
+    if font["used"]:
+        title = " ".join(part for part in (font["family"], font["style"]) if part)
+        where = f'from the font "{title}"' if title else "from a font without a name"
+        details = []
+        if font["saved"] is False:
+            details.append("not saved to a file yet")
+        elif font["saved"] is None:
+            details.append("its file could not be read")
+        elif font["file"]:
+            details.append(f"file {font['file']}")
+        if font["count"] is not None and font["count"] > 1:
+            details.append(f"1 of {font['count']} open fonts, the one whose window is in front")
+        if details:
+            where += f" ({'; '.join(details)})"
+    else:
+        where = "from the font whose window is in front"
+    return f"{who} the glyph '{name}' {where}.\n\nAllow this deletion?"
+
+
 def _confirm_deletion(name):
     """Blocking Yes/No dialog in FontLab. Runs on the main thread (this
     whole listener does), so it is safe to block here: FontLab's UI is
@@ -603,8 +689,7 @@ def _confirm_deletion(name):
     box = QMessageBox(
         QMessageBox.Warning,
         "Glyphbridge: Confirm Deletion",
-        f"Claude (via Glyphbridge) is requesting to delete the glyph "
-        f"'{name}' from the current font.\n\nAllow this deletion?",
+        _deletion_text(name),
         QMessageBox.Yes | QMessageBox.No,
     )
     box.setDefaultButton(QMessageBox.No)  # Enter/closing the dialog = decline
@@ -5404,16 +5489,33 @@ def debug_mod_dir(module, name, contains, members, doc_chars, stage):
 #                             callable) and up to 8 of ITS public members, each a plain identifier without a leading underscore that
 #                             appears in dir(sub-object). Per member: type name; callable true / false (a callable is NEVER called);
 #                             the start of its docstring; for a non-callable member also len() when it has one. No value is returned.
+#   stage=memberdir&attr=NAME&members=m   (v0.115) ONE public member m of the sub-object of attribute NAME (an OBJECT, as for
+#                             stage=member), one level deeper: its type name, the start of its docstring and, when it is an object,
+#                             its public attribute NAMES. A plain value is not returned; a callable is NEVER called; no len(), no
+#                             [] / .get() / .keys() / iteration on it (container calls on native objects need proof, FONTLAB-API-RULES
+#                             §10). Asked for font.info.dict (an fgFontInfoDict): does FontLab mark which info fields were set?
+#                             v0.116: m may be a dotted path of up to 3 steps (members=dict.flags). Each step is a public plain
+#                             identifier found in dir() of the step before and is read once (getattr); a step that is a plain value
+#                             or a callable (never called) ends the walk with an error naming it. path_types lists the type of every
+#                             step before the last. The last step is reported as for a single name.
+#   stage=keys&attr=NAME&members=PATH&go=yes   (v0.117) GATED. The same path rules as memberdir; the object at the end of the
+#                             path must have a public, callable member keys, which is called ONCE without arguments, and only
+#                             with go=yes (without it the reply only says what would be called). A plain list or tuple of text is
+#                             returned (at most _FONTDIR_KEYS_MAX entries, with the full count); anything else by its type only,
+#                             never iterated. has_key / value / asDict / del are never called. keys() on a native object is a
+#                             container call that needs proof per object and call form (FONTLAB-API-RULES §10).
 # "A font is open" uses CountFonts() when it is a plain int (0 = the placeholder fgFont of section 8k, reported as open false).
 # --------------------------------------------------------------------------
 
-_FONTDIR_STAGES = ("dir", "sub", "member")
+_FONTDIR_STAGES = ("dir", "sub", "member", "memberdir", "keys")
+_MEMBERDIR_MAX_STEPS = 3      # v0.116: longest dotted path of stage=memberdir
+_FONTDIR_KEYS_MAX = 200       # v0.117: most keys returned by stage=keys
 
 
-def debug_font_dir(stage="dir", attr=None, members=None):
+def debug_font_dir(stage="dir", attr=None, members=None, go=None):
     import re as _re
     if stage not in _FONTDIR_STAGES:
-        return {"error": 'stage must be "dir", "sub" or "member"'}
+        return {"error": 'stage must be "dir", "sub", "member", "memberdir" or "keys"'}
     count = None
     try:
         counter = getattr(fl, "CountFonts", None)
@@ -5452,6 +5554,66 @@ def debug_font_dir(stage="dir", attr=None, members=None):
         return d[:400] if isinstance(d, str) else None
 
     result["value_type"] = type(val).__name__
+    if stage in ("memberdir", "keys"):
+        if val is None or isinstance(val, (str, int, float, bool)) or callable(val):
+            result["error"] = f"stage={stage} needs an attribute that is an object (use stage=sub first)"
+            return result
+        m = (members or "").strip()
+        if not m or "," in m:
+            result["error"] = f"stage={stage} needs members=<exactly one name, or a dotted path of up to {_MEMBERDIR_MAX_STEPS} names>"
+            return result
+        steps = tuple(s.strip() for s in m.split("."))
+        last = len(steps) - 1
+        if last >= _MEMBERDIR_MAX_STEPS:
+            result["error"] = f"members: at most {_MEMBERDIR_MAX_STEPS} steps in a dotted path"
+            return result
+        for s in steps:
+            if not _re.match(r"^[A-Za-z][A-Za-z0-9_]*$", s):
+                result["error"] = f"{s!r} is not a plain identifier without a leading underscore"
+                return result
+        obj, walked, path_types = val, (), ()          # tuples only: nothing here may look like a call on a FontLab object
+        for i, s in enumerate(steps):
+            before = ".".join(walked)
+            try:
+                public = [n for n in dir(obj) if not n.startswith("_")]
+            except Exception as exc:
+                result["error"] = f"dir() of {before or 'the sub-object'} failed: {type(exc).__name__}: {exc}"
+                return result
+            if s not in public:
+                result["error"] = f"{s!r} is not a public member of {before or 'this object (run stage=sub first)'}"
+                return result
+            result["member"] = ".".join(steps)
+            walked = walked + (s,)
+            try:
+                obj = getattr(obj, s)
+            except Exception as exc:
+                where = "the member" if last == 0 else repr(".".join(walked))
+                result["error"] = f"getattr of {where} raised: {type(exc).__name__}: {exc}"
+                return result
+            if i < last:
+                path_types = path_types + (type(obj).__name__,)
+                result["path_types"] = list(path_types)
+                if obj is None or isinstance(obj, (str, int, float, bool)) or callable(obj):
+                    kind = "a callable (never called)" if callable(obj) else "a plain value"
+                    result["error"] = f"the path stops at {'.'.join(walked)!r}: it is {kind} of type {type(obj).__name__}"
+                    return result
+        mv = obj
+        if stage == "keys":
+            return _fontdir_keys(mv, result, go)
+        result["member_type"] = type(mv).__name__
+        result["member_doc"] = _doc(mv)
+        if mv is None or isinstance(mv, (str, int, float, bool)):
+            result["member_is_plain_value"] = True       # names only: the value itself is not returned
+            return result
+        if callable(mv):
+            result["callable"] = True
+            result["called"] = False
+            return result
+        try:
+            result["public_names"] = [n for n in dir(mv) if not n.startswith("_")]
+        except Exception as exc:
+            result["public_names"] = f"<dir failed: {type(exc).__name__}: {exc}>"
+        return result
     if stage == "member":
         if val is None or isinstance(val, (str, int, float, bool)) or callable(val):
             result["error"] = "stage=member needs an attribute that is an object (use stage=sub first)"
@@ -5512,6 +5674,50 @@ def debug_font_dir(stage="dir", attr=None, members=None):
         result["public_names"] = [n for n in dir(val) if not n.startswith("_")]
     except Exception as exc:
         result["public_names"] = f"<dir failed: {type(exc).__name__}: {exc}>"
+    return result
+
+
+def _fontdir_keys(obj, result, go):
+    """stage=keys (v0.117): ONE call of obj.keys() at the end of a memberdir path, only with go=yes. Nothing else of obj is called."""
+    result["member_type"] = type(obj).__name__
+    if obj is None or isinstance(obj, (str, int, float, bool)) or callable(obj):
+        result["error"] = "stage=keys needs an object at the end of the path (not a plain value, not a callable)"
+        return result
+    try:
+        public = [n for n in dir(obj) if not n.startswith("_")]
+    except Exception as exc:
+        result["error"] = f"dir() of {result['member']} failed: {type(exc).__name__}: {exc}"
+        return result
+    if "keys" not in public:
+        result["error"] = f"{result['member']} has no public member named keys"
+        return result
+    try:
+        call = getattr(obj, "keys")
+    except Exception as exc:
+        result["error"] = f"getattr of keys raised: {type(exc).__name__}: {exc}"
+        return result
+    if not callable(call):
+        result["error"] = f"{result['member']}.keys is not callable (type {type(call).__name__})"
+        return result
+    result["would_call"] = f"{result['member']}.keys()"
+    if go != "yes":
+        result["called"] = False
+        result["note"] = "a container call on a native FontLab object (FONTLAB-API-RULES §10): add go=yes to call it once"
+        return result
+    try:
+        got = call()
+    except Exception as exc:
+        result["called"] = True
+        result["error"] = f"keys() raised: {type(exc).__name__}: {exc}"
+        return result
+    result["called"] = True
+    result["result_type"] = type(got).__name__
+    if type(got) in (list, tuple) and all(isinstance(k, str) for k in got):
+        result["count"] = len(got)
+        result["keys"] = [_plain_text(k) for i, k in enumerate(got) if i < _FONTDIR_KEYS_MAX]
+        result["cut"] = len(got) > _FONTDIR_KEYS_MAX
+    else:
+        result["note"] = "the result is not a plain list or tuple of text: reported by its type only, not read"
     return result
 
 
@@ -6975,8 +7181,9 @@ def _route(method, full_path, body=b""):
             stage = (query.get("stage") or ["dir"])[0]
             attr = (query.get("attr") or [None])[0]
             members = (query.get("members") or [None])[0]
+            go = (query.get("go") or [None])[0]
             try:
-                return _build_response(200, debug_font_dir(stage, attr.strip() if attr else None, members))
+                return _build_response(200, debug_font_dir(stage, attr.strip() if attr else None, members, go))
             except Exception as exc:
                 return _build_response(500, {"error": str(exc)})
 

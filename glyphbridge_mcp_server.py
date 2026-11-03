@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.39)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.41)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,9 +42,11 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.39"          # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.41"          # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
-SAVE_REMINDER = "**You must save if you want to keep these changes: use the File menu or press Ctrl+S in FontLab.**"   # shown in CHAT only, never as a FontLab dialog
+# v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
+SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
+SAVE_REMINDER = f"**You must save if you want to keep these changes: use the File menu or press {SAVE_SHORTCUT} in FontLab.**"   # shown in CHAT only, never as a FontLab dialog
 DELETE_CONFIRM_TIMEOUT_SECONDS = 120.0  # time to let a human see and answer the FontLab dialog
 NOTDEF_DIALOG_TIMEOUT_SECONDS = 120.0   # the .notdef warning dialog also waits for a person to click OK
 BASE_URL = f"http://{LISTENER_HOST}:{LISTENER_PORT}"
@@ -440,19 +442,40 @@ def _tidy_number(value: Any) -> Any:
     return value
 
 
+# v0.41 (listener 0.118): the PostScript names come from the font package, where FontLab keeps what Font Info shows. The legacy
+# font.info can disagree (test 298: Font Info W6aTest-Regular, font.info Unnamed1-Regular, package psn W6aTest-Regular, test 300).
+# No name is reported as "not set" any more: whether FontLab derived a name or a person typed it cannot be read.
+_PACKAGE_FIELDS = ("package_names", "package_matched_by", "package_names_unavailable", "package_name_errors")
+_PS_FROM_PACKAGE = (("postscript_font_name", "psn"), ("postscript_full_name", "ffn"))
+
+
 def _clean_font(data: dict) -> dict:
-    """Normalise the listener's font info for Claude; flag unset names honestly."""
-    font = {k: _tidy_number(v) for k, v in data.items() if k != "open"}
+    """Normalise the listener's font info for the agent: the PostScript names as FontLab's Font Info shows them, with their source."""
+    font = {k: _tidy_number(v) for k, v in data.items() if k != "open" and k not in _PACKAGE_FIELDS}
     notes = []
 
-    # FontLab shows "Unnamed ..." when PostScript names were never set.
-    for key in ("postscript_font_name", "postscript_full_name"):
-        value = font.get(key)
-        if isinstance(value, str) and value.startswith("Unnamed"):
-            font[key] = None
-            notes.append(
-                f"{key} is not set in the font (FontLab's placeholder was ignored)."
-            )
+    package = data.get("package_names")
+    if isinstance(package, dict):
+        font["postscript_names_source"] = "font package (as FontLab's Font Info shows them)"
+        for key, attr in _PS_FROM_PACKAGE:
+            value, legacy = package.get(attr), font.get(key)
+            if not isinstance(value, str):
+                notes.append(f"{key} could not be read from the font package, so it comes from FontLab's older font-info view, "
+                             "which can lag behind what Font Info shows.")
+                continue
+            font[key] = value
+            if legacy != value:
+                font["legacy_" + key] = legacy
+                notes.append(f"{key} {value!r} is what FontLab's Font Info shows; FontLab's older font-info view reads {legacy!r} instead.")
+        errors = data.get("package_name_errors")
+        if isinstance(errors, list) and errors:
+            notes.append("Some names of the font package could not be read: " + "; ".join(str(e) for e in errors))
+    else:
+        reason = data.get("package_names_unavailable")
+        font["postscript_names_source"] = "older font-info view"
+        notes.append("postscript_font_name and postscript_full_name come from FontLab's older font-info view, which can lag behind what "
+                     "Font Info shows" + (f" (the font package could not be used: {reason})." if isinstance(reason, str) and reason
+                                          else " (this listener does not read the font package; listener 0.118 does)."))
 
     if font.get("errors"):
         notes.append(
@@ -499,7 +522,7 @@ def check_status() -> dict:
         result["glyphbridge_uncertain_changes_this_session"] = _CHANGES["session_unsure"]
         result["save_note"] = ("These count the changes made through Glyphbridge since this server started, in whichever font was open "
                                "(not tracked per font). FontLab is not asked whether the font was saved, so this does not show whether "
-                               "anything is unsaved now. Glyphbridge never saves: the person saves with the File menu or Ctrl+S.")
+                               f"anything is unsaved now. Glyphbridge never saves: the person saves with the File menu or {SAVE_SHORTCUT}.")
     return result
 
 
@@ -2435,7 +2458,19 @@ def read_glyph_outline(name: str) -> dict:
 mcp = MCPServer("Glyphbridge FontLab")
 
 
-@mcp.tool()
+def _tool():
+    """mcp.tool() with SAVE_KEYS in the tool description replaced by this system's save shortcut (v0.40): descriptions are
+    read once, when the tool is registered at startup."""
+    register = mcp.tool()
+
+    def decorate(fn: Any) -> Any:
+        if fn.__doc__:
+            fn.__doc__ = fn.__doc__.replace("SAVE_KEYS", SAVE_SHORTCUT)
+        return register(fn)
+    return decorate
+
+
+@_tool()
 def fontlab_status(ctx: Context | None = None) -> dict[str, Any]:
     """Check whether the bridge to FontLab 8 is working, and whether a font is open.
 
@@ -2449,13 +2484,16 @@ def fontlab_status(ctx: Context | None = None) -> dict[str, Any]:
     return _with_font(check_status)
 
 
-@mcp.tool()
+@_tool()
 def get_current_font(ctx: Context | None = None) -> dict[str, Any]:
     """Get live details about the font currently open in FontLab 8.
 
     Returns family and style name, file path, glyph count, and vertical
     metrics (units per em, ascender, descender, cap height, x-height).
-    Fields the font hasn't set are returned as null and explained in 'notes'.
+    Fields that could not be read are returned as null and explained in 'notes'.
+    The PostScript names are the ones FontLab's Font Info shows, read from the font package when it can be matched to this font
+    (postscript_names_source says where they came from; legacy_* fields appear when FontLab's older view differs). Whether a
+    name was typed by a person or filled in by FontLab is not known: do not call a name 'unset' or 'a placeholder'.
 
     Also checks the font's .notdef glyph (see check_notdef): the result has a 'notdef' entry, and if .notdef is missing or
     empty a warning dialog is shown to the person in FontLab (once per font per session). In that case this call can
@@ -2465,7 +2503,7 @@ def get_current_font(ctx: Context | None = None) -> dict[str, Any]:
     return _with_font(read_current_font_checked)
 
 
-@mcp.tool()
+@_tool()
 def list_glyphs(ctx: Context | None = None) -> dict[str, Any]:
     """List the names of all glyphs in the font currently open in FontLab 8.
 
@@ -2476,7 +2514,7 @@ def list_glyphs(ctx: Context | None = None) -> dict[str, Any]:
     return _with_font(read_glyph_names)
 
 
-@mcp.tool()
+@_tool()
 def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Read the actual outline (shape) of one glyph in the font open in FontLab 8.
 
@@ -2531,7 +2569,7 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     return _with_font(read_glyph_outline, name)
 
 
-@mcp.tool()
+@_tool()
 def check_notdef(ctx: Context | None = None) -> dict[str, Any]:
     """Check whether the open font has a proper .notdef glyph, and warn the person in FontLab if it does not.
 
@@ -2549,7 +2587,7 @@ def check_notdef(ctx: Context | None = None) -> dict[str, Any]:
     return _with_font(check_notdef_glyph)
 
 
-@mcp.tool()
+@_tool()
 def create_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Create one new, empty glyph in the font currently open in FontLab 8.
 
@@ -2581,14 +2619,14 @@ def create_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
     glyph under a different name. For the letter e-acute use 'eacute' or 'uni00E9'.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
-    (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
+    (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
     return _with_font(create_new_glyph, name)
 
 
-@mcp.tool()
+@_tool()
 def get_glyph_width(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Get the advance width of one glyph in the font currently open in FontLab 8.
 
@@ -2599,7 +2637,7 @@ def get_glyph_width(name: str, ctx: Context | None = None) -> dict[str, Any]:
     return _with_font(read_glyph_width, name)
 
 
-@mcp.tool()
+@_tool()
 def set_glyph_width(name: str, width: float, ctx: Context | None = None) -> dict[str, Any]:
     """Set the advance width of one glyph in the font currently open in FontLab 8.
 
@@ -2614,14 +2652,14 @@ def set_glyph_width(name: str, width: float, ctx: Context | None = None) -> dict
     person switches to the grid tab and back; the saved numbers are right.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
-    (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
+    (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
     return _with_font(write_glyph_width, name, width)
 
 
-@mcp.tool()
+@_tool()
 def get_glyph_sidebearings(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Read the left and right sidebearing, the advance width and the ink width of one glyph that has an outline.
 
@@ -2633,7 +2671,7 @@ def get_glyph_sidebearings(name: str, ctx: Context | None = None) -> dict[str, A
     return _with_font(read_glyph_sidebearings, name)
 
 
-@mcp.tool()
+@_tool()
 def get_kerning(pairs: list[list[str]] | None = None, text: str | None = None, confirmed_large_read: bool | None = None, ctx: Context | None = None) -> dict[str, Any]:
     """Read FontLab's kerning for selected glyph pairs of the font currently open in FontLab 8. Reading changes nothing.
 
@@ -2654,7 +2692,7 @@ def get_kerning(pairs: list[list[str]] | None = None, text: str | None = None, c
     return _with_font(read_kerning, pairs, text, confirmed_large_read)
 
 
-@mcp.tool()
+@_tool()
 def set_glyph_sidebearings(name: str, left: float, right: float | None = None, ctx: Context | None = None) -> dict[str, Any]:
     """Set the left and right sidebearing of one glyph, in font units, in the font currently open in FontLab 8.
 
@@ -2671,14 +2709,14 @@ def set_glyph_sidebearings(name: str, left: float, right: float | None = None, c
     back; the saved numbers are right.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
-    (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
+    (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
     return _with_font(write_glyph_sidebearings, name, left, right)
 
 
-@mcp.tool()
+@_tool()
 def draw_polygon(name: str, points: list[list[float]] | None = None,
                  contours: list[list[list[float]]] | None = None, ctx: Context | None = None) -> dict[str, Any]:
     """Draw closed contours of straight line segments into an EMPTY glyph in the font currently open in FontLab 8.
@@ -2706,14 +2744,14 @@ def draw_polygon(name: str, points: list[list[float]] | None = None,
     thumbnail) may show old values until the person switches to the grid tab and back; the saved shape is right.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
-    (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
+    (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
     return _with_font(write_glyph_polygon, name, points, contours)
 
 
-@mcp.tool()
+@_tool()
 def draw_path(name: str, contours: list[list[dict[str, Any]]], ctx: Context | None = None) -> dict[str, Any]:
     """Draw closed contours with straight AND cubic curve segments into an EMPTY glyph in the font currently open in FontLab 8.
 
@@ -2748,13 +2786,13 @@ def draw_path(name: str, contours: list[list[dict[str, Any]]], ctx: Context | No
     switches to the grid tab and back.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
-    (File menu or Ctrl+S). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
+    (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
     return _with_font(write_glyph_path, name, contours)
 
 
-@mcp.tool()
+@_tool()
 def check_glyph_unicode(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Check a glyph's Unicode codepoint against the Unicode standard.
 
@@ -2776,7 +2814,7 @@ def check_glyph_unicode(name: str, ctx: Context | None = None) -> dict[str, Any]
     return _with_font(read_glyph_unicode, name)
 
 
-@mcp.tool()
+@_tool()
 def set_glyph_unicode(name: str, codepoint: int, ctx: Context | None = None) -> dict[str, Any]:
     """Set the Unicode codepoint a glyph maps to, in the font open in FontLab 8.
 
@@ -2801,14 +2839,14 @@ def set_glyph_unicode(name: str, codepoint: int, ctx: Context | None = None) -> 
     confirms the new mapping actually took effect.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
-    (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
+    (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
     return _with_font(write_glyph_unicode, name, codepoint)
 
 
-@mcp.tool()
+@_tool()
 def delete_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Delete one glyph from the font currently open in FontLab 8.
 
@@ -2821,21 +2859,21 @@ def delete_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
     glyph list confirms the glyph is really gone.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
-    (File menu or Ctrl+S). The reply's font_modified says whether the font really changed. Do not remind the person
+    (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
     after each step: call finish_changes ONCE when the whole task package is finished.
     """
     _note_client(ctx)
     return _with_font(delete_existing_glyph, name)
 
 
-@mcp.tool()
+@_tool()
 def finish_changes(ctx: Context | None = None) -> dict[str, Any]:
     """Call this ONCE when you have finished a whole package of changes to the font (creations, width or Unicode edits,
     deletions), and never per step. It counts the changes made through Glyphbridge since the last call and returns
     'save_reminder': show it to the person in the chat in bold, exactly as written, after your summary. If nothing was
     changed, save_reminder is null and you say nothing about saving.
 
-    Glyphbridge never saves the font and never opens a dialog for this: saving is the person's job (File menu or Ctrl+S),
+    Glyphbridge never saves the font and never opens a dialog for this: saving is the person's job (File menu or SAVE_KEYS),
     and the reminder appears only in the chat. This tool changes nothing in FontLab.
     """
     _note_client(ctx)

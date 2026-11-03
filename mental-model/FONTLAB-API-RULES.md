@@ -21,6 +21,7 @@
 | `flPackage.kerning(master)` | `get(((name, isGroup), (name, isGroup)))`, class names from `getAllGroups()` | product `/kerning/pairs` since 0.104; `/debug/trypkgkern` | 186–188, 197, 202–204 (§9.6–§9.9); 219–223 through the tool (§10) |
 | `flPackage.kerning(master).groups` (`fgKerningGroups`) | `values()` (the tuples it returns were not read) | research only (`/debug/trykerngroups&stage=modes`) | 199 (§9.9) |
 | legacy `font.features` (`fgOTLayout`) | `keys()`; `has_key(tag)` and `get_feature(tag)` with a tag from `keys()` | research only (`/debug/features`) | 231–235 on Arial (§11) |
+| legacy `font.info.dict.names` (`fgStringDict`) | `keys()`, no argument (answered a plain list of text) | research only (`/debug/fontdir?stage=keys&go=yes`, listener 0.117) | 297b, 298, FontLab 8.9.5, a new unsaved font. Its sibling `font.info.dict.flags` (`fgFlagsDict`) has the same members, unproven; `del` on either is never called |
 
 - Probe unknown objects in stages: names only (`dir`) -> read named attributes -> call whitelisted getters. Never call setters,
   `transform`/`scale`/`translate`, `remove`, `release`, `clone`, `apply*`. One question per probe. `/debug/walk` enforces this.

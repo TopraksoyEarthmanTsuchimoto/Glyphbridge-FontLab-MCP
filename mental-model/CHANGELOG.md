@@ -4,6 +4,34 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.118 / server v0.41 (2026-11-03)
+
+**PostScript names as FontLab's Font Info shows them (design C, research 291–300).** Test 298 set the PostScript field to `W6aTest-Regular` in Font Info; the legacy `font.info.postscriptFontName` still read `Unnamed1-Regular`, while the font package's `psn` read `W6aTest-Regular` (300).
+- **Listener `/font/current`:** adds `package_names` (`psn`, `ffn`, `tfn`, `tsn`, `sgn`) and `package_matched_by`, read from the workspace's current package only when it is proven to be this font: the only font open (`_trysync_target`), or with several fonts the same non-empty path (`_kern_package_by_path`). Otherwise `package_names_unavailable` with the reason (two unsaved fonts, a count that is not a positive number, a null package). Each name is read once; a callable is never called; a value that is not text becomes null and is listed in `package_name_errors`.
+- **Server `_clean_font`:** the fixed check that turned any PostScript name starting with "Unnamed" into null is removed. `postscript_font_name` and `postscript_full_name` come from `psn` / `ffn` when available; `postscript_names_source` names the view; `legacy_postscript_*` and a note appear when the legacy view differs. Without the package the legacy values are kept, with a note that this view can lag behind Font Info and why. The `get_current_font` description tells the agent not to call a name "unset" or "a placeholder".
+- Tests: listener 1579–1589 and 1585b; server 24a–24h and 24b2 (2328 + 58 + 90 + 825 lines). Existing output changed otherwise only in the version lines and the first `/font/current` line (the old stub has no `CountFonts`). Mutation run: 16 of 16 killed; the first run's two survivors (a count of −1; a differing full name) led to 1585b and 24b2.
+- Live 2026-11-03, listener only (FontLab 8.9.5): 301 two unsaved fonts gave `package_names_unavailable` with the path reason; 302 with one font left, `psn` `W6aTest-Regular`, matched as the only font. Server v0.41: stub-tested only.
+
+## Listener v0.117 (2026-11-03)
+
+**One gated `keys()` call for the font-info research.** `/debug/fontdir?stage=keys&attr=NAME&members=PATH&go=yes`: the `memberdir` path rules; the object at the end must have a public, callable `keys`, called once without arguments and only with exactly `go=yes` (otherwise the reply says what it would call). A plain list or tuple of text is returned (at most 200 entries, with the count); anything else by its type only, never iterated. `has_key`, `value`, `asDict` and `del` are never called. Tests 1563–1578; guard check 1033 now reads "read-only but for the gated keys stage". Mutation run: 15 of 15 killed. Live: 297, 298 (`fgStringDict.keys()`, [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10).
+
+## Listener v0.116 (2026-11-03)
+
+**`stage=memberdir` takes a dotted path of up to 3 steps** (`members=dict.flags`). Each step is a public plain identifier in `dir()` of the step before, read once; a plain value or a callable (never called) ends the walk; `path_types` lists the earlier steps' types. Written with tuples so the older guard scans (1032, 1053) still flag nothing. Tests 1547–1562. Mutation run: 12 of 12 killed. Live: 295, 296.
+
+## Listener v0.115 (2026-11-03)
+
+**`/debug/fontdir?stage=memberdir`:** one member of an attribute's sub-object, names only (type, docstring, public names; no value, no call, no `len`, no container access). Tests 1534–1546. Mutation run: 10 of 10 killed. Live: 294 (`font.info.dict`).
+
+## Listener v0.114 / server v0.40 (2026-11-03)
+
+**No fixed names (decision of 2026-11-03).**
+- **Listener:** the delete dialog no longer says "Claude (via Glyphbridge)" and "the current font". `_deletion_text` names the client the request named (the activity log's cleaned `X-Glyphbridge-Client`), or says "A request through Glyphbridge asks …"; the font as family and style (or "a font without a name"), its file name, "not saved to a file yet", or "its file could not be read"; and "1 of N open fonts, the one whose window is in front" when several are open. `_REQUEST_FONT` keeps `saved` and `file` for this; the headers never carry the file name.
+- **Server:** `SAVE_SHORTCUT` is read from the operating system at startup (Cmd+S on macOS, Ctrl+S otherwise) and used in `SAVE_REMINDER`, the `save_note` and the 8 tool descriptions that name it; all 17 tools register through `_tool()`, which fills the placeholder.
+- Tests: listener 1520–1533 (with 1526b, 1528b); server part 23. Mutation run: 13 of 13 killed. Real MCP SDK: 17 tools, 8 naming Ctrl+S, no placeholder left.
+- Not yet seen live: the new dialog and the shortcut texts (the listener ran from v0.115 on; server v0.40 needs a Claude Desktop restart).
+
 ## Server v0.39 (2026-11-03)
 
 **An error reply names its font too (test 277).** The first call after a font window switch failed ("No glyph named …") and carried no font fields, while the server had already recorded the new font, so the switch was reported nowhere.
