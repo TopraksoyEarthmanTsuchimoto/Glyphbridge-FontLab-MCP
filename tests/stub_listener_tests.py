@@ -4810,3 +4810,138 @@ if _pn_saved[1] is not None: fl.CountFonts = _pn_saved[1]
 elif hasattr(fl, "CountFonts"): del fl.CountFonts
 if _pn_saved[2] is not None: _fm.flWorkspace = _pn_saved[2]
 ns["_forget_request_font"]()
+
+
+# ================= v0.119: /debug/tryrefresh (F1: one fontlab.Update on the changed glyph instead of font.update(); gated experiment; faked font) =================
+TR = {"font": None, "calls": [], "forbidden": [], "cfg": {}}
+def _tr_spy(label):
+    def f(self, *a, **k):
+        TR["forbidden"].append(label); raise RuntimeError("FORBIDDEN CALL: " + label)
+    return f
+class TRGlyph:
+    _next = [100]
+    def __init__(self, n, u=None):
+        self.name = n; TRGlyph._next[0] += 1; self.id = TRGlyph._next[0]; self._u = u
+    @property
+    def unicode(self):
+        if TR["cfg"].get("unicode_read_raises"): raise RuntimeError("unicode unreadable")
+        return self._u
+    @unicode.setter
+    def unicode(self, v):
+        TR["calls"].append(("set unicode", self.name, v))
+        if TR["cfg"].get("unicode_set_raises"): raise RuntimeError("unicode refused")
+        if not TR["cfg"].get("unicode_set_noop"): self._u = v
+for _n in ("update", "remove", "save", "release"):
+    setattr(TRGlyph, _n, _tr_spy("glyph." + _n))
+class TRFont:
+    path = "D:/tr/test.vfc"
+    def __init__(self, names): self.glyphs = [TRGlyph(n, 65 if n == "A" else None) for n in names]
+    def createGlyph(self, name):
+        TR["calls"].append(("createGlyph", name))
+        if TR["cfg"].get("create_raises"): raise RuntimeError("createGlyph refused")
+        if TR["cfg"].get("create_noop"): return None
+        self.glyphs.append(TRGlyph(name.replace("-", "") if TR["cfg"].get("create_renames") else name))
+        return object()
+for _n in ("update", "removeGlyph", "remove", "delete", "deleteGlyph", "save", "close", "export", "exportFont", "release", "blockUpdate", "unblockUpdate", "addGlyph"):
+    setattr(TRFont, _n, _tr_spy("font." + _n))
+class TRModern:
+    def __init__(self, glyph, font):
+        TR["calls"].append(("flGlyph", glyph.name))
+        if TR["cfg"].get("wrapper_raises"): raise RuntimeError("no modern glyph")
+        self.name = glyph.name; self.fgGlyphId = glyph.id
+    def isValid(self): return True
+for _n in ("update", "assignFgLayer", "assignFontGateData", "fillFgData"):
+    setattr(TRModern, _n, _tr_spy("flGlyph." + _n))
+class TRNative: pass
+def _tr_update(*a):
+    TR["calls"].append(("Update", [getattr(x, "name", type(x).__name__) for x in a]))
+    if TR["cfg"].get("update_raises"): raise RuntimeError("Update refused")
+    return TR["cfg"].get("update_returns")
+def _tr_update_all(*a):
+    TR["forbidden"].append("UpdateAll"); raise RuntimeError("FORBIDDEN CALL: UpdateAll")
+_tr_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flWorkspace", "flGlyph", "Update", "UpdateAll")]
+def tr_setup(names=(".notdef", "A"), ws=None, update=True, **cfg):
+    ts85_setup(**(ws or {})); TR["calls"].clear(); TR["forbidden"].clear(); TR["cfg"] = dict(cfg); TR["font"] = TRFont(names)
+    ns["_TRYREFRESH"].update(create_Update_flGlyph=0, create_none=0, unicode=0); ns["_MODERN_CACHE"].clear()
+    for _m in _tf_mods:
+        _m.CurrentFont = lambda: TR["font"]; _m.flGlyph = TRModern; _m.UpdateAll = _tr_update_all
+        if update is None:
+            if hasattr(_m, "Update"): del _m.Update
+        else:
+            _m.Update = _tr_update if update is True else update
+def ttr(tag, query, keys=None):
+    c, d = call("/debug/tryrefresh" + query)
+    print(tag, ":", c, d if keys is None else {k: d.get(k) for k in keys}, "| names", [g.name for g in TR["font"].glyphs] if TR["font"] else None, "| calls", TR["calls"])
+    return d
+KEYSC = ("stage", "how", "name", "calls", "call_error", "refresh_error", "refresh_return", "before_count", "after_count", "present", "created", "calls_so_far", "created_under_other_names")
+KEYSU = ("stage", "name", "value", "calls", "set_error", "refresh_error", "refresh_return", "unicode_before", "unicode_after", "matches", "calls_so_far")
+tr_setup(); ttr("1590 create without go                ", "?stage=create&name=w1&how=none")
+ttr("1591 go must be exactly yes           ", "?stage=create&name=w1&how=Update_flGlyph&go=maybe")
+ttr("1592 unknown stage                    ", "?stage=bogus&name=w1&how=none&go=yes")
+ttr("1593 stage missing                    ", "?name=w1&how=none&go=yes")
+ttr("1594 unknown how                      ", "?stage=create&name=w1&how=Update_fgGlyph&go=yes")
+ttr("1595 how missing                      ", "?stage=create&name=w1&go=yes")
+for _tag, _nm in (("1596a empty name                    ", ""), ("1596b name of 41 characters        ", "N" * 41), ("1596c name with a space            ", "A%20B"),
+                  ("1596d name with a slash            ", "A%2FB"), ("1596e non-ASCII name               ", "%C3%A4")):
+    ttr(_tag, "?stage=create&name=" + _nm + "&how=none&go=yes", keys=("error", "calls_so_far"))
+ttr("1597 name of 40 characters, accepted  ", "?stage=create&name=" + "N" * 40 + "&how=none&go=yes", keys=("created", "calls_so_far"))
+tr_setup(); ttr("1598 create, how=none: createGlyph only", "?stage=create&name=w1&how=none&go=yes", keys=KEYSC)
+ttr("1599 create, Update on the new glyph  ", "?stage=create&name=w2&how=Update_flGlyph&go=yes", keys=KEYSC)
+ttr("1600a how=none a second time, refused ", "?stage=create&name=w3&how=none&go=yes", keys=("error", "calls_so_far"))
+ttr("1600b Update_flGlyph again, refused   ", "?stage=create&name=w4&how=Update_flGlyph&go=yes", keys=("error", "calls_so_far"))
+tr_setup(); ttr("1601 existing name refused, not counted", "?stage=create&name=A&how=Update_flGlyph&go=yes", keys=("error", "before_count", "calls_so_far"))
+tr_setup(create_raises=1); ttr("1602 createGlyph raises              ", "?stage=create&name=w1&how=Update_flGlyph&go=yes", keys=KEYSC)
+tr_setup(create_noop=1); ttr("1603 createGlyph does nothing         ", "?stage=create&name=w1&how=Update_flGlyph&go=yes", keys=KEYSC)
+tr_setup(create_renames=1); ttr("1604 createGlyph renames             ", "?stage=create&name=w-1&how=Update_flGlyph&go=yes", keys=KEYSC)
+tr_setup(wrapper_raises=1); ttr("1605 modern glyph unreachable        ", "?stage=create&name=w1&how=Update_flGlyph&go=yes", keys=KEYSC)
+tr_setup(update_raises=1); ttr("1606 Update raises                   ", "?stage=create&name=w1&how=Update_flGlyph&go=yes", keys=KEYSC)
+tr_setup(update_returns=TRNative()); ttr("1607 Update returns a native object ", "?stage=create&name=w1&how=Update_flGlyph&go=yes", keys=("refresh_return", "refresh_error"))
+tr_setup(update=None); ttr("1608a no Update in the module        ", "?stage=create&name=w1&how=Update_flGlyph&go=yes", keys=("error", "calls_so_far"))
+ttr("1608b how=none needs no Update        ", "?stage=create&name=w1&how=none&go=yes", keys=("created", "calls", "calls_so_far"))
+tr_setup(update="not callable"); ttr("1608c Update not callable         ", "?stage=create&name=w1&how=Update_flGlyph&go=yes", keys=("error", "calls_so_far"))
+tr_setup(); ttr("1609 unicode without go                ", "?stage=unicode&name=A&value=57346")
+for _tag, _v in (("1609a value missing                  ", ""), ("1609b value 0                        ", "0"), ("1609c value 1114112                  ", "1114112"),
+                 ("1609d value not a number             ", "abc"), ("1609e value of 8 digits              ", "00000065"), ("1609f negative value               ", "-5"),
+                 ("1609g superscript digit              ", "%C2%B2"), ("1609h a fraction                   ", "6.5"), ("1609i hexadecimal                  ", "0x41")):
+    ttr(_tag, "?stage=unicode&name=A&value=" + _v + "&go=yes", keys=("error", "calls_so_far"))
+ttr("1609j value 1114111, accepted         ", "?stage=unicode&name=A&value=1114111&go=yes", keys=("matches", "unicode_after", "calls_so_far"))
+tr_setup(); ttr("1610 unicode A = 57346, then Update   ", "?stage=unicode&name=A&value=57346&go=yes", keys=KEYSU)
+ttr("1611 unicode a second time, refused   ", "?stage=unicode&name=A&value=65&go=yes", keys=("error", "calls_so_far"))
+tr_setup(); ttr("1612 unicode, no such glyph, not counted", "?stage=unicode&name=Q&value=81&go=yes", keys=("error", "calls_so_far"))
+tr_setup(unicode_set_raises=1); ttr("1613 the setter raises: no Update ", "?stage=unicode&name=A&value=57346&go=yes", keys=KEYSU)
+tr_setup(unicode_set_noop=1); ttr("1614 the setter does nothing        ", "?stage=unicode&name=A&value=57346&go=yes", keys=KEYSU)
+tr_setup(wrapper_raises=1); ttr("1615 modern glyph unreachable: nothing set", "?stage=unicode&name=A&value=57346&go=yes", keys=("error", "calls_so_far"))
+tr_setup(update_raises=1); ttr("1616 Update raises                   ", "?stage=unicode&name=A&value=57346&go=yes", keys=KEYSU)
+tr_setup(unicode_read_raises=1); ttr("1617 the value cannot be read        ", "?stage=unicode&name=A&value=57346&go=yes", keys=KEYSU)
+tr_setup(update=None); ttr("1618 unicode needs Update: refused    ", "?stage=unicode&name=A&value=57346&go=yes", keys=("error", "calls_so_far"))
+GATESTR = [("1619a no font counted             ", dict(count=0)), ("1619b two fonts open              ", dict(count=2)),
+           ("1619c CountFonts raises           ", dict(count=RuntimeError("count boom"))), ("1619d two packages               ", dict(packages=2)),
+           ("1619e no current package          ", dict(cp=None)), ("1619f package is null             ", dict(isNull=True)),
+           ("1619g isNull is 0 (falsy, no bool)", dict(isNull=0))]
+for _tag, _over in GATESTR:
+    tr_setup(ws=_over); rows = []
+    for _q in ("?stage=create&name=w1&how=Update_flGlyph&go=yes", "?stage=create&name=w1&how=none&go=yes", "?stage=unicode&name=A&value=57346&go=yes"):
+        c, d = call("/debug/tryrefresh" + _q); rows.append((c, (d.get("error") or "")[:60]))
+    print(_tag, ":", rows, "| calls", TR["calls"], "| counters", ns["_TRYREFRESH"], "| names", [g.name for g in TR["font"].glyphs], "| A", TR["font"].glyphs[1]._u)
+tr_setup()
+for _m in _tf_mods: _m.CurrentFont = lambda: None
+c, d = call("/debug/tryrefresh?stage=create&name=w1&how=none&go=yes"); print("1620 no current font object       :", c, d, "| counters", ns["_TRYREFRESH"])
+tr_setup()
+for _q in ("?stage=create&name=P1&how=none&go=yes", "?stage=create&name=P2&how=Update_flGlyph&go=yes", "?stage=unicode&name=A&value=57346&go=yes",
+           "?stage=create&name=P3&how=none", "?stage=unicode&name=P1&value=66&go=maybe"):
+    call("/debug/tryrefresh" + _q)
+print("1621 forbidden members called    :", TR["forbidden"], "| calls", TR["calls"], "| names", [g.name for g in TR["font"].glyphs])
+_src119 = src[src.index("# /debug/tryrefresh (v0.119)"):src.index("# /debug/trykerngroups (v0.103)")]
+_code119 = _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', "\n".join(l.split("#")[0] for l in _src119.splitlines()))
+print("1622 static scan of the probe     : forbidden call syntax found:", _re83.findall(r"\.(?:update|Update\w*|assign\w*|fillFgData|replaceGlyph|deleteGlyph|delete\w*|removeGlyph|remove\w*|save\w*|close\w*|export\w*|release|blockUpdate|unblockUpdate|addGlyph|addPackage)\s*\(|\bUpdateAll\b", _code119),
+      "| real calls: createGlyph", len(_re83.findall(r"(?m)^\s+font\.createGlyph\(name\)$", _code119)), "upd(w)", len(_re83.findall(r"\bupd\(w\)", _code119)),
+      "unicode set", len(_re83.findall(r"(?m)^\s+glyph\.unicode = codepoint$", _code119)), "| scanned chars > 6000:", len(_src119) > 6000)
+print("1623 no product route changed    : create_glyph still calls font.update():", "font.update()" in src[src.index("def create_glyph("):src.index("def _confirm_deletion(")],
+      "| mentions of debug_try_refresh( (its def and its route):", src.count("debug_try_refresh("),
+      "| route wired:", 'if path == "/debug/tryrefresh":' in src)
+c, d = call("/version"); print("1624 version                      :", d)
+for _m, _a, _v in _tr_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)
+ns["_MODERN_CACHE"].clear(); ns["_forget_request_font"]()

@@ -4,6 +4,13 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.119 (2026-11-03; server unchanged)
+
+**`/debug/tryrefresh`, a gated experiment for F1** ([topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8l): can a refresh of only the changed glyph replace the whole-font `font.update()` of the legacy writes?
+- `stage=create&name=N&how=Update_flGlyph|none&go=yes`: `font.createGlyph(N)`, then with `Update_flGlyph` one `fontlab.Update` on the new glyph's modern object. `stage=unicode&name=N&value=V&go=yes`: `glyph.unicode = V` (1 to 1114111), then one `fontlab.Update` on that glyph's modern object; nothing is set when the modern object cannot be reached, and no `Update` follows a failed set. The one-font gate of `/debug/trysync`; each mode once per listener run, counted before the first change. Never `font.update()`, `glyph.update()`, `UpdateAll()`, the assign family, delete, save or export (spies and a static scan). No product route changed.
+- Tests: listener 1590–1624 (2386 + 58 + 90 + 825 lines). Existing output changed only in the version lines. Mutation run: 13 of 13 killed.
+- Live 2026-11-03 (FontLab 8.9.5, 436–453): the probe worked as specified; what it showed is in [LIVE-TESTS.md](LIVE-TESTS.md), F1.
+
 ## Listener v0.118 / server v0.41 (2026-11-03)
 
 **PostScript names as FontLab's Font Info shows them (design C, research 291–300).** Test 298 set the PostScript field to `W6aTest-Regular` in Font Info; the legacy `font.info.postscriptFontName` still read `Unnamed1-Regular`, while the font package's `psn` read `W6aTest-Regular` (300).

@@ -1,4 +1,4 @@
-Last verified: 2026-11-03 against commit 3f50750 (listener v0.118, server v0.41; tests PASS, deployed copy identical)
+Last verified: 2026-11-03 against the working tree committed after 4b82e10 (listener v0.119, server v0.41; tests PASS, deployed copy identical)
 
 # Current status
 
@@ -6,9 +6,9 @@ Last verified: 2026-11-03 against commit 3f50750 (listener v0.118, server v0.41;
 
 | Part | Version | md5 (as committed) |
 |---|---|---|
-| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.118"` | `1d89cde4903b98846fc16c42281f32c7` (391,429 bytes) |
+| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.119"` | `3174fa90949baeff6cbc8b2bdf1802af` (399,688 bytes) |
 | server `glyphbridge_mcp_server.py` | `SERVER_VERSION = "0.41"`, `MIN_LISTENER_VERSION` (0, 82) | `859ec496012e917a31d78e618754eb43` (164,288 bytes) |
-| tests | 4 harnesses | PASS at **2328 + 58 + 90 + 825** lines |
+| tests | 4 harnesses | PASS at **2386 + 58 + 90 + 825** lines |
 
 `get_kerning` needs listener 0.104 (server 0.33); with several fonts open, 0.112 / 0.37. The PostScript names from the font package need 0.118 / 0.41. What each release changed: [CHANGELOG.md](CHANGELOG.md).
 
@@ -45,15 +45,15 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 
 - Not built: components, open contours, multi-master fonts, several shapes per glyph, editing an existing outline, a create-font tool, saving workflows. See [ROADMAP.md](ROADMAP.md).
 - Open scenarios: [CHECKLIST.md](CHECKLIST.md).
-- **Open defect candidate (F1, 332–374):** `create_glyph` twice flattened a Power Brush glyph of the test font in memory, under conditions not yet isolated ([WATCH-POINTS.md](WATCH-POINTS.md)). Until settled, writes into fonts with Power Brush glyphs that matter are not recommended.
+- **Open defect (F1, 332–453):** `get_glyph_outline` on a Power Brush glyph, then `create_glyph` in the same font, flattens that glyph in memory; one font is enough. The trigger is touching the legacy `glyph.layer`; `font.update()` does the writing ([topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8l). A saved font would lose its brush. A refresh of only the changed glyph is not a fix by itself (436–453). Until it is fixed, do not create glyphs or set Unicode values after reading a Power Brush outline in a font that matters.
 
 ## Next steps (the user's priority of 2026-11-01)
 
-1. **F1 first:** the replay from a fresh FontLab start ([LIVE-TESTS.md](LIVE-TESTS.md)). The K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)); K15 was dropped ([DECISIONS.md](DECISIONS.md)); P0.8 is done.
+1. **F1 first:** run plan F1b ([LIVE-TESTS.md](LIVE-TESTS.md)): two rounds with listener 0.119, no build, decide whether outline reads from the modern layer only fix F1; then propose listener 0.120. The K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)); K15 was dropped ([DECISIONS.md](DECISIONS.md)); P0.8 is done.
 2. The **T-series**: T2, T3 and T4 are done; T5 is done for `get_kerning` (0.112 / 0.37), for replies naming their font (0.113 / 0.38), for five write tools (273–281), for `draw_path` and `delete_glyph` (288, 290), the read tools (309–316) and three fonts (317–331); open: two unsaved fonts with the same name, a switch during one call. Candidates for several open fonts, none approved: whether `fontlab_status` should keep sending the font's full path, an `expected_font` check on writes, per-font memory ([ROADMAP.md](ROADMAP.md) P0.5).
 3. Candidates after that (none approved): P0.3 / P0.4, a create-font tool; P1.1, components. Required by the user, not yet designed: P1.6, kerning group membership.
 
-The next free test number is **375**; the numbers in use: [LIVE-TESTS.md](LIVE-TESTS.md). Large-glyph and very-large-read tests stay in the LAST block.
+The next free test number is **454**; the numbers in use: [LIVE-TESTS.md](LIVE-TESTS.md). Large-glyph and very-large-read tests stay in the LAST block.
 
 ## Contradictions and watch points
 

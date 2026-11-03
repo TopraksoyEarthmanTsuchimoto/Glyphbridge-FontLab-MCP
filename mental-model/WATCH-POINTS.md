@@ -1,6 +1,6 @@
 # Watch points
 
-What was seen in FontLab, in the tools or in agent behaviour and is **not yet explained or settled**. A proven fact belongs in its topic file, an open scenario in [CHECKLIST.md](CHECKLIST.md), a known limit in [ROADMAP.md](ROADMAP.md). Word budget: 950 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
+What was seen in FontLab, in the tools or in agent behaviour and is **not yet explained or settled**. A proven fact belongs in its topic file, an open scenario in [CHECKLIST.md](CHECKLIST.md), a known limit in [ROADMAP.md](ROADMAP.md). Word budget: 1,250 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
 
 ## How an entry lives
 
@@ -13,22 +13,24 @@ What was seen in FontLab, in the tools or in agent behaviour and is **not yet ex
 
 - **Whole-unit sidebearing shift** (2026-11-03, T4: 145c, 145f, 259, 260). `setSB` moved `testglyph2` by −52, not −52.1548 (its nodes moved), and the Power Brush glyph `A` by −142, not −142.466 (its element transform, fractions kept); the reply said `set: false` with its reason. Open: does the advance round to the nearest unit or up (382.534 → 383)? What does a plain contour with fractional nodes do? Settles: a target whose advance ends in .1 to .4. Details: [topics/geometry.md](topics/geometry.md) §8c; candidate P2.8 in [ROADMAP.md](ROADMAP.md).
 - **`updated_fg_glyphs` after a write** (2026-11-03, T4: 145b, 145e). The probe's list went from 0 to 4 ids after the width write on `testglyph2`, and held 1 id after the width write on `A`. Not predicted; no tool depends on it.
-- **A Power Brush glyph flattened by `create_glyph`** (2026-11-03, F1: 332–374). Twice (352, 357) `create_glyph` turned `A` of the test font into a plain contour with whole-unit nodes, in memory; FontLab's own New Glyph did not (356). Both times after a Round in another font's Coordinates Rounding dialog, with the original Unnamed and renamed Unnamed1 of 303–324 open. Not alone: `font.update()`, the Round, a renamed font, the number of fonts. A saved font would lose its brush. Settles: the replay in [LIVE-TESTS.md](LIVE-TESTS.md), F1.
 - **Arial's `kern` feature against its table** (2026-11-03, K11). 1,417 `pos` lines against 1,370 table entries, although the 20 pairs compared agree.
 - **FontLab 8.9.5 against 8.4.2** (since 2026-11-01). No difference seen. Writes seen on 8.9.5: `create_glyph`, `draw_polygon`, `set_glyph_width` and `set_glyph_sidebearings` on new glyphs (K9 setup, 190, 253) and on two existing glyphs (T4), a declined `delete_glyph` (190), and `set_glyph_unicode` (280). The other writes: not yet.
 - **Identical font tabs** (2026-11-03, T5: 277–281). With a `.vfc` and its Explorer copy open, both tabs read "fullname of test font" and the Fonts panel listed "testfont" twice as "Regular"; only the tab order told them apart. Open: does FontLab show the file name anywhere for a person to check? Agents should not ask the person to tell such fonts apart by title.
 - **Legacy `font.info` against Font Info** (2026-11-03, 298, 300). After the PostScript field was set to `W6aTest-Regular`, `font.info.postscriptFontName` still read `Unnamed1-Regular` while the package's `psn` read the new value. The family name lags too (322–324): after Unnamed1's Family name was set to `Unnamed`, the replies kept "Unnamed1 Regular" across two tab switches, while the Fonts panel listed "Unnamed (2 fonts)" (323). Open: does the legacy view ever catch up (after a save, deferred by T9)? Should the reply's font name come from the package when it can be matched?
 - **Font Info's OK writes fields** (2026-11-03, 297, 298). `dict.names.keys()` went from 5 to 15 keys (Creator and Legal fields such as `copyright`, `designer`, `vendor_code`) after Font Info was opened and closed with OK, with only the PostScript field edited. Open: does OK alone add them? Settles: open and OK without any edit.
 - **Set or derived names** (2026-11-03, 298). Font Info shows a ↺ reset button beside Style name, Full name, PostScript and Style group, as if FontLab knew which were typed by a person; no read so far shows that ([DECISIONS.md](DECISIONS.md), design C).
+- **One `.notdef` warning for all unsaved fonts** (2026-11-03, 375, 376). The listener remembers a warned font by its path, and every unsaved font has an empty path. In 375 a new font got `already_warned` and no dialog from a listener that had run before; after a FontLab restart the dialog came (376). Open: is a second new font in one listener run never warned? Settles: two new fonts in one listener run, `get_current_font` on each.
 
 ## Agents and clients
 
 - **Answering from an earlier reply** (2026-11-03, T2: 254). Asked for a width, the agent answered from the sidebearings reply and said so; asked to read it "now", it read (254b). Watch in later agent-level tests.
 - **Guessing where a kerning value comes from** (2026-11-01, K5, K8). Agents guessed between a direct pair and a class ("may sit in GPOS lookups"). Since 0.104 / 0.33 the reply names the `source`, and in 223 the Desktop agent reported it without guessing. Watch in later agent-level tests.
 - **The client name is the app's own claim** (2026-11-03, 236–242). It names the app, not the model, and both Claude apps send the same name. The launcher does not tell them apart on this PC either: the Desktop app starts the servers for both (237–238). A name with non-ASCII characters: not seen in FontLab.
-- **The change counter outlives sessions.** `fontlab_status` showed 9, and later 20, changes at the start of Claude Code sessions that had made none (also after a full FontLab restart), and 6 at the start of the session of 2026-11-03; after a full Claude Desktop restart, no counter. Inferred: the server process outlives the sessions. Not checked in the process list.
+- **The change counter outlives sessions.** `fontlab_status` showed 9, and later 20, changes at the start of Claude Code sessions that had made none (also after a full FontLab restart), 6 at the start of the session of 2026-11-03, and 25 at the start of a later one that day; after a full Claude Desktop restart, no counter. Inferred: the server process outlives the sessions. Not checked in the process list.
 
 ## Settled or dropped
+
+- 2026-11-03: "A Power Brush glyph flattened by `create_glyph`" (F1, 332–416) settled and moved to [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8l: a `get_glyph_outline` read followed by `create_glyph` flattens it, with one font open.
 
 - 2026-11-03: "Arial on this PC" (4651 glyphs, kerning unchanged) moved to [topics/kerning.md](topics/kerning.md): a recorded difference, not an open question.
 

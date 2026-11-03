@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.118)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.119)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -108,6 +108,7 @@ Routes (GET unless marked POST):
     /debug/tryfont        a new font through flPackage(), once per listener run
     /debug/trysync        flPackage.update() / flWorkspace.update() (both change nothing)
     /debug/trycreate      createGlyph with and without font.update()
+    /debug/tryrefresh     F1: createGlyph or a Unicode value, then ONE fontlab.Update on that glyph; never font.update()
     /debug/trymodern      sync candidates and modern glyph creation
     /debug/trykern        one font.kerning.get((a, b)) call, 20 per listener run
     /debug/trygroups      one font.groups.getCompiled() call, 10 per listener run
@@ -146,7 +147,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.118"
+VERSION = "0.119"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -6170,6 +6171,142 @@ def debug_layer_item(name, index=0):
 
 
 # --------------------------------------------------------------------------
+# /debug/tryrefresh (v0.119) - EXPERIMENT for F1 (topics/fonts-and-sync.md, section 8l): can a refresh of ONE glyph replace the
+# whole-font font.update() of the legacy writes? font.update() writes the legacy copy of a glyph whose legacy glyph.layer was touched
+# back over its modern layer (a Power Brush glyph loses its brush: live 417-435). Every stage needs go=yes and the one-font gate of
+# /debug/trysync; each mode runs ONCE per listener run, counted BEFORE the first change:
+#   stage=create   name=N how=Update_flGlyph|none   font.createGlyph(N); with Update_flGlyph then ONE fontlab.Update(<modern glyph of N>)
+#   stage=unicode  name=N value=V                    glyph.unicode = V on an existing glyph (1 to 1114111), then ONE
+#                                                    fontlab.Update(<modern glyph of N>); the value is read back
+# Not called, ever, by this probe: font.update(), glyph.update(), UpdateAll(), the assign family, removeGlyph, deleteGlyph, save,
+# close, export, release, remove, blockUpdate, unblockUpdate.
+# --------------------------------------------------------------------------
+
+_TRYREFRESH_STAGES = ("create", "unicode")
+_TRYREFRESH_HOWS = ("Update_flGlyph", "none")
+_TRYREFRESH = {"create_Update_flGlyph": 0, "create_none": 0, "unicode": 0}
+_TRYREFRESH_NOTE = ("EXPERIMENT: read the sidebearings of the Power Brush glyph (192.466 intact, 192 flattened), and look at the grid (does a "
+                    "new glyph show up?); nothing is saved by Glyphbridge; quit FontLab WITHOUT saving afterwards")
+
+
+def _tryrefresh_unicode_value(glyph):
+    """The legacy glyph's unicode as a plain int, None when unset, or the type name of anything else. Never raises."""
+    try:
+        u = glyph.unicode
+    except Exception as exc:
+        return f"<error: {type(exc).__name__}: {exc}>"
+    if u is None or (isinstance(u, int) and not isinstance(u, bool)):
+        return u
+    return f"<{type(u).__name__}>"
+
+
+def debug_try_refresh(stage, name, how, value, go):
+    import sys as _sys
+    if stage not in _TRYREFRESH_STAGES:
+        return {"error": 'stage must be "create" or "unicode"'}
+    if not isinstance(name, str) or not (1 <= len(name) <= 40) or any(ch not in _TRYCREATE_NAME_CHARS for ch in name):
+        return {"error": "name must be 1 to 40 characters from A-Z a-z 0-9 . _ -"}
+    codepoint = None
+    if stage == "create":
+        if how not in _TRYREFRESH_HOWS:
+            return {"error": 'how must be "Update_flGlyph" (createGlyph, then one fontlab.Update on the new glyph) or "none" (createGlyph only)'}
+        key = "create_" + how
+    else:
+        if not (isinstance(value, str) and 1 <= len(value) <= 7 and all(ch in "0123456789" for ch in value)) or not (1 <= int(value) <= 0x10FFFF):
+            return {"error": "value must be a decimal codepoint from 1 to 1114111"}
+        codepoint = int(value)
+        key = "unicode"
+    if go != "yes":
+        what = ("calls font.createGlyph(name) and adds ONE glyph" + (", then ONE fontlab.Update on that glyph" if how == "Update_flGlyph" else " (no refresh)")
+                if stage == "create" else "sets the Unicode value of ONE existing glyph, then ONE fontlab.Update on that glyph")
+        return {"error": f"stage={stage} {what}. Add &go=yes to run it."}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"stage": stage, "error": why, "calls_so_far": dict(_TRYREFRESH)}
+    if _TRYREFRESH[key] >= 1:
+        return {"stage": stage, "error": "this mode was already run once in this listener run; restart the listener to repeat it",
+                "calls_so_far": dict(_TRYREFRESH)}
+    upd = getattr(mod, "Update", None)
+    if (stage == "unicode" or how == "Update_flGlyph") and not callable(upd):
+        return {"stage": stage, "error": "the fontlab module has no callable Update", "calls_so_far": dict(_TRYREFRESH)}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    if stage == "create":
+        return _tryrefresh_create(upd, font, name, how, key)
+    return _tryrefresh_unicode(upd, font, name, codepoint)
+
+
+def _tryrefresh_create(upd, font, name, how, key):
+    before = [str(g.name) for g in font.glyphs]
+    if name in before:
+        return {"stage": "create", "how": how, "error": "a glyph with this name already exists", "before_count": len(before),
+                "calls_so_far": dict(_TRYREFRESH)}
+    _TRYREFRESH[key] += 1       # counted BEFORE the calls: whatever happens, it is on record
+    calls = ["font.createGlyph(name)"]
+    call_error, refresh_error, returned = None, None, None
+    try:
+        font.createGlyph(name)
+    except Exception as exc:
+        call_error = f"{type(exc).__name__}: {exc}"
+    if how == "Update_flGlyph":
+        glyph = _find_glyph(font, name)
+        if glyph is None:
+            refresh_error = "the new glyph is not in font.glyphs, so nothing was refreshed"
+        else:
+            try:
+                w, _wrapper_how = _modern_wrapper(glyph, font)
+            except Exception as exc:
+                w, refresh_error = None, f"the modern glyph could not be reached ({exc}); nothing was refreshed"
+            if w is not None:
+                calls.append("fontlab.Update(<modern glyph>)")
+                try:
+                    returned = _tryfont_plain(upd(w))
+                except Exception as exc:
+                    refresh_error = f"{type(exc).__name__}: {exc}"
+    after = [str(g.name) for g in font.glyphs]
+    present = name in after
+    out = {"stage": "create", "how": how, "name": name, "calls": calls, "call_error": call_error, "refresh_error": refresh_error,
+           "refresh_return": returned, "before_count": len(before), "after_count": len(after), "present": present,
+           "created": present and len(after) == len(before) + 1, "calls_so_far": dict(_TRYREFRESH), "note": _TRYREFRESH_NOTE}
+    added = _names_added(before, after)
+    if added and not out["created"]:
+        out["created_under_other_names"] = added
+    return out
+
+
+def _tryrefresh_unicode(upd, font, name, codepoint):
+    glyph = _find_glyph(font, name)
+    if glyph is None:
+        return {"stage": "unicode", "error": f"no glyph named {name!r}", "calls_so_far": dict(_TRYREFRESH)}
+    try:
+        w, _wrapper_how = _modern_wrapper(glyph, font)
+    except Exception as exc:
+        return {"stage": "unicode", "name": name, "error": f"the modern glyph could not be reached ({exc}); nothing was changed",
+                "calls_so_far": dict(_TRYREFRESH)}
+    before = _tryrefresh_unicode_value(glyph)
+    _TRYREFRESH["unicode"] += 1     # counted BEFORE the change: whatever happens, it is on record
+    calls = ["glyph.unicode = value"]
+    set_error, refresh_error, returned = None, None, None
+    try:
+        glyph.unicode = codepoint
+    except Exception as exc:
+        set_error = f"{type(exc).__name__}: {exc}"
+    if set_error is None:
+        calls.append("fontlab.Update(<modern glyph>)")
+        try:
+            returned = _tryfont_plain(upd(w))
+        except Exception as exc:
+            refresh_error = f"{type(exc).__name__}: {exc}"
+    again = _find_glyph(font, name)
+    after = _tryrefresh_unicode_value(again) if again is not None else "<the glyph is gone>"
+    return {"stage": "unicode", "name": name, "value": codepoint, "calls": calls, "set_error": set_error, "refresh_error": refresh_error,
+            "refresh_return": returned, "unicode_before": before, "unicode_after": after, "matches": after == codepoint,
+            "calls_so_far": dict(_TRYREFRESH), "note": _TRYREFRESH_NOTE}
+
+
+# --------------------------------------------------------------------------
 # /debug/trykerngroups (v0.103) - RESEARCH for P0.8: where does FontLab keep a kerning group's MEMBERS and its SIDE? R0 (/debug/moddir,
 # names only, 2026-11-01): fontgate.fgGroup has id, isBoth, isFeaGroup, isLeft, isRight, mode, name (modes KernLeftGroupMode,
 # KernRightGroupMode, KernBothSideGroupMode, FeaClassGroupMode) but no member names; fgKerningGroups ("Dictionary of kerning groups")
@@ -7202,6 +7339,13 @@ def _route(method, full_path, body=b""):
         if path == "/debug/trycreate":
             try:
                 return _build_response(200, debug_try_create((query.get("name") or [""])[0], (query.get("how") or [""])[0], (query.get("go") or [""])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/tryrefresh":
+            try:
+                return _build_response(200, debug_try_refresh((query.get("stage") or [""])[0], (query.get("name") or [""])[0], (query.get("how") or [""])[0],
+                                                              (query.get("value") or [""])[0], (query.get("go") or [""])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
