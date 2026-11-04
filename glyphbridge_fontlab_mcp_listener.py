@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.123)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.124)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -82,7 +82,11 @@ Routes (GET unless marked POST):
     POST /glyph/path            {"name", "contours"}: closed contours with cubic curves (c1 / c2,
                                 smooth) into an empty glyph; whole units; verified node by node
 
-  Kerning (pure reads; never the whole table)
+  Kerning (never the whole table)
+    POST /kerning/set           {"pairs": [[left, right, value], ...]} (v0.124): glyph : glyph pairs into the current
+                                master's table, set(((left, False), (right, False)), value), each verified by re-reading;
+                                all checks before the first write; stops at the first pair not confirmed. The KERNING panel
+                                lists such pairs only after save and reopen; FontLab asks no save question for them
     /kerning/pairs?pairs=A:V,T:o  or  ?text=AVATAR
                                 FontLab's effective kerning per pair from the current master's table
                                 (v0.104), class kerning included; source says which kind of entry
@@ -159,7 +163,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.123"
+VERSION = "0.124"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -1720,6 +1724,127 @@ def _kern_package_by_path(mod, font):
     return pkg, None
 
 
+def _kern_table_target(font, count):
+    """(target, None) or (None, error text). READ ONLY. The current master's kerning table of the current font, matched as
+    /kerning/pairs always did: with one font open the workspace's current package (v0.104), with several only by path
+    (_kern_package_by_path, v0.112). target holds pkg, masters, master, kerning, getter (kerning.get), glyphs, by_name
+    (first glyph of each name) and matched_by. Shared by the kerning read and, since v0.124, the kerning write."""
+    import sys as _sys
+    mod = _sys.modules.get("fontlab") or fl
+    if count == 1:
+        ws, pkg, why = _trysync_target(mod)
+        if ws is None:
+            return None, f"the kerning table could not be matched to the current font: {why}"
+        matched_by = "only font"
+    else:
+        pkg, why = _kern_package_by_path(mod, font)
+        if pkg is None:
+            return None, (f"{count} fonts are open and the current font could not be matched to its kerning table: {why}. "
+                          "Bring a saved font's window to the front, or close the other fonts (without saving them if they "
+                          "are test fonts), and ask again")
+        matched_by = "path"
+    masters, err = _pkg_get(pkg, "masters")
+    if err is not None:
+        return None, f"the font's masters could not be read: {err}"
+    if not isinstance(masters, (list, tuple)) or not all(isinstance(m, str) for m in masters):
+        return None, f"the font's masters are not a plain list of names ({type(masters).__name__})"
+    master, err = _pkg_get(pkg, "master")
+    if not isinstance(master, str) or master not in masters:
+        return None, "the current master could not be read as one of the font's masters" + (f" ({err})" if err else "")
+    try:
+        kerning_of = pkg.kerning
+        if not callable(kerning_of):
+            raise TypeError("flPackage.kerning is not callable")
+        kerning = kerning_of(master)
+        getter = kerning.get
+    except Exception as exc:
+        return None, f"the kerning table of master {master!r} is not reachable: {type(exc).__name__}: {exc}"
+    if not callable(getter):
+        return None, "the kerning table's get is not callable"
+    try:
+        glyphs = list(font.glyphs)
+        by_name = {}
+        for g in glyphs:
+            by_name.setdefault(str(g.name), g)
+    except Exception as exc:
+        return None, f"the glyph list could not be read: {type(exc).__name__}: {exc}"
+    return {"pkg": pkg, "masters": masters, "master": master, "kerning": kerning, "getter": getter, "glyphs": glyphs,
+            "by_name": by_name, "matched_by": matched_by}, None
+
+
+def _kern_len(kerning):
+    """len() of a kerning table as a plain int, or None."""
+    try:
+        n = len(kerning)
+        return n if isinstance(n, int) and not isinstance(n, bool) else None
+    except Exception:
+        return None
+
+
+def _kern_family(font):
+    """The family name from the legacy font.info, or None (shown only to tell fonts apart)."""
+    try:
+        raw_family = font.info.familyName
+        return raw_family if isinstance(raw_family, str) else None
+    except Exception:
+        return None
+
+
+def _kern_value_ok(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value == value and value not in (float("inf"), float("-inf"))
+
+
+def _kern_effective(getter, by_name, pkg, groups, left, right):
+    """The value FontLab applies to the glyph pair (left, right), as a dict to merge into a result entry: value, kerned, source
+    and the class names, or error. The glyph's classes come from its kerningLeft / kerningRight group ids, named by ONE
+    pkg.getAllGroups() per request (cached in groups) when an id is not 0. FontLab's order (tests 176, 192-213): glyph : glyph,
+    glyph : class, class : glyph, class : class; the first entry that exists answers. No entry: value 0, kerned false, source none."""
+
+    def _class_of(name, attr):
+        gid, why = _kern_class_id(by_name[name], attr)
+        if why is not None:
+            return None, f"glyph {name!r}: {why}"
+        if gid == 0:
+            return None, None
+        if "answer" not in groups:
+            groups["answer"] = _kern_group_names(pkg)
+        found, why = groups["answer"]
+        if why is not None:
+            return None, f"glyph {name!r} belongs to kerning class id {gid}, but the class names could not be read: {why}"
+        names, twice = found
+        if gid in twice:
+            return None, f"glyph {name!r} belongs to kerning class id {gid}, which FontLab's class list names twice"
+        if gid not in names:
+            return None, f"glyph {name!r} belongs to kerning class id {gid}, which FontLab's class list does not contain"
+        return names[gid], None
+
+    left_class, left_err = _class_of(left, "kerningLeft")
+    right_class, right_err = _class_of(right, "kerningRight")
+    problems = [e for e in (left_err, right_err) if e]
+    if problems:
+        return {"error": "; ".join(problems)}
+    keys = [("glyph : glyph", ((left, False), (right, False)), {})]
+    if right_class is not None:
+        keys.append(("glyph : class", ((left, False), (right_class, True)), {"right_class": right_class}))
+    if left_class is not None:
+        keys.append(("class : glyph", ((left_class, True), (right, False)), {"left_class": left_class}))
+    if left_class is not None and right_class is not None:
+        keys.append(("class : class", ((left_class, True), (right_class, True)), {"left_class": left_class, "right_class": right_class}))
+    for source, key, classes in keys:
+        try:
+            value = getter(key)
+        except Exception as exc:
+            return {"error": f"kerning.get raised {type(exc).__name__}: {exc} (asking the {source} entry)"}
+        if value is None:
+            continue
+        if _kern_value_ok(value):
+            return dict(value=value, kerned=value != 0, source=source, **classes)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return {"error": f"kerning.get returned a number that is not finite (asking the {source} entry)"}
+        return {"error": f"kerning.get returned an unexpected {type(value).__name__} (asking the {source} entry)"}
+    return {"value": 0, "kerned": False, "source": "none"}
+
+
 def get_kerning_pairs(pairs=None, text=None):
     """v0.104 - READ-ONLY kerning lookup in the table FontLab uses: flPackage.kerning(current master) (P0.8; live tests 191-218). The
     legacy font.kerning is never read: it misses kerning made in FontLab's GUI (defect A). Every pair is asked with explicit keys
@@ -1735,7 +1860,6 @@ def get_kerning_pairs(pairs=None, text=None):
     A name that is not a glyph, a character that maps to no glyph or to several, an unreadable or unnamed class id, a failed get() and
     a non-numeric answer become an 'error' entry for that pair: never a zero. The only member of the kerning table used is get;
     len() is read before and after the batch (side_effect_detected)."""
-    import sys as _sys
     have_pairs = bool(pairs)
     have_text = bool(text)
     if have_pairs == have_text:
@@ -1780,44 +1904,11 @@ def get_kerning_pairs(pairs=None, text=None):
                                        "cannot be matched to the current font"}
     if count < 1:
         return {"open": True, "error": f"CountFonts() gave {count}, so the kerning table cannot be matched to the current font"}
-    mod = _sys.modules.get("fontlab") or fl
-    if count == 1:
-        ws, pkg, why = _trysync_target(mod)
-        if ws is None:
-            return {"open": True, "error": f"the kerning table could not be matched to the current font: {why}"}
-        matched_by = "only font"
-    else:
-        pkg, why = _kern_package_by_path(mod, font)
-        if pkg is None:
-            return {"open": True, "error": f"{count} fonts are open and the current font could not be matched to its kerning table: {why}. "
-                                           "Bring a saved font's window to the front, or close the other fonts (without saving them if they "
-                                           "are test fonts), and ask again"}
-        matched_by = "path"
-    masters, err = _pkg_get(pkg, "masters")
-    if err is not None:
-        return {"open": True, "error": f"the font's masters could not be read: {err}"}
-    if not isinstance(masters, (list, tuple)) or not all(isinstance(m, str) for m in masters):
-        return {"open": True, "error": f"the font's masters are not a plain list of names ({type(masters).__name__})"}
-    master, err = _pkg_get(pkg, "master")
-    if not isinstance(master, str) or master not in masters:
-        return {"open": True, "error": "the current master could not be read as one of the font's masters" + (f" ({err})" if err else "")}
-    try:
-        kerning_of = pkg.kerning
-        if not callable(kerning_of):
-            raise TypeError("flPackage.kerning is not callable")
-        kerning = kerning_of(master)
-        getter = kerning.get
-    except Exception as exc:
-        return {"open": True, "error": f"the kerning table of master {master!r} is not reachable: {type(exc).__name__}: {exc}"}
-    if not callable(getter):
-        return {"open": True, "error": "the kerning table's get is not callable"}
-    try:
-        glyphs = list(font.glyphs)
-        by_name = {}
-        for g in glyphs:
-            by_name.setdefault(str(g.name), g)
-    except Exception as exc:
-        return {"open": True, "error": f"the glyph list could not be read: {type(exc).__name__}: {exc}"}
+    target, why = _kern_table_target(font, count)
+    if target is None:
+        return {"open": True, "error": why}
+    pkg, masters, master, kerning = target["pkg"], target["masters"], target["master"], target["kerning"]
+    getter, glyphs, by_name, matched_by = target["getter"], target["glyphs"], target["by_name"], target["matched_by"]
     if have_text:
         need = set(ord(ch) for ch in text)
         holders = dict((cp, []) for cp in need)
@@ -1857,68 +1948,12 @@ def get_kerning_pairs(pairs=None, text=None):
             if missing:
                 entry["error"] = "no glyph named " + ", ".join(repr(m) for m in missing)
     groups = {}                                  # ONE getAllGroups() per request, and only when a class id is not 0
-
-    def _class_of(name, attr):
-        gid, why = _kern_class_id(by_name[name], attr)
-        if why is not None:
-            return None, f"glyph {name!r}: {why}"
-        if gid == 0:
-            return None, None
-        if "answer" not in groups:
-            groups["answer"] = _kern_group_names(pkg)
-        found, why = groups["answer"]
-        if why is not None:
-            return None, f"glyph {name!r} belongs to kerning class id {gid}, but the class names could not be read: {why}"
-        names, twice = found
-        if gid in twice:
-            return None, f"glyph {name!r} belongs to kerning class id {gid}, which FontLab's class list names twice"
-        if gid not in names:
-            return None, f"glyph {name!r} belongs to kerning class id {gid}, which FontLab's class list does not contain"
-        return names[gid], None
-
-    def _len():
-        try:
-            n = len(kerning)
-            return n if isinstance(n, int) and not isinstance(n, bool) else None
-        except Exception:
-            return None
-
-    len_before = _len()
+    len_before = _kern_len(kerning)
     for entry in wanted:
         if "error" in entry:
             continue
-        left, right = entry["left"], entry["right"]
-        left_class, left_err = _class_of(left, "kerningLeft")
-        right_class, right_err = _class_of(right, "kerningRight")
-        problems = [e for e in (left_err, right_err) if e]
-        if problems:
-            entry["error"] = "; ".join(problems)
-            continue
-        keys = [("glyph : glyph", ((left, False), (right, False)), {})]
-        if right_class is not None:
-            keys.append(("glyph : class", ((left, False), (right_class, True)), {"right_class": right_class}))
-        if left_class is not None:
-            keys.append(("class : glyph", ((left_class, True), (right, False)), {"left_class": left_class}))
-        if left_class is not None and right_class is not None:
-            keys.append(("class : class", ((left_class, True), (right_class, True)), {"left_class": left_class, "right_class": right_class}))
-        for source, key, classes in keys:
-            try:
-                value = getter(key)
-            except Exception as exc:
-                entry["error"] = f"kerning.get raised {type(exc).__name__}: {exc} (asking the {source} entry)"
-                break
-            if value is None:
-                continue
-            if isinstance(value, (int, float)) and not isinstance(value, bool) and value == value and value not in (float("inf"), float("-inf")):
-                entry.update(value=value, kerned=value != 0, source=source, **classes)
-            elif isinstance(value, (int, float)) and not isinstance(value, bool):
-                entry["error"] = f"kerning.get returned a number that is not finite (asking the {source} entry)"
-            else:
-                entry["error"] = f"kerning.get returned an unexpected {type(value).__name__} (asking the {source} entry)"
-            break
-        else:
-            entry.update(value=0, kerned=False, source="none")
-    len_after = _len()
+        entry.update(_kern_effective(getter, by_name, pkg, groups, entry["left"], entry["right"]))
+    len_after = _kern_len(kerning)
     upm = None
     try:
         raw_upm = font.info.unitsPerEm
@@ -1926,13 +1961,7 @@ def get_kerning_pairs(pairs=None, text=None):
             upm = raw_upm
     except Exception:
         upm = None
-    family = None
-    try:
-        raw_family = font.info.familyName
-        if isinstance(raw_family, str):
-            family = raw_family
-    except Exception:
-        family = None
+    family = _kern_family(font)
     return {"open": True, "mode": "text" if have_text else "pairs", "fonts_open": count, "matched_by": matched_by, "family_name": family,
             "master": master, "master_count": len(masters), "units_per_em": upm, "count": len(wanted), "errors": sum(1 for e in wanted if "error" in e), "table_size": len_before,
             "side_effect_detected": (len_before != len_after) if (len_before is not None and len_after is not None) else None,
@@ -1964,6 +1993,142 @@ def _other_glyphs_with_unicode(font, name, codepoint):
         if raw == codepoint:
             holders.append(gname)
     return {"scanned": scanned, "also_held_by": holders, "unreadable": unreadable}
+
+
+_KERN_CLASS_SOURCES = ("glyph : class", "class : glyph", "class : class")
+
+
+def _kern_exact(getter, key):
+    """(value, None) or (None, error text): ONE get of an exact entry; (None, None) means FontLab has no such entry."""
+    try:
+        value = getter(key)
+    except Exception as exc:
+        return None, f"kerning.get raised {type(exc).__name__}: {exc}"
+    if value is None or _kern_value_ok(value):
+        return value, None
+    return None, f"kerning.get returned {type(value).__name__} {value!r}, not a finite number"
+
+
+def set_kerning_pairs(pairs):
+    """v0.124 - WRITES glyph : glyph kerning pairs into the current master's table of the current font (P2.9; research KW
+    542-564, topics/kerning.md section 13). pairs: a list of [left, right, value], glyph names only, each pair once. Every
+    check runs before the first write, and a failed one refuses the whole request with nothing set: the font and its table are
+    matched as /kerning/pairs matches them (_kern_table_target), both names are glyphs of the font, and |value| <= the
+    package's upm. Then per pair, in order: the effective value before (_kern_effective, as /kerning/pairs reads it) and the
+    exact entry, ONE set(((left, False), (right, False)), float(value)) - the flags form names both sides as glyphs, so a glyph
+    named like a class never means that class (defect B; set accepts the form, test 564) - then the exact entry and the
+    effective value again. A pair is "set" only when the call raised nothing, the exact entry equals the value and FontLab
+    applies that value from the glyph : glyph entry. The first pair that is not set stops the request; the pairs after it are
+    "not attempted". changed says whether the exact entry changed (None: it could not be read back). len() is read before and
+    after; table_size_as_expected compares the growth with the new entries. Kerning members used: get, set (one per pair) and
+    len(); never remove, clear, setPlainPairs, add*, delete*, rename*, scale or a whole-table read; no Update(),
+    font.update() or save. FontLab's KERNING panel lists such a pair only after save and reopen (557-560); closing the font
+    asks no save question and loses it (561, 562); Edit > Undo does not take it back (563)."""
+    if not isinstance(pairs, list) or not pairs:
+        return _kern_bad('"pairs" must be a non-empty list of [left, right, value]')
+    wanted, seen = [], set()
+    for i, item in enumerate(pairs):
+        if not isinstance(item, list) or len(item) != 3 or not _kern_name_ok(item[0]) or not _kern_name_ok(item[1]):
+            return _kern_bad(f"pair {i + 1} must be [left, right, value] with two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -")
+        if not _kern_value_ok(item[2]):
+            return _kern_bad(f"pair {i + 1} ({item[0]}:{item[1]}): the value must be a finite number")
+        if (item[0], item[1]) in seen:
+            return _kern_bad(f"pair {i + 1} ({item[0]}:{item[1]}) is asked more than once in this request")
+        seen.add((item[0], item[1]))
+        wanted.append((item[0], item[1], item[2]))
+    count = None
+    try:
+        counter = getattr(fl, "CountFonts", None)
+        if callable(counter):
+            got = counter()
+            if isinstance(got, int) and not isinstance(got, bool):
+                count = got
+    except Exception:
+        count = None
+    if count == 0:
+        return {"open": False}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    _note_request_font(font, count)
+    if count is None or count < 1:
+        return {"open": True, "error": "the number of open fonts could not be read as a positive number, so the kerning table cannot be "
+                                       "matched to the current font; nothing was set"}
+    target, why = _kern_table_target(font, count)
+    if target is None:
+        return {"open": True, "error": f"{why}; nothing was set"}
+    pkg, master, kerning, getter, by_name = target["pkg"], target["master"], target["kerning"], target["getter"], target["by_name"]
+    upm, err = _pkg_get(pkg, "upm")
+    if err is not None or not _kern_value_ok(upm) or not upm > 0:
+        return {"open": True, "error": "the font's units per em could not be read as a positive number, so the values cannot be checked; nothing was set"}
+    missing = sorted(set(nm for a, b, _v in wanted for nm in (a, b) if nm not in by_name))
+    if missing:
+        return {"open": True, "error": "no glyph named " + ", ".join(repr(m) for m in missing) + " in the current font; nothing was set"}
+    too_big = [f"{a}:{b} {v}" for a, b, v in wanted if abs(v) > upm]
+    if too_big:
+        return {"open": True, "error": f"larger than the font's {upm:g} units per em, either way: " + ", ".join(too_big[:5]) + "; nothing was set"}
+    try:
+        setter = kerning.set
+    except Exception as exc:
+        return {"open": True, "error": f"the kerning table's set is not reachable ({type(exc).__name__}: {exc}); nothing was set"}
+    if not callable(setter):
+        return {"open": True, "error": "the kerning table's set is not callable; nothing was set"}
+    groups = {}
+    len_before = _kern_len(kerning)
+    results, stopped, new_entries = [], False, 0
+    for left, right, value in wanted:
+        entry = {"left": left, "right": right, "requested": value}
+        results.append(entry)
+        if stopped:
+            entry["status"] = "not attempted"
+            continue
+        key = ((left, False), (right, False))
+        before = _kern_effective(getter, by_name, pkg, groups, left, right)
+        exact_before, err_before = _kern_exact(getter, key)
+        entry["before"] = before
+        if "error" in before or err_before is not None:
+            entry.update(status="failed", set=False, changed=False,
+                         reason="the value before could not be read, so nothing was set for this pair: " + (before.get("error") or err_before))
+            stopped = True
+            continue
+        call_error = None
+        try:
+            setter(key, float(value))
+        except Exception as exc:
+            call_error = f"{type(exc).__name__}: {exc}"
+        exact_after, err_after = _kern_exact(getter, key)
+        after = _kern_effective(getter, by_name, pkg, groups, left, right)
+        entry["after"] = after
+        if err_after is not None:
+            new_entries = None                   # whether this pair added an entry is unknown, so the growth cannot be checked
+        elif exact_before is None and exact_after is not None and new_entries is not None:
+            new_entries += 1
+        ok = (call_error is None and err_after is None and exact_after == value
+              and after.get("source") == "glyph : glyph" and after.get("value") == value)
+        entry.update(status="set" if ok else "failed", set=ok, changed=None if err_after is not None else exact_after != exact_before,
+                     exception_over_class=before.get("source") in _KERN_CLASS_SOURCES)
+        if call_error is not None:
+            entry["call_error"] = call_error
+        if not ok:
+            if call_error is not None:
+                why = f"kerning.set raised {call_error}"
+            elif err_after is not None:
+                why = f"the entry could not be read back: {err_after}"
+            elif exact_after != value:
+                why = f"the entry reads {exact_after!r} after setting, not {value}"
+            elif "error" in after:
+                why = f"the value FontLab applies could not be read back: {after['error']}"
+            else:
+                why = f"FontLab applies {after.get('value')} from the {after.get('source')} entry, not the new glyph : glyph entry"
+            entry["reason"] = why
+            stopped = True
+    len_after = _kern_len(kerning)
+    return {"open": True, "fonts_open": count, "matched_by": target["matched_by"], "family_name": _kern_family(font), "master": master,
+            "master_count": len(target["masters"]), "units_per_em": upm, "count": len(results),
+            "set_count": sum(1 for e in results if e.get("set") is True), "stopped": stopped,
+            "table_size_before": len_before, "table_size_after": len_after,
+            "table_size_as_expected": (len_after - len_before == new_entries) if None not in (len_before, len_after, new_entries) else None,
+            "results": results}
 
 
 def set_glyph_unicode(name, new_codepoint):
@@ -7910,6 +8075,21 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
+        if path == "/kerning/set":
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            if not isinstance(payload, dict) or set(payload) != {"pairs"}:
+                return _build_response(400, {"error": 'the body must be a JSON object with "pairs" (a list of [left, right, value]) and nothing else'})
+            try:
+                result = set_kerning_pairs(payload["pairs"])
+                if "bad_request" in result:
+                    return _build_response(400, {"error": result["bad_request"]})
+                return _build_response(200, result)
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
         if path == "/font/notdef/warn":
             try:
                 payload = json.loads(body.decode("utf-8")) if body else {}
@@ -8135,7 +8315,7 @@ _ACT = {"kind": None, "shown": 0, "more": 0, "reads": {}, "no_font": {}, "kern_p
 
 _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/width": "width",
                "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/glyph/polygon": "draw",
-               "/glyph/path": "draw", "/font/notdef/warn": ".notdef"}
+               "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning"}
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
               "/font/current": "font info", "/font/notdef": ".notdef check", "/font/notdef/warn": ".notdef check",
@@ -8244,6 +8424,8 @@ def _act_change(kind, text, collapsible):
 def _act_describe_write(path, payload, code, reply):
     """(line, collapsible) for one write request, or (None, False) for a .notdef warning request that showed no dialog."""
     kind = _ACT_WRITES[path]
+    if kind == "kerning":
+        return _act_describe_kerning(payload, code, reply)
     name = payload.get("name") if isinstance(payload, dict) else None
     head = f"{kind} {_act_text(name.strip())}" if isinstance(name, str) and name.strip() else (kind if kind == ".notdef" else f"{kind} ?")
     if code != 200 or not isinstance(reply, dict):
@@ -8301,6 +8483,33 @@ def _act_describe_write(path, payload, code, reply):
         return f"{head}: {size} (verified{match}{sync})", not unsynced
     changed = "; the glyph DID change" if reply.get("changed") is True else ""
     return f"NOT DONE {head}: {why}{changed}", False
+
+
+def _act_describe_kerning(payload, code, reply):
+    """(line, collapsible) for one /kerning/set request (v0.124): one pair is named with its values, more are counted."""
+    pairs = payload.get("pairs") if isinstance(payload, dict) else None
+    n = len(pairs) if isinstance(pairs, list) else None
+    head = f"kerning {n} pair{'' if n == 1 else 's'}" if n is not None else "kerning ?"
+    if code != 200 or not isinstance(reply, dict):
+        error = reply.get("error") if isinstance(reply, dict) else None
+        return f"{'REFUSED' if code == 400 else 'FAILED'} {head}: {_act_text(error or f'HTTP {code}')}", False
+    if reply.get("open") is False:
+        return f"REFUSED {head}: no font is open", False
+    if reply.get("error"):
+        return f"REFUSED {head}: {_act_text(reply['error'])}", False
+    results = [e for e in reply.get("results") or [] if isinstance(e, dict)] if isinstance(reply.get("results"), list) else []
+    done = [e for e in results if e.get("set") is True]
+    if results and len(done) == len(results):
+        if len(done) == 1:
+            e = done[0]
+            before = e.get("before") if isinstance(e.get("before"), dict) else {}
+            after = e.get("after") if isinstance(e.get("after"), dict) else {}
+            pair = _act_text(f"{e.get('left')}:{e.get('right')}")
+            return f"kerning {pair}: {_act_num(before.get('value'))} -> {_act_num(after.get('value'))} (verified)", True
+        return f"{head}: all set (verified)", True
+    failed = next((e for e in results if e.get("status") == "failed"), None)
+    where = f", stopped at {_act_text(str(failed.get('left')) + ':' + str(failed.get('right')))}: {_act_text(failed.get('reason') or 'not confirmed by the re-read')}" if failed else ""
+    return f"NOT DONE {head}: {len(done)} set{where}", False
 
 
 def _activity_note(method, raw_path, body, response, client=None, launcher=None):

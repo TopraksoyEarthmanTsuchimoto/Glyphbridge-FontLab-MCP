@@ -8,7 +8,7 @@
 
 **CLOSED (do not repeat):** v8 list (sidebearings and width on a curved glyph; O with counter vs the GUI; diagonal-node circle; S-like blob; smooth gate at 0.33 / 2.73 degrees, zero-length handle on a smooth node, c1 = c2, line-to-handle smooth node, negative x; refusals create no layer; 180- and 990-node draws; `fontlab_status` version reporting). v10: the stale legacy view (fixed at the source by `Update(flGlyph)` and by the 0.88 fallback); the guard live (139a / 139b, 142: a drawing survives a create, and a synced glyph survives a later `font.update()`); first glyph of a new font (layer `Regular` from the package master); margin comparison on a scaled and on a skewed glyph (143); `fillFgData` is useless; sidebearings and width are carried by the sync (141, 142). Evidence only from stubs: the layer guard's own refusal path (8h); the failed-sync path of 0.89.
 
-**Test numbers in use** (moved from [CURRENT-STATUS.md](CURRENT-STATUS.md) on 2026-11-03; the next free number is kept there): 155 to 520 (K-series, P0.8 research and checks, 189–190 the v0.101 check and the activity log, 225–229 the checks of 0.105 / 0.106, 158 and 230–235 K11, 236–242 the sender tests, 243 K12(b), 244 K13, 245–246 K14, 247–252 K16, 253–255 T2, 256–258 T3, 145a–g (reserved for T4), 259 and 260 T4, 261–290 T5, 291–302 N1, 303–308 the checks of 0.114 / 0.40 / 0.41 ([CHANGELOG.md](CHANGELOG.md)), 309–316 T5 (read tools), 317–321 T5 (three fonts), 322–324 T5 (a Font Info rename), 325–331 T5 (writes with three fonts), 332–496 F1, 497–520 V120 (the checks of 0.120 / 0.42), 521–533 INK (`inkBox()` research), 534–541 V121 (the checks of 0.121 / 0.43), 542–560 KW (kerning writes, below); details in [LIVE-TESTS.md](LIVE-TESTS.md) and [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4).
+**Test numbers in use** (moved from [CURRENT-STATUS.md](CURRENT-STATUS.md) on 2026-11-03; the next free number is kept there): 155 to 520 (K-series, P0.8 research and checks, 189–190 the v0.101 check and the activity log, 225–229 the checks of 0.105 / 0.106, 158 and 230–235 K11, 236–242 the sender tests, 243 K12(b), 244 K13, 245–246 K14, 247–252 K16, 253–255 T2, 256–258 T3, 145a–g (reserved for T4), 259 and 260 T4, 261–290 T5, 291–302 N1, 303–308 the checks of 0.114 / 0.40 / 0.41 ([CHANGELOG.md](CHANGELOG.md)), 309–316 T5 (read tools), 317–321 T5 (three fonts), 322–324 T5 (a Font Info rename), 325–331 T5 (writes with three fonts), 332–496 F1, 497–520 V120 (the checks of 0.120 / 0.42), 521–533 INK (`inkBox()` research), 534–541 V121 (the checks of 0.121 / 0.43), 542–564 KW (kerning writes, below), 565–577 SK (`set_kerning` live checks, below); details in [LIVE-TESTS.md](LIVE-TESTS.md) and [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4).
 
 ### K-series: reading kerning (current priority, decision of the user of 2026-10-27; before the T-series)
 
@@ -72,8 +72,32 @@
 | 558 | File > Save As a new `.vfc` outside the repository | table and panel unchanged |
 | 559 | close with the font window's X | no save question |
 | 560 | File > Open of that file | the panel lists both pairs, footer 2; `get_kerning` the same |
+| 561 | S1 on the 560 file: (a) close with X, reopen; (b) `/debug/trysetkern?a=ks1L&b=ks1L&value=-50&form=tuple&go=yes`; (c) `get_kerning`; (d) close with X | (a) no question; the changed icon in the font's tab not blue; FontLab selects `.notdef` on opening; (b) `None` → -50.0, `len` 2 → 3; (c) -100, +20, -50, `table_size` 3; icon not blue, panel two rows; (d) **no save question** |
+| 562 | reopen, `get_kerning` | -100, +20, `ks1L:ks1L` 0 `none`, `table_size` 2: the pair was lost |
+| 563 | Undo on the reopened 560 file: (a) Edit menu; (b) `/debug/trysetkern?a=ks1L&b=ks1L&value=-50&form=tuple&go=yes`; (c) `get_kerning`; (d) Edit menu | (a) Undo and Redo greyed out; (b) `None` → -50.0, `len` 2 → 3; (c) -100, +20, -50, `table_size` 3; (d) **Undo still greyed out**, icon not blue, panel two rows; "Paste" had become an active "Paste Artwork", probably from a screenshot on the clipboard (inferred); cleanup close: no question |
+| 564 | the `flags` form on the reopened 560 file: (a) reopen; (b) `/debug/trysetkern?a=ks1L&b=ks1L&value=-50&form=flags&go=yes`; (c) `get_kerning`; (d) screen | (a) icon not blue; (b) no error, `None` → -50.0, `len` 2 → 3, returned `None`; (c) -100, +20, -50, `table_size` 3; (d) icon not blue, panel two rows; cleanup close: no question |
 
-**Open in the KW series:** the `flags` form; Edit > Undo after an API write; the save question on close after an API kerning write only (S1).
+**Open in the KW series:** pairs with classes; other masters; removing a pair.
+
+### SK series: `set_kerning` live checks (2026-11-04, listener 0.124 / server 0.44; results in [topics/kerning.md](topics/kerning.md) §14)
+
+On the saved KW file at the 560 stage (`ks1L:ks1R` -100, `ks1R:ks1L` +20), one font open unless stated.
+
+| Test | What | Result |
+|---|---|---|
+| 565 | `set_kerning [["ks1L", "ks1L", -50]]` | set, 0 `none` → -50 `glyph : glyph`, `table_size` 2 → 3; OUTPUT `kerning ks1L:ks1L: 0 -> -50 (verified)`; icon not blue, panel two rows |
+| 566 | `ks1L:ks1R` -80, then -100 | both set, `table_size` 3; after -80 the panel row still read -100 |
+| 567 | `ks1L:ks1L` -12.5 | not set: the entry reads -13.0; change counted |
+| 568 | `ks1L:ks1L` 12.5 | not set: 13.0 |
+| 569 | `ks1L:ks1L` 12.4 | not set: 12.0 (whole units, nearest, halves away from zero) |
+| 570 | `ks1L:ksZZ` -10 | refused: no glyph `ksZZ`; nothing changed |
+| 571 | `ks1L:ks1R` -1001 | refused: larger than upm 1000; nothing changed |
+| 572 | File > New Font in front (2 fonts); `.notdef:.notdef` -10; `get_kerning` | both refused (no file path); after closing it, `.notdef:.notdef` in the KW file `none`; the panel then listed three rows, 12 included |
+| 573 | `ks1R:ks1R` -30; (b) the font tab and the editor tab; (c) File > New Font, then the KW font's tab | set, `table_size` 3 → 4; (b) panel three rows; (c) **four rows**, `-30` included; cleanup close: no question |
+| 574 | `ks1L:ks1R` -80; the panel row; File > New Font, then the KW font's tab | set; the row read -100, then **-80** after the switch |
+| 575 | server 0.45: `set_kerning [["ks1L", "ks1L", 12.4]]` | refused before sending ("whole font units"); `ks1L:ks1L` still 12 |
+| 576 | server 0.45: `ks1L:ks1R` -100 | set, -80 → -100; the reply carries `matched_by` "only font" and the new panel wording |
+| 577 | KW file reopened at the 560 stage; `set_kerning` `ks1R:ks1R` -30; File > Save As `kw-save-577.vfc` (outside the repository); close; reopen | set (`table_size` 2 → 3); saved (OUTPUT line); reopened: panel 3 rows with -30; `get_kerning` -30 `glyph : glyph`, `table_size` 3; no save question at any point |
 
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 

@@ -1733,3 +1733,144 @@ _d26 = srv.get_glyph_outline.__doc__ or ""
 print("26z9 docs                       -> quadratic extents:", "cubic and quadratic segments" in _d26, "| FontLab's ink box:", "FontLab's own ink box vertically" in _d26,
       "| old 'quadratic stays unverified' gone:", "quadratic or malformed curves stay" not in _d26)
 print("26zz version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
+
+# ==== 27. server 0.44: set_kerning writes glyph : glyph pairs through POST /kerning/set (listener 0.124; faked listener replies) ====
+print("\n==== 27. server 0.44: set_kerning (faked listener replies) ====")
+_save27 = (srv._call_listener, srv._call_listener_post)
+K27 = {"version": "0.124", "reply": None, "paths": [], "posts": []}
+def _k27_get(path):
+    K27["paths"].append(path)
+    if path == "/version":
+        v = K27["version"]
+        if isinstance(v, Exception): raise v
+        return {"version": v}
+    raise AssertionError("unexpected GET " + path)
+def _k27_post(path, payload, timeout=0):
+    K27["posts"].append((path, payload, timeout))
+    r = K27["reply"]
+    if isinstance(r, Exception): raise r
+    return r
+srv._call_listener, srv._call_listener_post = _k27_get, _k27_post
+def k27(reply=None, version="0.124", **call):
+    K27["reply"] = reply; K27["version"] = version; K27["paths"].clear(); K27["posts"] = []
+    srv._reset_change_tracking()
+    try:
+        return srv.write_kerning(**call)
+    except srv.ToolError as e:
+        return "ToolError: " + str(e)
+def k27sent(): return [(p, pl) for p, pl, _t in K27["posts"]]
+def k27chg(): return (srv._CHANGES["package"], srv._CHANGES["package_unsure"])
+def side(value, source="glyph : glyph", **cls): return dict({"value": value, "kerned": value != 0, "source": source}, **cls)
+def okset(left, right, value, before=None, changed=True, over=False):
+    return {"left": left, "right": right, "requested": value, "before": before or side(0, "none"), "after": side(float(value)),
+            "status": "set", "set": True, "changed": changed, "exception_over_class": over}
+def setreply(results, **extra):
+    return dict({"open": True, "fonts_open": 1, "matched_by": "only font", "family_name": "Kern Test", "master": "Regular", "master_count": 1,
+                 "units_per_em": 1000.0, "count": len(results), "set_count": sum(1 for e in results if e.get("set") is True), "stopped": False,
+                 "table_size_before": 2, "table_size_after": 3, "table_size_as_expected": True, "results": results}, **extra)
+def row27(label, r):
+    if isinstance(r, str): print(label, ":", r[:400], "| changes", k27chg()); return
+    print(label, ":", {k: v for k, v in r.items() if k not in ("results", "agent_instruction")}, "| changes", k27chg())
+    for e in r["results"]: print("       ", e)
+
+r = k27(setreply([okset("ks2L", "ks2R", -50)]), pairs=[[" ks2L ", "ks2R", -50]]); row27("27a one new pair                ", r)
+print("27b request                      :", k27sent(), "| timeout", K27["posts"][0][2], "| GETs", K27["paths"])
+print("27c instruction                  :", r["agent_instruction"])
+r = k27(setreply([okset("A", "V", -152, before=side(-152.0), changed=False)], table_size_after=2), pairs=[["A", "V", -152]]); row27("27d the same value: no change    ", r)
+print("27d2 no save text when unchanged :", "finish_changes" not in r["agent_instruction"])
+r = k27(setreply([okset("Aacute", "W.c2sc", -30, before=side(-76.0, "class : class", left_class="Aring", right_class="W"), over=True)]), pairs=[["Aacute", "W.c2sc", -30]])
+row27("27e over a class value           ", r)
+r = k27(setreply([okset("A", "B", -60), okset("T", "o", -200, before=side(-227.0)), okset("V", "A", 10, before=side(-152.0))]), pairs=[["A", "B", -60], ["T", "o", -200], ("V", "A", 10)])
+row27("27f three pairs                  ", r)
+print("--- refused before anything is sent")
+for _lbl, _kw in (("27g pairs not a list          ", dict(pairs="A:V:-10")), ("27g2 pairs empty               ", dict(pairs=[])), ("27g3 an item of two            ", dict(pairs=[["A", "V"]])),
+                  ("27g4 a bad name                ", dict(pairs=[["A V", "W", -1]])), ("27g5 an empty name             ", dict(pairs=[["  ", "W", -1]])), ("27g6 a value that is True     ", dict(pairs=[["A", "V", True]])),
+                  ("27g7 a value as text           ", dict(pairs=[["A", "V", "-10"]])), ("27g8 NaN                       ", dict(pairs=[["A", "V", float("nan")]])),
+                  ("27g9 infinity                  ", dict(pairs=[["A", "V", float("-inf")]])), ("27g10 a pair twice (stripped)  ", dict(pairs=[["A", "V", -1], [" A", "V ", -2]])),
+                  ("27g11 flag not a bool          ", dict(pairs=[["A", "V", -1]], confirmed_large_write="yes")), ("27g12 a name not a string      ", dict(pairs=[[5, "V", -1]]))):
+    r = k27(setreply([]), **_kw); print(_lbl, ":", r[:200], "| sent", k27sent(), "| GETs", K27["paths"], "| changes", k27chg())
+r = k27(setreply([]), pairs=[["A", "V", -1]] * 1 + [[f"g{i}", "V", -1] for i in range(250)]); print("27h 251 pairs, no approval       :", r[:160], "| sent", len(k27sent()))
+print("27h2 refusal text mentions       :", all(w in r for w in ("251 kerning pairs", "250-pair threshold", "nothing was changed", "ask whether they approve", "confirmed_large_write=true", "Never set that flag")))
+_big = [[f"g{i}", "V", -1] for i in range(251)]
+r = k27(setreply([okset(a, b, v) for a, b, v in _big]), pairs=_big, confirmed_large_write=True); print("27h3 251 pairs, approved         :", r.get("set_count"), r.get("large_write_confirmed"), "| timeout", K27["posts"][0][2])
+r = k27(setreply([okset(a, b, v) for a, b, v in _big[:250]]), pairs=_big[:250]); print("27h4 250 pairs need no approval  :", r.get("set_count"), "large_write_confirmed" in r)
+for _v in ("0.123", "0.104"):
+    r = k27(setreply([okset("A", "V", -1)]), version=_v, pairs=[["A", "V", -1]]); print("27i listener", _v.ljust(6), "          :", r[:150], "| sent", k27sent())
+r = k27(setreply([okset("A", "V", -1)]), version=RuntimeError("down"), pairs=[["A", "V", -1]]); print("27i2 version unreadable           :", "set" if isinstance(r, dict) else r[:90], "| sent", len(k27sent()))
+print("--- the listener's answer")
+r = k27({"open": False}, pairs=[["A", "V", -1]]); row27("27j no font open                 ", r)
+r = k27({"open": True, "error": "no glyph named 'Q' in the current font; nothing was set"}, pairs=[["Q", "V", -1]]); row27("27k listener refuses             ", r)
+r = k27(setreply([okset("A", "V", -1)]), pairs=[["A", "V", -1], ["T", "o", -2]]); row27("27l answer has too few results   ", r)
+r = k27(dict(setreply([]), results="x"), pairs=[["A", "V", -1]]); row27("27l2 results not a list         ", r)
+_fail2 = {"left": "T", "right": "o", "requested": -200, "before": side(-227.0), "after": side(-227.0), "status": "failed", "set": False, "changed": False,
+          "exception_over_class": False, "call_error": "RuntimeError: set boom", "reason": "kerning.set raised RuntimeError: set boom"}
+r = k27(setreply([okset("A", "B", -60), _fail2, {"left": "V", "right": "A", "requested": -10, "status": "not attempted"}], stopped=True), pairs=[["A", "B", -60], ["T", "o", -200], ["V", "A", -10]])
+row27("27m stopped at pair 2 of 3       ", r)
+r = k27(setreply([_fail2, {"left": "V", "right": "A", "requested": -10, "status": "not attempted"}], stopped=True), pairs=[["T", "o", -200], ["V", "A", -10]])
+row27("27n first pair failed, unchanged ", r)
+_unk = dict(_fail2, changed=None, after={"error": "kerning.get raised RuntimeError: boom"}, reason="the entry could not be read back: boom")
+r = k27(setreply([_unk], stopped=True), pairs=[["T", "o", -200]]); row27("27o read back failed: unknown    ", r)
+_round = dict(_fail2, call_error=None, after=side(-13.0), changed=True, reason="the entry reads -13.0 after setting, not -12"); _round.pop("call_error")
+r = k27(setreply([_round], stopped=True), pairs=[["T", "o", -12]]); row27("27p another value stored: changed", r)
+_lie = okset("A", "V", -30, before=side(-76.0, "class : class", left_class="Aring", right_class="W")); _lie["after"] = side(-76.0, "class : class", left_class="Aring", right_class="W")
+r = k27(setreply([_lie]), pairs=[["A", "V", -30]]); row27("27q set true, a class answers    ", r)
+_lie2 = okset("A", "V", -30); _lie2["after"] = side(-31.0)
+r = k27(setreply([_lie2]), pairs=[["A", "V", -30]]); row27("27q2 set true, another value     ", r)
+_lie3 = okset("A", "V", -30); _lie3["changed"] = "yes"
+r = k27(setreply([_lie3]), pairs=[["A", "V", -30]]); row27("27q3 changed not a bool          ", r)
+r = k27(setreply([okset("T", "o", -30)]), pairs=[["A", "V", -30]]); row27("27r answered for another pair    ", r)
+r = k27(setreply([okset("A", "B", -60)], table_size_as_expected=False), pairs=[["A", "B", -60]]); row27("27s table grew unexpectedly      ", r)
+print("27s2 warning in the instruction  :", "WARNING" in r["agent_instruction"])
+r = k27(setreply([okset("A", "B", -60)], fonts_open=2, matched_by="path", master_count=3, master="Bold"), pairs=[["A", "B", -60]]); row27("27t two fonts, three masters     ", r)
+print("27t2 notes                       :", "2 fonts are open" in r["agent_instruction"], "(Kern Test)" in r["agent_instruction"], "3 masters" in r["agent_instruction"])
+r = k27(setreply([okset("A", "B", -60)], fonts_open=True, family_name="x" * 64, master=5, units_per_em="1000", table_size_before=True), pairs=[["A", "B", -60]]); row27("27u odd header values dropped    ", r)
+r = k27(setreply([dict(okset("A", "B", -60), before={"value": "x", "source": "none"})]), pairs=[["A", "B", -60]]); row27("27v unusable 'before' value      ", r)
+r = k27(srv.OutcomeUnknown("The FontLab listener did not answer /kerning/set within 5s."), pairs=[["A", "B", -60]]); row27("27w timeout: outcome unknown     ", r)
+r = k27(srv.ToolError("Cannot reach the listener"), pairs=[["A", "B", -60]]); row27("27w2 listener not reachable      ", r)
+print("--- the tool")
+_src27 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
+_body27 = _src27[_src27.index("_KERN_SET_INSTRUCTION = ("):_src27.index("def _check_polygon_points(")]
+print("27x static scan                  : posts", _re19.findall(r'_write_post\("([^"]+)"', _body27), "| direct posts", len(_re19.findall(r"_call_listener_post\(", _body27)),
+      "| GETs", len(_re19.findall(r"_call_listener\(", _body27)), "| save", bool(_re19.search(r"\.save\(|save\(", _body27)), "| requires 0.124", '_require_listener((0, 124), "set_kerning")' in _body27,
+      "| read scan (19ci) ends before it:", _src27.index("def write_glyph_sidebearings(") < _src27.index("_KERN_SET_INSTRUCTION = ("))
+_d27 = srv.set_kerning.__doc__ or ""
+_need27 = ("[left, right, value]", "class (group) names cannot be used", "exception_over_class", "verified by re-reading", "'before'", "More than 250 pairs",
+           "Never set confirmed_large_write=true on your own", "only after switching", "another open font and back", "saved and reopened", "whole numbers", "asks no save",
+           "Edit > Undo cannot take them back", "whose window is in front", "Needs listener v0.124", "NEVER saves", "finish_changes ONCE")
+print("27y docstring key phrases        :", [w for w in _need27 if w not in _d27] == [], "| missing", [w for w in _need27 if w not in _d27], "| save shortcut filled in:", "SAVE_KEYS" not in _d27)
+K27["reply"] = setreply([okset("A", "B", -60)]); K27["version"] = "0.124"
+srv._reset_change_tracking(); _w27 = srv.set_kerning(pairs=[["A", "B", -60]]); srv._reset_change_tracking(); _d27r = srv.write_kerning(pairs=[["A", "B", -60]])
+print("27z wrapper equals write_kerning :", {k: v for k, v in _w27.items() if k not in ("font", "fonts_open")} == {k: v for k, v in _d27r.items() if k not in ("font", "fonts_open")}, "| font field added:", "font" in _w27 or "fonts_open" in _w27)
+print("--- server 0.45: whole units, the entry's value after a failure, matched_by, message fixes (live 567-569, 574)")
+for _lbl, _p in (("27za -12.5 refused before sending", [["A", "V", -12.5]]), ("27zb 12.4 refused              ", [["A", "V", 12.4]]),
+                 ("27zc 0.5 in pair 2 of 2         ", [["A", "V", -10], ["T", "o", 0.5]]), ("27zd a tiny fraction           ", [["A", "V", -10.000001]])):
+    r = k27(setreply([]), pairs=_p); print(_lbl, ":", r[:200], "| sent", k27sent(), "| GETs", K27["paths"], "| changes", k27chg())
+r = k27(setreply([okset("A", "V", -12)]), pairs=[["A", "V", -12.0]]); print("27ze -12.0 is whole: sent        :", k27sent(), "| set", r.get("set_count") if isinstance(r, dict) else r[:120])
+r = k27(setreply([okset("A", "V", 1000)]), pairs=[["A", "V", 1000]]); print("27zf a large whole number        :", r.get("set_count") if isinstance(r, dict) else r[:120])
+for _lbl, _m in (("27zg matched_by path            ", "path"), ("27zh matched_by odd: dropped    ", "guess"), ("27zi matched_by missing        ", None)):
+    _rep = setreply([okset("A", "B", -60)]); _rep.pop("matched_by")
+    if _m is not None: _rep["matched_by"] = _m
+    r = k27(_rep, pairs=[["A", "B", -60]]); print(_lbl, ":", r.get("matched_by"))
+r = k27({"open": True, "error": "the kerning table of master 'Regular' is not reachable: RuntimeError: boom"}, pairs=[["A", "V", -1]]); print("27zj refusal without the listener's 'nothing was set':", r)
+r = k27({"open": True, "error": "no glyph named 'Q' in the current font; nothing was set."}, pairs=[["Q", "V", -1]]); print("27zk listener text ends in a stop :", r)
+_held = dict(_fail2, call_error=None, after=side(-13.0), changed=True, reason="the entry reads -13.0 after setting, not -12"); _held.pop("call_error")
+r = k27(setreply([okset("A", "B", -60), _held], stopped=True), pairs=[["A", "B", -60], ["T", "o", -12]]); print("27zl now holds, after one set     :", r)
+_noafter = dict(_fail2, call_error=None, changed=True, reason="odd"); _noafter.pop("call_error"); _noafter.pop("after")
+r = k27(setreply([_noafter], stopped=True), pairs=[["T", "o", -12]]); print("27zm changed, no 'after' value   :", "now holds" in r, "|", r[:160])
+_errafter = dict(_noafter, after={"error": "boom"})
+r = k27(setreply([_errafter], stopped=True), pairs=[["T", "o", -12]]); print("27zn changed, 'after' an error   :", "now holds" in r)
+r = k27(setreply([_fail2], stopped=True), pairs=[["T", "o", -200]]); print("27zo unchanged: no 'now holds'   :", "now holds" in r)
+r = k27(setreply([okset("A", "B", -60)]), pairs=[["A", "B", -60]]); _i27 = r["agent_instruction"]
+print("27zp instruction: panel facts    :", all(w in _i27 for w in ("a new pair is missing from the panel", "keeps its old value", "switches to another open font and back",
+      "File > New Font", "saves and reopens")), "| old wording gone:", "does not list the pair until" not in _i27)
+_save27b = srv._call_listener_post
+for _lbl, _err in (("27zq read refusal: stop added    ", "2 fonts are open; close the others"), ("27zr read refusal: one stop only ", "the table is not reachable."),
+                   ("27zs read refusal: question mark", "was another window brought to the front?")):
+    srv._call_listener_post = lambda p, pl, timeout=0, e=_err: {"open": True, "error": e}
+    try: srv.read_kerning(pairs=[["A", "V"]]); _o = "no error"
+    except srv.ToolError as e: _o = str(e)
+    print(_lbl, ":", _o)
+srv._call_listener_post = _save27b
+print("27zz version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
+srv._call_listener, srv._call_listener_post = _save27
+srv._reset_change_tracking()

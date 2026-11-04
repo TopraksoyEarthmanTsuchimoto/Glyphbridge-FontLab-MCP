@@ -3109,7 +3109,7 @@ class KPFont:
     def glyphs(self):
         if KP["glyph_boom"]: raise RuntimeError("glyph list boom")
         return list(_KP_GLYPHS)
-_KP_PKG_OK = ("isNull", "masters", "master", "kerning", "getAllGroups", "path")
+_KP_PKG_OK = ("isNull", "masters", "master", "kerning", "getAllGroups", "path", "upm")
 class KPPackage:
     def __getattribute__(self, n):
         if not n.startswith("_"):
@@ -3144,8 +3144,13 @@ class KPPackage:
             m = KP["cfg"].get("kerning_call")
             if isinstance(m, Exception): raise m
             if m == "no_get": return object()
-            return KPKern()
+            return KP["cfg"].get("kern_factory", KPKern)()      # v0.124: KSKern for the /kerning/set cases
         return _kerning
+    @property
+    def upm(self):
+        v = KP["cfg"].get("upm", 2048.0)
+        if isinstance(v, Exception): raise v
+        return v
     @property
     def getAllGroups(self):
         v = KP["cfg"].get("getall_attr")
@@ -5500,3 +5505,157 @@ for _m, _a, _v in _rk_saved:
         if hasattr(_m, _a): delattr(_m, _a)
     else: setattr(_m, _a, _v)
 ns["_TRYKERNREFRESH"]["calls"] = 0
+
+# ================= v0.124: POST /kerning/set (writes glyph : glyph pairs with the flags key; verified by re-reading; spies) =================
+print("\n==== v0.124 POST /kerning/set ====")
+# The /kerning/pairs fakes above (KP, KPFont, KPPackage, the glyph list and _KP_TABLE) with a kerning table that can be SET:
+# KSKern allows set and nothing else that writes; every set key must be the flags form ((a, False), (b, False)).
+KS = {"new": {}, "sets": [], "set_mode": None, "extra": 0, "after_set_get": None, "flaky": set()}
+_KS_FORBIDDEN = tuple(n for n in _KP_FORBIDDEN if n != "set")
+class KSKern(KPKern):
+    def __getattribute__(self, n):
+        if not n.startswith("__"):
+            KP["touched"].append(n); KP["all_touched"].add(n)
+            if n in _KS_FORBIDDEN:
+                KP["forbidden"].append(n)
+                raise SystemExit("FORBIDDEN kerning member touched: " + n)
+            if n == "set" and KS["set_mode"] == "not_callable": return 9
+            if n == "set" and KS["set_mode"] == "no_attr": raise AttributeError("set is missing")
+        return object.__getattribute__(self, n)
+    def __len__(self):
+        if KP["len_raises"]: raise RuntimeError("len boom")
+        fresh = sum(1 for k in KS["new"] if _KP_TABLE.get(k) is None and not isinstance(KP["mode"].get(k), float))
+        return KP["len"] + fresh + (KS["extra"] if KS["sets"] else 0)
+    def get(self, pair):
+        scripted = KS["script"].get(pair)
+        if scripted:                       # answers for one key, one per get, in order: before (effective, exact), after (exact, effective)
+            KP["gets"].append(pair); v = scripted.pop(0)
+            if isinstance(v, Exception): raise v
+            return v
+        if KS["sets"] and KS["after_set_get"] == "raise" and pair in KS["new"]:
+            KP["gets"].append(pair); raise RuntimeError("get boom after set")
+        if pair in KS["flaky"]:
+            KS["flaky"].discard(pair); KP["gets"].append(pair); return KS["new"].get(pair)
+        if pair in KS["new"] and pair not in KS.get("hidden", ()):
+            KP["gets"].append(pair); return KS["new"][pair]
+        return KPKern.get(self, pair)
+    def set(self, key, value):
+        KS["sets"].append((key, value))
+        flagged = (isinstance(key, tuple) and len(key) == 2 and all(isinstance(p, tuple) and len(p) == 2 and p[1] is False for p in key))
+        if not flagged:
+            KP["forbidden"].append("set with key " + repr(key)); KP["ever"].append("set key " + repr(key)); return None
+        m = KS["set_mode"]
+        if isinstance(m, dict): m = m.get((key[0][0], key[1][0]))
+        if m == "raise": raise RuntimeError("set boom")
+        if m == "ignore": return None
+        if m == "round": value = float(round(value))
+        if m == "flaky": KS["flaky"].add(key); KS.setdefault("hidden", set()).add(key)
+        KS["new"][key] = value
+        if m == "raise_after": raise RuntimeError("set boom after writing")
+        return None
+def ks_setup(set_mode=None, extra=0, after_set_get=None, script=None, **cfg):
+    kp_setup(kern_factory=KSKern, **cfg)
+    KS.update(new={}, sets=[], set_mode=set_mode, extra=extra, after_set_get=after_set_get, flaky=set(), hidden=set(),
+              script={k: list(v) for k, v in (script or {}).items()})
+def ksp(tag, payload, raw=False):
+    body = payload if raw else json.dumps(payload).encode("utf-8")
+    r = ns["_route"]("POST", "/kerning/set", body); h, _, b = r.partition(b"\r\n\r\n")
+    c, d = h.split(b"\r\n")[0].decode()[9:12], json.loads(b)
+    print(tag, ":", c, {k: v for k, v in d.items() if k != "results"}, "| set calls", KS["sets"], "| forbidden", list(KP["forbidden"]))
+    for r_ in d.get("results") or []:
+        print("      ", r_)
+    return c, d
+_ks_cf = getattr(fl, "CountFonts", None); _ks_cur = fl.CurrentFont; _ks_ws = getattr(fl, "flWorkspace", None)
+KP["ever"].clear()
+ks_setup(); ksp("2000 a new pair                  ", {"pairs": [["A", "B", -60]]})
+ks_setup(); ksp("2001 an existing pair changed    ", {"pairs": [["A", "V", -100]]})
+ks_setup(); ksp("2002 the same value again        ", {"pairs": [["A", "V", -152]]})
+ks_setup(); ksp("2003 over a class : class value  ", {"pairs": [["Aacute", "Wgrave.c2sc", -30]]})
+print("2003b keys asked, in order        :", KP["gets"])
+ks_setup(); ksp("2004 three pairs                 ", {"pairs": [["A", "B", -60], ["T", "o", -200], ["V", "A", 10.5]]})
+ks_setup(); ksp("2005 zero: an explicit entry     ", {"pairs": [["A", "B", 0]]})
+ks_setup(); ksp("2006 defect B: glyph Aring, class Aring exists", {"pairs": [["Aring", "V", -45]]})
+ks_setup(upm=1000.0); ksp("2007 |value| = upm is allowed    ", {"pairs": [["A", "B", -1000]]})
+ks_setup(count=2); ksp("2008 two fonts, matched by path  ", {"pairs": [["A", "B", -60]]})
+print("--- refused before any write (set calls must stay empty)")
+ks_setup(); ksp("2010 unknown glyphs              ", {"pairs": [["A", "B", -60], ["Q", "V", -10], ["A", "Zz", 5]]})
+ks_setup(upm=1000.0); ksp("2011 a value above upm           ", {"pairs": [["A", "B", -60], ["T", "o", -1000.5]]})
+for _tag, _u in (("2012 upm raises                 ", RuntimeError("upm boom")), ("2012b upm is 0                  ", 0), ("2012c upm is True               ", True), ("2012d upm is text               ", "1000")):
+    ks_setup(upm=_u); ksp(_tag, {"pairs": [["A", "B", -60]]})
+for _tag, _p in (("2013 pairs empty                ", []), ("2013b pairs not a list         ", {"A": "B"}), ("2013c an item of two           ", [["A", "B"]]),
+                 ("2013d a name with a space       ", [["A B", "V", -10]]), ("2013e a value that is True     ", [["A", "V", True]]), ("2013f a value as text          ", [["A", "V", "-10"]]),
+                 ("2013g a pair twice              ", [["A", "V", -10], ["T", "o", 5], ["A", "V", -12]]), ("2013h a tuple-like item       ", ["AV-10"]), ("2013i a value of null           ", [["A", "V", None]])):
+    ks_setup(); ksp(_tag, {"pairs": _p})
+ks_setup(); ksp("2013j NaN                        ", b'{"pairs": [["A", "V", NaN]]}', raw=True)
+ks_setup(); ksp("2013k Infinity                   ", b'{"pairs": [["A", "V", -Infinity]]}', raw=True)
+ks_setup(); ksp("2013l another key in the body    ", {"pairs": [["A", "V", -10]], "go": "yes"})
+ks_setup(); ksp("2013m no pairs key              ", {"pair": [["A", "V", -10]]})
+ks_setup(); ksp("2013n body not JSON              ", b"pairs=A:V:-10", raw=True)
+ks_setup(); ksp("2013o body empty                 ", b"", raw=True)
+ks_setup(count=0); ksp("2014 no font open (CountFonts 0)  ", {"pairs": [["A", "V", -10]]})
+ks_setup(cur=None); ksp("2014b CurrentFont None          ", {"pairs": [["A", "V", -10]]})
+ks_setup(count=None); ksp("2014c CountFonts gives None     ", {"pairs": [["A", "V", -10]]})
+ks_setup(count=2, pkg_path="C:/fonts/other.vfc"); ksp("2015 two fonts, paths differ     ", {"pairs": [["A", "V", -10]]})
+ks_setup(count=2, font_path=""); ksp("2015b two fonts, an unsaved one in front", {"pairs": [["A", "V", -10]]})
+ks_setup(master="Ghost"); ksp("2016 current master unlisted     ", {"pairs": [["A", "V", -10]]})
+ks_setup(kerning_call=RuntimeError("kerning() boom")); ksp("2016b kerning(master) raises   ", {"pairs": [["A", "V", -10]]})
+ks_setup(set_mode="not_callable"); ksp("2017 set not callable            ", {"pairs": [["A", "V", -10]]})
+ks_setup(set_mode="no_attr"); ksp("2017b set missing               ", {"pairs": [["A", "V", -10]]})
+print("--- failures while writing: the request stops at the first pair not confirmed")
+ks_setup(ids={"T": (RuntimeError("left boom"), 0)}); ksp("2018 value before unreadable     ", {"pairs": [["A", "B", -60], ["T", "o", -200], ["V", "A", -10]]})
+ks_setup(mode={("T", "o"): "raise"}); ksp("2018b get raises before the write", {"pairs": [["T", "o", -200], ["A", "B", -60]]})
+ks_setup(set_mode={("T", "o"): "raise"}); ksp("2020 set raises on pair 2 of 3   ", {"pairs": [["A", "B", -60], ["T", "o", -200], ["V", "A", -10]]})
+ks_setup(set_mode="ignore"); ksp("2021 set does nothing            ", {"pairs": [["A", "B", -60]]})
+ks_setup(set_mode="round"); ksp("2022 FontLab rounds the value    ", {"pairs": [["A", "B", -12.5]]})
+ks_setup(set_mode="raise_after"); ksp("2023 set writes, then raises     ", {"pairs": [["A", "B", -60], ["T", "o", -200]]})
+ks_setup(after_set_get="raise"); ksp("2024 read back raises            ", {"pairs": [["A", "B", -60]]})
+ks_setup(set_mode="flaky"); ksp("2025 class value answers after   ", {"pairs": [["Aacute", "Wgrave.c2sc", -30]]})
+_ks_aw, _ks_ab = (("Aacute", False), ("Wgrave.c2sc", False)), (("A", False), ("B", False))
+ks_setup(script={_ks_aw: [None, None, -76.0, None]}); ksp("2025b a class gives the same value", {"pairs": [["Aacute", "Wgrave.c2sc", -76]]})
+ks_setup(script={_ks_ab: [None, None, -61.0, -60.0]}); ksp("2025c the exact entry reads wrong", {"pairs": [["A", "B", -60]]})
+ks_setup(script={_ks_ab: [None, "text"]}); ksp("2018c exact entry unreadable before", {"pairs": [["A", "B", -60], ["T", "o", -200]]})
+ks_setup(extra=1); ksp("2026 table grew by one too many  ", {"pairs": [["A", "B", -60]]})
+KP["len_raises"] = False; ks_setup(); KP["len_raises"] = True; ksp("2027 len() raises               ", {"pairs": [["A", "B", -60]]})
+print("2030 spy over the set cases       : forbidden members touched:", [f for f in KP["ever"]], "| plain set keys: none above")
+_ks_real = ns["set_kerning_pairs"]
+def _ks_boom(pairs): raise RuntimeError("set boom in the route")
+ns["set_kerning_pairs"] = _ks_boom; ks_setup(); ksp("2031 function raises: HTTP 500   ", {"pairs": [["A", "V", -10]]}); ns["set_kerning_pairs"] = _ks_real
+print("2032 GET /kerning/set             :", call("/kerning/set?pairs=A:V:-10"))
+_ks_src = src[src.index("_KERN_CLASS_SOURCES = "):src.index("\ndef ", src.index("def set_kerning_pairs(") + 10)]
+_ks_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _ks_src).splitlines())
+_ks_body = _re83.sub(r'(?s)"""(.*?)"""', '', _ks_code)
+print("2033 static scan                  : kerning members used:", sorted(set(_re83.findall(r"kerning\.(\w+)", _ks_body))), "| setter( calls:", len(_re83.findall(r"\bsetter\(", _ks_body)),
+      "| getter( calls:", len(_re83.findall(r"\bgetter\(", _ks_body)), "| set keys:", sorted(set(_re83.findall(r"setter\((\w+)", _ks_body))),
+      "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|add\w*|clear\w*|keys|values|items|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|scale|rename\w*)\(", _ks_body.replace("entry.update(", "").replace("seen.add(", "")),
+      "| Update(:", "Update(" in _ks_body, "| font members:", sorted(set(_re83.findall(r"\bfont\.(\w+)", _ks_body))), "| pkg members:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _ks_body))),
+      "| gate go=:", "go" in _re83.findall(r"\bgo\b", _ks_body), "| scanned chars > 4000:", len(_ks_src) > 4000)
+print("2034 the key is the flags form    :", "key = ((left, False), (right, False))" in _ks_src, "| route registered once:", src.count('if path == "/kerning/set":') == 1,
+      "| write log kind:", ns["_ACT_WRITES"].get("/kerning/set"), "| the read scan (1180) still ends before it:", src.index("def _other_glyphs_with_unicode(") < src.index("def set_kerning_pairs("))
+fl.CurrentFont = _ks_cur
+if _ks_cf is not None: fl.CountFonts = _ks_cf
+elif hasattr(fl, "CountFonts"): delattr(fl, "CountFonts")
+if _ks_ws is not None: fl.flWorkspace = _ks_ws
+elif hasattr(fl, "flWorkspace"): delattr(fl, "flWorkspace")
+
+print("--- the activity log line of /kerning/set")
+_ks_al_saved = {k: ns[k] for k in ("_now_hms", "_clock", "_ACTIVITY_LOG")}
+ns["_now_hms"] = lambda: "12:00:00"; ns["_clock"] = lambda: 1000.0
+def ks_al(tag, body, code, reply):
+    print(tag)
+    ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+    raw = json.dumps(body).encode() if isinstance(body, (dict, list)) else (body or b"")
+    ns["_activity_note"]("POST", "/kerning/set", raw, ns["_build_response"](code, reply), "claude-code")
+    ns["_act_flush"]()
+_ks_one = {"left": "ks2L", "right": "ks2R", "requested": -50, "before": {"value": 0, "kerned": False, "source": "none"},
+           "after": {"value": -50.0, "kerned": True, "source": "glyph : glyph"}, "status": "set", "set": True, "changed": True, "exception_over_class": False}
+ks_al("2040 one pair, verified:", {"pairs": [["ks2L", "ks2R", -50]]}, 200, {"open": True, "set_count": 1, "stopped": False, "results": [_ks_one]})
+ks_al("2041 three pairs, verified:", {"pairs": [["a", "b", 1], ["c", "d", 2], ["e", "f", 3]]}, 200, {"open": True, "results": [_ks_one] * 3})
+ks_al("2042 stopped at pair 2:", {"pairs": [["a", "b", 1], ["T", "o", 2], ["e", "f", 3]]}, 200,
+      {"open": True, "results": [_ks_one, {"left": "T", "right": "o", "status": "failed", "set": False, "reason": "kerning.set raised RuntimeError: set boom"}, {"left": "e", "right": "f", "status": "not attempted"}]})
+ks_al("2043 refused by the listener:", {"pairs": [["A", "Q", -10]]}, 200, {"open": True, "error": "no glyph named 'Q' in the current font; nothing was set"})
+ks_al("2044 bad request:", {"pairs": []}, 400, {"error": '"pairs" must be a non-empty list of [left, right, value]'})
+ks_al("2045 no font open:", {"pairs": [["A", "V", -10]]}, 200, {"open": False})
+ks_al("2046 HTTP 500:", {"pairs": [["A", "V", -10]]}, 500, {"error": "RuntimeError: boom"})
+ks_al("2047 body unreadable:", b"\xff", 400, {"error": "request body was not valid JSON"})
+for k, v in _ks_al_saved.items(): ns[k] = v
+ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)

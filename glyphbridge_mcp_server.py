@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.43)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.45)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.43"         # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.45"         # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -999,7 +999,8 @@ def read_kerning(pairs: Any = None, text: Any = None, confirmed_large_read: Any 
     if not data.get("open"):
         raise ToolError(NO_FONT)
     if isinstance(data.get("error"), str) and data["error"]:
-        raise ToolError(f"Kerning could not be read: {data['error'][:600]}")
+        reason = data["error"][:600].rstrip()
+        raise ToolError(f"Kerning could not be read: {reason}" + ("" if reason.endswith((".", "!", "?")) else "."))
     raw_results = data.get("results")
     if not isinstance(raw_results, list) or len(raw_results) != len(expected):
         raise ToolError("Kerning could not be read: the listener's answer did not match the request. Nothing was changed.")
@@ -1086,6 +1087,156 @@ def write_glyph_sidebearings(name: str, left: float, right: Any = None) -> dict:
 
 
 _POLY_LIMITS = (3, 500)
+
+
+_KERN_SET_INSTRUCTION = (
+    "Each pair marked set was written as a glyph : glyph entry in the current master's kerning table (master names it) and verified "
+    "by re-reading it. 'before' is the value FontLab applied before, with its source; 'after' is the value now. exception_over_class "
+    "true means the pair had a class value before: the new entry is an exception for these two glyphs only. Tell the person these "
+    "facts about kerning written this way: (1) FontLab applies the value in text at once, but its KERNING panel does not show it "
+    "yet: a new pair is missing from the panel and a pair it already lists keeps its old value, until the person switches to "
+    "another open font and back (with one font open: File > New Font, then back to this font's tab; the new font can be closed "
+    "without saving) or saves and reopens the font. (2) FontLab does not count it as a change: closing the font asks no save "
+    "question and loses the pair silently. (3) Edit > Undo cannot take it back; to revert, call set_kerning again with the "
+    "'before' value. A pair that had no entry (source 'none') cannot be removed again: setting it to 0 leaves an explicit zero "
+    "entry. Other masters, classes and feature-based kerning were not changed."
+)
+
+
+def _kern_set_items(pairs: Any) -> list:
+    """The pairs as a clean list of (left, right, value), or a ToolError (before anything is sent)."""
+    if not isinstance(pairs, (list, tuple)) or len(pairs) < 1:
+        raise ToolError("pairs must be a list of at least one [left, right, value] item, for example [[\"A\", \"V\", -60]].")
+    clean, seen = [], set()
+    for i, item in enumerate(pairs):
+        if (not isinstance(item, (list, tuple)) or len(item) != 3
+                or not all(isinstance(n, str) and _KERN_NAME_RE.match(n.strip() or "!") for n in item[:2])):
+            raise ToolError(f"pair {i + 1} must be [left, right, value]: two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - "
+                            f"and a number (got {item!r}). Class (group) names cannot be used.")
+        value = item[2]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value or abs(value) == float("inf"):
+            raise ToolError(f"pair {i + 1} ({item[0].strip()}:{item[1].strip()}): the value must be a number in font units.")
+        if value != int(value):
+            # v0.45: FontLab stores kerning in whole units, rounded to the nearest, halves away from zero (live 567-569)
+            raise ToolError(f"pair {i + 1} ({item[0].strip()}:{item[1].strip()}): FontLab keeps kerning in whole font units, so {value} "
+                            "would not be stored as given; give a whole number. Nothing was changed.")
+        left, right = item[0].strip(), item[1].strip()
+        if (left, right) in seen:
+            raise ToolError(f"pair {i + 1} ({left}:{right}) is given more than once; give each pair once. Nothing was changed.")
+        seen.add((left, right))
+        clean.append((left, right, value))
+    return clean
+
+
+def _kern_set_side(raw: Any, left: str, right: str) -> dict:
+    """A 'before' or 'after' value from the listener, checked like a read result: value, kerned, source and class names, or error."""
+    entry = _kern_entry(dict(raw, left=left, right=right) if isinstance(raw, dict) else raw, (left, right))
+    entry.pop("left", None)
+    entry.pop("right", None)
+    return entry
+
+
+def write_kerning(pairs: Any, confirmed_large_write: Any = None) -> dict:
+    if confirmed_large_write is not None and not isinstance(confirmed_large_write, bool):
+        raise ToolError("confirmed_large_write must be true or false (or left out).")
+    wanted = _kern_set_items(pairs)
+    large = len(wanted) > _KERN_CONFIRM_ABOVE
+    if large and confirmed_large_write is not True:
+        raise ToolError(
+            f"This request would set {len(wanted)} kerning pairs, more than the {_KERN_CONFIRM_ABOVE}-pair threshold, and nothing was changed. "
+            "Do NOT repeat the call yet. Tell the person how many pairs you want to set and why, and ask whether they approve. "
+            "Only after they have said yes, call set_kerning again with the same arguments and confirmed_large_write=true. Never set that flag without the person's approval.")
+    _require_listener((0, 124), "set_kerning")
+    data = _write_post("/kerning/set", {"pairs": [[a, b, v] for a, b, v in wanted]}, timeout=max(TIMEOUT_SECONDS, 5.0 + len(wanted) / 25.0))
+    if not data.get("open"):
+        raise ToolError(NO_FONT)
+    if isinstance(data.get("error"), str) and data["error"]:
+        refusal = data["error"][:600].rstrip(" .")
+        raise ToolError(f"Kerning was NOT set: {refusal}." + ("" if refusal.endswith("nothing was set") else " Nothing was changed."))
+    raw_results = data.get("results")
+    if not isinstance(raw_results, list) or len(raw_results) != len(wanted):
+        _note_change(sure=False)
+        raise ToolError(f"The listener's answer to set_kerning did not match the request, so it is not known which pairs were set. {_UNSURE_NOTE}")
+    results, changed, unsure = [], False, False
+    for raw, (left, right, value) in zip(raw_results, wanted):
+        raw = raw if isinstance(raw, dict) else {}
+        entry = {"left": left, "right": right, "requested": _tidy_number(value)}
+        if raw.get("left") != left or raw.get("right") != right:
+            unsure = True
+            entry.update(status="unknown", reason="the listener answered for a different pair, so whether this pair was set is not known")
+            results.append(entry)
+            continue
+        status = raw.get("status")
+        if status == "not attempted":
+            entry["status"] = status
+            results.append(entry)
+            continue
+        if "before" in raw:
+            entry["before"] = _kern_set_side(raw.get("before"), left, right)
+        if "after" in raw:
+            entry["after"] = _kern_set_side(raw.get("after"), left, right)
+        verified = (raw.get("set") is True and status == "set" and raw.get("changed") in (True, False)
+                    and isinstance(entry.get("after"), dict) and entry["after"].get("source") == "glyph : glyph" and entry["after"].get("value") == _tidy_number(value))
+        entry["status"] = "set" if verified else "failed"
+        entry["changed"] = raw.get("changed") if raw.get("changed") in (True, False) else None
+        if raw.get("exception_over_class") is True and verified:
+            entry["exception_over_class"] = True
+        if not verified:
+            reason = raw.get("reason")
+            entry["reason"] = reason[:600] if isinstance(reason, str) and reason else "the listener did not confirm this pair by re-reading it"
+            if isinstance(raw.get("call_error"), str):
+                entry["call_error"] = raw["call_error"][:300]
+        if entry["changed"] is True:
+            changed = True
+        elif entry["changed"] is None and status != "not attempted" and "after" in raw:
+            unsure = True
+        results.append(entry)
+    set_count = sum(1 for e in results if e["status"] == "set")
+    upm, master, master_count = data.get("units_per_em"), data.get("master"), data.get("master_count")
+    fonts_open, family, matched_by = data.get("fonts_open"), data.get("family_name"), data.get("matched_by")
+    size_before, size_after = data.get("table_size_before"), data.get("table_size_after")
+    reply = {"fonts_open": fonts_open if isinstance(fonts_open, int) and not isinstance(fonts_open, bool) and fonts_open >= 1 else None,
+             "matched_by": matched_by if matched_by in ("only font", "path") else None,
+             "family_name": family if isinstance(family, str) and 1 <= len(family) <= 63 and family.isprintable() else None,
+             "master": master if isinstance(master, str) and 1 <= len(master) <= 63 and master.isprintable() else None,
+             "master_count": master_count if isinstance(master_count, int) and not isinstance(master_count, bool) and master_count >= 1 else None,
+             "units_per_em": _tidy_number(upm) if isinstance(upm, (int, float)) and not isinstance(upm, bool) else None,
+             "count": len(results), "set_count": set_count,
+             "table_size_before": size_before if isinstance(size_before, int) and not isinstance(size_before, bool) else None,
+             "table_size_after": size_after if isinstance(size_after, int) and not isinstance(size_after, bool) else None,
+             "results": results}
+    if unsure:
+        _note_change(sure=False)
+    if set_count < len(results):
+        done = ", ".join(f"{e['left']}:{e['right']}" for e in results if e["status"] == "set") or "none"
+        failed = next((e for e in results if e["status"] in ("failed", "unknown")), None)
+        holds = ""
+        if failed and failed.get("changed") is True and isinstance(failed.get("after"), dict) and "value" in failed["after"]:
+            holds = f"; the entry now holds {failed['after']['value']}"
+        where = f" It stopped at {failed['left']}:{failed['right']}: {failed.get('reason')}{holds}." if failed else ""
+        skipped = sum(1 for e in results if e["status"] == "not attempted")
+        tail = f" {skipped} pair(s) after it were not attempted." if skipped else ""
+        if changed:
+            _note_change()
+            raise ToolError(f"Kerning was set for {set_count} of {len(results)} pairs (set: {done}).{where}{tail} The values that were set are "
+                            f"listed by get_kerning. {_CHANGED_BY_ERROR_NOTE}")
+        raise ToolError(f"Kerning was NOT set for all pairs (set: {done}).{where}{tail}" + (f" {_UNSURE_NOTE}" if unsure else " Nothing was changed."))
+    instruction = _KERN_SET_INSTRUCTION
+    if reply["fonts_open"] is not None and reply["fonts_open"] > 1:
+        which = f" ({reply['family_name']})" if reply["family_name"] else ""
+        instruction += (f" {reply['fonts_open']} fonts are open in FontLab; this changed the current one, the font whose window is in front{which}, "
+                        "matched to its kerning table by its file path. Say which font when you report it.")
+    if reply["master_count"] is not None and reply["master_count"] > 1:
+        instruction += f" This font has {reply['master_count']} masters; only the current one was changed. Say so."
+    if data.get("table_size_as_expected") is False:
+        reply["table_size_unexpected"] = True
+        instruction += (" WARNING: the kerning table grew by a different number of entries than the pairs that were new. "
+                        "Tell the person and do not make further kerning edits until they have looked.")
+    if large:
+        reply["large_write_confirmed"] = True
+    reply["agent_instruction"] = instruction
+    _mark_modified(reply, changed)
+    return reply
 
 
 def _check_polygon_points(points: Any) -> list:
@@ -2845,6 +2996,34 @@ def get_kerning(pairs: list[list[str]] | None = None, text: str | None = None, c
     """
     _note_client(ctx)
     return _with_font(read_kerning, pairs, text, confirmed_large_read)
+
+
+@_tool()
+def set_kerning(pairs: list[list[Any]], confirmed_large_write: bool | None = None, ctx: Context | None = None) -> dict[str, Any]:
+    """Set kerning for glyph pairs in the font currently open in FontLab 8: pairs is a list of [left, right, value] such as
+    [["A", "V", -60], ["T", "o", -40]], two glyph names and a value in font units (negative = closer).
+
+    Each pair becomes a glyph : glyph entry in the current master's kerning table; class (group) names cannot be used, and a
+    pair whose glyphs belong to classes gets an exception for these two glyphs only (exception_over_class). Every check runs
+    before the first change, and every pair is verified by re-reading it; the reply gives 'before' (the value FontLab applied,
+    with its source) and 'after'. If a pair cannot be confirmed the tool stops there and says which pairs were set.
+    Read the pairs first with get_kerning when the task depends on their current values. More than 250 pairs in one call is
+    refused until the PERSON has approved it: ask them, and only after a yes repeat the call with confirmed_large_write=true.
+    Never set confirmed_large_write=true on your own.
+    Values must be whole numbers: FontLab keeps kerning in whole font units, so a fraction is refused.
+    Tell the person: FontLab's KERNING panel shows such pairs (new ones, and new values of listed ones) only after switching
+    to another open font and back, or after the font is saved and reopened; FontLab asks no save question for them when the
+    font is closed, so unsaved they are lost silently; Edit > Undo cannot take them back (to revert, set the 'before' value
+    again). It changes the current font, the one whose window is in front; with several fonts
+    open it refuses when that font cannot be matched to its kerning table (for example a new, unsaved font). Other masters,
+    classes and feature-based kerning are not changed. Needs listener v0.124.
+
+    Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
+    (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
+    after each step: call finish_changes ONCE when the whole task package is finished.
+    """
+    _note_client(ctx)
+    return _with_font(write_kerning, pairs, confirmed_large_write)
 
 
 @_tool()

@@ -17,7 +17,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 
 | # | Scenario | Status |
 |---|---|---|
-| 81 | Write a kerning pair (KW) | PARTLY: a glyph : glyph pair set, re-read, applied and saved (544–560); the KERNING panel lists it only after save and reopen (545–560); open: Undo, the save question, the `flags` form, classes ([topics/kerning.md](topics/kerning.md) §13) |
+| 81 | Write a kerning pair (KW) | PARTLY: a glyph : glyph pair set, re-read, applied and saved (544–560); the KERNING panel lists it only after save and reopen (545–560); closing asks nothing and loses the pair (561, 562); Edit > Undo does not cover it (563); `set` accepts the tuple and the `flags` form (564); `set_kerning` live-checked (565–574): glyph : glyph pairs, whole units, refusals, the panel after a font switch; server 0.45 live-checked (575, 576); saved and reopened (577); open: an exception over a class on a real font, writes with several saved fonts, multi-master ([topics/kerning.md](topics/kerning.md) §13) |
 
 ## Sync, fonts and agent level
 

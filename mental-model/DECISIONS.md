@@ -2,6 +2,16 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-04: whole kerning units (server 0.45)
+
+- **`set_kerning` refuses a value that is not a whole number, before anything is sent**, instead of rounding it. *Reason:* FontLab stores kerning in whole units, rounded to the nearest with halves away from zero (567–569); the tool must never write a value nobody asked for. The user approved it as proposed.
+
+## 2026-11-04: the kerning write tool (listener 0.124 / server 0.44)
+
+- **`set_kerning` writes glyph : glyph pairs only, in the current master, with the `flags` key `((left, False), (right, False))`**; class names are not accepted. *Reason:* the `flags` form names both sides as glyphs, so a glyph named like a class never means the class (defect B); `set` accepts it (564).
+- **All checks run before the first write; the first pair not confirmed by the re-read stops the request**, and the reply names the pairs that were set. *Reason:* the user's choice (2026-11-04); more predictable for the designer than continuing.
+- **Not gated, like other reversible value writes; more than 250 pairs need the person's approval**, as for reads. Every reply tells the agent to say that the KERNING panel lists the pairs only after save and reopen, that closing asks no save question, and that Undo cannot take them back. *Reason:* the user approved the design as proposed; the facts are KW 557–563.
+
 ## 2026-11-04: save tests are a preference, not a rule
 
 - **File > Save tests are avoided by preference, not forbidden.** One runs when it answers a question better than other means, and only after the user agrees to that test. The person saves through FontLab's GUI, to a disposable file outside the repository; no tool saves (save policy below). First case: KW 557–560, save and reopen after an API kerning write ([topics/kerning.md](topics/kerning.md) §13). *Supersedes* "File > Save tests are deferred" (2026-10-24) and that day's one-case exception (both archived). *Reason:* the user's choice, after that test showed the KERNING panel was only stale.

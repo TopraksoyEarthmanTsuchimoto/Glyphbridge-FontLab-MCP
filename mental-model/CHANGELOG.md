@@ -4,6 +4,25 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Server v0.45 (2026-11-04; listener unchanged at 0.124)
+
+**`set_kerning` polished from the live checks 565–574** ([topics/kerning.md](topics/kerning.md) §14).
+- **Whole units:** a value that is not a whole number is refused before anything is sent (FontLab stores kerning in whole units, 567–569); `-12.0` counts as whole.
+- **Panel wording** (reply and tool description): FontLab applies the value at once, but the KERNING panel misses a new pair and keeps a listed pair's old value until the person switches to another open font and back (with one font open: File > New Font, then back) or saves and reopens the font (566, 573, 574).
+- **A failed pair that changed** names what its entry holds now ("the entry now holds -13").
+- **`matched_by`** in the reply, as in `get_kerning`.
+- **Messages:** a listener refusal that already says "nothing was set" no longer gets "Nothing was changed." added; `get_kerning`'s refusal ends with a full stop before the font note.
+- Tests: server 27za–27zs; 27f and 27p use whole numbers now (2636 + 58 + 90 + 973 lines). Other output changed only in the version lines, 19an / 19ao / 19x28 (the full stop) and `matched_by` in the 27 replies. Mutation run: 9 of 9 killed.
+- Live-checked 2026-11-04 (575, 576).
+
+## Listener v0.124 / server v0.44 (2026-11-04)
+
+**`set_kerning`: the first kerning write tool** (glyph : glyph pairs, current master; research KW 542–564, [topics/kerning.md](topics/kerning.md) §13, §14).
+- **Listener `POST /kerning/set`** `{"pairs": [[left, right, value], ...]}`: the font and table are matched as `/kerning/pairs` matches them (shared helper `_kern_table_target`; the read itself is unchanged). Refused with nothing set: bad input (HTTP 400; a pair twice, a value that is not a finite number), no font, an unmatched font, a name that is not a glyph, |value| > the package's `upm`, an unreachable `set`. Per pair: the effective value before (shared `_kern_effective`, as the read gives it) and the exact entry, ONE `set(((left, False), (right, False)), float(value))`, then the exact entry and the effective value again. `set` only when the exact entry equals the value and FontLab applies it from the glyph : glyph entry; the first pair that is not stops the request, the rest are `not attempted`. Reply: `before`, `after`, `changed`, `exception_over_class` per pair, `table_size_before` / `_after` / `_as_expected`. Activity log: `kerning A:V: 0 -> -50 (verified)`. No `Update()`, `font.update()` or save.
+- **Server tool `set_kerning(pairs, confirmed_large_write)`**: checks names and values before sending; more than 250 pairs need the person's approval; needs listener 0.124. A failed pair raises an error that says which pairs were set and counts the change (or an uncertain one). The `agent_instruction` and the tool description tell the agent to say that the KERNING panel lists such pairs only after save and reopen, that closing asks no save question and loses them, and that Undo cannot take them back.
+- Tests: listener 2000–2047 (2018b/c, 2025b/c, 2013b–o); server 27a–27zz (2636 + 58 + 90 + 953 lines). Existing output changed only in the version lines, the read scan 1180 (`target`, a dict) and the tool counts (17 → 18). Mutation run: 28 of 28 killed (a first run left three survivors; cases 2018c, 2025b and 2025c were added).
+- Live-checked 2026-11-04 (565–573, [topics/kerning.md](topics/kerning.md) §14).
+
 ## Listener v0.123 (2026-11-04; server unchanged)
 
 **`/debug/trykernrefresh`, a gated probe: can the KERNING panel be made to list a pair written through the API?** ([topics/kerning.md](topics/kerning.md) §13).
