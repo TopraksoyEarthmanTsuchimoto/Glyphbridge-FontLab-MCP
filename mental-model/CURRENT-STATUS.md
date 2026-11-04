@@ -1,4 +1,4 @@
-Last verified: 2026-11-04 against commit 25191f1 plus the uncommitted build of listener v0.121 / server v0.43 (tests PASS, deployed copy identical, live checks V121 done)
+Last verified: 2026-11-04 against commit c17d1ed (tests PASS, deployed copy identical, `fontlab_status` 0.121 / 0.43, no font open)
 
 # Current status
 
