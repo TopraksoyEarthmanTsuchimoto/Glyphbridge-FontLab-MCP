@@ -20,7 +20,7 @@
 1u  scan_unicode '66' (ignored)               -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1v  scan_unicode 1114112 (ignored)            -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1h  no font open                       -> (200, {'open': False})
-1i  /version                           -> {'version': '0.121'}
+1i  /version                           -> {'version': '0.123'}
 
 ==== 2. server create_glyph: fields and agent_instruction (faked listener replies) ====
 2a  'B' assigned 66 (matches)             -> {'unicode': 66, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': True}

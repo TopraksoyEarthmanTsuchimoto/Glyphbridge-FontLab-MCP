@@ -4,6 +4,20 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.123 (2026-11-04; server unchanged)
+
+**`/debug/trykernrefresh`, a gated probe: can the KERNING panel be made to list a pair written through the API?** ([topics/kerning.md](topics/kerning.md) §13).
+- `stage=container|update|changed&go=yes`: ONE `flPackage.kerningContainer()`; `update` then calls `fontlab.Update(container)` once, `changed` calls `container.changed()` once. A container that is `None`, null or of unknown null state gets no call. Before and after: the `isChanged` / `hasChanges` flags of the package and the container, and `len()` of the current master's table. The one-font gate of `/debug/trysync`; 6 requests per listener run, counted before the first call. Never `Update()` without an argument, `UpdateAll`, `Update` with the font or package, `container.update`, `remove`, `release`, `setFlag`, the history calls, a kerning setter or `font.update()` (spies and a static scan). No product route changed.
+- Tests: listener 1712–1736 and 1718b (2526 + 58 + 90 + 888 lines). Existing output changed only in the version lines. Mutation run: 15 of 15 killed (a first run left one survivor, the uncallable `changed`; case 1718b was added).
+- Live 2026-11-04 (553–556): every call harmless; no call made the panel list the pair.
+
+## Listener v0.122 (2026-11-04; server unchanged)
+
+**`/debug/trysetkern`, a gated probe that writes one kerning pair** ([topics/kerning.md](topics/kerning.md) §13).
+- `a=A&b=B&value=N&form=tuple|flags&go=yes`: ONE `flPackage.kerning(current master).set(key, value)`, with `form=tuple` the key `(a, b)` and with `form=flags` the key `((a, False), (b, False))`. Before and after: `get(((a, False), (b, False)))` and `len()` of the table; the reply carries `set_returned`, `read_back_matches` and `table_size_changed`. Refused: without `go=yes`; other than exactly one font open; a name that is not a glyph of the font; a name that any group of ONE `getAllGroups()` also carries, or a group list of unknown shape (defect B); a value that is not a finite decimal number or exceeds the package's `upm` either way. When the read before fails, `set` is not called. 10 requests per listener run, counted before the first kerning call. Never `remove`, `clear`, `setPlainPairs` or another setter, `font.update()`, `Update()`.
+- Tests: listener 1677–1711 (2496 + 58 + 90 + 888 lines). Existing output changed only in the version lines; the trypkgkern scans 1273 and 1327 now end where the new section starts. Mutation run: 20 of 21 killed; the survivor (`isfinite` removed) is equivalent, since the character rule already refuses `nan` and `inf`.
+- Live 2026-11-04 (544–551, 557–560): the `tuple` form works; `set` returns `None`; the pair is saved, and the KERNING panel lists it after save and reopen.
+
 ## Listener v0.121 / server v0.43 (2026-11-04)
 
 **The vertical extent checked against FontLab's own ink box; exact quadratic extents** (facts 519–533, [topics/reading.md](topics/reading.md) §8p).

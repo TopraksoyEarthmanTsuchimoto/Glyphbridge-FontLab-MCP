@@ -23,7 +23,7 @@ from an elevated terminal. FontLab modern object ids (`flGlyph.id`) change betwe
 piped); numbers may print with a decimal comma, depending on the Windows locale (the JSON is fine). Read: `Invoke-RestMethod "<url>"`. POST:
 `Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8765/glyph/create" -Body '{"name":"x"}' -ContentType "application/json"`.
 
-**Test-result numbering:** a live-test command writes its output to `$HOME\N_name.txt`, N first. Either the user or the agent runs it; in Claude Code the agent can read the file itself. Use DISTINCT numbers that do not resemble earlier ones. The next free number is kept in [CURRENT-STATUS.md](CURRENT-STATUS.md), the numbers in use in [LIVE-TESTS.md](LIVE-TESTS.md). **135** (File > Save) stays DEFERRED; v9's **136a / 136b** are superseded by 139a / 139b and 142; **144a / 144b** (Appendix A2) were never run: T3 was run as tests 256–258 instead; **145** (T4, Appendix A3) was run as 145a–c on 2026-11-03, with 259 as FontLab's readout.
+**Test-result numbering:** a live-test command writes its output to `$HOME\N_name.txt`, N first. Either the user or the agent runs it; in Claude Code the agent can read the file itself. Use DISTINCT numbers that do not resemble earlier ones. The next free number is kept in [CURRENT-STATUS.md](CURRENT-STATUS.md), the numbers in use in [LIVE-TESTS.md](LIVE-TESTS.md). **135** (File > Save) runs only by preference ([DECISIONS.md](DECISIONS.md)); v9's **136a / 136b** are superseded by 139a / 139b and 142; **144a / 144b** (Appendix A2) were never run: T3 was run as tests 256–258 instead; **145** (T4, Appendix A3) was run as 145a–c on 2026-11-03, with 259 as FontLab's readout.
 
 **FontLab GUI facts for testing:** only the *Element* selection tool shows the transform bar (X/Y, horizontal/vertical %, rotation,
 slant). The X/Y box at the bottom shows the selected node in the *displayed* (transformed) space, one decimal. The Glyph panel's
@@ -71,7 +71,7 @@ Sidebearings (145c):
 $o='145c_existing_sb.txt'; $h='http://127.0.0.1:8765'; function Gb($m,$p,$b){ "== $(Get-Date -Format HH:mm:ss) $m $p $b" | Out-File $o -Append -Encoding utf8; try { if($m -eq 'GET'){ $r=Invoke-RestMethod "$h$p" } else { $r=Invoke-RestMethod "$h$p" -Method Post -Body $b -ContentType 'application/json' }; ($r | ConvertTo-Json -Depth 10 -Compress) | Out-File $o -Append -Encoding utf8 } catch { "ERR $_" | Out-File $o -Append -Encoding utf8 } }; Gb POST '/glyph/sidebearings' '{"name":"testglyph2","left":50,"right":60}'; Gb GET '/glyph/outline?name=testglyph2'; Gb GET '/glyph/sidebearings?name=testglyph2'; Gb GET '/debug/trymodern?stage=state&name=testglyph2'
 ```
 Then the Power Brush glyph `A` (54 nodes; check the node count with the small reads before reading the outline): read (145d), width 700 (145e), sidebearings 50 / 60 (145f), each as above with `A` in place of `testglyph2`, then the server check (145g) `.\venv\Scripts\python.exe glyphbridge_mcp_server.py --check --outline A`. Measured: width 700 leaves the nodes and LSB 192.466 unchanged, RSB 235.466; sidebearings 50 / 60 leave the raw nodes unchanged and set the element transform to dx −142 (LSB 50.466, advance 383, RSB 60.466, `set: false`); `--check` reads it `verified`. Compare the element matrix, not only the node list ([topics/geometry.md](topics/geometry.md) §8c).
-Test 135 (File > Save) and everything like it stays DEFERRED. Tests 136a / 136b of v9 are superseded by 139a / 139b and 142 (the guard was verified live).
+Test 135 (File > Save) and everything like it runs only by preference, with the user's agreement ([DECISIONS.md](DECISIONS.md)). Tests 136a / 136b of v9 are superseded by 139a / 139b and 142 (the guard was verified live).
 
 **Appendix A, v11 additions (kerning; stage: Arial open from the system, listener v0.95; pure reads, nothing is written; the helper `Gb` is the one of A1, here with the error BODY added so a 400 shows its message; output files 155 to 158).**
 
@@ -105,4 +105,4 @@ $o='158_features.txt'; $h='http://127.0.0.1:8765'; function Gb($m,$p,$b){ "== $(
 ```
 Expected: the type, `len`, docstring and public names of `font.features` (and nothing else). Then PROPOSE (do not build) what a feature read would need.
 
-A1 to A3 above were written for v0.89 and still work with v0.95 (the listener banner then says v0.95). Test 135 (File > Save) and everything like it stays DEFERRED.
+A1 to A3 above were written for v0.89 and still work with v0.95 (the listener banner then says v0.95). Test 135 (File > Save) and everything like it runs only by preference, with the user's agreement ([DECISIONS.md](DECISIONS.md)).

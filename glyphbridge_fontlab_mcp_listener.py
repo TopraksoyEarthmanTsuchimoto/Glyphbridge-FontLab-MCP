@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.121)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.123)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -122,6 +122,10 @@ Routes (GET unless marked POST):
     /debug/trygroups      one font.groups.getCompiled() call, 10 per listener run
     /debug/trypkgkern     one pair from flPackage.kerning(master) next to font.kerning, 20 per listener run;
                           &mode=flags&flags=FF|FT|TF|TT asks get(((a, flag), (b, flag))); a side flagged T may name a class
+    /debug/trysetkern     WRITES: a=A&b=B&value=N&form=tuple|flags: ONE set() of one glyph pair on flPackage.kerning(master),
+                          with get() before and after; glyph names only, no group of that name, |N| <= upm; 10 per listener run (v0.122)
+    /debug/trykernrefresh stage=container|update|changed: ONE flPackage.kerningContainer(), then fontlab.Update(container) or
+                          container.changed(); flags and table size before and after; 6 per listener run (v0.123)
     /debug/trykerngroups  stage=all|modes&contains=a,b,c or stage=glyph&name=N: kerning group members and sides
                           (getAllGroups(), the master's groups.values(), a glyph's kerningLeft / kerningRight), 10 per listener run
     /debug/features       stage=tags: font.features.keys(); stage=size&tag=T: has_key(T), get_feature(T), only the SIZE of that
@@ -155,7 +159,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.121"
+VERSION = "0.123"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -6953,6 +6957,280 @@ def debug_try_pkg_kern(a, b, master, go, mode="tuple", flags=None):
     return out
 
 
+# --------------------------------------------------------------------------
+# /debug/trysetkern (v0.122) - RESEARCH, WRITES: can a kerning pair be set through the API? Names-only test 542: fgKerning.set is
+# documented as "int set(fgKerningObjectPair / tuple('name1', 'name2'), double) - set kerning value"; remove, setPlainPairs, clear
+# and addGroup have no docstring. GATED (go=yes); the same one-font gate as /debug/trysync; at most _TRYSETKERN_MAX requests per
+# listener run, counted BEFORE the set call. Both names must be glyph names of the current font, and neither may be the name of any
+# group that ONE pkg.getAllGroups() lists (defect B: a plain name tuple prefers a class of that name); an unreadable group list
+# refuses. The value is a finite number with |value| <= the package's upm. Calls: pkg.masters, pkg.master, pkg.upm,
+# pkg.getAllGroups() once, pkg.kerning(current master) once, on that table len() and get(((a, False), (b, False))) before and after,
+# and set(key, value) ONCE:
+#   &form=tuple    set((a, b), value), the documented form
+#   &form=flags    set(((a, False), (b, False)), value), the form get accepts (186-188); not in set's docstring
+# Not called, ever: remove, clear, setPlainPairs, add*, delete*, rename*, scale, asDict, getPlainPairs*, items, keys, values, has_key,
+# font.update(), glyph.update(), fontlab.Update(); no save. Whether FontLab's KERNING panel shows the pair is what the live test checks.
+# --------------------------------------------------------------------------
+
+_TRYSETKERN = {"calls": 0}
+_TRYSETKERN_MAX = 10
+_TRYSETKERN_FORMS = ("tuple", "flags")
+
+
+def _trysetkern_value(text):
+    """(number, None) or (None, error text): the value from the query, a finite decimal number."""
+    import math as _math
+    if not isinstance(text, str) or not (1 <= len(text) <= 20) or any(ch not in "0123456789.-+" for ch in text):
+        return None, "value must be a decimal number of 1 to 20 characters from 0-9 . - +"
+    try:
+        value = float(text)
+    except ValueError:
+        return None, f"value {text!r} is not a number"
+    if not _math.isfinite(value):
+        return None, "value must be a finite number"
+    return (int(value) if value == int(value) else value), None
+
+
+def _trysetkern_group_names(pkg):
+    """(set of every group name, None) or (None, error text), from ONE pkg.getAllGroups(). Every group counts, kerning group or not:
+    the probe refuses a glyph name that any group also carries. Only a real list or tuple of 5-item entries with a str name is accepted;
+    any other shape refuses, since then a collision cannot be ruled out."""
+    try:
+        getter = pkg.getAllGroups
+        if not callable(getter):
+            return None, "flPackage.getAllGroups is not callable"
+        groups = getter()
+    except Exception as exc:
+        return None, f"flPackage.getAllGroups() failed ({type(exc).__name__}: {exc})"
+    if groups is None:
+        return set(), None                           # documented as ".../Nothing": a font without groups
+    if not isinstance(groups, (list, tuple)):
+        return None, f"flPackage.getAllGroups() returned a {type(groups).__name__}, not a list"
+    for entry in groups:
+        if not isinstance(entry, (list, tuple)) or len(entry) != 5 or not isinstance(entry[1], str):
+            return None, "flPackage.getAllGroups() returned an entry of an unknown shape, so a name collision cannot be ruled out"
+    return {entry[1] for entry in groups}, None
+
+
+def debug_try_set_kern(a, b, value, form, go):
+    import sys as _sys
+    if go != "yes":
+        return {"error": "this probe WRITES one kerning pair: flPackage.kerning(master).set(key, value) ONCE, with get() before and after; "
+                         "add &go=yes to run it", "calls_so_far": _TRYSETKERN["calls"], "max_calls": _TRYSETKERN_MAX}
+    for label, nm in (("a", a), ("b", b)):
+        if not _kern_name_ok(nm):
+            return {"error": f"{label} must be 1 to 63 characters from A-Z a-z 0-9 . _ -"}
+    if form not in _TRYSETKERN_FORMS:
+        return {"error": 'form must be "tuple" (set((a, b), value)) or "flags" (set(((a, False), (b, False)), value))'}
+    number, err = _trysetkern_value(value)
+    if err is not None:
+        return {"error": err}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"error": why, "calls_so_far": _TRYSETKERN["calls"], "max_calls": _TRYSETKERN_MAX}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    names = set(str(g.name) for g in font.glyphs)
+    missing = [nm for nm in (a, b) if nm not in names]
+    if missing:
+        return {"open": True, "error": "no glyph with this name in the current font: " + ", ".join(repr(m) for m in missing),
+                "calls_so_far": _TRYSETKERN["calls"]}
+    upm, err = _pkg_get(pkg, "upm")
+    if err is not None or type(upm) not in (int, float) or not upm > 0:
+        return {"open": True, "error": "the package's upm could not be read as a positive number" + (f" ({err})" if err else f" ({upm!r})"),
+                "calls_so_far": _TRYSETKERN["calls"]}
+    if abs(number) > upm:
+        return {"open": True, "error": f"value {number} is larger than the font's {upm} units per em, either way; nothing was set",
+                "calls_so_far": _TRYSETKERN["calls"]}
+    masters, err = _pkg_get(pkg, "masters")
+    if err is not None:
+        return {"open": True, "error": err, "calls_so_far": _TRYSETKERN["calls"]}
+    if not isinstance(masters, (list, tuple)) or not all(isinstance(m, str) for m in masters):
+        return {"open": True, "error": f"the package's masters are not a plain list of names ({type(masters).__name__}); nothing was called",
+                "calls_so_far": _TRYSETKERN["calls"]}
+    current, err = _pkg_get(pkg, "master")
+    if not isinstance(current, str) or current not in masters:
+        return {"open": True, "error": "the package's current master could not be read as one of its masters" + (f" ({err})" if err else ""),
+                "masters": list(masters), "calls_so_far": _TRYSETKERN["calls"]}
+    if _TRYSETKERN["calls"] >= _TRYSETKERN_MAX:
+        return {"open": True, "error": f"the limit of {_TRYSETKERN_MAX} requests per listener run is used up; restart the listener to continue",
+                "calls_so_far": _TRYSETKERN["calls"], "max_calls": _TRYSETKERN_MAX}
+    groups, err = _trysetkern_group_names(pkg)
+    if err is not None:
+        return {"open": True, "error": err + "; nothing was set", "calls_so_far": _TRYSETKERN["calls"]}
+    clash = [nm for nm in (a, b) if nm in groups]
+    if clash:
+        return {"open": True, "error": "a group of the font has the same name as " + ", ".join(repr(c) for c in clash)
+                + " (defect B: a plain name pair may then mean the group); nothing was set", "calls_so_far": _TRYSETKERN["calls"]}
+    try:
+        kerning_of = pkg.kerning
+    except Exception as exc:
+        return {"open": True, "error": f"flPackage.kerning not reachable: {type(exc).__name__}: {exc}", "calls_so_far": _TRYSETKERN["calls"]}
+    if not callable(kerning_of):
+        return {"open": True, "error": "flPackage.kerning is not callable", "calls_so_far": _TRYSETKERN["calls"]}
+    _TRYSETKERN["calls"] += 1        # counted BEFORE the first kerning call: whatever happens, it is on record
+    try:
+        kerning = kerning_of(current)
+    except Exception as exc:
+        return {"open": True, "error": f"flPackage.kerning(master) failed: {type(exc).__name__}: {exc}", "master_used": current,
+                "calls_so_far": _TRYSETKERN["calls"], "max_calls": _TRYSETKERN_MAX}
+    exact = ((a, False), (b, False))
+    before = _trypkgkern_get(kerning, exact)
+    key, key_text = ((a, b), "(a, b)") if form == "tuple" else (exact, "((a, False), (b, False))")
+    returned, set_error = None, None
+    if before["call_error"] is not None:
+        set_error = "not called: the read before it failed, so the result could not be checked"
+    else:
+        try:
+            setter = kerning.set
+            if not callable(setter):
+                raise TypeError("set is not callable")
+            returned = setter(key, float(number))
+        except Exception as exc:
+            set_error = f"{type(exc).__name__}: {exc}"
+    after = _trypkgkern_get(kerning, exact)
+    len_before, len_after = before["len_before"], after["len_after"]
+    return {"open": True, "a": a, "b": b, "form": form, "value_asked": number, "units_per_em": upm, "master_used": current,
+            "masters": list(masters), "call": f"flPackage.kerning(master).set({key_text}, value)", "set_error": set_error,
+            "set_returned_type": type(returned).__name__, "set_returned": _tryfont_plain(returned),
+            "exact_before": {k: before[k] for k in ("call_error", "value_type", "value")},
+            "exact_after": {k: after[k] for k in ("call_error", "value_type", "value")},
+            "read_back_matches": set_error is None and after["call_error"] is None and after["value"] == number,
+            "len_before": len_before, "len_after": len_after,
+            "table_size_changed": (len_before != len_after) if (len_before is not None and len_after is not None) else None,
+            "calls_so_far": _TRYSETKERN["calls"], "max_calls": _TRYSETKERN_MAX,
+            "note": "RESEARCH: the font in memory may have changed. Compare with FontLab's KERNING panel and a text line; nothing is saved by Glyphbridge"}
+
+
+# --------------------------------------------------------------------------
+# /debug/trykernrefresh (v0.123) - RESEARCH: can the KERNING panel be made to show a pair written by /debug/trysetkern? Live 544-551:
+# FontLab applies such a pair in a text line, but the panel lists only pairs made in the GUI, also after it was reopened. Names-only
+# test 552: fontlab.Update is documented as "Update object and it's visual representations ... Update([fgGlyph|fgFont|flObject
+# object])", and flPackage.kerningContainer as "flObject kerningContainer()". GATED (go=yes); the same one-font gate as /debug/trysync;
+# at most _TRYKERNREFRESH_MAX requests per listener run, counted BEFORE kerningContainer() is called. Every stage reads pkg.masters,
+# pkg.master, len() of pkg.kerning(current master) and the isChanged / hasChanges flags of the package and the container, before and
+# after, and calls pkg.kerningContainer() ONCE:
+#   stage=container   nothing more: the container's type, isNull, id, name and public names
+#   stage=update      then fontlab.Update(container) ONCE, with that one argument
+#   stage=changed     then container.changed() ONCE
+# Not called, ever: Update() without an argument, UpdateAll, Update with the font or the package, container.update, remove, release,
+# setFlag, clearFlag*, the history calls, any kerning setter, font.update(), glyph.update(); no save.
+# --------------------------------------------------------------------------
+
+_TRYKERNREFRESH = {"calls": 0}
+_TRYKERNREFRESH_MAX = 6
+_TRYKERNREFRESH_STAGES = ("container", "update", "changed")
+
+
+def _trykernrefresh_flags(obj):
+    """The isChanged and hasChanges flags of one object, each read once; a failed read is reported as text."""
+    out = {}
+    for attr in ("isChanged", "hasChanges"):
+        value, err = _pkg_get(obj, attr)
+        out[attr] = err if err is not None else _tryfont_plain(value)
+    return out
+
+
+def debug_try_kern_refresh(stage, go):
+    import sys as _sys
+    if go != "yes":
+        return {"error": "this probe calls flPackage.kerningContainer() ONCE and, in stage=update, fontlab.Update(container) or, in "
+                         "stage=changed, container.changed(); add &go=yes to run it",
+                "calls_so_far": _TRYKERNREFRESH["calls"], "max_calls": _TRYKERNREFRESH_MAX}
+    if stage not in _TRYKERNREFRESH_STAGES:
+        return {"error": 'stage must be "container", "update" or "changed"'}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"error": why, "calls_so_far": _TRYKERNREFRESH["calls"], "max_calls": _TRYKERNREFRESH_MAX}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    masters, err = _pkg_get(pkg, "masters")
+    if err is not None:
+        return {"open": True, "error": err, "calls_so_far": _TRYKERNREFRESH["calls"]}
+    if not isinstance(masters, (list, tuple)) or not all(isinstance(m, str) for m in masters):
+        return {"open": True, "error": f"the package's masters are not a plain list of names ({type(masters).__name__}); nothing was called",
+                "calls_so_far": _TRYKERNREFRESH["calls"]}
+    current, err = _pkg_get(pkg, "master")
+    if not isinstance(current, str) or current not in masters:
+        return {"open": True, "error": "the package's current master could not be read as one of its masters" + (f" ({err})" if err else ""),
+                "masters": list(masters), "calls_so_far": _TRYKERNREFRESH["calls"]}
+    updater = None
+    if stage == "update":
+        updater = getattr(mod, "Update", None)
+        if not callable(updater):
+            return {"open": True, "error": "fontlab.Update is missing or not callable; nothing was called", "calls_so_far": _TRYKERNREFRESH["calls"]}
+    if _TRYKERNREFRESH["calls"] >= _TRYKERNREFRESH_MAX:
+        return {"open": True, "error": f"the limit of {_TRYKERNREFRESH_MAX} requests per listener run is used up; restart the listener to continue",
+                "calls_so_far": _TRYKERNREFRESH["calls"], "max_calls": _TRYKERNREFRESH_MAX}
+    try:
+        kerning_of = pkg.kerning
+        container_of = pkg.kerningContainer
+    except Exception as exc:
+        return {"open": True, "error": f"flPackage.kerning / kerningContainer not reachable: {type(exc).__name__}: {exc}",
+                "calls_so_far": _TRYKERNREFRESH["calls"]}
+    if not (callable(kerning_of) and callable(container_of)):
+        return {"open": True, "error": "flPackage.kerning or kerningContainer is not callable; nothing was called", "calls_so_far": _TRYKERNREFRESH["calls"]}
+    _TRYKERNREFRESH["calls"] += 1        # counted BEFORE the first call: whatever happens, it is on record
+    out = {"open": True, "stage": stage, "master_used": current}
+    try:
+        kerning = kerning_of(current)
+    except Exception as exc:
+        kerning = None
+        out["kerning_error"] = f"flPackage.kerning(master) failed: {type(exc).__name__}: {exc}"
+    len_before = _trypkgkern_len(kerning) if kerning is not None else None
+    out["package_flags_before"] = _trykernrefresh_flags(pkg)
+    try:
+        container = container_of()
+    except Exception as exc:
+        out.update(error=f"flPackage.kerningContainer() failed: {type(exc).__name__}: {exc}", calls_so_far=_TRYKERNREFRESH["calls"],
+                   max_calls=_TRYKERNREFRESH_MAX)
+        return out
+    out["container_type"] = type(container).__name__
+    if container is None:
+        out.update(error="flPackage.kerningContainer() returned None; nothing more was called", calls_so_far=_TRYKERNREFRESH["calls"],
+                   max_calls=_TRYKERNREFRESH_MAX)
+        return out
+    is_null, err = _pkg_get(container, "isNull")
+    out["container_isNull"] = err if err is not None else _tryfont_plain(is_null)
+    for attr in ("id", "name"):
+        value, err = _pkg_get(container, attr)
+        out["container_" + attr] = err if err is not None else _tryfont_plain(value)
+    try:
+        out["container_public_names"] = [n for n in dir(container) if not n.startswith("_")]
+    except Exception as exc:
+        out["container_public_names"] = f"<dir failed: {type(exc).__name__}: {exc}>"
+    out["container_flags_before"] = _trykernrefresh_flags(container)
+    if stage != "container":
+        if is_null is not False:
+            out["call_error"] = "not called: the container is null or its state is unknown"
+        else:
+            try:
+                if stage == "update":
+                    out["call"] = "fontlab.Update(container)"
+                    returned = updater(container)
+                else:
+                    out["call"] = "container.changed()"
+                    mark = container.changed
+                    if not callable(mark):
+                        raise TypeError("changed is not callable")
+                    returned = mark()
+            except Exception as exc:
+                out["call_error"] = f"{type(exc).__name__}: {exc}"
+            else:
+                out.update(call_error=None, returned_type=type(returned).__name__, returned=_tryfont_plain(returned))
+        out["container_flags_after"] = _trykernrefresh_flags(container)
+    len_after = _trypkgkern_len(kerning) if kerning is not None else None
+    out.update(package_flags_after=_trykernrefresh_flags(pkg), kerning_len_before=len_before, kerning_len_after=len_after,
+               table_size_changed=(len_before != len_after) if (len_before is not None and len_after is not None) else None,
+               calls_so_far=_TRYKERNREFRESH["calls"], max_calls=_TRYKERNREFRESH_MAX,
+               note="RESEARCH: compare FontLab's KERNING panel before and after; nothing is saved by Glyphbridge")
+    return out
+
+
 
 
 
@@ -7514,6 +7792,19 @@ def _route(method, full_path, body=b""):
                 return _build_response(200, debug_try_pkg_kern((query.get("a") or [""])[0], (query.get("b") or [""])[0],
                                                                (query.get("master") or [None])[0], (query.get("go") or [""])[0],
                                                                (query.get("mode") or ["tuple"])[0], (query.get("flags") or [None])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/trysetkern":
+            try:
+                return _build_response(200, debug_try_set_kern((query.get("a") or [""])[0], (query.get("b") or [""])[0], (query.get("value") or [""])[0],
+                                                               (query.get("form") or ["tuple"])[0], (query.get("go") or [""])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/trykernrefresh":
+            try:
+                return _build_response(200, debug_try_kern_refresh((query.get("stage") or [""])[0], (query.get("go") or [""])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

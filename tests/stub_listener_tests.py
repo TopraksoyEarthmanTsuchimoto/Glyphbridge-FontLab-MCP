@@ -3515,7 +3515,7 @@ pk_setup()
 for _p in (_PKQ, _PKQ + "&go=yes", _PKQ + "&master=Regular&go=yes", "/debug/trypkgkern?a=kn1L&b=kn1S&go=yes"): call(_p)
 print("1272 spy over all cases          : forbidden package members:", PK["pkg_forbidden"], "| package members touched anywhere:", sorted(PK["pkg_all"]),
       "| forbidden kerning members:", PK["k_forbidden"], "| kerning members touched anywhere:", sorted(PK["k_all"]))
-_pk_src = src[src.index("_TRYPKGKERN = {"):src.index("# /debug/trymodern (v0.88)")]
+_pk_src = src[src.index("_TRYPKGKERN = {"):src.index("# /debug/trysetkern (v0.122)")]
 _pk_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _pk_src).splitlines())
 print("1273 static scan                 : pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _pk_code))), "| kerning members used:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _pk_code))),
       "| kerning_of( calls:", len(_re83.findall(r"\bkerning_of\(", _pk_code)), "| getter( calls:", len(_re83.findall(r"\bgetter\(", _pk_code)),
@@ -3630,7 +3630,7 @@ pk_setup(); pfc("1323 flags, unknown glyph       ", "/debug/trypkgkern?a=kn1L&b=
 pk_setup(package_get="raise"); pfc("1324 flags, package get raises  ", _PFQ + "&mode=flags&flags=FF", keys=("package", "legacy"))
 pk_setup(kerning_call="raise"); pfc("1325 flags, kerning() raises    ", _PFQ + "&mode=flags&flags=FF", keys=("package", "legacy", "calls_so_far"))
 pk_setup(); print("1326 direct call, flags given as a list:", ns["debug_try_pkg_kern"]("kn1L", "kn1R", None, "yes", "flags", ["F", "F"]), "| gets", PK["gets"])
-_pf_src = src[src.index("_TRYPKGKERN = {"):src.index("# /debug/trymodern (v0.88)")]
+_pf_src = src[src.index("_TRYPKGKERN = {"):src.index("# /debug/trysetkern (v0.122)")]
 _pf_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\n]|\.)*"', '""', _pf_src).splitlines())
 print("1327 static scan                 : fontgate or import machinery:", _re83.findall(r"fontgate|__import__|importlib|import_module|fgKerningObjectPair", _pf_code),
       "| getter( calls:", len(_re83.findall(r"\bgetter\(", _pf_code)), "| flag table:", ns["_TRYPKGKERN_FLAGS"], "| modes:", ns["_TRYPKGKERN_MODES"])
@@ -5190,3 +5190,313 @@ for _m, _a, _v in _v120_saved:
         if hasattr(_m, _a): delattr(_m, _a)
     else: setattr(_m, _a, _v)
 ns["_MODERN_CACHE"].clear(); ns["_forget_request_font"]()
+
+# ================= v0.122: /debug/trysetkern (gated research probe that WRITES one pair: flPackage.kerning(master).set(key, value) once) =================
+print("\n==== v0.122 /debug/trysetkern ====")
+SK = {"cfg": {}, "kerning_args": [], "pkg_all": set(), "pkg_forbidden": [], "k_all": set(), "k_forbidden": [], "gets": [], "sets": [], "groups_calls": 0}
+_SK_K_FORBIDDEN = tuple(n for n in _FK_FORBIDDEN if n != "set")
+_SK_PKG_FORBIDDEN = tuple(n for n in _PK_PKG_FORBIDDEN if n != "getAllGroups")
+def _sk_pair(key):
+    if isinstance(key, tuple) and len(key) == 2 and all(isinstance(s, tuple) for s in key): return (key[0][0], key[1][0])
+    return tuple(key)
+class SKKern:
+    def __init__(self): self._table = dict(SK["cfg"].get("table", {}))
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            SK["k_all"].add(n)
+            if n in _SK_K_FORBIDDEN:
+                SK["k_forbidden"].append(n)
+                raise SystemExit("FORBIDDEN kerning member touched: " + n)
+        return object.__getattribute__(self, n)
+    def __len__(self):
+        if SK["cfg"].get("len_raises"): raise RuntimeError("len boom")
+        return len(self._table)
+    def get(self, key):
+        SK["gets"].append(key)
+        if SK["cfg"].get("get") == "raise": raise RuntimeError("get boom")
+        return self._table.get(_sk_pair(key))
+    def set(self, key, value):
+        SK["sets"].append((key, type(value).__name__, value))
+        m = SK["cfg"].get("set")
+        if m == "raise": raise TypeError("Argument type must be Tuple(string, string)!")
+        if m == "ignore": return 0
+        self._table[_sk_pair(key)] = value
+        return 1
+class SKPackage:
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            SK["pkg_all"].add(n)
+            if n in _SK_PKG_FORBIDDEN:
+                SK["pkg_forbidden"].append(n)
+                raise SystemExit("FORBIDDEN package member touched: " + n)
+        return object.__getattribute__(self, n)
+    def isNull(self): return False
+    @property
+    def masters(self): return SK["cfg"].get("masters", ["Regular"])
+    @property
+    def master(self): return SK["cfg"].get("master", "Regular")
+    @property
+    def upm(self):
+        v = SK["cfg"].get("upm", 1000)
+        if isinstance(v, Exception): raise v
+        return v
+    def getAllGroups(self):
+        SK["groups_calls"] += 1
+        v = SK["cfg"].get("groups", [])
+        if v == "raise": raise RuntimeError("groups boom")
+        return v
+    @property
+    def kerning(self):
+        def _kerning(*args):
+            SK["kerning_args"].append(args)
+            if SK["cfg"].get("kerning_call") == "raise": raise RuntimeError("kerning() boom")
+            return SKKern()
+        return _kerning
+class SKWorkspace:
+    @staticmethod
+    def instance(): return SK_WS
+    def packages(self): return [SK_PKG] * SK["cfg"].get("packages", 1)
+    @property
+    def currentPackage(self): return SK_PKG
+SK_PKG = SKPackage(); SK_WS = SKWorkspace()
+class SKFont:
+    glyphs = [PKGlyph(n) for n in ("ks1L", "ks1R", "ks1S", ".notdef")]
+_sk_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flWorkspace")]
+def sk_setup(calls=0, **cfg):
+    SK["cfg"] = dict(cfg)
+    for k in ("kerning_args", "gets", "sets"): SK[k].clear()
+    SK["groups_calls"] = 0
+    ns["_TRYSETKERN"]["calls"] = calls
+    count = cfg.get("count", 1)
+    for _m in _tf_mods:
+        _m.flWorkspace = SKWorkspace
+        _m.CountFonts = lambda: count
+        _m.CurrentFont = lambda: SKFont()
+def skc(tag, path, keys=None):
+    c, d = call(path)
+    shown = {k: v for k, v in d.items() if k != "note"} if keys is None else {k: d.get(k) for k in keys}
+    print(tag, ":", c, shown, "| kerning() args", SK["kerning_args"], "| sets", SK["sets"], "| getAllGroups calls", SK["groups_calls"])
+    return c, d
+_SKQ = "/debug/trysetkern?a=ks1L&b=ks1R&value=-100"
+_SKR = ("set_error", "set_returned", "exact_before", "exact_after", "read_back_matches", "len_before", "len_after", "table_size_changed", "calls_so_far")
+sk_setup(); skc("1677 no go: nothing runs        ", _SKQ)
+sk_setup(); skc("1678 go=maybe: nothing runs     ", _SKQ + "&go=maybe")
+sk_setup(); c, d = skc("1679 tuple form, -100           ", _SKQ + "&go=yes")
+print("1679b note says what may change   :", "may have changed" in d.get("note", "") and "nothing is saved" in d.get("note", ""))
+sk_setup(); skc("1680 flags form, ks1L:ks1S -50  ", "/debug/trysetkern?a=ks1L&b=ks1S&value=-50&form=flags&go=yes", keys=("call",) + _SKR)
+sk_setup(table={("ks1L", "ks1R"): -100.0}); skc("1681 existing pair overwritten ", "/debug/trysetkern?a=ks1L&b=ks1R&value=-60&go=yes", keys=_SKR)
+sk_setup(set="raise"); skc("1682 set raises (counted)       ", _SKQ + "&form=flags&go=yes", keys=_SKR)
+sk_setup(set="ignore"); skc("1683 set stores nothing         ", _SKQ + "&go=yes", keys=_SKR)
+sk_setup(); skc("1684 fractional value -12.5     ", "/debug/trysetkern?a=ks1L&b=ks1R&value=-12.5&go=yes", keys=("value_asked",) + _SKR)
+sk_setup(); skc("1685 value 0                    ", "/debug/trysetkern?a=ks1L&b=ks1R&value=0&go=yes", keys=("value_asked", "set_returned", "exact_after", "read_back_matches"))
+for bad in ("", "abc", "nan", "inf", "1e5", "1.5.2", "--1", "1" * 21):
+    sk_setup(); skc(f"1686 bad value {bad[:10]!r:12}    ", "/debug/trysetkern?a=ks1L&b=ks1R&value=" + bad + "&go=yes", keys=("error",))
+sk_setup(); skc("1687 -1000 at upm 1000: allowed ", "/debug/trysetkern?a=ks1L&b=ks1R&value=-1000&go=yes", keys=("value_asked", "read_back_matches"))
+sk_setup(); skc("1688 1000.5 over upm: refused   ", "/debug/trysetkern?a=ks1L&b=ks1R&value=1000.5&go=yes")
+for tag, over in (("1689 upm raises        ", dict(upm=RuntimeError("upm boom"))), ("1689 upm is a bool     ", dict(upm=True)),
+                  ("1689 upm is 0          ", dict(upm=0)), ("1689 upm is text       ", dict(upm="1000"))):
+    sk_setup(**over); skc(tag, _SKQ + "&go=yes")
+for bad in ("", "A:V", "x" * 64):
+    sk_setup(); skc(f"1690 bad name a {bad[:12]!r:14}", "/debug/trysetkern?a=" + bad + "&b=ks1R&value=-100&go=yes")
+sk_setup(); skc("1691 unknown glyph            ", "/debug/trysetkern?a=ks1L&b=Q&value=-100&go=yes")
+sk_setup(); skc("1692 bad form                 ", _SKQ + "&form=plain&go=yes")
+_SKG = lambda name: [True, name, 8704, 0, ["ks1R", "ks1S"]]
+sk_setup(groups=[_SKG("ks1R")]); skc("1693 b is also a group: refused", _SKQ + "&go=yes")
+sk_setup(groups=[[False, "ks1L", 3, 0, ["ks1L"]]]); skc("1694 a names a non-kerning group", _SKQ + "&go=yes")
+sk_setup(groups=[_SKG("ks1grp")]); skc("1695 other group: allowed      ", _SKQ + "&go=yes", keys=("read_back_matches", "calls_so_far"))
+sk_setup(groups=None); skc("1696 getAllGroups None: allowed  ", _SKQ + "&go=yes", keys=("read_back_matches",))
+for tag, over in (("1697 getAllGroups raises ", dict(groups="raise")), ("1697 getAllGroups a dict", dict(groups={"ks1R": 1})),
+                  ("1697 an entry of 4 items ", dict(groups=[[True, "g", 1, 0]])), ("1697 a name not text     ", dict(groups=[[True, 5, 1, 0, []]]))):
+    sk_setup(**over); skc(tag, _SKQ + "&go=yes")
+sk_setup(masters=["Regular", 5]); skc("1698 masters not all names    ", _SKQ + "&go=yes")
+sk_setup(master="Ghost"); skc("1699 current master unlisted  ", _SKQ + "&go=yes")
+sk_setup(kerning_call="raise"); skc("1700 kerning() raises (counted)", _SKQ + "&go=yes")
+sk_setup(get="raise"); skc("1701 get raises: set not called", _SKQ + "&go=yes", keys=_SKR)
+sk_setup(len_raises=True); skc("1702 len raises               ", _SKQ + "&go=yes", keys=_SKR)
+for tag, over in (("1703 no font open        ", dict(count=0)), ("1704 two fonts open      ", dict(count=2)), ("1705 two packages        ", dict(packages=2))):
+    sk_setup(**over); skc(tag, _SKQ + "&go=yes")
+sk_setup(calls=9); skc("1706 request 10 allowed       ", _SKQ + "&go=yes", keys=("calls_so_far", "max_calls"))
+SK["kerning_args"].clear(); SK["sets"].clear(); SK["groups_calls"] = 0; skc("1707 request 11 refused       ", _SKQ + "&go=yes")
+sk_setup(); _sk_real = ns["debug_try_set_kern"]
+ns["debug_try_set_kern"] = _pk_boom; skc("1708 probe raises: HTTP 500    ", _SKQ + "&go=yes"); ns["debug_try_set_kern"] = _sk_real
+sk_setup()
+for _p in (_SKQ, _SKQ + "&go=yes", _SKQ + "&form=flags&go=yes"): call(_p)
+print("1709 spy over all cases          : forbidden package members:", SK["pkg_forbidden"], "| package members touched anywhere:", sorted(SK["pkg_all"]),
+      "| forbidden kerning members:", SK["k_forbidden"], "| kerning members touched anywhere:", sorted(SK["k_all"]))
+_sk_src = src[src.index("_TRYSETKERN = {"):src.index("# /debug/trykernrefresh (v0.123)")]
+_sk_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _sk_src).splitlines())
+print("1710 static scan                 : pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _sk_code))), "| kerning members used:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _sk_code))),
+      "| setter( calls:", len(_re83.findall(r"\bsetter\(", _sk_code)), "| kerning_of( calls:", len(_re83.findall(r"\bkerning_of\(", _sk_code)),
+      "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|Update\w*|add\w*|clear\w*|keys|values|items|has_key|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|setPlain\w*|scale|rename\w*|autoKern|findGroup)\(", _sk_code),
+      "| subscripts on other objects:", [s for s in _re83.findall(r"\b(\w+)\[", _sk_code) if s not in ("_TRYSETKERN", "before", "after", "entry")],
+      "| counter raised before the first kerning call:", _sk_code.index('_TRYSETKERN[""] += 1') < _sk_code.index("kerning_of(current)") < _sk_code.index("setter(key"),
+      "| scanned chars > 3000:", len(_sk_src) > 3000)
+print("1711 gate, cap, route, docstring  :", "go != \"yes\"" in _sk_src, "| max requests", ns["_TRYSETKERN_MAX"], "| route registered once:", src.count('path == "/debug/trysetkern"') == 1,
+      "| listed in the module docstring:", "/debug/trysetkern" in src[:src.index('"""', 3)])
+for _m, _a, _v in _sk_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)
+ns["_TRYSETKERN"]["calls"] = 0
+
+# ================= v0.123: /debug/trykernrefresh (gated research probe: flPackage.kerningContainer(), then fontlab.Update(container) or container.changed()) =================
+print("\n==== v0.123 /debug/trykernrefresh ====")
+RK = {"cfg": {}, "pkg_all": set(), "pkg_forbidden": [], "c_all": set(), "c_forbidden": [], "k_all": set(), "k_forbidden": [], "updates": [],
+      "changed": 0, "container_calls": 0, "kerning_args": [], "mod_forbidden": []}
+_RK_PKG_FORBIDDEN = tuple(n for n in _PK_PKG_FORBIDDEN if n != "kerningContainer") + ("setFlag", "clearFlag", "clearFlags", "restoreHistoryState",
+                                                                                       "clearAboveHistory", "changed")
+_RK_C_FORBIDDEN = ("update", "remove", "release", "removeChild", "setFlag", "clearFlag", "clearFlags", "restoreHistoryState", "clearAboveHistory",
+                   "clone", "cloneObject", "createObject", "setProperty", "setPropertyFloat", "setPropertyInt")
+class RKKern:
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            RK["k_all"].add(n)
+            RK["k_forbidden"].append(n)
+            raise SystemExit("FORBIDDEN kerning member touched: " + n)
+        return object.__getattribute__(self, n)
+    def __len__(self): return RK["cfg"].get("table_len", 2)
+class RKContainer:
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            RK["c_all"].add(n)
+            if n in _RK_C_FORBIDDEN:
+                RK["c_forbidden"].append(n)
+                raise SystemExit("FORBIDDEN container member touched: " + n)
+            if n == "changed" and RK["cfg"].get("changed") == "not_callable": return 5
+        return object.__getattribute__(self, n)
+    def isNull(self):
+        v = RK["cfg"].get("c_isNull", False)
+        if isinstance(v, Exception): raise v
+        return v
+    @property
+    def id(self): return 77
+    def name(self): return "kerning"
+    @property
+    def isChanged(self):
+        if RK["cfg"].get("flags_raise"): raise RuntimeError("flag boom")
+        return RK["changed"] > 0 or len(RK["updates"]) > 0
+    @property
+    def hasChanges(self): return False
+    def changed(self):
+        if RK["cfg"].get("changed") == "raise": raise RuntimeError("changed boom")
+        RK["changed"] += 1
+class RKPackage:
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            RK["pkg_all"].add(n)
+            if n in _RK_PKG_FORBIDDEN:
+                RK["pkg_forbidden"].append(n)
+                raise SystemExit("FORBIDDEN package member touched: " + n)
+        return object.__getattribute__(self, n)
+    def isNull(self): return False
+    @property
+    def masters(self): return RK["cfg"].get("masters", ["Regular"])
+    @property
+    def master(self): return "Regular"
+    @property
+    def isChanged(self): return True
+    @property
+    def hasChanges(self): return True
+    @property
+    def kerning(self):
+        def _kerning(*args):
+            RK["kerning_args"].append(args)
+            if RK["cfg"].get("kerning_call") == "raise": raise RuntimeError("kerning() boom")
+            return RKKern()
+        return _kerning
+    @property
+    def kerningContainer(self):
+        v = RK["cfg"].get("container_attr")
+        if v == "not_callable": return 5
+        def _container():
+            RK["container_calls"] += 1
+            m = RK["cfg"].get("container")
+            if m == "raise": raise RuntimeError("container boom")
+            if m == "none": return None
+            return RK_C
+        return _container
+class RKWorkspace:
+    @staticmethod
+    def instance(): return RK_WS
+    def packages(self): return [RK_PKG] * RK["cfg"].get("packages", 1)
+    @property
+    def currentPackage(self): return RK_PKG
+RK_PKG = RKPackage(); RK_WS = RKWorkspace(); RK_C = RKContainer()
+def _rk_update(*args):
+    RK["updates"].append(tuple(type(a).__name__ for a in args))
+    if RK["cfg"].get("update") == "raise": raise RuntimeError("Update boom")
+    return True
+def _rk_forbidden(name):
+    def _f(*a):
+        RK["mod_forbidden"].append(name)
+        raise SystemExit("FORBIDDEN module call: " + name)
+    return _f
+_rk_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flWorkspace", "Update", "UpdateAll")]
+def rk_setup(calls=0, **cfg):
+    RK["cfg"] = dict(cfg)
+    RK["updates"].clear(); RK["kerning_args"].clear(); RK["changed"] = 0; RK["container_calls"] = 0
+    ns["_TRYKERNREFRESH"]["calls"] = calls
+    count = cfg.get("count", 1)
+    for _m in _tf_mods:
+        _m.flWorkspace = RKWorkspace
+        _m.CountFonts = lambda: count
+        _m.CurrentFont = lambda: SKFont()
+        _m.UpdateAll = _rk_forbidden("UpdateAll")
+        if cfg.get("no_update"):
+            if hasattr(_m, "Update"): delattr(_m, "Update")
+        else:
+            _m.Update = _rk_update
+def rkc(tag, path, keys=None):
+    c, d = call(path)
+    shown = {k: v for k, v in d.items() if k not in ("note", "container_public_names")} if keys is None else {k: d.get(k) for k in keys}
+    print(tag, ":", c, shown, "| kerningContainer() calls", RK["container_calls"], "| Update args", RK["updates"], "| changed() calls", RK["changed"])
+    return c, d
+_RKQ = "/debug/trykernrefresh?stage="
+_RKR = ("call", "call_error", "returned_type", "returned", "container_flags_before", "container_flags_after", "calls_so_far")
+rk_setup(); rkc("1712 no go: nothing runs        ", _RKQ + "update")
+rk_setup(); rkc("1713 bad stage                  ", _RKQ + "all&go=yes")
+rk_setup(); c, d = rkc("1714 stage=container            ", _RKQ + "container&go=yes")
+print("1714b public names reported       :", isinstance(d.get("container_public_names"), list) and "changed" in d["container_public_names"], "| note:",
+      "nothing is saved" in d.get("note", ""))
+rk_setup(); rkc("1715 stage=update               ", _RKQ + "update&go=yes")
+rk_setup(); rkc("1716 stage=changed              ", _RKQ + "changed&go=yes", keys=_RKR)
+rk_setup(update="raise"); rkc("1717 Update raises (counted)    ", _RKQ + "update&go=yes", keys=_RKR)
+rk_setup(changed="raise"); rkc("1718 changed raises            ", _RKQ + "changed&go=yes", keys=_RKR)
+rk_setup(changed="not_callable"); rkc("1718b changed not callable    ", _RKQ + "changed&go=yes", keys=_RKR)
+rk_setup(c_isNull=True); rkc("1719 container null: not called ", _RKQ + "update&go=yes", keys=("container_isNull",) + _RKR)
+rk_setup(c_isNull=RuntimeError("null boom")); rkc("1720 isNull raises: not called  ", _RKQ + "changed&go=yes", keys=("container_isNull",) + _RKR)
+rk_setup(container="raise"); rkc("1721 kerningContainer raises    ", _RKQ + "update&go=yes")
+rk_setup(container="none"); rkc("1722 kerningContainer None      ", _RKQ + "update&go=yes")
+rk_setup(no_update=True); rkc("1723 no fontlab.Update: refused  ", _RKQ + "update&go=yes")
+rk_setup(no_update=True); rkc("1723b ... not needed for changed", _RKQ + "changed&go=yes", keys=("call", "call_error", "calls_so_far"))
+rk_setup(container_attr="not_callable"); rkc("1724 kerningContainer not callable", _RKQ + "update&go=yes")
+rk_setup(kerning_call="raise"); rkc("1725 kerning() raises          ", _RKQ + "update&go=yes", keys=("kerning_error", "call", "call_error", "kerning_len_before", "table_size_changed"))
+rk_setup(flags_raise=True); rkc("1726 a flag read raises         ", _RKQ + "update&go=yes", keys=("container_flags_before", "container_flags_after", "call_error"))
+rk_setup(masters=["Regular", 5]); rkc("1727 masters not all names     ", _RKQ + "update&go=yes")
+for tag, over in (("1728 no font open        ", dict(count=0)), ("1729 two fonts open      ", dict(count=2)), ("1730 two packages        ", dict(packages=2))):
+    rk_setup(**over); rkc(tag, _RKQ + "update&go=yes")
+rk_setup(calls=5); rkc("1731 request 6 allowed        ", _RKQ + "update&go=yes", keys=("calls_so_far", "max_calls"))
+RK["updates"].clear(); RK["container_calls"] = 0; rkc("1732 request 7 refused        ", _RKQ + "update&go=yes")
+rk_setup(); _rk_real = ns["debug_try_kern_refresh"]
+ns["debug_try_kern_refresh"] = _pk_boom; rkc("1733 probe raises: HTTP 500    ", _RKQ + "update&go=yes"); ns["debug_try_kern_refresh"] = _rk_real
+rk_setup()
+for _p in (_RKQ + "update", _RKQ + "container&go=yes", _RKQ + "update&go=yes", _RKQ + "changed&go=yes"): call(_p)
+print("1734 spy over all cases          : forbidden package members:", RK["pkg_forbidden"], "| package members touched:", sorted(RK["pkg_all"]),
+      "| forbidden container members:", RK["c_forbidden"], "| container members touched:", sorted(RK["c_all"]),
+      "| kerning members touched:", sorted(RK["k_all"]), "| forbidden module calls:", RK["mod_forbidden"])
+_rk_src = src[src.index("_TRYKERNREFRESH = {"):src.index("# /debug/trymodern (v0.88)")]
+_rk_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _rk_src).splitlines())
+print("1735 static scan                 : pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _rk_code))), "| container members used:",
+      sorted(set(_re83.findall(r"\bcontainer\.(\w+)", _rk_code))), "| updater( calls:", _re83.findall(r"\bupdater\([^)]*\)", _rk_code),
+      "| mark( calls:", len(_re83.findall(r"\bmark\(", _rk_code)), "| container_of( calls:", len(_re83.findall(r"\bcontainer_of\(", _rk_code)),
+      "| forbidden syntax:", _re83.findall(r"\b(?:UpdateAll|Update\(\)|save\w*\(|\.release\(|\.remove\w*\(|(?<!\bout)\.update\(|\.setFlag\(|\.clearFlag\w*\(|\.set\(|\.restoreHistoryState\(|\.clearAboveHistory\()", _rk_code),
+      "| subscripts on other objects:", [s for s in _re83.findall(r"\b(\w+)\[", _rk_code) if s not in ("_TRYKERNREFRESH", "out")],
+      "| counter raised before the first call:", _rk_code.index('_TRYKERNREFRESH[""] += 1') < _rk_code.index("kerning_of(current)") < _rk_code.index("container_of()"),
+      "| scanned chars > 3000:", len(_rk_src) > 3000)
+print("1736 gate, cap, route, docstring  :", "go != \"yes\"" in _rk_src, "| max requests", ns["_TRYKERNREFRESH_MAX"],
+      "| route registered once:", src.count('path == "/debug/trykernrefresh"') == 1, "| listed in the module docstring:", "/debug/trykernrefresh" in src[:src.index('"""', 3)])
+for _m, _a, _v in _rk_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)
+ns["_TRYKERNREFRESH"]["calls"] = 0

@@ -2,6 +2,14 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-04: save tests are a preference, not a rule
+
+- **File > Save tests are avoided by preference, not forbidden.** One runs when it answers a question better than other means, and only after the user agrees to that test. The person saves through FontLab's GUI, to a disposable file outside the repository; no tool saves (save policy below). First case: KW 557–560, save and reopen after an API kerning write ([topics/kerning.md](topics/kerning.md) §13). *Supersedes* "File > Save tests are deferred" (2026-10-24) and that day's one-case exception (both archived). *Reason:* the user's choice, after that test showed the KERNING panel was only stale.
+
+## 2026-11-04: word budgets
+
+- **Word budgets: [CURRENT-STATUS.md](CURRENT-STATUS.md) 1,800, [DECISIONS.md](DECISIONS.md) 1,900 (active part), [CHECKLIST.md](CHECKLIST.md) 1,400, [WATCH-POINTS.md](WATCH-POINTS.md) 1,500** (were 1,350, 1,700, 1,300 and 1,250; CURRENT-STATUS.md was first raised to 1,600 the same day). *Reason:* the user's choice, as the kerning-write results (tests 542–560) brought these files near their limits.
+
 ## 2026-11-04: the vertical check and quadratic extents (listener 0.121 / server 0.43)
 
 - **`verified` on the modern route needs the vertical extent too, checked against FontLab's own `inkBox()`**; without a usable box the reply says `y_extent_checked: false` and why. *Supersedes* the horizontal-only check of the F1 fix (archived). *Reason:* `inkBox()` equalled the exact extents on five glyphs with no F1 (519–533); FontLab displays no vertical ink number to compare with (533).
@@ -62,10 +70,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 - **Read only the pairs a task needs, never the whole kerning table or font.** *Reason:* token cost.
 - **There are no hard limits, but there is a threshold at 250 pairs.** Above it the agent must warn the person, say how many pairs and why, and ask. Only after a yes may it repeat the call with `confirmed_large_read=true`. *Reason:* the user's words: "Let there be no hard limits and let there be a threshold at 250."
-
-## 2026-10-24: v10 session
-
-- **File > Save tests (T9 and similar) are deferred** until the user says otherwise.
 
 ## October 2026: v8 session (exact day not recorded)
 

@@ -13,7 +13,11 @@ This list holds the **open** scenarios only. Row numbers are those of the v11 ma
 
 ## Kerning
 
-None open: the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
+Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
+
+| # | Scenario | Status |
+|---|---|---|
+| 81 | Write a kerning pair (KW) | PARTLY: a glyph : glyph pair set, re-read, applied and saved (544–560); the KERNING panel lists it only after save and reopen (545–560); open: Undo, the save question, the `flags` form, classes ([topics/kerning.md](topics/kerning.md) §13) |
 
 ## Sync, fonts and agent level
 
@@ -24,7 +28,7 @@ None open: the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 63 | Several fonts open: which one the tools address | PARTLY: `CurrentFont()` and the current package follow the window in front (262–264); `get_kerning` reads that font, matched by path, with 2 and 3 fonts, and refuses an unsaved one (265–268); every reply names its font and a switched window is reported (269–272); create, draw, width, sidebearings and Unicode change only the font in front, across switches (273–281); a failed call swallowed the switch note (277), fixed in server 0.39 (282–284); two unsaved fonts (FontLab names the second "Unnamed1", so a switch is noticed by name), `draw_path` and `delete_glyph` change only the font in front (285–290); the other read tools follow the font in front (309–316); open: two unsaved fonts with the same name (a Font Info rename does not produce it, 322–324), three fonts (`list_glyphs`, `get_glyph_width` and every write but `draw_path` proven, 317–331; the other reads untested), a switch during one call ([topics/fonts-and-sync.md](topics/fonts-and-sync.md)) |
 | 62 | Modern glyph creation without `font.update()` | TODO, low priority (T6) |
 | 22 | Layer-name derivation when glyphs disagree, or when none has a layer | stub-tested only |
-| 32 | Save and reopen after API-drawn geometry | DEFERRED by the user (T9) |
+| 32 | Save and reopen after API-drawn geometry | TODO when useful; save tests by preference only (T9, [DECISIONS.md](DECISIONS.md)) |
 
 ## Reading gaps
 

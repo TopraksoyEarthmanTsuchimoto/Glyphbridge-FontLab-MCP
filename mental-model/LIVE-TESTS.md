@@ -8,7 +8,7 @@
 
 **CLOSED (do not repeat):** v8 list (sidebearings and width on a curved glyph; O with counter vs the GUI; diagonal-node circle; S-like blob; smooth gate at 0.33 / 2.73 degrees, zero-length handle on a smooth node, c1 = c2, line-to-handle smooth node, negative x; refusals create no layer; 180- and 990-node draws; `fontlab_status` version reporting). v10: the stale legacy view (fixed at the source by `Update(flGlyph)` and by the 0.88 fallback); the guard live (139a / 139b, 142: a drawing survives a create, and a synced glyph survives a later `font.update()`); first glyph of a new font (layer `Regular` from the package master); margin comparison on a scaled and on a skewed glyph (143); `fillFgData` is useless; sidebearings and width are carried by the sync (141, 142). Evidence only from stubs: the layer guard's own refusal path (8h); the failed-sync path of 0.89.
 
-**Test numbers in use** (moved from [CURRENT-STATUS.md](CURRENT-STATUS.md) on 2026-11-03; the next free number is kept there): 155 to 520 (K-series, P0.8 research and checks, 189–190 the v0.101 check and the activity log, 225–229 the checks of 0.105 / 0.106, 158 and 230–235 K11, 236–242 the sender tests, 243 K12(b), 244 K13, 245–246 K14, 247–252 K16, 253–255 T2, 256–258 T3, 145a–g (reserved for T4), 259 and 260 T4, 261–290 T5, 291–302 N1, 303–308 the checks of 0.114 / 0.40 / 0.41 ([CHANGELOG.md](CHANGELOG.md)), 309–316 T5 (read tools), 317–321 T5 (three fonts), 322–324 T5 (a Font Info rename), 325–331 T5 (writes with three fonts), 332–496 F1, 497–520 V120 (the checks of 0.120 / 0.42), 521–533 INK (`inkBox()` research), 534–541 V121 (the checks of 0.121 / 0.43); details in [LIVE-TESTS.md](LIVE-TESTS.md) and [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4).
+**Test numbers in use** (moved from [CURRENT-STATUS.md](CURRENT-STATUS.md) on 2026-11-03; the next free number is kept there): 155 to 520 (K-series, P0.8 research and checks, 189–190 the v0.101 check and the activity log, 225–229 the checks of 0.105 / 0.106, 158 and 230–235 K11, 236–242 the sender tests, 243 K12(b), 244 K13, 245–246 K14, 247–252 K16, 253–255 T2, 256–258 T3, 145a–g (reserved for T4), 259 and 260 T4, 261–290 T5, 291–302 N1, 303–308 the checks of 0.114 / 0.40 / 0.41 ([CHANGELOG.md](CHANGELOG.md)), 309–316 T5 (read tools), 317–321 T5 (three fonts), 322–324 T5 (a Font Info rename), 325–331 T5 (writes with three fonts), 332–496 F1, 497–520 V120 (the checks of 0.120 / 0.42), 521–533 INK (`inkBox()` research), 534–541 V121 (the checks of 0.121 / 0.43), 542–560 KW (kerning writes, below); details in [LIVE-TESTS.md](LIVE-TESTS.md) and [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4).
 
 ### K-series: reading kerning (current priority, decision of the user of 2026-10-27; before the T-series)
 
@@ -53,6 +53,28 @@
 5. Same pair, **Alt + Left arrow** once: an exception (red, nested, plain names) at -101. Double-click its value, type -50. (FontLab help: Alt = right side a glyph, Ctrl = left side a glyph, Ctrl+Alt = glyph : glyph.)
 6. Read with `/debug/trypkgkern?a=kn1L&b=kn1R&go=yes` (and `b=kn1S`). Expected: -50 and -100 with the class named `kn1grp`. Tests of defect B need the class named `kn1R` (rename it back); `&mode=flags&flags=FF` then gives -50 for `kn1R` and `None` for `kn1S`.
 
+### KW series: writing kerning (research, 2026-11-04, listener 0.122 / 0.123; results in [topics/kerning.md](topics/kerning.md) §13)
+
+**Stage recipe** (nothing is saved; repeat after any FontLab restart with a NEW prefix, e.g. `ks2`): one new font (File > New Font, no other font open); through the tools `create_glyph` `ks1L`, `ks1R`; `draw_polygon` each with `[[0,0],[500,0],[500,500],[0,500]]`; `set_glyph_width` 500 each. Check `get_kerning` `ks1L:ks1R` 0 `none`, `table_size` 0. Screen checks: double-click a glyph in the grid, text `/ks1L/ks1R` in the glyph window's text field; the KERNING panel open on the right.
+
+| Test | What | Result |
+|---|---|---|
+| 542, 543 | names only: `fgKerning` and `flPackage` docstrings | `set(pair, double)`, documented as returning an int; `kerningContainer()` |
+| 544 | `/debug/trysetkern?a=ks1L&b=ks1R&value=-100&form=tuple&go=yes` | written: `None` → -100.0, `len` 0 → 1; `set` returned `None` |
+| 545–547 | KERNING panel: as is, after a glyph window opened, after reopening the panel | no row |
+| 546 | text line `/ks1L/ks1R` | about 100 units of overlap: applied |
+| 548 | names only: `kern` in the `fontlab` and `fontgate` modules | none in `fontlab`; six in `fontgate` |
+| 549, 550 | `/ks1R/ks1L` edge to edge; Kerning tool, Alt + Left arrow | GUI pair -1; the panel lists only that pair |
+| 551 | `get_kerning` on both pairs | -100 and -1, `table_size` 2 |
+| 552 | names only: `Update`, `flObject`, `flPackage` change members | `Update([fgGlyph\|fgFont\|flObject])` |
+| 553–556 | `/debug/trykernrefresh` `container`, `update`, `changed`, `update` | no error, no panel row; `changed()` sets the container's `isChanged`, `Update` clears it |
+| 557 | `get_kerning`, unsaved | -100 and +20, `table_size` 2 |
+| 558 | File > Save As a new `.vfc` outside the repository | table and panel unchanged |
+| 559 | close with the font window's X | no save question |
+| 560 | File > Open of that file | the panel lists both pairs, footer 2; `get_kerning` the same |
+
+**Open in the KW series:** the `flags` form; Edit > Undo after an API write; the save question on close after an API kerning write only (S1).
+
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 
 | Id | Test | Stage / how | Expected | Status |
@@ -75,7 +97,7 @@
 | **T6** | `/debug/trymodern?stage=create` (modern glyph creation without the legacy `font.update()`): only if a design needs it | gated, disposable font, once per listener run | the name reads back, the glyph exists in the legacy font, no layer lost; it would offer a creation route that never calls `font.update()` | OPEN, LOW PRIORITY (guard + auto sync already protect `create_glyph`, but not a glyph Glyphbridge never changed: F1, 414–416) |
 | **T7** | Multi-layer / multi-master glyph: which layer `Update` and the reader address (P1.3) | a font with two masters or layers | names-only probes first | OPEN |
 | **T8** | Quadratic (TrueType) font: `Update`, the reader, `draw_path` meaningful? (P2.3; real quadratic data can be READ from Arial opened from the system) | Arial from the system, read-only first | `Off` runs read; `unverified` expected for quadratic | OPEN |
-| **T9** | Save and reopen after API work, including a NEW font from `flPackage()` and an auto-synced glyph: do shapes, widths, sidebearings and layer survive? (test 135 and all File > Save tests) | the person saves a COPY | everything survives | **DEFERRED by the user; do NOT run until the user says so** |
+| **T9** | Save and reopen after API work, including a NEW font from `flPackage()` and an auto-synced glyph: do shapes, widths, sidebearings and layer survive? (test 135 and all File > Save tests) | the person saves a COPY | everything survives | **not run; save tests by preference only, with the user's agreement ([DECISIONS.md](DECISIONS.md)); one case run: KW 557–560** |
 | **T10** | Older live checks still open (P3): `create_glyph('uni00e8')` shows the lowercase-hex warning; `.notdef` items (explicit `check_notdef` through Claude, the `missing` dialog on a throwaway font, a timed-out write while a dialog is open (checklist 19), a wait between 90 and 120 s); `set_glyph_width` on a glyph whose layer exists but is inactive (checklist 44) | per checklist rows 18, 19, 20, 44 | as in the checklist | OPEN, cheap |
 | **T11** | Rotation and mirroring transforms on real data (checklist 12c / 12d / 12e, 13, 14): with v0.88 the margin comparison also has to hold for them | reference glyphs built by the person with the Element tool | `margins_agree: true`, `verified` | OPEN |
 | **T12** | After P0.2 is built: with NO font open every tool answers `open: false` (no placeholder `Paper` font); stub tests with a faked `CountFonts()` first | restart FontLab, no font open | `open: false` everywhere | PARTLY 2026-11-02 (listener 0.105, server 0.34), test 227: Arial closed in a running FontLab: `fontlab_status` `font_open: false`, `get_glyph_width A` and `create_glyph kn6A` refused with "no font is open"; OUTPUT `reads: no font open: font info 1, width 1` and `REFUSED create kn6A: no font is open`. Test 244 (2026-11-03, listener 0.110): a freshly started FontLab, every read route `open: false` (K13). Open: delete, sidebearings, Unicode and drawing live (stub only) |
