@@ -38,7 +38,7 @@ Effect of the split: the AI app starts the server in its own Python with its own
 ## Verification model
 
 Each outline reply carries a status:
-- `verified`: real transforms applied, and FontLab's bounding box and margins are reproduced within 0.05. On the modern route only the horizontal extent is checked (`y_extent_checked: false`, server 0.42).
+- `verified`: real transforms applied, and FontLab's bounding box and margins are reproduced within 0.05. On the modern route the vertical extent is checked against FontLab's own ink box, `inkBox()` (`y_extent_checked`, listener 0.121 / server 0.43).
 - `calibrated`: transforms estimated from the bounding box.
 - `unverified`: the coordinates are raw, and the reply says which coordinate space they are in.
 

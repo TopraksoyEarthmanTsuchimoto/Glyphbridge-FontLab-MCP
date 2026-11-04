@@ -70,6 +70,8 @@ Tool names as Claude sees them: [CLAUDE.md](../../CLAUDE.md). After a server upd
 - **GET `/glyph/outline`** `?name=X`, optional `&layer=body|active|strict|glayer`, `&modern=no`: contours (`kind`, `smooth`, `x`, `y`),
   `fontlab_bbox`, `margins`, `component_count`, `shape_count`, `layer_name`, `elements` (true transforms). A zero-layer glyph answers
   `node_count` 0 with `layer_count` 0; a layer that cannot be reached although layers exist gives `layer_unreachable: true` + error.
+  Since listener 0.120 a glyph with modern nodes is answered from the modern layer (`source: "modern"`, `modern_outline`, `elements`),
+  with `fontlab_ink_box` since 0.121 ([reading.md](reading.md) §8p).
 - **GET `/font/notdef`**: read-only `.notdef` check. **POST `/font/notdef/warn`**: re-checks, then shows the dialog if warranted
   (`{"force": true}` shows it again). Section 7.
 - **New gated probes (v0.83 to v0.86; all need `go=yes`, none ever saves, closes, exports or removes anything; each is tested with a forbidden-member spy and a static scan of its source):**

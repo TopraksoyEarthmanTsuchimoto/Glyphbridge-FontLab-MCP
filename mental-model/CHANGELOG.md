@@ -4,6 +4,15 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.121 / server v0.43 (2026-11-04)
+
+**The vertical extent checked against FontLab's own ink box; exact quadratic extents** (facts 519–533, [topics/reading.md](topics/reading.md) §8p).
+- **Listener `/glyph/outline`** (the modern-only route): `fontlab_ink_box`, from `layer.inkBox()` called once with no argument on the same modern layer, as raw rectangle getters (`left`, `right`, `top`, `bottom`, `width`, `height`), or `{error}`. The outline is answered all the same when the call fails. No legacy member is touched.
+- **Server, quadratic extents:** `_cubic_contour_pieces` became `_contour_pieces`, which also parses quadratic contours (implied on-curve points halfway between two off-curve points), and `_quad_extremes` adds each segment's extreme. Quadratic contours get `ink_bbox_exact: true`, an `svg_path` with `Q` pieces, and the horizontal check; contours that mix cubic and quadratic points stay `unverified`. This applies to every modern-layer answer, the stale-view fallback included.
+- **Server, vertical check** (`source: "modern"`): the computed box is compared with FontLab's ink box at 0.05, its lower and upper y taken by `min` / `max` (Qt names the sides y-down). `verified` needs both checks (`y_extent_checked: true`, `ink_box_vs_fontlab`); a vertical mismatch is `unverified` with both numbers. The vertical check also decides between the raw and the transformed reading. Without a usable box (an older listener, a failed call, a box that is not the exact extents) the check stays horizontal and `y_extent_note` says why. The `get_glyph_outline` description says so.
+- Tests: listener 1668–1676; server 26a–26zz (2443 + 58 + 90 + 888 lines). Existing output changed only in the version lines and 14j (a quadratic contour is now parsed: its true extent no longer matches the fake's margins). Mutation run: 11 of 11 killed.
+- Live-checked 2026-11-04 (V121, 534–541): all five test glyphs `verified` with the vertical extent checked, `A` intact after a create.
+
 ## Listener v0.120 / server v0.42 (2026-11-04)
 
 **F1: a glyph with modern nodes is read and sync-checked without the legacy layer** (facts 332–496, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8l: touching `glyph.layer` or reading `glyph.layers` of a Power Brush glyph, then any `font.update()`, flattens it; `glyph.width`, `glyph.components` and the name are safe).

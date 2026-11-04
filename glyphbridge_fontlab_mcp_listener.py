@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.120)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.121)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -57,8 +57,9 @@ Routes (GET unless marked POST):
     /glyph/outline?name=X[&layer=body|active|strict|glayer][&modern=no]
                                 THE main read. Since v0.120, a glyph with modern nodes is answered from the
                                 modern layer only (source "modern": modern_outline, elements, component_count,
-                                shape_count); the legacy read below runs only for a glyph without modern
-                                nodes, for layer=strict|glayer and for modern=no (F1 risk): contours (kind,
+                                shape_count, and since v0.121 fontlab_ink_box from layer.inkBox()); the legacy
+                                read below runs only for a glyph without modern nodes, for layer=strict|glayer
+                                and for modern=no (F1 risk): contours (kind,
                                 smooth, x, y), fontlab_bbox, margins, component_count, shape_count, layer_name,
                                 elements, modern_check, and modern_outline when the legacy view is stale
     /glyph/width?name=X         advance width
@@ -154,7 +155,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.120"
+VERSION = "0.121"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -4662,7 +4663,17 @@ def _modern_only_outline(name, route):
         elements = {"available": True, "wrapper": how, "source": "flGlyph(fgGlyph, fgFont)",
                     "layer_name": desc.get("layer_name"), "shapes": desc["shapes"]}
     return dict(base, node_count=mo["node_count"], contour_count=len(mo["contours"]), modern_outline=mo,
-                elements=elements, component_count=state.get("components"), shape_count=state.get("shapes"))
+                elements=elements, component_count=state.get("components"), shape_count=state.get("shapes"),
+                fontlab_ink_box=_modern_ink_box(layer))
+
+
+def _modern_ink_box(layer):
+    """v0.121. FontLab's own ink box of the modern layer: layer.inkBox() called once, with no argument, as a zero-argument
+    getter (live 519-530: equal to the computed curve extents with the element transform applied, cubic, quadratic and
+    Power Brush; no F1 after it). The QRectF's getters are passed on raw (Qt names its sides y-down, so "top" was the
+    lower y): the server interprets them. A failed call is {"error"}; the outline is answered all the same."""
+    v, err = _tl_call(lambda: layer.inkBox())
+    return {"error": err} if err is not None else _rect_plain(v)
 
 
 _MODERN_FIRST = True   # v0.120 (F1); the stub tests switch it off to test the legacy reader

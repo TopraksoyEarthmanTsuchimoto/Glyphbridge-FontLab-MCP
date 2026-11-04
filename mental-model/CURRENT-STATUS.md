@@ -1,4 +1,4 @@
-Last verified: 2026-11-04 against commit ab4f578 (listener v0.120, server v0.42; tests PASS, deployed copy identical)
+Last verified: 2026-11-04 against commit 25191f1 plus the uncommitted build of listener v0.121 / server v0.43 (tests PASS, deployed copy identical, live checks V121 done)
 
 # Current status
 
@@ -6,11 +6,11 @@ Last verified: 2026-11-04 against commit ab4f578 (listener v0.120, server v0.42;
 
 | Part | Version | md5 |
 |---|---|---|
-| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.120"` | `78a770360fc5a7ddf618bd58e4443dfc` (407,966 bytes) |
-| server `glyphbridge_mcp_server.py` | `SERVER_VERSION = "0.42"`, `MIN_LISTENER_VERSION` (0, 82) | `7bf1d68904c7a90cc2d5c01590b8f834` (169,645 bytes) |
-| tests | 4 harnesses | PASS at **2432 + 58 + 90 + 850** lines |
+| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.121"` | `98c3237a3c2edeaac0b29f62e3fe5e55` (408,720 bytes) |
+| server `glyphbridge_mcp_server.py` | `SERVER_VERSION = "0.43"`, `MIN_LISTENER_VERSION` (0, 82) | `59ab8459587ede0d33eeb45f59196348` (174,718 bytes) |
+| tests | 4 harnesses | PASS at **2443 + 58 + 90 + 888** lines |
 
-`get_kerning` needs listener 0.104 (server 0.33); with several fonts open, 0.112 / 0.37. The PostScript names from the font package need 0.118 / 0.41; the F1 fix, 0.120 / 0.42. What each release changed: [CHANGELOG.md](CHANGELOG.md).
+`get_kerning` needs listener 0.104 (server 0.33); with several fonts open, 0.112 / 0.37. The PostScript names from the font package need 0.118 / 0.41; the F1 fix, 0.120 / 0.42; the vertical check against `inkBox()` and exact quadratic extents, 0.121 / 0.43. What each release changed: [CHANGELOG.md](CHANGELOG.md).
 
 ## Environment (verified 2026-11-01)
 
@@ -25,7 +25,7 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 
 ## What works (live-proven in FontLab)
 
-- **Reading:** outlines with element transforms (scale, offset, slant), cubic and quadratic outlines, Power Brush output, widths, sidebearings, the stale-view fallback; since 0.120 / 0.42 a glyph with modern nodes from the modern layer only, its transforms applied, checked horizontally (497–520). → [topics/reading.md](topics/reading.md)
+- **Reading:** outlines with element transforms (scale, offset, slant), cubic and quadratic outlines, Power Brush output, widths, sidebearings, the stale-view fallback; since 0.120 / 0.42 a glyph with modern nodes from the modern layer only, its transforms applied, checked horizontally (497–520); since 0.121 / 0.43 checked vertically too, against FontLab's `inkBox()`, and quadratic outlines from their exact extents (INK 521–533, V121 534–541). → [topics/reading.md](topics/reading.md)
 - **Writing:** create and delete glyphs (name safety rules), Unicode set and clear, width, sidebearings, closed straight and cubic contours into an empty glyph, auto sync after every modern write, also with the glyph's editor tab open (T3, 257) and on an existing glyph with a legacy layer, in a font opened from a file (T4, 145a–g, 259, 260: a plain contour and a Power Brush shape). → [topics/geometry.md](topics/geometry.md), [topics/names-unicode.md](topics/names-unicode.md), [topics/fonts-and-sync.md](topics/fonts-and-sync.md)
 - **Save reminder:** `finish_changes` through the Desktop chat (T2, 253–255): one request with three verified writes ended with one bold reminder, a read-only request with none; FontLab showed LSB 50, width 400, RSB 50 as reported.
 - **`.notdef`** check and one-time dialog. → [topics/notdef.md](topics/notdef.md)
@@ -51,14 +51,14 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 
 ## Next steps (the user's priority of 2026-11-01)
 
-1. **Choose the next step.** Candidates (none approved): the vertical check from `inkBox()` (519, server only); `delete_glyph` and `set_glyph_unicode` after a Power Brush write; the review of legacy calls (goal 6 in [PROJECT.md](PROJECT.md); the table in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10), starting with `get_glyph_width` (legacy `glyph.width`, while the writes use `advanceWidth`) and `font.info` (it disagreed with Font Info, 298).
+1. **Choose the next step.** Candidates (none approved): `delete_glyph` and `set_glyph_unicode` after a Power Brush write; the review of legacy calls (goal 6 in [PROJECT.md](PROJECT.md); the table in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10), starting with `get_glyph_width` (legacy `glyph.width`, while the writes use `advanceWidth`) and `font.info` (it disagreed with Font Info, 298).
 2. The **T-series**: T2, T3 and T4 are done; T5 is done for `get_kerning` (0.112 / 0.37), for replies naming their font (0.113 / 0.38), for five write tools (273–281), for `draw_path` and `delete_glyph` (288, 290), the read tools (309–316) and three fonts (317–331); open: two unsaved fonts with the same name, a switch during one call. Candidates for several open fonts, none approved: whether `fontlab_status` should keep sending the font's full path, an `expected_font` check on writes, per-font memory ([ROADMAP.md](ROADMAP.md) P0.5).
 3. **S1** (proposed, none approved): say so in the reminder and the tool descriptions, or find out whether the API can mark a font as changed without saving it.
 4. Candidates after that (none approved): P0.3 / P0.4, a create-font tool; P1.1, components. Required by the user, not yet designed: P1.6, kerning group membership.
 
-The next free test number is **521**; the numbers in use: [LIVE-TESTS.md](LIVE-TESTS.md). Large-glyph and very-large-read tests stay in the LAST block.
+The next free test number is **542**; the numbers in use: [LIVE-TESTS.md](LIVE-TESTS.md). Large-glyph and very-large-read tests stay in the LAST block.
 
 ## Contradictions and watch points
 
 - Between the documents and the code: none known (checked 2026-11-04; ARCHITECTURE's "the path never leaves the listener" corrected after test 273).
-- Open watch points (seen, not yet explained or settled): **14**, in [WATCH-POINTS.md](WATCH-POINTS.md).
+- Open watch points (seen, not yet explained or settled): **15**, in [WATCH-POINTS.md](WATCH-POINTS.md).

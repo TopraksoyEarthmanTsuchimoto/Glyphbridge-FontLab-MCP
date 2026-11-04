@@ -5149,6 +5149,42 @@ for _k, _c in _scan120.items():
           "| scanned chars", len(_c) > 200)
 print("1666 shipped switch              :", _re83.findall(r"(?m)^_MODERN_FIRST = (\w+)", src), "| full kinds", ns["_GUARD_FULL_KINDS"], "| light kinds", ns["_GUARD_LIGHT_KINDS"])
 c, d = call("/version"); print("1667 version                     :", d)
+# ================= v0.121: FontLab's own ink box (layer.inkBox()) on the modern-only outline read =================
+# Live 519-530: inkBox() equalled the computed curve extents (cubic, quadratic, Power Brush, with element transforms), Qt's
+# "top" being the lower y; no F1 after it (531-532). The fake below answers like FontLab (top = lower y) and records each call.
+print("\n==== v0.121: fontlab_ink_box on the modern-only outline read ====")
+INK121 = []
+def _ink121(s, *a, **k):
+    INK121.append((a, k)); cfg = V120["cfg"]
+    if cfg.get("ink_raises"): raise RuntimeError("inkBox boom")
+    if cfg.get("ink_none"): return None
+    if cfg.get("ink_text"): return types.SimpleNamespace(left=lambda: "l", right=lambda: 1.0, top=lambda: 1.0, bottom=lambda: 0.0, width=lambda: 1.0, height=lambda: 1.0)
+    return types.SimpleNamespace(left=lambda: 192.466, right=lambda: 464.534, top=lambda: 0.0, bottom=lambda: 700.0, width=lambda: 272.068, height=lambda: 700.0)
+_ink120 = V120MLayer.inkBox; V120MLayer.inkBox = _ink121
+def i121(tag, q="A", **cfg):
+    v120_setup(**cfg); INK121.clear(); SPY120.clear(); c, d = call("/glyph/outline?name=" + q)
+    print(tag, ":", c, "| source", d.get("source"), "| fontlab_ink_box", d.get("fontlab_ink_box"), "| inkBox calls", INK121,
+          "| outline kept", isinstance(d.get("modern_outline"), dict) and d["modern_outline"].get("available"), "| legacy members touched", SPY120)
+i121("1668 ink box, read once          ")
+i121("1669 inkBox raises: outline kept ", ink_raises=1)
+i121("1670 inkBox gives None           ", ink_none=1)
+i121("1671 a getter is not a number    ", ink_text=1)
+i121("1672 no modern nodes: legacy route", "fresh")
+i121("1673 modern=no: legacy route     ", "A&modern=no")
+i121("1674 node count unreadable: error", count_text=1)
+V120MLayer.inkBox = _ink120
+# static scan: inkBox() is called with no argument, only in the gated probe and in _modern_ink_box
+_strip121 = _re83.sub(r'"""(?:.|\n)*?"""', '""', src)
+_strip121 = _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', "\n".join(l.split("#")[0] for l in _strip121.splitlines()))
+_def121, _hits121 = None, []
+for _l in _strip121.splitlines():
+    _m121 = _re83.match(r"def (\w+)\(", _l)
+    if _m121: _def121 = _m121.group(1)
+    if "inkBox" in _l: _hits121.append((_def121, _re83.findall(r"\w+\.inkBox\([^)]*\)", _l)))
+print("1675 every inkBox call            :", _hits121)
+_code121 = _code120("def _modern_ink_box(", "_MODERN_FIRST = True")
+print("1676 _modern_ink_box uses         :", sorted(set(_re83.findall(r"\blayer\.(\w+)", _code121))), "| legacy members named:",
+      _re83.findall(r"\.(?:layer|layers|bodyLayer|bodyLayerStrict|findNode|leftMargin|rightMargin|countNodes)\b|_tryshape_state", _code121), "| scanned chars", len(_code121) > 100)
 for _m, _a, _v in _v120_saved:
     if _v is None:
         if hasattr(_m, _a): delattr(_m, _a)

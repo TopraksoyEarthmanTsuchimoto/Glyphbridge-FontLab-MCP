@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.42)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.43)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.42"         # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.43"         # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -2173,7 +2173,7 @@ def _signed_area(points: list) -> float:
     return total / 2.0
 
 
-_CURVE_BOX_TOLERANCE = 0.05       # font units: computed cubic extents vs FontLab's own modern margins
+_CURVE_BOX_TOLERANCE = 0.05       # font units: computed curve extents vs FontLab's own modern margins and ink box
 
 
 def _cubic_extremes(p0, p1, p2, p3) -> list:
@@ -2200,10 +2200,26 @@ def _cubic_extremes(p0, p1, p2, p3) -> list:
     return out
 
 
-def _cubic_contour_pieces(nodes: list, closed: Any):
-    """(start point, pieces) of ONE closed contour made of straight and cubic segments, or None when it is anything else (open, quadratic
-    off-curve points, a run of handles that is not exactly two, no on-curve node). nodes: dicts with x, y, on (bool), curve (bool).
-    The closing segment may have its handles at the END of the list (how FontLab stores them)."""
+def _quad_extremes(p0, c, p1) -> list:
+    """v0.43. The points of one quadratic Bezier segment where x or y is extreme: t = (p0 - c) / (p0 - 2c + p1) per axis, inside 0 < t < 1."""
+    out = []
+    for axis in (0, 1):
+        d = p0[axis] - 2 * c[axis] + p1[axis]
+        if abs(d) < 1e-12:
+            continue
+        t = (p0[axis] - c[axis]) / d
+        if 0.0 < t < 1.0:
+            u = 1.0 - t
+            out.append(tuple(u * u * p0[i] + 2 * u * t * c[i] + t * t * p1[i] for i in (0, 1)))
+    return out
+
+
+def _contour_pieces(nodes: list, closed: Any):
+    """(start point, pieces) of ONE closed contour made of straight, cubic and quadratic segments, or None when it is anything else (open,
+    a segment that mixes cubic and quadratic points, a run of cubic handles that is not exactly two, no on-curve node). nodes: dicts with
+    x, y, on (bool), curve (bool); a point that is neither on-curve nor curve is a quadratic off-curve point. The closing segment may have
+    its handles at the END of the list (how FontLab stores them). v0.43: a run of quadratic off-curve points gets an implied on-curve point
+    halfway between each two (TrueType, as in _segment_pieces); before, a contour with quadratic points was not parsed."""
     if closed is not True or not nodes:
         return None
     start_i = next((i for i, n in enumerate(nodes) if n["on"]), None)
@@ -2211,21 +2227,28 @@ def _cubic_contour_pieces(nodes: list, closed: Any):
         return None
     seq = nodes[start_i:] + nodes[:start_i]
     start = (seq[0]["x"], seq[0]["y"])
-    pieces, cur, pend = [], start, []
+    pieces, cur, pend, kinds = [], start, [], set()
     for nd in seq[1:] + [seq[0]]:
         pt = (nd["x"], nd["y"])
         if not nd["on"]:
-            if not nd["curve"]:
-                return None                    # quadratic off-curve point
             pend.append(pt)
+            kinds.add("C" if nd["curve"] else "Q")
             continue
         if not pend:
             pieces.append(("L", cur, pt))
-        elif len(pend) == 2:
+        elif kinds == {"C"}:
+            if len(pend) != 2:
+                return None
             pieces.append(("C", cur, pend[0], pend[1], pt))
+        elif kinds == {"Q"}:
+            a = cur
+            for i, c in enumerate(pend):
+                b = pt if i == len(pend) - 1 else _mid(c, pend[i + 1])
+                pieces.append(("Q", a, c, b))
+                a = b
         else:
-            return None
-        cur, pend = pt, []
+            return None                        # one segment mixes cubic and quadratic points
+        cur, pend, kinds = pt, [], set()
     return start, pieces
 
 
@@ -2259,18 +2282,19 @@ def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict, modern_fi
                  "clockwise_reported": flag, "direction_computed": computed, "flag_follows_known_inversion": inverted, "node_list": nodes}
         if not curved and c.get("closed") is True and nodes:
             entry["svg_path"] = "M " + " L ".join(f"{n['x']} {n['y']}" for n in nodes) + " Z"
-        elif curve_type == "cubic":
-            parsed = _cubic_contour_pieces([{"x": n["x"], "y": n["y"], "on": bool(n.get("isOn")), "curve": bool(n.get("isCurve"))}
-                                            for n in c["nodes"]], c.get("closed"))
+        elif curve_type in ("cubic", "quadratic"):
+            parsed = _contour_pieces([{"x": n["x"], "y": n["y"], "on": bool(n.get("isOn")), "curve": bool(n.get("isCurve"))}
+                                      for n in c["nodes"]], c.get("closed"))
             if parsed is None:
                 exact_ok = False
-                curve_problems.append(f"contour {c.get('index')}: the cubic segments could not be told apart (a run of control points that is not exactly two, or an open contour)")
+                curve_problems.append(f"contour {c.get('index')}: the {curve_type} segments could not be told apart (a run of cubic control "
+                                      "points that is not exactly two, no on-curve node, or an open contour)")
             else:
                 entry["svg_path"] = _svg_path(parsed[0], parsed[1])
                 curve_boxes.append(parsed)
         else:
             exact_ok = False
-            curve_problems.append(f"contour {c.get('index')}: {curve_type} curve nodes; only cubic segments are evaluated")
+            curve_problems.append(f"contour {c.get('index')}: {curve_type} curve nodes; a contour that mixes cubic and quadratic points is not evaluated")
         contours_out.append(entry)
     notes.append("direction_computed is the geometric direction in y-up font units (counterclockwise = positive area). FontLab's own clockwise flag "
                  "(clockwise_reported) reads the opposite way round on the contours tested live (a counterclockwise contour shows true); it is "
@@ -2298,12 +2322,17 @@ def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict, modern_fi
     curves_exact = has_curves and exact_ok and bool(curve_boxes)
     if on_points:
         xs, ys = [p[0] for p in on_points], [p[1] for p in on_points]
-        if curves_exact:                       # the real extents: on-curve points plus the extremes of every cubic segment
+        if curves_exact:                       # the real extents: on-curve points plus the extremes of every curve segment
             for start, pieces in curve_boxes:
                 for pc in pieces:
                     if pc[0] == "C":
-                        for ex in _cubic_extremes(pc[1], pc[2], pc[3], pc[4]):
-                            xs.append(ex[0]); ys.append(ex[1])
+                        extra = _cubic_extremes(pc[1], pc[2], pc[3], pc[4])
+                    elif pc[0] == "Q":         # v0.43: the implied on-curve points between two off-curve points lie on the curve too
+                        extra = [pc[1], pc[3]] + _quad_extremes(pc[1], pc[2], pc[3])
+                    else:
+                        extra = []
+                    for ex in extra:
+                        xs.append(ex[0]); ys.append(ex[1])
         box = {"left": min(xs), "right": max(xs), "bottom": min(ys), "top": max(ys)}
     verification = {"status": "unverified"} if modern_first else {"status": "unverified", "modern_check": mc}
     if stale_margins:
@@ -2349,12 +2378,40 @@ def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict, modern_fi
     return result
 
 
+def _fontlab_ink_y(data: dict):
+    """v0.43: (bottom, top, None), FontLab's own vertical ink extent in y-up font units from the listener's fontlab_ink_box
+    (layer.inkBox(), listener 0.121), or (None, None, why not). Qt names the rectangle's sides y-down ("top" was the lower y in
+    519-530), so the two sides are taken with min and max, never by their names."""
+    if "fontlab_ink_box" not in data:
+        return None, None, "the listener sent no FontLab ink box (listener 0.121 or newer sends one)"
+    ib = data["fontlab_ink_box"]
+    if not isinstance(ib, dict) or ib.get("error"):
+        why = ib.get("error") if isinstance(ib, dict) else "the reply was malformed"
+        return None, None, f"FontLab's ink box could not be read ({why})"
+    a, b = ib.get("top"), ib.get("bottom")
+    if not (_num(a) and _num(b)):
+        return None, None, "FontLab's ink box had no numeric top and bottom"
+    return min(a, b), max(a, b), None
+
+
+def _y_extent_ok(res: dict, lo, hi):
+    """v0.43: True / False when the computed box (exact: curve extents included) can be compared with FontLab's vertical ink
+    extent lo..hi, else None."""
+    b = res.get("ink_bbox")
+    if lo is None or res.get("ink_bbox_exact") is not True or not isinstance(b, dict):
+        return None
+    return abs(b["bottom"] - lo) < _CURVE_BOX_TOLERANCE and abs(b["top"] - hi) < _CURVE_BOX_TOLERANCE
+
+
 def _modern_first_result(clean: str, data: dict) -> dict:
     """v0.42 (F1, listener 0.120): the listener read a glyph that has modern nodes from the modern layer only. The element
     transforms are applied by contour counts, as on the legacy route, and the result is checked against FontLab's modern
     left sidebearing and ink width. Whether the modern node coordinates already include the element transform is not
-    known from a live run, so both readings are checked and only an unambiguous match is called verified. The vertical
-    extent is not checked on this route (no FontLab box yet): y_extent_checked is false."""
+    known from a live run, so both readings are checked and only an unambiguous match is called verified.
+    v0.43 (listener 0.121): the vertical extent is checked too, against FontLab's own ink box (layer.inkBox()): verified needs
+    both, a vertical mismatch makes the result unverified, and the vertical check also decides between the two readings.
+    Without that box (an older listener, a failed call, a box that is not the exact curve extents) the check stays
+    horizontal, y_extent_checked is false and y_extent_note says why."""
     mo = data.get("modern_outline")
     if not (isinstance(mo, dict) and mo.get("available") and isinstance(mo.get("contours"), list)):
         raise ToolError("The listener's outline reply was malformed, so it was not trusted.")
@@ -2378,6 +2435,7 @@ def _modern_first_result(clean: str, data: dict) -> dict:
         mapping_note = f"FontLab's element transforms could not be read ({el.get('error') or 'no element list'}), so none was applied."
     raw = _modern_outline_result(clean, mo, None, data, modern_first=True)
     result = raw
+    lo, hi, y_why = _fontlab_ink_y(data)
     if mats is not None and not all(_is_identity(m) for m in mats):
         moved = []
         for ci, c in enumerate(mo["contours"]):
@@ -2390,8 +2448,9 @@ def _modern_first_result(clean: str, data: dict) -> dict:
         for c_out, c_in in zip(applied["contours"], mo["contours"]):
             for n_out, n_in in zip(c_out["node_list"], c_in.get("nodes", [])):
                 n_out["raw_x"], n_out["raw_y"] = _tidy_number(n_in["x"]), _tidy_number(n_in["y"])
-        ok_applied = applied["verification"]["status"] == "verified"
-        ok_raw = raw["verification"]["status"] == "verified"
+        y_applied, y_raw = _y_extent_ok(applied, lo, hi), _y_extent_ok(raw, lo, hi)
+        ok_applied = applied["verification"]["status"] == "verified" and y_applied is not False
+        ok_raw = raw["verification"]["status"] == "verified" and y_raw is not False
         if ok_raw and not ok_applied:
             result["coordinate_space"] = ("FontLab view (the modern layer's coordinates already include the element transform: they match "
                                           "FontLab's margins as read, and not with the transform applied again)")
@@ -2401,15 +2460,34 @@ def _modern_first_result(clean: str, data: dict) -> dict:
                                           "element's own values)")
             if ok_applied and ok_raw:
                 result["verification"]["status"] = "unverified"
-                result["verification"]["reason"] = ("the coordinates match FontLab's horizontal margins both with and without the element "
-                                                     "transform, so the vertical placement cannot be confirmed on this route")
+                if y_applied and y_raw:
+                    result["verification"]["reason"] = ("the coordinates match FontLab's horizontal margins and its ink box both with and "
+                                                         "without the element transform, so which reading is right cannot be told")
+                else:
+                    result["verification"]["reason"] = ("the coordinates match FontLab's horizontal margins both with and without the element "
+                                                         "transform, so the vertical placement cannot be confirmed on this route")
     if elements is not None:
         result["elements"] = elements
     if mapping_note:
         result["notes"].append(mapping_note)
-    result["verification"]["y_extent_checked"] = False
-    result["verification"]["checked_against"] = ("FontLab's modern left sidebearing and ink width (horizontal only; the vertical extent "
-                                                 "is not checked on this route)")
+    v = result["verification"]
+    y_ok = _y_extent_ok(result, lo, hi)
+    if y_ok is None:
+        v["y_extent_checked"] = False
+        v["y_extent_note"] = y_why or "the computed box is not the exact curve extents, so it was not compared with FontLab's ink box"
+        v["checked_against"] = ("FontLab's modern left sidebearing and ink width (horizontal only; the vertical extent was not checked, "
+                                "see y_extent_note)")
+        return result
+    b = result["ink_bbox"]
+    fl_lo, fl_hi = _tidy_number(round(lo, 3)), _tidy_number(round(hi, 3))
+    v["y_extent_checked"] = True
+    v["ink_box_vs_fontlab"] = {"box_bottom": b["bottom"], "box_top": b["top"], "fontlab_bottom": fl_lo, "fontlab_top": fl_hi, "y_ok": y_ok}
+    v["checked_against"] = ("FontLab's modern left sidebearing and ink width, and FontLab's own ink box (layer.inkBox()) for the "
+                            "vertical extent")
+    if not y_ok and v["status"] == "verified":
+        v["status"] = "unverified"
+        v["reason"] = (f"the computed box matches FontLab's horizontal margins but not FontLab's own ink box vertically: computed y "
+                       f"{b['bottom']}..{b['top']}, FontLab {fl_lo}..{fl_hi}")
     return result
 
 
@@ -2621,8 +2699,11 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     from FontLab's modern layer and says so ('source': 'modern layer'): every contour (closed, FontLab's clockwise flag and the
     direction computed from the points, y up, curve_type none / cubic / quadratic / mixed), every node (x, y, kind On / Curve / Off,
     curve, smooth; Curve = cubic control point, Off = quadratic off-curve point), the ink bounding box and left, right and
-    advance_width. 'verified' there means the box (for cubic curves: the exact extents of the segments, computed) equals FontLab's
-    left sidebearing and ink width; quadratic or malformed curves stay 'unverified' with a reason.
+    advance_width. 'verified' there means the box (for curves: the exact extents of the cubic and quadratic segments, computed)
+    equals FontLab's left sidebearing and ink width; contours that mix cubic and quadratic points, or are malformed, stay
+    'unverified' with a reason. Since listener 0.121 the box is also compared with FontLab's own ink box vertically, and 'verified'
+    needs both ('y_extent_checked': true, 'ink_box_vs_fontlab'); when that comparison was not possible, 'y_extent_checked' is false
+    and 'y_extent_note' says why.
 
     Stale view: right after a change through the API (e.g. set_glyph_sidebearings) FontLab's older node view can still show the OLD
     geometry. The tool therefore compares the modern left / right sidebearing and advance width with the margins of the older view;

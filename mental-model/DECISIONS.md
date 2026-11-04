@@ -2,6 +2,11 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-04: the vertical check and quadratic extents (listener 0.121 / server 0.43)
+
+- **`verified` on the modern route needs the vertical extent too, checked against FontLab's own `inkBox()`**; without a usable box the reply says `y_extent_checked: false` and why. *Supersedes* the horizontal-only check of the F1 fix (archived). *Reason:* `inkBox()` equalled the exact extents on five glyphs with no F1 (519–533); FontLab displays no vertical ink number to compare with (533).
+- **Quadratic outlines are checked from their exact extents, computed by the server.** *Reason:* the user's choice; `inkBox()` agreed with them (522, 526).
+
 ## 2026-11-04: the modern API first
 
 - **Prefer FontLab's modern API. A legacy call is used only where the modern one is missing or proven worse, and the reason and test number are recorded** in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10. Legacy calls in use before this decision stay until each is reviewed; until then their record says "not yet reviewed". **Goal:** every legacy call that might safely be replaced is replaced ([PROJECT.md](PROJECT.md), goal 6). *Reason:* the user's choice, after reviewing where both APIs can do a task: the legacy view can be stale or disagree with what FontLab shows (sidebearings, `font.info`, kerning), and touching it caused F1.
@@ -14,7 +19,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 - **A glyph with modern nodes is read from the modern layer only**; when that read fails the reply is an error, never a legacy fallback. *Reason:* touching `glyph.layer` or reading `glyph.layers` of a Power Brush glyph lets the next `font.update()` flatten it (332–496).
 - **After a width or sidebearing write the sync check compares only the legacy width**; drawings and new layers keep the full check. *Reason:* the same facts; `glyph.width` is safe (486–488).
-- **`verified` on the modern route checks the horizontal extent only**, and the reply says `y_extent_checked: false`, until a vertical check is built. *Reason:* approved with the build, when no FontLab box was proven; 519 later found `inkBox()`.
 
 ## 2026-11-03: names read at the moment, not fixed strings
 

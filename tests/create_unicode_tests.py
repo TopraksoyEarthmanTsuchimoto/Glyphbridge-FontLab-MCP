@@ -1648,3 +1648,88 @@ del os.environ["GLYPHBRIDGE_MODERN"]
 r, _n = read15(legacy_reply(0, {"left": 0.0, "right": 100.0, "width": 500.0}), sb_reply(0, 100, 500))
 print("25v an older listener (no source) ->", (r.get("verification", {}).get("status") if isinstance(r, dict) else r[:80]), "| F1 note:", any("Power Brush" in n for n in r.get("notes", [])) if isinstance(r, dict) else None)
 print("25w version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
+
+print("\n==== 26. server 0.43: exact quadratic extents; the vertical extent checked against FontLab's ink box (listener 0.121, layer.inkBox()) ====")
+# Live data (521-530): testglyph1 (quadratic, scale and offset), testglyph2 (cubic), testglyph3 (quadratic), A (Power Brush). FontLab's
+# inkBox() names its sides y-down: "top" is the lower y.
+def qn(i, x, y): return node(i, x, y, on=False, curve=False)
+def kn(rows):                                    # (x, y) on-curve, (x, y, "q") quadratic off-curve, (x, y, "c") cubic control point
+    return [qn(i, r[0], r[1]) if len(r) == 3 and r[2] == "q" else hnode(i, r[0], r[1]) if len(r) == 3 else node(i, r[0], r[1]) for i, r in enumerate(rows)]
+def ink(lo, hi, **kw):
+    d = {"type": "QRectF", "left": 0.0, "right": 1.0, "top": float(lo), "bottom": float(hi), "width": 1.0, "height": float(hi) - float(lo)}
+    d.update(kw); return d
+def g26(contours, margins, matrix=None, **kw):
+    cs = [{"index": i, "closed": True, "clockwise": False, "nodesCount": len(n), "nodes": n} for i, n in enumerate(contours)]
+    nn = sum(len(n) for n in contours)
+    mo = {"available": True, "contours": cs, "node_count": nn, "expected_node_count": nn, "margins": margins}
+    m = matrix or {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": 0.0, "dy": 0.0}
+    el = {"available": True, "wrapper": "cached", "shapes": [{"shape_type": "contours", "contours": len(contours), "is_component": False, "is_composite": False, "matrix": m}]}
+    r = {"open": True, "found": True, "name": "A", "source": "modern", "layer_route": "body", "layer_name": "test_font", "node_count": nn,
+         "contour_count": len(contours), "modern_outline": mo, "elements": el, "component_count": 0, "shape_count": 1}
+    r.update(kw); return r
+def m26(tag, reply):
+    s10_reset(); S9["get"]["/glyph/outline"] = reply
+    r = s9_try(lambda: srv.read_glyph_outline("A"))
+    if isinstance(r, str):
+        print(tag, "->", r[:160]); return r
+    v = r["verification"]
+    print(tag, "->", v["status"], "| y_extent_checked", v.get("y_extent_checked"), "| bbox", r.get("ink_bbox"), "exact", r.get("ink_bbox_exact"),
+          "| vs FontLab", v.get("ink_box_vs_fontlab"), "| reason", (v.get("reason") or "")[:110], "| y note", (v.get("y_extent_note") or "")[:90])
+    return r
+G3 = kn([(128, 414), (383, 274), (357, 267, "q"), (307, 235, "q"), (255, 208, "q"), (202, 200, "q"), (173, 217), (144, 234, "q"), (110, 281, "q"), (99, 334, "q"), (111, 389, "q")])
+G3_M = {"lsb": 101.86956521739131, "rsb": 117.0, "advance": 500.0}
+r = m26("26a testglyph3, quadratic (live 525/526)", g26([G3], G3_M, fontlab_ink_box=ink(203.2380952380952, 414.0)))
+print("26b  svg and checked_against   ->", r["contours"][0].get("svg_path"), "|", r["verification"]["checked_against"])
+_a1, _d1 = (93.0201210975647 - 15) / 82, (390.1471252441406 - 24) / 378
+G1 = [kn([(82, 378), (99, 416, "q"), (167, 430, "q"), (201, 418), (218, 412, "q"), (243, 385, "q"), (257, 350, "q"), (255, 314, "q"), (245, 299), (235, 284, "q"), (214, 251, "q"),
+          (191, 223, "q"), (169, 206, "q"), (157, 207), (145, 208, "q"), (122, 208, "q"), (100, 214, "q"), (82, 230, "q"), (76, 248), (64, 283, "q"), (72, 355, "q")]),
+      kn([(167, 159), (152, 153, "q"), (127, 139, "q"), (113, 123, "q"), (113, 106, "q"), (125, 97), (137, 88, "q"), (160, 70, "q"), (183, 61, "q"), (203, 63, "q"), (212, 72),
+          (221, 81, "q"), (237, 101, "q"), (247, 120, "q"), (247, 138, "q"), (239, 146), (223, 163, "q"), (184, 167, "q")])]
+r = m26("26c testglyph1, quadratic, scale and offset (live 521/522)", g26(G1, {"lsb": 78.74814772605895, "rsb": 74.30605468153954, "advance": 333.0},
+        {"m11": _a1, "m12": 0.0, "m21": 0.0, "m22": _d1, "dx": 15.0, "dy": 24.0}, fontlab_ink_box=ink(83.8797607421875, 436.2341485274465)))
+print("26d  coordinate space          ->", r["coordinate_space"][:80])
+G2 = kn([(128, 414), (383, 274), (314, 255, "c"), (250, 172, "c"), (173, 217), (96, 262, "c"), (83, 347, "c")])
+m26("26e testglyph2, cubic (live 523/524)  ", g26([G2], {"lsb": 102.15479625533814, "rsb": 117.0, "advance": 500.0}, fontlab_ink_box=ink(203.80555555555554, 414.0)))
+m26("26f A, ink box top = lower y          ", mf_reply(fontlab_ink_box=ink(0.0, 700.0)))
+m26("26g A, sides named the other way      ", mf_reply(fontlab_ink_box=ink(700.0, 0.0)))
+m26("26h A, FontLab's box 2 units higher   ", mf_reply(fontlab_ink_box=ink(2.0, 702.0)))
+m26("26i A, 0.04 off vertically            ", mf_reply(fontlab_ink_box=ink(0.04, 700.0)))
+m26("26j A, 0.06 off vertically            ", mf_reply(fontlab_ink_box=ink(0.0, 700.06)))
+m26("26k inkBox failed                     ", mf_reply(fontlab_ink_box={"error": "RuntimeError: inkBox boom"}))
+m26("26l an older listener: no ink box     ", mf_reply())
+m26("26m a getter that was not a number    ", mf_reply(fontlab_ink_box={"type": "QRectF", "error": "rect.left was not a number (str)"}))
+m26("26n top not a number                  ", mf_reply(fontlab_ink_box=ink(0.0, 700.0, top="x")))
+m26("26o ink box not a dict                ", mf_reply(fontlab_ink_box="box"))
+m26("26p horizontal mismatch, y agrees     ", mf_reply(margins={"lsb": 100.0, "rsb": 174.466, "advance": 639.0}, fontlab_ink_box=ink(0.0, 700.0)))
+_dy = {"available": True, "shapes": [{"contours": 1, "is_composite": True, "matrix": {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": 0.0, "dy": 30.0}}]}
+r = m26("26q dy 30, FontLab box = raw nodes    ", mf_reply(elements=_dy, fontlab_ink_box=ink(0.0, 700.0)))
+print("26r  coordinate space          ->", r["coordinate_space"][:90])
+r = m26("26s dy 30, FontLab box = moved nodes  ", mf_reply(elements=_dy, fontlab_ink_box=ink(30.0, 730.0)))
+print("26t  coordinate space          ->", r["coordinate_space"][:90])
+m26("26u dy 30, FontLab box = neither      ", mf_reply(elements=_dy, fontlab_ink_box=ink(10.0, 710.0)))
+m26("26v dy 30, no ink box: ambiguous      ", mf_reply(elements=_dy))
+_flip = {"available": True, "shapes": [{"contours": 1, "is_composite": True, "matrix": {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": -1.0, "dx": 0.0, "dy": 700.0}}]}
+m26("26w mirrored in its own box: ambiguous", mf_reply(pts=((192.466, 0), (464.534, 0), (464.534, 700), (192.466, 700)), elements=_flip, fontlab_ink_box=ink(0.0, 700.0)))
+MIX = kn([(0, 0), (400, 0), (500, 100, "c"), (500, 300, "c"), (400, 400), (200, 500, "q"), (0, 400)])
+m26("26x mixed contour: not exact, no y check", g26([MIX], {"lsb": 0.0, "rsb": -500.0, "advance": 0.0}, fontlab_ink_box=ink(0.0, 450.0)))
+m26("26y polygon, exact without curves     ", mf_reply(pts=((10, 20), (110, 20), (60, 220)), margins={"lsb": 10.0, "rsb": 529.0, "advance": 639.0}, fontlab_ink_box=ink(20.0, 220.0)))
+# a flat top at the implied on-curve point (150, 100): both pieces have their y extreme at t = 1 / t = 0, so only the piece ends give it
+m26("26y2 flat top at an implied point     ", g26([kn([(0, 0), (100, 100, "q"), (200, 100, "q"), (300, 0)])], {"lsb": 0.0, "rsb": -300.0, "advance": 0.0}, fontlab_ink_box=ink(0.0, 100.0)))
+# the parser and the quadratic extremes themselves
+def pieces(rows, closed=True):
+    p = srv._contour_pieces([{"x": float(r[0]), "y": float(r[1]), "on": len(r) == 2, "curve": len(r) == 3 and r[2] == "c"} for r in rows], closed)
+    return None if p is None else (p[0], [(pc[0],) + tuple(tuple(round(v, 3) for v in q) for q in pc[1:]) for pc in p[1]])
+print("26z1 two off-curve points       ->", pieces([(0, 0), (100, 100, "q"), (200, 100, "q"), (300, 0)]))
+print("26z2 starts on an off-curve point ->", pieces([(100, 100, "q"), (200, 100, "q"), (300, 0), (0, 0)]))
+print("26z3 closing run at the end     ->", pieces([(0, 0), (300, 0), (300, 100, "q"), (0, 100, "q")]))
+print("26z4 no on-curve point          ->", pieces([(0, 0, "q"), (100, 0, "q"), (100, 100, "q")]))
+print("26z5 one segment, both kinds    ->", pieces([(0, 0), (100, 100, "c"), (200, 100, "q"), (300, 0)]))
+print("26z6 open contour               ->", pieces([(0, 0), (100, 100, "q"), (300, 0)], closed=False))
+print("26z7 three cubic handles        ->", pieces([(0, 0), (100, 100, "c"), (200, 100, "c"), (250, 50, "c"), (300, 0)]))
+def qx(*pts): return [tuple(round(v, 4) for v in p) for p in srv._quad_extremes(*pts)]
+print("26z8 quad extremes              -> peak", qx((0, 0), (50, 100), (100, 0)), "| monotonic", qx((0, 0), (50, 50), (100, 100)), "| x only (y linear)", qx((0, 0), (100, 100), (0, 200)),
+      "| at an end (t=0)", qx((0, 0), (0, 100), (100, 100)))
+_d26 = srv.get_glyph_outline.__doc__ or ""
+print("26z9 docs                       -> quadratic extents:", "cubic and quadratic segments" in _d26, "| FontLab's ink box:", "FontLab's own ink box vertically" in _d26,
+      "| old 'quadratic stays unverified' gone:", "quadratic or malformed curves stay" not in _d26)
+print("26zz version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
