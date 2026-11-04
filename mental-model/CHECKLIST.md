@@ -41,7 +41,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 12c, 12d, 12e | Rotation, mirroring, combined transform on real data | TODO (T11), simulated only |
 | 13 | Two elements with different transforms | TODO |
 | 14 | Power Brush glyph with an element transform | PARTLY: an offset (dx −142, set by `setSB`) read `verified`, FontLab's Elements panel Δ=(-142,0) (T4, 145g, 260), and on the modern route (515); scale and rotation not tested |
-| 6, 50 | Open contours, read | TODO (P1.4); assumed closed today |
+| 6, 50 | Open contours, read | PARTLY: server 0.46 reads them from the modern layer, live `verified` for a straight and a cubic open contour drawn in FontLab's GUI (584, 585; [topics/reading.md](topics/reading.md) §8e); open: a quadratic open contour (stub only), the legacy route |
 | 15, 40, 51 | A real designed letter (Arial `O`, `S`, `g`, `eacute`), read-only | TODO (P1.5), under about 150 nodes each |
 | 4 | Back To PS Curves round trip | TODO |
 | 5 | The "To Line" route itself (straight polygons already read back) | PARTLY |
@@ -53,7 +53,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 
 | # | Scenario | Status |
 |---|---|---|
-| 28 | Draw an open contour | TODO (P2.1) |
+| 28 | Draw an open contour | PARTLY: `draw_path` with `"closed": false` (listener 0.126 / server 0.47): open straight and cubic contours, and an open one with a closed one, drawn and read `verified`; refusals change nothing (595–603; research 586–594; [topics/geometry.md](topics/geometry.md) §8g); open: quadratic, what FontLab does with them on export |
 | 30 | Several separate shapes in one glyph | TODO (P2.2) |
 | 31 | Draw into, or edit, an existing outline | not supported; decide the behaviour first (P2.2) |
 | 43 | `draw_path` in a quadratic font | TODO, low (T8) |

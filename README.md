@@ -2,7 +2,7 @@
 
 Lets AI agents such as Claude read and edit fonts open in **FontLab 8** through the Model Context Protocol (MCP). Two parts work together: a **listener** that runs inside FontLab, and an **MCP server** that your AI app starts.
 
-What an agent can do today: read glyph outlines, widths, sidebearings, Unicode values and kerning pairs; create and delete glyphs; set widths, sidebearings, codepoints and kerning between two glyphs; draw closed straight and cubic outlines. **Glyphbridge never saves your font.** You save it yourself (File menu or Ctrl+S).
+What an agent can do today: read glyph outlines, widths, sidebearings, Unicode values and kerning pairs; create and delete glyphs; set widths, sidebearings, codepoints and kerning between two glyphs; draw straight and cubic outlines, closed or open. **Glyphbridge never saves your font.** You save it yourself (File menu or Ctrl+S).
 
 ## Requirements
 

@@ -4,6 +4,34 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.126 / server v0.47 (2026-11-04)
+
+**`draw_path` draws open contours** (P2.1; research 586–594, [topics/geometry.md](topics/geometry.md) §8g).
+- **The request:** a contour is a point list (closed, as before) or `{"points": [...], "closed": false}` (open, from the first point to the last); `{"points": [...]}` or `"closed": true` means closed. Open and closed contours can be mixed in one call, still one shape into an empty glyph.
+- **Rules for an open contour**, checked by the server before sending and again by the listener: 2 to 500 points, at least 2 different positions after rounding; no `c1` / `c2` on the first point (no closing segment); no smooth first or last point (one neighbour). Inner smooth points use the existing check, without wrapping round.
+- **Listener `POST /glyph/path`:** builds an open contour with `_path_build_contour(…, closed=False)`; its `closed` flag must read False detached and on the layer, otherwise nothing is reported as drawn; the reply lists `open_contours`; the activity log line counts them ("1 open"). Closed contours are unchanged.
+- **Server `draw_path`:** needs listener 0.126 only when a contour is open (refused before sending otherwise); the reply adds `closed` per contour, `open_contours_note`, and an `agent_instruction` to tell the person that open contours have no fill and that what FontLab does with them on export is untested. The tool's input schema takes both contour forms.
+- Tests: listener 2090–2122 (2676 → 2714 lines), server 29a–29zz (1018 → 1054); other output changed only in the version lines and the `draw_path` signature (13zf). Mutation run: 17 of 17 killed, both unmutated controls passed. Not yet live-checked.
+
+## Listener v0.125 (2026-11-04; server unchanged at 0.46)
+
+**`/debug/tryopen`, a gated research probe for P2.1 (drawing open contours).** Does a contour that is never closed stay open once attached?
+- `stage=detached|draw`, `name=ocp…`, `kind=line|curve`, `go=yes`. Fixed shapes: `line` the open V of 581, `curve` the open arch of 583. The one-font gate of `/debug/trysync`; at most 6 calls per listener run, counted before anything is created or built.
+- `detached` builds the contour with `_path_build_contour(…, closed=False)` and reads it back; the glyph is not touched. `draw` builds it the same way into a glyph whose modern layer is known to be empty (a missing layer is created, as `draw_path` does), attaches it only when the detached contour reads `closed` false with the expected positions and node kinds, reads the layer back (`layer_closed`, `layer_mismatches`, `drawn`), and marks the glyph for the guard. Smooth flags are reported, not required.
+- `_path_build_contour` gains `closed=True` (default); `draw_path` and `draw_polygon` are unchanged (stub 2081, 2082).
+- Tests: listener 2050–2085 (2636 → 2676 lines); other output changed only in the version lines. Mutation run: 13 of 13 killed, the unmutated control passed. Never run in FontLab yet.
+
+## Server v0.46 (2026-11-04; listener unchanged at 0.124)
+
+**Open contours, read** (P1.4; live 581: an open straight V, `verified`; 583: an open cubic arch, `unverified` in 0.45).
+- **`_contour_pieces`** parses an open contour (`closed` false) from its first node to its last, with no closing segment; both ends must be on-curve, otherwise the reply says "an open contour whose first or last node is not on-curve". A `closed` flag that is not a bool is named as such. So an open curve gets its exact extents and can be `verified` against FontLab's margins and `inkBox()`.
+- **`svg_path`** for open contours, straight and curved, without the closing Z (`_svg_path(…, closed=False)`).
+- **Direction:** `direction_computed` is "not applicable (open contour)" and `flag_follows_known_inversion` null; FontLab's own flag stays listed.
+- **A note** names the open contours; the `get_glyph_outline` description says how they are read.
+- Closed contours are unchanged; the legacy route's "assumed closed" note is unchanged.
+- Tests: server 28a–28z (2636 + 58 + 90 + 1018 lines); 14n (an open inner contour, margins of another shape) now reads "does not match" instead of "not computed". Mutation run: 11 of 11 killed, the unmutated control passed.
+- Not yet live-checked.
+
 ## Server v0.45 (2026-11-04; listener unchanged at 0.124)
 
 **`set_kerning` polished from the live checks 565–574** ([topics/kerning.md](topics/kerning.md) §14).

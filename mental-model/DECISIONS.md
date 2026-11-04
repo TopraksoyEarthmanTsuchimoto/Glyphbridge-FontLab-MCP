@@ -2,6 +2,10 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-04: open contours in `draw_path` (listener 0.126 / server 0.47)
+
+- **A contour given as `{"points": [...], "closed": false}` is drawn open; a plain list stays closed**, so existing calls are unchanged. An open contour may not carry `c1` / `c2` on its first point or be smooth at an end. Every reply with an open contour tells the agent to say that open contours have no fill and that what FontLab does with them on export is untested. *Reason:* the user approved the design as proposed; the facts are 586–603.
+
 ## 2026-11-04: whole kerning units (server 0.45)
 
 - **`set_kerning` refuses a value that is not a whole number, before anything is sent**, instead of rounding it. *Reason:* FontLab stores kerning in whole units, rounded to the nearest with halves away from zero (567–569); the tool must never write a value nobody asked for. The user approved it as proposed.
@@ -18,7 +22,7 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 ## 2026-11-04: word budgets
 
-- **Word budgets: [CURRENT-STATUS.md](CURRENT-STATUS.md) 1,800, [DECISIONS.md](DECISIONS.md) 1,900 (active part), [CHECKLIST.md](CHECKLIST.md) 1,400, [WATCH-POINTS.md](WATCH-POINTS.md) 1,500** (were 1,350, 1,700, 1,300 and 1,250; CURRENT-STATUS.md was first raised to 1,600 the same day). *Reason:* the user's choice, as the kerning-write results (tests 542–560) brought these files near their limits.
+- **Word budgets: [CURRENT-STATUS.md](CURRENT-STATUS.md) 1,800, [DECISIONS.md](DECISIONS.md) 2,000 (active part), [CHECKLIST.md](CHECKLIST.md) 1,400, [WATCH-POINTS.md](WATCH-POINTS.md) 1,500** (were 1,350, 1,700, 1,300 and 1,250; CURRENT-STATUS.md was first raised to 1,600 and DECISIONS.md to 1,900 the same day). *Reason:* the user's choice, as the kerning-write results (tests 542–560) and then the open-contour work brought these files near their limits.
 
 ## 2026-11-04: the vertical check and quadratic extents (listener 0.121 / server 0.43)
 
@@ -48,11 +52,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 - **`get_kerning` with several fonts open** (listener 0.112 / server 0.37, tests 265–268): it uses the current package only when its `path` is not empty and equals the current font's path, and otherwise refuses with the reason. *Supersedes* "kerning reads need exactly one open font" (2026-11-01, archived). *Reason:* the user approved it after T5 (262–264) showed that both views follow the font window in front and that `path` tells the fonts apart.
 - **Goal: every operation works with 2, 3 or more fonts open, without confusion.** Closing the other fonts is the last resort, only where it is the only way to a goal. Then the tool tells the person to close them, and why: a limitation of how FontLab is built, shown by research, which Glyphbridge cannot work around. Until research has shown that, the message says the case is not supported yet. *Reason:* the user's choice, within the design rule of honest messages ([PROJECT.md](PROJECT.md)).
-
-## 2026-11-03: who sent a request, facts only
-
-- **A missing client name stays missing:** the log line starts with `[Glyphbridge]`; the `.notdef` dialog drops its closing line about "an AI agent". *Reason:* the user's choice; the listener cannot know an agent sent a request (test 236: `curl`).
-- **The server sends the file name of the program that started it (option C)**, read once at startup with the standard library on Windows and macOS; the listener shows it without `.exe`, in capitals, once per new pair. Only file names: no path, argument, environment variable, user name or other app's file; a failure shows nothing. *Reason:* the user's choice: a system fact, no new dependency. Rejected: command lines, app configs, self-naming, `psutil`.
 
 ## 2026-11-03: proven container calls on native objects
 

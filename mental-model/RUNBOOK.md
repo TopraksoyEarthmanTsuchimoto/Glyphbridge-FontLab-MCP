@@ -28,7 +28,9 @@ piped); numbers may print with a decimal comma, depending on the Windows locale 
 **FontLab GUI facts for testing:** only the *Element* selection tool shows the transform bar (X/Y, horizontal/vertical %, rotation,
 slant). The X/Y box at the bottom shows the selected node in the *displayed* (transformed) space, one decimal. The Glyph panel's
 width/LSB/RSB are **truncated integers**: compare exact values through the API. Fonts opened from the system get pseudo paths such
-as `:/Arial: Normal`.
+as `:/Arial: Normal`. A new font's Font window uses the encoding Latin Simple, which shows grey placeholder cells for glyphs that do
+not exist: set the Encoding box in the Font window's toolbar to **None** before using the grid as evidence of which glyphs exist
+([topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k, test 578).
 
 ## 13. Re-verify after any change
 

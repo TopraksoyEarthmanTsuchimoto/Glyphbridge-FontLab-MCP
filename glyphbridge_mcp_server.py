@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.45)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.47)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.45"         # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.47"        # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1256,6 +1256,7 @@ def _check_polygon_points(points: Any) -> list:
 
 
 _POLY_MAX_CONTOURS, _POLY_MAX_TOTAL = 20, 2000
+_PATH_OPEN_MIN_POINTS = 2                  # v0.47: an open contour of draw_path (listener 0.126)
 
 
 def write_glyph_polygon(name: str, points: Any = None, contours: Any = None) -> dict:
@@ -1352,14 +1353,23 @@ def _check_path_xy(value: Any, where: str) -> dict:
 
 
 def _check_path_contours(contours: Any) -> list:
-    """The contours as clean lists of point dicts, or a ToolError (before anything is sent)."""
+    """The contours as clean lists of point dicts, or a ToolError (before anything is sent). v0.47: a contour given as
+    {"points": [...], "closed": false} is OPEN and comes back in that form; a closed one comes back as a plain point list."""
     if not isinstance(contours, (list, tuple)) or not (1 <= len(contours) <= _POLY_MAX_CONTOURS):
         raise ToolError(f"contours must be a list of 1 to {_POLY_MAX_CONTOURS} point lists.")
-    low, high = _POLY_LIMITS
+    high = _POLY_LIMITS[1]
     clean, total = [], 0
-    for ci, plist in enumerate(contours):
+    for ci, item in enumerate(contours):
+        plist, closed = item, True
+        if isinstance(item, dict):
+            if "points" not in item or set(item) - {"points", "closed"}:
+                raise ToolError(f'contour {ci}: a contour object has "points" and optionally "closed" (true or false).')
+            plist, closed = item["points"], item.get("closed", True)
+            if not isinstance(closed, bool):
+                raise ToolError(f"contour {ci}: closed must be true or false.")
+        low = _POLY_LIMITS[0] if closed else _PATH_OPEN_MIN_POINTS
         if not isinstance(plist, (list, tuple)) or not (low <= len(plist) <= high):
-            raise ToolError(f"contour {ci} must be a list of {low} to {high} points.")
+            raise ToolError(f"contour {ci} must be a list of {low} to {high} points" + ("." if closed else " (an open contour)."))
         pts = []
         for pi, pt in enumerate(plist):
             where = f"contour {ci} point {pi}"
@@ -1381,9 +1391,19 @@ def _check_path_contours(contours: Any) -> list:
                     item["smooth"] = True
             pts.append(item)
             total += 1
-        if len({(p["x"], p["y"]) for p in pts}) < 3:
-            raise ToolError(f"contour {ci} needs at least 3 different on-curve positions.")
-        clean.append(pts)
+        if closed:
+            if len({(p["x"], p["y"]) for p in pts}) < 3:
+                raise ToolError(f"contour {ci} needs at least 3 different on-curve positions.")
+            clean.append(pts)
+            continue
+        if len({(p["x"], p["y"]) for p in pts}) < _PATH_OPEN_MIN_POINTS:
+            raise ToolError(f"contour {ci} (open) needs at least {_PATH_OPEN_MIN_POINTS} different on-curve positions.")
+        if "c1" in pts[0]:
+            raise ToolError(f"contour {ci} (open): the first point cannot have c1 / c2, because an open contour has no closing segment.")
+        for pi in (0, len(pts) - 1):
+            if pts[pi].get("smooth"):
+                raise ToolError(f"contour {ci} (open) point {pi}: an end point cannot be smooth, because it has only one neighbour.")
+        clean.append({"points": pts, "closed": False})
     if total > _POLY_MAX_TOTAL:
         raise ToolError(f"at most {_POLY_MAX_TOTAL} nodes in total (every curved segment adds its two control points).")
     return clean
@@ -1394,7 +1414,11 @@ def write_glyph_path(name: str, contours: Any) -> dict:
     if not clean:
         raise ToolError("Glyph name must not be empty.")
     checked = _check_path_contours(contours)
-    _require_listener((0, 82), "draw_path")
+    closed_flags = [not isinstance(c, dict) for c in checked]
+    if all(closed_flags):
+        _require_listener((0, 82), "draw_path")
+    else:
+        _require_listener((0, 126), "draw_path with open contours")
 
     data = _write_post("/glyph/path", {"name": clean, "contours": checked})
 
@@ -1434,6 +1458,13 @@ def write_glyph_path(name: str, contours: Any) -> dict:
                  "re-read layer matched the request. The advance width is NOT changed by drawing: set it with set_glyph_width, or place the "
                  "outline and the width together with set_glyph_sidebearings. Call get_glyph_outline to compare the curve extents with FontLab's own margins."),
     }
+    if not all(closed_flags):
+        open_idx = [ci for ci, f in enumerate(closed_flags) if not f]
+        result["closed"] = closed_flags
+        result["note"] = result["note"].replace("Closed contours of straight", "Contours of straight", 1)
+        result["open_contours_note"] = (f"Contour(s) {open_idx} are OPEN (the listener read closed: false for them, before and after attaching): "
+                                        "each runs from its first point to its last, with no closing segment, so it has no fill.")
+        result["agent_instruction"] = _OPEN_CONTOUR_INSTRUCTION
     _add_rounding_note(result)
     for key in ("layer_created", "display_note"):
         if data.get(key) is not None:
@@ -1443,7 +1474,12 @@ def write_glyph_path(name: str, contours: Any) -> dict:
     return result
 
 
-_UNI_NAME = re.compile(r"uni([0-9A-F]{4})")        # uniXXXX: exactly one codepoint, UPPERCASE hex
+_OPEN_CONTOUR_INSTRUCTION = ("Tell the person that the glyph has OPEN contours: they have no fill, so they are strokes or construction lines, "
+                             "not filled shapes. Also tell them that what FontLab does with open contours when it generates a font (closes "
+                             "them, drops them or keeps them) has NOT been tested with Glyphbridge, so they should check that before relying "
+                             "on this glyph in an exported font.")
+
+_UNI_NAME =re.compile(r"uni([0-9A-F]{4})")        # uniXXXX: exactly one codepoint, UPPERCASE hex
 _U_NAME = re.compile(r"u([0-9A-F]{4,6})")          # uXXXX .. uXXXXXX
 _UNI_SEQUENCE = re.compile(r"uni(?:[0-9A-F]{4})+")  # uni00410042: valid, but a SEQUENCE (ligature), not one codepoint
 
@@ -1845,7 +1881,8 @@ def _sample_piece(piece) -> list:
     return pts
 
 
-def _svg_path(start_pt, pieces) -> str:
+def _svg_path(start_pt, pieces, closed: bool = True) -> str:
+    """v0.46: an open contour (closed=False) gets no closing Z."""
     parts = [f"M {_fmt(start_pt[0])} {_fmt(start_pt[1])}"]
     for pc in pieces:
         if pc[0] == "L":
@@ -1854,7 +1891,8 @@ def _svg_path(start_pt, pieces) -> str:
             parts.append("C " + " ".join(f"{_fmt(p[0])} {_fmt(p[1])}" for p in (pc[2], pc[3], pc[4])))
         else:
             parts.append("Q " + " ".join(f"{_fmt(p[0])} {_fmt(p[1])}" for p in (pc[2], pc[3])))
-    parts.append("Z")
+    if closed:
+        parts.append("Z")
     return " ".join(parts)
 
 
@@ -2366,20 +2404,31 @@ def _quad_extremes(p0, c, p1) -> list:
 
 
 def _contour_pieces(nodes: list, closed: Any):
-    """(start point, pieces) of ONE closed contour made of straight, cubic and quadratic segments, or None when it is anything else (open,
-    a segment that mixes cubic and quadratic points, a run of cubic handles that is not exactly two, no on-curve node). nodes: dicts with
-    x, y, on (bool), curve (bool); a point that is neither on-curve nor curve is a quadratic off-curve point. The closing segment may have
-    its handles at the END of the list (how FontLab stores them). v0.43: a run of quadratic off-curve points gets an implied on-curve point
-    halfway between each two (TrueType, as in _segment_pieces); before, a contour with quadratic points was not parsed."""
-    if closed is not True or not nodes:
+    """(start point, pieces) of ONE contour made of straight, cubic and quadratic segments, or None when it is anything else (a segment
+    that mixes cubic and quadratic points, a run of cubic handles that is not exactly two, no on-curve node, a closed flag that is not a
+    bool). nodes: dicts with x, y, on (bool), curve (bool); a point that is neither on-curve nor curve is a quadratic off-curve point. The
+    closing segment may have its handles at the END of the list (how FontLab stores them). v0.43: a run of quadratic off-curve points gets
+    an implied on-curve point halfway between each two (TrueType, as in _segment_pieces); before, a contour with quadratic points was not
+    parsed. v0.46: an open contour (closed False) runs from its first node to its last, with no closing segment; both must be on-curve
+    (live 583: FontLab's open arch reads On, Curve, Curve, On), otherwise None."""
+    if not nodes:
         return None
-    start_i = next((i for i, n in enumerate(nodes) if n["on"]), None)
-    if start_i is None:
+    if closed is True:
+        start_i = next((i for i, n in enumerate(nodes) if n["on"]), None)
+        if start_i is None:
+            return None
+        seq = nodes[start_i:] + nodes[:start_i]
+        walk = seq[1:] + [seq[0]]
+    elif closed is False:
+        if not (nodes[0]["on"] and nodes[-1]["on"]):
+            return None
+        seq = nodes
+        walk = nodes[1:]
+    else:
         return None
-    seq = nodes[start_i:] + nodes[:start_i]
     start = (seq[0]["x"], seq[0]["y"])
     pieces, cur, pend, kinds = [], start, [], set()
-    for nd in seq[1:] + [seq[0]]:
+    for nd in walk:
         pt = (nd["x"], nd["y"])
         if not nd["on"]:
             pend.append(pt)
@@ -2408,9 +2457,12 @@ def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict, modern_fi
     v0.42 with modern_first, was deliberately not used: F1)."""
     stale_margins = isinstance(mc, dict) and mc.get("agree") is not False and mc.get("margins_agree") is False
     contours_out, on_points, notes = [], [], []
-    has_curves, disagree = False, []
+    has_curves, disagree, open_idx = False, [], []
     exact_ok, curve_problems, curve_boxes = True, [], []
     for c in mo["contours"]:
+        is_open = c.get("closed") is False             # v0.46: open contours (live 581, 583)
+        if is_open:
+            open_idx.append(c.get("index"))
         # kind: On = on-curve; Curve = cubic control point (FontLab: not on-curve, isCurve); Off = quadratic off-curve point
         nodes = [{"x": _tidy_number(n["x"]), "y": _tidy_number(n["y"]),
                   "kind": "On" if n.get("isOn") else ("Curve" if n.get("isCurve") else "Off"),
@@ -2422,26 +2474,35 @@ def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict, modern_fi
         curved = any((not n.get("isOn")) or n.get("isCurve") for n in c["nodes"])
         has_curves = has_curves or curved
         on_points.extend(pts)
-        area = _signed_area(pts) if len(pts) >= 3 else 0.0
-        computed = "counterclockwise" if area > 0 else "clockwise" if area < 0 else "undetermined"
         flag = c.get("clockwise")
-        # live (two glyphs, both ways round): FontLab's flag is True for a counterclockwise contour (y up) and False for a clockwise one
-        inverted = None if computed == "undetermined" or not isinstance(flag, bool) else (flag == (computed == "counterclockwise"))
+        if is_open:                                    # an open path has no inside, so no direction (live 581 gave one from the closed polygon)
+            computed, inverted = "not applicable (open contour)", None
+        else:
+            area = _signed_area(pts) if len(pts) >= 3 else 0.0
+            computed = "counterclockwise" if area > 0 else "clockwise" if area < 0 else "undetermined"
+            # live (two glyphs, both ways round): FontLab's flag is True for a counterclockwise contour (y up) and False for a clockwise one
+            inverted = None if computed == "undetermined" or not isinstance(flag, bool) else (flag == (computed == "counterclockwise"))
         if inverted is False:
             disagree.append(c.get("index"))
         entry = {"index": c.get("index"), "closed": c.get("closed"), "node_count": len(nodes), "curve_type": curve_type,
                  "clockwise_reported": flag, "direction_computed": computed, "flag_follows_known_inversion": inverted, "node_list": nodes}
-        if not curved and c.get("closed") is True and nodes:
-            entry["svg_path"] = "M " + " L ".join(f"{n['x']} {n['y']}" for n in nodes) + " Z"
+        if not curved:
+            if c.get("closed") in (True, False) and nodes:
+                entry["svg_path"] = "M " + " L ".join(f"{n['x']} {n['y']}" for n in nodes) + ("" if is_open else " Z")
         elif curve_type in ("cubic", "quadratic"):
             parsed = _contour_pieces([{"x": n["x"], "y": n["y"], "on": bool(n.get("isOn")), "curve": bool(n.get("isCurve"))}
                                       for n in c["nodes"]], c.get("closed"))
             if parsed is None:
                 exact_ok = False
-                curve_problems.append(f"contour {c.get('index')}: the {curve_type} segments could not be told apart (a run of cubic control "
-                                      "points that is not exactly two, no on-curve node, or an open contour)")
+                if is_open and not (c["nodes"][0].get("isOn") and c["nodes"][-1].get("isOn")):
+                    why = "an open contour whose first or last node is not on-curve"
+                elif c.get("closed") not in (True, False):
+                    why = f"FontLab's closed flag reads {c.get('closed')!r}, not true or false"
+                else:
+                    why = "a run of cubic control points that is not exactly two, or no on-curve node"
+                curve_problems.append(f"contour {c.get('index')}: the {curve_type} segments could not be told apart ({why})")
             else:
-                entry["svg_path"] = _svg_path(parsed[0], parsed[1])
+                entry["svg_path"] = _svg_path(parsed[0], parsed[1], closed=not is_open)
                 curve_boxes.append(parsed)
         else:
             exact_ok = False
@@ -2453,6 +2514,9 @@ def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict, modern_fi
     if disagree:
         notes.append(f"WARNING: for contour(s) {disagree} FontLab's clockwise flag does NOT show the usual inversion: check the direction "
                      "before relying on direction_computed.")
+    if open_idx:
+        notes.append(f"Contour(s) {open_idx} are OPEN (closed: false): each runs from its first node to its last, with no closing segment, "
+                     "so it has no fill and no direction, and its svg_path ends without Z.")
     if stale_margins:
         leg_m = mc.get("legacy_margins") if isinstance(mc.get("legacy_margins"), dict) else {}
         mod_m = mc.get("modern_margins") if isinstance(mc.get("modern_margins"), dict) else {}
@@ -2854,7 +2918,9 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     equals FontLab's left sidebearing and ink width; contours that mix cubic and quadratic points, or are malformed, stay
     'unverified' with a reason. Since listener 0.121 the box is also compared with FontLab's own ink box vertically, and 'verified'
     needs both ('y_extent_checked': true, 'ink_box_vs_fontlab'); when that comparison was not possible, 'y_extent_checked' is false
-    and 'y_extent_note' says why.
+    and 'y_extent_note' says why. An open contour ('closed': false) runs from its first node to its last with no closing segment:
+    it is checked the same way, its direction_computed is 'not applicable (open contour)', its svg_path ends without Z, and a note
+    names it.
 
     Stale view: right after a change through the API (e.g. set_glyph_sidebearings) FontLab's older node view can still show the OLD
     geometry. The tool therefore compares the modern left / right sidebearing and advance width with the margins of the older view;
@@ -3086,8 +3152,8 @@ def draw_polygon(name: str, points: list[list[float]] | None = None,
 
 
 @_tool()
-def draw_path(name: str, contours: list[list[dict[str, Any]]], ctx: Context | None = None) -> dict[str, Any]:
-    """Draw closed contours with straight AND cubic curve segments into an EMPTY glyph in the font currently open in FontLab 8.
+def draw_path(name: str, contours: list[list[dict[str, Any]] | dict[str, Any]], ctx: Context | None = None) -> dict[str, Any]:
+    """Draw contours (closed, or open) with straight AND cubic curve segments into an EMPTY glyph in the font currently open in FontLab 8.
 
     `contours` is a list of 1 to 20 contours (at most 2000 nodes in all, control points included, drawn together as ONE shape). A
     contour is a list of 3 to 500 points in drawing order, font units, y up. Each point is an object {"x": number, "y": number}
@@ -3108,6 +3174,14 @@ def draw_path(name: str, contours: list[list[dict[str, Any]]], ctx: Context | No
       {"x":200,"y":0,"smooth":true,"c1":{"x":0,"y":90},"c2":{"x":90,"y":0}}]]
     (the first point's c1 / c2 are the closing segment from the bottom point back to the right point).
     Directions: outer contours counterclockwise, counters (holes) clockwise in a cubic (PostScript-flavoured) font; this tool never reorders points.
+
+    OPEN contours: give a contour as {"points": [...], "closed": false} instead of a plain list. It runs from its first point to its
+    last, with no closing segment, so it has no fill (a stroke or a construction line). It needs 2 to 500 points; its FIRST point
+    cannot have c1 / c2 (there is no closing segment), and its first and last points cannot be smooth (one neighbour each). Open and
+    closed contours can be mixed in one call. Needs listener 0.126. Example, an open arch from (105, 104) to (398, 104):
+    [{"points":[{"x":105,"y":104},{"x":398,"y":104,"c1":{"x":105,"y":280},"c2":{"x":398,"y":255}}],"closed":false}].
+    The reply then lists closed per contour and an agent_instruction: tell the person that open contours have no fill, and that
+    what FontLab does with them when it generates a font has not been tested with Glyphbridge.
 
     RULE B (whole units): FontLab stores whole numbers here. Every coordinate is rounded to the nearest whole unit (a half rounds up)
     and the reply lists each coordinate that changed in coordinates_rounded (with a rounding_note); give whole numbers to avoid that.

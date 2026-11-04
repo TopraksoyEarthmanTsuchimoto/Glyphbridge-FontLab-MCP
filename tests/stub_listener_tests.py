@@ -5659,3 +5659,180 @@ ks_al("2046 HTTP 500:", {"pairs": [["A", "V", -10]]}, 500, {"error": "RuntimeErr
 ks_al("2047 body unreadable:", b"\xff", 400, {"error": "request body was not valid JSON"})
 for k, v in _ks_al_saved.items(): ns[k] = v
 ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+
+# ================= v0.125: /debug/tryopen (gated research probe for P2.1: ONE open contour, never closed, detached or drawn) =================
+print("\n==== v0.125 /debug/tryopen ====")
+# The /glyph/path fakes of v0.81 (P81Contour with convertToCurve, P72Shape, the layer created on demand) plus the one-font gate of
+# /debug/trysync. TOContour records every assignment to `closed`; TOLayer can close the contour on attach (mode close_on_attach).
+TO = {"count": 1, "packages": 1, "closed_sets": [], "vp": []}
+class TOContour(P81Contour):
+    def __init__(s, pts):
+        P81Contour.__init__(s, pts)
+        if P72["mode"].get("born_closed"): s._closed = True
+    @property
+    def closed(s): return s._closed
+    @closed.setter
+    def closed(s, v): TO["closed_sets"].append(v); s._closed = False if P72["mode"].get("noclose") else v
+class TOLayer(P81Layer):
+    def addShape(s, shape):
+        P81Layer.addShape(s, shape)
+        if P72["mode"].get("close_on_attach"):
+            for c in shape.contours: c._closed = True
+class TOPkg:
+    isNull = False
+class TOWs:
+    def packages(s):
+        v = TO["packages"]
+        if isinstance(v, Exception): raise v
+        return [object() for _ in range(v)]
+    @property
+    def currentPackage(s): return TOPkg()
+    def updateActiveViewport(s): TO["vp"].append("updateActiveViewport")
+TOWsCls = type("flWorkspace", (), {"instance": staticmethod(lambda: TOWs())})
+def _to_count():
+    v = TO["count"]
+    if isinstance(v, Exception): raise v
+    return v
+_to_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "flWorkspace")]
+def to_setup(mode=None, count=1, packages=1):
+    p81_setup(mode=mode)
+    _fm.flContour = TOContour
+    for g in ("ocpa", "ocpb"): TS[g] = TsGlyph(g, [])
+    real = P81["real_create"]
+    def create(s, name, cs=None):
+        r = real(s, name, cs); P72["layers"][s.name] = TOLayer(name); return P72["layers"][s.name]
+    P72Mod.findLayerCreate = create
+    TO.update(count=count, packages=packages, closed_sets=[], vp=[])
+    for _m in _tf_mods:
+        _m.CountFonts = _to_count; _m.flWorkspace = TOWsCls
+    ns["_TRYOPEN"]["calls"] = 0
+def to(tag, path, keys=("error", "calls_so_far")):
+    c, d = call(path)
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| addShape", P72["calls"].count("addShape"), "| closed set", TO["closed_sets"],
+          "| layers", sorted(k for k in P72["layers"] if k.startswith("ocp")))
+    return d
+Q = "/debug/tryopen?"
+to_setup()
+to("2050 detached without go          ", Q + "stage=detached&name=ocpa&kind=line")
+to("2051 draw without go              ", Q + "stage=draw&name=ocpa&kind=curve")
+to("2052 go must be exactly yes       ", Q + "stage=draw&name=ocpa&kind=line&go=maybe")
+to("2053 unknown stage                ", Q + "stage=close&name=ocpa&kind=line&go=yes")
+to("2054 unknown kind                 ", Q + "stage=draw&name=ocpa&kind=circle&go=yes")
+to("2055 name without the ocp prefix  ", Q + "stage=draw&name=fresh&kind=line&go=yes")
+to("2056 name with a space            ", Q + "stage=draw&name=ocp%20a&kind=line&go=yes")
+to("2057 name 'ocp' alone             ", Q + "stage=draw&name=ocp&kind=line&go=yes")
+for tag, over in (("2058 two fonts open               ", dict(count=2)), ("2059 two packages                ", dict(packages=2)),
+                  ("2060 CountFonts raises           ", dict(count=RuntimeError("count boom"))), ("2061 no font open                ", dict(count=0))):
+    to_setup(**over); to(tag, Q + "stage=draw&name=ocpa&kind=line&go=yes")
+to_setup()
+d = to("2062 detached line                ", Q + "stage=detached&name=ocpa&kind=line&go=yes", keys=("stage", "kind", "calls_so_far", "error"))
+print("2063  detached read             :", d["detached"], "| expected", d["expected_nodes"])
+d = to("2064 detached curve               ", Q + "stage=detached&name=ocpa&kind=curve&go=yes", keys=("stage", "kind", "calls_so_far", "error"))
+print("2065  detached read             :", d["detached"], "| convertToCurve calls", P72["calls"].count("convertToCurve"))
+d = to("2066 draw line                    ", Q + "stage=draw&name=ocpa&kind=line&go=yes",
+       keys=("drawn", "layer_closed", "layer_mismatches", "changed", "state_before", "state_after", "layer_created", "calls_so_far", "error"))
+print("2067  layer read back           :", d.get("layer_contours"), "| guard reply keys:", [k for k in ("synced_with_fontlab", "durability_note") if k in d],
+      "| repainted", d.get("display_refreshed"), TO["vp"])
+d = to("2068 draw curve                   ", Q + "stage=draw&name=ocpb&kind=curve&go=yes", keys=("drawn", "layer_closed", "layer_mismatches", "changed", "calls_so_far"))
+print("2069  layer read back           :", d.get("layer_contours"))
+to("2070 draw into a drawn glyph      ", Q + "stage=draw&name=ocpa&kind=line&go=yes", keys=("error", "state_before", "calls_so_far"))
+to("2071 a glyph that does not exist  ", Q + "stage=draw&name=ocpzz&kind=line&go=yes", keys=("error", "calls_so_far"))
+to("2072 the limit: call 7 is refused ", Q + "stage=detached&name=ocpa&kind=line&go=yes"); to("2072b             call 8 as well ", Q + "stage=detached&name=ocpa&kind=line&go=yes")
+to_setup(mode={"close_on_attach": 1})
+to("2073 FontLab closes it on attach  ", Q + "stage=draw&name=ocpa&kind=line&go=yes", keys=("drawn", "layer_closed", "layer_mismatches", "changed", "error"))
+to_setup(mode={"attach_alter": 1})
+to("2074 the layer reads another node ", Q + "stage=draw&name=ocpa&kind=line&go=yes", keys=("drawn", "layer_closed", "layer_mismatches", "changed"))
+to_setup(mode={"add_raises": 1})
+to("2075 addShape raises              ", Q + "stage=draw&name=ocpa&kind=line&go=yes", keys=("drawn", "error", "changed"))
+to_setup(mode={"born_closed": 1})
+to("2076 the detached contour is closed", Q + "stage=draw&name=ocpa&kind=line&go=yes", keys=("drawn", "error"))
+print("2077  detached read             :", call(Q + "stage=detached&name=ocpa&kind=line&go=yes")[1].get("detached", {}).get("closed"))
+to_setup(mode={"conv_false": 1})
+to("2078 convertToCurve fails: counted", Q + "stage=draw&name=ocpa&kind=curve&go=yes", keys=("error", "calls_so_far"))
+to_setup(mode={"round_place": 1})
+to("2079 a handle placed off by one   ", Q + "stage=draw&name=ocpa&kind=curve&go=yes", keys=("drawn", "error"))
+print("2080  mismatches            :", call(Q + "stage=detached&name=ocpa&kind=curve&go=yes")[1].get("detached", {}).get("mismatches"))
+to_setup()
+c, d = p72_post("/glyph/path", {"name": "fresh", "contours": [RRECT]})
+print("2081 draw_path still closes      :", d["drawn"], "| closed set", TO["closed_sets"], "| layer contour closed", mo_get()["modern_outline"]["contours"][0]["closed"])
+c, d = p72_post("/glyph/polygon", {"name": "ocpb", "points": TRI4})
+print("2082 draw_polygon still closes   :", d["drawn"], "| closed set", TO["closed_sets"])
+_src125 = "\n".join(l for l in src[src.index("# /debug/tryopen (v0.125)"):src.index("def get_glyph_unicode(")].split("\n") if not l.lstrip().startswith("#"))
+print("2083 static scan of the probe (code lines):", len(_src125) > 3000, "| closed = True:", "closed = True" in _src125, "| closed=False:", "closed=False" in _src125, "| forbidden call syntax:",
+      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|remove\w*|removeShape|clearNodes|deleteContour)\s*\(", _src125),
+      "| counter raised before the build:", _src125.index('_TRYOPEN["calls"] += 1') < _src125.index("_path_build_contour("))
+print("2084 route documented            :", "/debug/tryopen        stage=detached|draw" in src)
+_to_al_saved = {k: ns[k] for k in ("_now_hms", "_clock")}
+ns["_now_hms"] = lambda: "12:00:00"; ns["_clock"] = lambda: 1000.0
+ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+print("2085 activity log, go=yes:")
+ns["_activity_note"]("GET", Q + "stage=draw&name=ocpa&kind=line&go=yes", b"", ns["_build_response"](200, {"stage": "draw", "drawn": True}), "claude-code")
+ns["_act_flush"]()
+for k, v in _to_al_saved.items(): ns[k] = v
+ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+for _m, _a, _v in _to_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else:
+        setattr(_m, _a, _v)
+
+# ================= v0.126: POST /glyph/path draws OPEN contours ({"points": [...], "closed": false}; live research 586-594) =================
+print("\n==== v0.126 POST /glyph/path, open contours ====")
+# The v0.81 /glyph/path fakes; TOContour (v0.125) records every assignment to `closed`; TOLayer can close a contour on attach.
+def od_setup(mode=None):
+    p81_setup(mode=mode); _fm.flContour = TOContour; TO["closed_sets"] = []
+    real = P81["real_create"]
+    def create(s, name, cs=None):
+        r = real(s, name, cs); P72["layers"][s.name] = TOLayer(name); return P72["layers"][s.name]
+    P72Mod.findLayerCreate = create
+def od(tag, contours, mode=None, keys=("drawn", "nodes_match", "points", "segments_curved", "contour_sizes", "open_contours", "changed")):
+    od_setup(mode); c, d = p72_post("/glyph/path", {"name": "fresh", "contours": contours})
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d} if str(c) == "200" else d, "| reason", (d.get("reason") or "")[:150], "| closed set", TO["closed_sets"],
+          "| addShape", P72["calls"].count("addShape"))
+    return c, d
+def od_layer():
+    m = mo_get()["modern_outline"]
+    return [(c["closed"], [(n["x"], n["y"], "on" if n["isOn"] else "h") for n in c["nodes"]]) for c in m["contours"]]
+OV = [pp(24, 482), pp(132, 69), pp(228, 462)]
+OARCH = [pp(105, 104), pp(398, 104, (105, 280), (398, 255))]
+SQ = [pp(0, 0), pp(100, 0), pp(100, 100), pp(0, 100)]
+od("2090 open V                      ", [{"points": OV, "closed": False}]); print("2091  layer                    :", od_layer())
+od("2092 open arch                   ", [{"points": OARCH, "closed": False}]); print("2093  layer                    :", od_layer())
+od("2094 open V and a closed square  ", [{"points": OV, "closed": False}, SQ]); print("2095  layer                    :", od_layer())
+od("2096 object with closed true     ", [{"points": SQ, "closed": True}]); print("2097  layer                    :", od_layer())
+od("2098 object without closed       ", [{"points": SQ}])
+od("2099 a plain list (as before)    ", [SQ])
+SMOOTH_IN = [pp(0, 0), pp(100, 100, (0, 50), (50, 100), smooth=True), pp(200, 0, (150, 100), (200, 50))]
+od("2100 open, smooth inner point    ", [{"points": SMOOTH_IN, "closed": False}]); print("2101  layer                    :", od_layer())
+od("2102 open, two points            ", [{"points": [pp(0, 0), pp(300, 0)], "closed": False}])
+# refusals by the route (HTTP 400) and by the request checks (nothing built)
+for tag, cont in (("2103 object without points      ", [{"closed": False}]), ("2104 object with a stray key    ", [{"points": OV, "closed": False, "x": 1}]),
+                  ("2105 closed is a string        ", [{"points": OV, "closed": "no"}]), ("2106 closed is 0               ", [{"points": OV, "closed": 0}]),
+                  ("2107 open, one point           ", [{"points": [pp(0, 0)], "closed": False}]), ("2108 closed object, 2 points   ", [{"points": [pp(0, 0), pp(5, 5)], "closed": True}]),
+                  ("2109 open, 501 points          ", [{"points": [pp(i, 0) for i in range(501)], "closed": False}]),
+                  ("2110 points is not a list      ", [{"points": "OV", "closed": False}]),
+                  ("2111 open, c1 on the first point", [{"points": [pp(0, 0, (10, 10), (20, 20)), pp(100, 0)], "closed": False}]),
+                  ("2112 open, smooth first point  ", [{"points": [pp(0, 0, smooth=True), pp(50, 50), pp(100, 0)], "closed": False}]),
+                  ("2113 open, smooth last point   ", [{"points": [pp(0, 0), pp(50, 50), pp(100, 0, smooth=True)], "closed": False}]),
+                  ("2114 open, collapses by rounding", [{"points": [pp(0, 0), pp(0.4, 0.2)], "closed": False}]),
+                  ("2115 open, inner smooth bent   ", [{"points": [pp(0, 0), pp(100, 0, smooth=True), pp(100, 100)], "closed": False}])):
+    od(tag, cont, keys=("drawn", "open_contours", "changed"))
+od_setup(); print("2116 a closed contour, smooth first point (wraps, as before):", p72_post("/glyph/path", {"name": "fresh", "contours": [[pp(0, 0, smooth=True), pp(100, 0), pp(100, 100), pp(0, 100)]]})[1].get("reason", "")[:150])
+od("2117 FontLab closes it on attach ", [{"points": OV, "closed": False}], mode={"close_on_attach": 1}, keys=("drawn", "nodes_match", "changed", "open_contours"))
+od("2118 the detached contour is closed", [{"points": OV, "closed": False}], mode={"born_closed": 1}, keys=("drawn", "changed"))
+od("2119 a closed request, FontLab opens it", [SQ], mode={"noclose": 1}, keys=("drawn", "changed"))
+od_setup(); _c, _d = p72_post("/glyph/path", {"name": "fresh", "contours": [{"points": [pp(0.5, 0), pp(10.49, 0, (3.2, 7.5), (7.5, 7.5))], "closed": False}]})
+print("2120 rule B on an open contour   :", _d.get("drawn"), [(r["field"], r["requested"], r["used"]) for r in _d.get("coordinates_rounded", [])], "| layer", od_layer())
+print("2121 activity log lines:")
+_od_al_saved = {k: ns[k] for k in ("_now_hms", "_clock")}
+ns["_now_hms"] = lambda: "12:00:00"; ns["_clock"] = lambda: 1000.0
+def od_al(body, reply):
+    ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+    ns["_activity_note"]("POST", "/glyph/path", json.dumps(body).encode(), ns["_build_response"](200, reply), "claude-code")
+    ns["_act_flush"]()
+od_al({"name": "od2_mix", "contours": [{"points": OV, "closed": False}, SQ]}, {"open": True, "drawn": True, "nodes_match": True})
+od_al({"name": "od2_arch", "contours": [{"points": OARCH, "closed": False}]}, {"open": True, "drawn": True, "nodes_match": True})
+od_al({"name": "od2_sq", "contours": [{"points": SQ, "closed": True}]}, {"open": True, "drawn": True, "nodes_match": True})
+for k, v in _od_al_saved.items(): ns[k] = v
+ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+print("2122 route documented            :", '{"points": [...], "closed": false} is drawn OPEN (v0.126)' in src)

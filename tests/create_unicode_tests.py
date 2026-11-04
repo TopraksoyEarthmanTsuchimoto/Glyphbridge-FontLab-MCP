@@ -1874,3 +1874,102 @@ srv._call_listener_post = _save27b
 print("27zz version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
 srv._call_listener, srv._call_listener_post = _save27
 srv._reset_change_tracking()
+
+# ==== 28. server 0.46: open contours read from the modern layer (live 581: an open straight V; 583: an open cubic arch) ====
+print("\n==== 28. server 0.46: open contours (live 581 / 583) ====")
+def g28(contours, margins, **kw):
+    # contours: (closed flag, nodes); FontLab's clockwise flag as seen live (581 True, 583 False)
+    cs = [{"index": i, "closed": cl, "clockwise": i % 2 == 0, "nodesCount": len(n), "nodes": n} for i, (cl, n) in enumerate(contours)]
+    nn = sum(len(n) for _cl, n in contours)
+    mo = {"available": True, "contours": cs, "node_count": nn, "expected_node_count": nn, "margins": margins}
+    el = {"available": True, "wrapper": "cached", "shapes": [{"shape_type": "contours", "contours": len(contours), "is_component": False, "is_composite": False,
+          "matrix": {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": 0.0, "dy": 0.0}}]}
+    r = {"open": True, "found": True, "name": "A", "source": "modern", "layer_route": "body", "layer_name": "Regular", "node_count": nn,
+         "contour_count": len(contours), "modern_outline": mo, "elements": el, "component_count": 0, "shape_count": 1}
+    r.update(kw); return r
+def m28(tag, reply):
+    r = m26(tag, reply)
+    if isinstance(r, str):
+        return r
+    for c in r["contours"]:
+        print("     contour", c["index"], "closed", c["closed"], "| direction", c["direction_computed"], "| inversion", c["flag_follows_known_inversion"],
+              "| svg", c.get("svg_path"))
+    print("     open note:", [n for n in r["notes"] if "OPEN" in n])
+    _why = r["verification"].get("reason") or ""
+    if "could not be told apart (" in _why:
+        print("     why:", _why.split("could not be told apart (", 1)[1].split(")", 1)[0])
+    return r
+V581 = kn([(24, 482), (132, 69), (228, 462)])
+ARCH583 = kn([(105, 104), (105, 280, "c"), (398, 255, "c"), (398, 104)])
+m28("28a open V (live 581)               ", g28([(False, V581)], {"lsb": 24.0, "rsb": -228.0, "advance": 0.0}, fontlab_ink_box=ink(69.0, 482.0)))
+m28("28b open arch (live 583), FontLab top 226.804", g28([(False, ARCH583)], {"lsb": 105.0, "rsb": -398.0, "advance": 0.0}, fontlab_ink_box=ink(104.0, 226.8040)))
+m28("28c open arch, FontLab top 240      ", g28([(False, ARCH583)], {"lsb": 105.0, "rsb": -398.0, "advance": 0.0}, fontlab_ink_box=ink(104.0, 240.0)))
+m28("28d open arch, starts on a handle   ", g28([(False, kn([(105, 280, "c"), (398, 255, "c"), (398, 104), (105, 104)]))], {"lsb": 105.0, "rsb": -398.0, "advance": 0.0}))
+m28("28e open arch, ends on a handle     ", g28([(False, kn([(105, 104), (105, 280, "c"), (398, 255, "c")]))], {"lsb": 105.0, "rsb": -398.0, "advance": 0.0}))
+m28("28f open quadratic                  ", g28([(False, kn([(0, 0), (100, 100, "q"), (300, 0)]))], {"lsb": 0.0, "rsb": -300.0, "advance": 0.0}, fontlab_ink_box=ink(0.0, 50.0)))
+m28("28g closed flag unreadable, a curve ", g28([(None, ARCH583)], {"lsb": 105.0, "rsb": -398.0, "advance": 0.0}))
+m28("28h closed flag unreadable, straight", g28([(None, V581)], {"lsb": 24.0, "rsb": -228.0, "advance": 0.0}, fontlab_ink_box=ink(69.0, 482.0)))
+m28("28i closed V (control: as before)   ", g28([(True, V581)], {"lsb": 24.0, "rsb": -228.0, "advance": 0.0}, fontlab_ink_box=ink(69.0, 482.0)))
+m28("28j open and closed together        ", g28([(True, kn([(0, 0), (100, 0), (100, 100), (0, 100)])), (False, ARCH583)], {"lsb": 0.0, "rsb": -398.0, "advance": 0.0},
+                                                fontlab_ink_box=ink(0.0, 226.8040)))
+m28("28k open, a single node             ", g28([(False, kn([(50, 60)]))], {"lsb": 50.0, "rsb": -50.0, "advance": 0.0}, fontlab_ink_box=ink(60.0, 60.0)))
+print("28l parser, open cubic             ->", pieces([(105, 104), (105, 280, "c"), (398, 255, "c"), (398, 104)], closed=False))
+print("28m parser, open straight + quad   ->", pieces([(0, 0), (100, 0), (150, 80, "q"), (200, 0)], closed=False))
+print("28n parser, closed flag None       ->", pieces([(0, 0), (100, 0), (100, 100)], closed=None))
+print("28o svg, open / closed            ->", srv._svg_path((0, 0), [("L", (0, 0), (10, 0))], closed=False), "|", srv._svg_path((0, 0), [("L", (0, 0), (10, 0))]))
+_d28 = srv.get_glyph_outline.__doc__ or ""
+print("28p docs                           -> open contours:", "An open contour ('closed': false)" in _d28, "| no direction:", "'not applicable (open contour)'" in _d28)
+print("28z version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
+
+# ==== 29. server 0.47: draw_path draws OPEN contours ({"points": [...], "closed": false}; listener 0.126; faked listener replies) ====
+print("\n==== 29. server 0.47: draw_path with open contours (faked listener replies) ====")
+OPEN_V = {"points": [P(24, 482), P(132, 69), P(228, 462)], "closed": False}
+OPEN_ARCH = {"points": [P(105, 104), P(398, 104, (105, 280), (398, 255))], "closed": False}
+OKOPEN = dict(OKPATH, points=3, segments_curved=0, contour_sizes=[3], state_after={"active_layer": "present", "shapes": 1, "nodes": 3},
+              margins={"lsb": 24.0, "rsb": -228.0, "advance": 0.0}, ink_width=204.0, open_contours=[0])
+def d29(tag, contours, version="0.126", reply=None, show=("drawn", "verified", "closed", "contours", "nodes")):
+    s10_reset(); S9["version"] = version; S9["post"]["/glyph/path"] = dict(reply or OKOPEN); n = len(S9["posts"])
+    r = s9_try(lambda: srv.write_glyph_path("od", contours))
+    sent = S9["posts"][n][1]["contours"] if len(S9["posts"]) > n else None
+    if isinstance(r, str):
+        print(tag, "->", r, "| posts", len(S9["posts"]) - n); return r, sent
+    print(tag, "->", {k: r.get(k) for k in show}, "| posts", len(S9["posts"]) - n)
+    return r, sent
+r, sent = d29("29a open V                    ", [OPEN_V])
+print("29b  sent                      ->", sent)
+print("29c  note / open note          ->", r["note"][:60], "|", r.get("open_contours_note"))
+print("29d  agent_instruction         ->", r["agent_instruction"])
+r, sent = d29("29e open arch                 ", [OPEN_ARCH]); print("29f  sent                      ->", sent)
+r, sent = d29("29g open V and a closed square", [OPEN_V, [P(0, 0), P(100, 0), P(100, 100), P(0, 100)]]); print("29h  sent                      ->", sent)
+r, sent = d29("29i object with closed true   ", [{"points": PATH_RECT[0], "closed": True}], reply=OKPATH, show=("drawn", "closed", "open_contours_note"))
+print("29j  sent as a plain list: ", sent == PATH_RECT, "| instruction is the save text only:", r["agent_instruction"] == srv._SAVE_INSTRUCTION, "| note:", r["note"][:40])
+r, sent = d29("29k object without closed     ", [{"points": PATH_RECT[0]}], reply=OKPATH, show=("drawn", "closed")); print("29l  sent as a plain list: ", sent == PATH_RECT)
+d29("29m listener 0.125, open      ", [OPEN_V], version="0.125")
+d29("29n listener 0.125, closed only", PATH_RECT, version="0.125", reply=OKPATH, show=("drawn", "closed"))
+d29("29o listener version unreadable, open", [OPEN_V], version=None)
+for tag, cont in (("29p object without points     ", [{"closed": False}]),
+                  ("29q object with a stray key   ", [{"points": OPEN_V["points"], "closed": False, "smooth": True}]),
+                  ("29r closed is a string        ", [{"points": OPEN_V["points"], "closed": "no"}]),
+                  ("29s closed is 0               ", [{"points": OPEN_V["points"], "closed": 0}]),
+                  ("29t open, one point           ", [{"points": [P(0, 0)], "closed": False}]),
+                  ("29u open, 501 points          ", [{"points": [P(i, 0) for i in range(501)], "closed": False}]),
+                  ("29v open, two equal points    ", [{"points": [P(5, 5), P(5, 5)], "closed": False}]),
+                  ("29w open, c1 on the first point", [{"points": [P(0, 0, (10, 10), (20, 20)), P(100, 0)], "closed": False}]),
+                  ("29x open, smooth first point  ", [{"points": [P(0, 0, smooth=True), P(50, 50), P(100, 0)], "closed": False}]),
+                  ("29y open, smooth last point   ", [{"points": [P(0, 0), P(50, 50), P(100, 0, smooth=True)], "closed": False}]),
+                  ("29z closed object, 2 points   ", [{"points": [P(0, 0), P(100, 0)], "closed": True}]),
+                  ("29za points is not a list     ", [{"points": 5, "closed": False}])):
+    d29(tag, cont)
+r, sent = d29("29zb open, smooth inner point ", [{"points": [P(0, 0), P(100, 100, (0, 50), (50, 100), smooth=True), P(200, 0, (150, 100), (200, 50))], "closed": False}])
+print("29zc  sent                     ->", sent)
+d29("29zd open, two points, straight", [{"points": [P(0, 0), P(300, 0)], "closed": False}])
+_closed_back = {"open": True, "name": "od", "drawn": False, "changed": True, "open_contours": [0],
+                "reason": "the layer does not match the request: layer contour 0: closed reads True, an open contour was requested"}
+d29("29ze FontLab closes it on attach", [OPEN_V], reply=_closed_back)
+print("29zf  the change is counted     ->", fview(srv.finish_change_package()))
+_d29 = srv.draw_path.__doc__ or ""
+print("29zg docs                       -> open contours:", "OPEN contours" in _d29, "| object form:", '"closed": false' in _d29, "| listener 0.126:", "listener 0.126" in _d29,
+      "| export untested:", "has not been tested" in _d29, "| signature:", _inspect.signature(srv.draw_path))
+print("29zz version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
+srv._call_listener, srv._call_listener_post = wire_get, wire_post
+srv._reset_change_tracking()

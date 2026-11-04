@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.124)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.126)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -79,8 +79,9 @@ Routes (GET unless marked POST):
                                 reports duplicate_check
     POST /glyph/polygon         {"name", "points" | "contours"}: closed straight contours as ONE shape
                                 into an empty glyph; whole units (coordinates_rounded)
-    POST /glyph/path            {"name", "contours"}: closed contours with cubic curves (c1 / c2,
-                                smooth) into an empty glyph; whole units; verified node by node
+    POST /glyph/path            {"name", "contours"}: contours with cubic curves (c1 / c2, smooth) into an
+                                empty glyph; whole units; verified node by node; a contour given as
+                                {"points": [...], "closed": false} is drawn OPEN (v0.126)
 
   Kerning (never the whole table)
     POST /kerning/set           {"pairs": [[left, right, value], ...]} (v0.124): glyph : glyph pairs into the current
@@ -136,6 +137,8 @@ Routes (GET unless marked POST):
                           feature's code is returned; stage=shape&tag=T: line counts by kind and the first 300 characters;
                           stage=lines&tag=T&contains=a,b,c: only the lines naming those names (v0.108); exactly one font open,
                           10 per listener run (v0.107, K11)
+    /debug/tryopen        stage=detached|draw&name=ocp...&kind=line|curve: ONE open contour (never closed), detached or drawn into an
+                          empty glyph and read back; 6 per listener run (v0.125, P2.1 research)
     /debug/setcurrent     changes which glyph FontLab displays (no use for the modern API)
 
   Dead ends, kept as history: /debug/contours and /debug/drawpen (the pen protocol returns
@@ -163,7 +166,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.124"
+VERSION = "0.126"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -1282,6 +1285,7 @@ def set_glyph_sidebearings(name, left, right):
 
 
 _POLY_MIN_POINTS, _POLY_MAX_POINTS = 3, 500
+_PATH_OPEN_MIN_POINTS = 2                  # v0.126: an open contour of draw_path (one straight or curved stroke at least)
 _POLY_MAX_CONTOURS, _POLY_MAX_TOTAL = 20, 2000
 
 
@@ -1412,16 +1416,20 @@ def _path_layout(pts):
     return nodes, on_index
 
 
-def _path_smooth_problems(nodes, label):
+def _path_smooth_problems(nodes, label, closed=True):
     """For every smooth on-curve node: the previous and the next node (a handle, or the neighbouring on-curve point) must lie on
     opposite sides of a straight line through it, within _PATH_SMOOTH_TOLERANCE_DEG; a neighbour on top of the node cannot define a
-    direction. Returns a list of sentences (empty = fine). `nodes` are dicts with x, y, on, smooth (a closed contour)."""
+    direction. Returns a list of sentences (empty = fine). `nodes` are dicts with x, y, on, smooth. v0.126: closed=False (an open
+    contour) has no wrap-around, so its first and last node, with one neighbour each, cannot be smooth."""
     import math as _math
     problems = []
     n = len(nodes)
     limit = _math.sin(_math.radians(_PATH_SMOOTH_TOLERANCE_DEG))
     for k, nd in enumerate(nodes):
         if not (nd.get("on") and nd.get("smooth")):
+            continue
+        if not closed and k in (0, n - 1):
+            problems.append(f"{label}: the end point at ({nd['x']}, {nd['y']}) cannot be smooth: an end of an open contour has only one neighbour")
             continue
         a, b = nodes[(k - 1) % n], nodes[(k + 1) % n]
         ax, ay = a["x"] - nd["x"], a["y"] - nd["y"]
@@ -1438,14 +1446,22 @@ def _path_smooth_problems(nodes, label):
     return problems
 
 
-def _path_check_request(contours):
-    """Pure checks on rounded contours; returns a list of sentences (empty = the request can be built)."""
+def _path_check_request(contours, closed_flags=None):
+    """Pure checks on rounded contours; returns a list of sentences (empty = the request can be built). v0.126: closed_flags (one bool
+    per contour, default all True); an open contour needs 2 different positions, no c1 / c2 on its first point, no smooth end."""
     problems = []
+    flags = list(closed_flags) if closed_flags is not None else [True] * len(contours)
     for ci, pts in enumerate(contours):
-        if len({(p["x"], p["y"]) for p in pts}) < 3:
+        closed = flags[ci]
+        if closed and len({(p["x"], p["y"]) for p in pts}) < 3:
             problems.append(f"contour {ci}: at least 3 different on-curve positions are needed (after rounding to whole units)")
+        if not closed and len({(p["x"], p["y"]) for p in pts}) < _PATH_OPEN_MIN_POINTS:
+            problems.append(f"contour {ci}: an open contour needs at least {_PATH_OPEN_MIN_POINTS} different on-curve positions (after rounding to whole units)")
+        if not closed and pts and pts[0].get("c1") is not None:
+            problems.append(f"contour {ci}: the first point of an open contour cannot have c1 / c2: an open contour has no closing segment")
+            continue
         nodes, _idx = _path_layout(pts)
-        problems.extend(_path_smooth_problems(nodes, f"contour {ci}"))
+        problems.extend(_path_smooth_problems(nodes, f"contour {ci}", closed=closed))
     return problems
 
 
@@ -1492,15 +1508,16 @@ def _path_mismatches(rows, expected, label):
     return bad
 
 
-def _path_build_contour(mod, qp, pts, expected, on_index):
+def _path_build_contour(mod, qp, pts, expected, on_index, closed=True):
     """Build ONE detached contour for the points `pts` and return it (the caller reads it back and judges it). Raises with the failing
-    step in the message."""
+    step in the message. v0.125: closed=False (only /debug/tryopen) leaves the contour as flContour(points) makes it: open (v0.57)."""
     m = len(pts)
     step = "flContour(points)"
     try:
         contour = mod.flContour([qp(p["x"], p["y"]) for p in pts])
-        step = "contour.closed = True"
-        contour.closed = True
+        if closed:
+            step = "contour.closed = True"
+            contour.closed = True
         for i in range(m - 1, -1, -1):                      # descending: node 0 (the closing segment) LAST
             if pts[i]["c1"] is not None:
                 step = f"convertToCurve(False) on node {i}"
@@ -1522,13 +1539,18 @@ def _path_build_contour(mod, qp, pts, expected, on_index):
     return contour
 
 
-def draw_path(name, contours, rounded=None):
-    """Draw closed contours with straight AND cubic segments as ONE shape into a glyph whose modern layer is empty. `contours`: lists of point
+def draw_path(name, contours, rounded=None, closed_flags=None):
+    """Draw contours with straight AND cubic segments as ONE shape into a glyph whose modern layer is empty. `contours`: lists of point
     dicts {x, y, c1, c2, smooth} with whole-number coordinates (rule B was applied by the caller; c1 / c2 are (x, y) or None). Everything is
     built and read back DETACHED first (node by node, and smooth collinearity); only layer.addShape touches the glyph, and the modern layer
-    is read back afterwards and compared node by node. Never saves."""
+    is read back afterwards and compared node by node. Never saves. v0.126: closed_flags (one bool per contour, default all True); an open
+    contour is built without closed = True (live 589, 593: it stays open once attached), and its closed flag must read False both
+    detached and on the layer."""
+    flags = list(closed_flags) if closed_flags is not None else [True] * len(contours)
     base = {"open": True, "name": name, "drawn": False, "route": "modern"}
-    problems = _path_check_request(contours)
+    if not all(flags):
+        base["open_contours"] = [ci for ci, f in enumerate(flags) if not f]
+    problems = _path_check_request(contours, flags)
     if problems:
         return dict(base, reason="the request cannot be drawn, nothing was changed: " + " | ".join(problems[:5]))
     ctx, refusal = _modern_edit_target(name, create_layer=True)
@@ -1563,7 +1585,7 @@ def draw_path(name, contours, rounded=None):
     for ci, pts in enumerate(contours):
         expected, on_index = layouts[ci]
         try:
-            contour = _path_build_contour(mod, qp, pts, expected, on_index)
+            contour = _path_build_contour(mod, qp, pts, expected, on_index, closed=flags[ci])
         except Exception as exc:
             return dict(base, reason=f"contour {ci} could not be built detached ({exc}): nothing was attached")
         rows, err = _path_read_nodes(contour)
@@ -1571,10 +1593,10 @@ def draw_path(name, contours, rounded=None):
             return dict(base, reason=f"the detached contour {ci} could not be read back ({err}): nothing was attached")
         closed, _e = _tl_call(lambda: contour.closed)
         bad = _path_mismatches(rows, expected, f"detached contour {ci}")
-        if closed is not True:
-            bad.append(f"detached contour {ci}: closed reads {closed!r}")
+        if closed is not flags[ci]:
+            bad.append(f"detached contour {ci}: closed reads {closed!r}" + ("" if flags[ci] else ", an open contour was requested"))
         bad.extend(_path_smooth_problems([{"x": r["x"], "y": r["y"], "on": e["on"], "smooth": e["smooth"]} for r, e in zip(rows, expected)],
-                                         f"detached contour {ci}") if len(rows) == len(expected) else [])
+                                         f"detached contour {ci}", closed=flags[ci]) if len(rows) == len(expected) else [])
         if bad:
             return dict(base, reason="the detached contour does not match the request, nothing was attached: " + " | ".join(bad[:6]))
         built.append(contour)
@@ -1602,8 +1624,8 @@ def draw_path(name, contours, rounded=None):
             mismatches.append(f"the layer reads {len(got)} contour(s), {k} expected")
         else:
             for ci, entry in enumerate(got):
-                if entry.get("closed") is not True:
-                    mismatches.append(f"layer contour {ci}: closed reads {entry.get('closed')!r}")
+                if entry.get("closed") is not flags[ci]:
+                    mismatches.append(f"layer contour {ci}: closed reads {entry.get('closed')!r}" + ("" if flags[ci] else ", an open contour was requested"))
                 mismatches.extend(_path_mismatches(entry.get("nodes") or [], layouts[ci][0], f"layer contour {ci}"))
         nodes_match = not mismatches
     else:
@@ -1626,6 +1648,142 @@ def draw_path(name, contours, rounded=None):
         elif nodes_match is None:
             why += f" (the outline could not be read back: {modern.get('error')})"
         result["reason"] = why
+    return result
+
+
+# --------------------------------------------------------------------------
+# /debug/tryopen (v0.125) - RESEARCH for P2.1 (drawing open contours): does a contour that is never closed stay open once it is
+# attached? The read side is server 0.46 (live 579-585): FontLab's own open contours read closed False, an open curve On, Curve,
+# Curve, On. Every stage needs go=yes and the one-font gate of /debug/trysync; glyph names starting with "ocp" only; at most
+# _TRYOPEN_MAX calls per listener run, counted BEFORE anything is created or built. Fixed shapes, no input:
+#   kind=line   the open V of live 581: (24, 482), (132, 69), (228, 462)
+#   kind=curve  the open arch of live 583: (105, 104) to (398, 104), handles (105, 280) and (398, 255)
+#   stage=detached  build the contour (_path_build_contour with closed=False) and read it back; the glyph is not touched
+#   stage=draw      the same build into a glyph whose modern layer is KNOWN to be empty (a missing layer is created, as draw_path
+#                   does), then flShape(), shape.shapeData.addContour(contour), layer.addShape(shape); the layer is read back and the
+#                   glyph marked for the guard. Nothing is attached unless the detached contour reads closed False with the
+#                   expected positions and node kinds (smooth flags are reported, not required)
+# Never called by this probe: contour.closed = True, font.update(), save.
+# --------------------------------------------------------------------------
+
+_TRYOPEN_MAX = 6
+_TRYOPEN = {"calls": 0}
+_TRYOPEN_STAGES = ("detached", "draw")
+
+
+def _tryopen_point(x, y, c1=None, c2=None):
+    return {"x": x, "y": y, "c1": c1, "c2": c2, "smooth": False}
+
+
+_TRYOPEN_SHAPES = {"line": [_tryopen_point(24, 482), _tryopen_point(132, 69), _tryopen_point(228, 462)],
+                   "curve": [_tryopen_point(105, 104), _tryopen_point(398, 104, (105, 280), (398, 255))]}
+_TRYOPEN_NOTE = ("RESEARCH: compare with get_glyph_outline (server 0.46) and with FontLab's own view of the glyph; nothing is saved by "
+                 "Glyphbridge; quit FontLab WITHOUT saving afterwards, or delete the ocp glyphs")
+
+
+def _tryopen_read(contour, expected, label):
+    """What a contour reads: closed, its nodes, and the differences from `expected` (positions and node kinds; smooth flags apart)."""
+    closed, cerr = _tl_call(lambda: contour.closed)
+    rows, err = _path_read_nodes(contour)
+    out = {"closed": _rm_plain(closed) if cerr is None else f"<error: {cerr}>"}
+    if rows is None:
+        return dict(out, read_error=err, mismatches=[f"{label}: the nodes could not be read ({err})"])
+    out["nodes"] = [{"x": r["x"], "y": r["y"], "kind": "On" if r.get("isOn") else ("Curve" if r.get("isCurve") else "Off"),
+                     "smooth": r.get("smooth")} for r in rows]
+    same_smooth = ([dict(e, smooth=bool(r.get("smooth"))) for r, e in zip(rows, expected)] if len(rows) == len(expected) else expected)
+    out["mismatches"] = _path_mismatches(rows, same_smooth, label)
+    out["smooth_differs"] = [i for i, (r, e) in enumerate(zip(rows, expected)) if e["on"] and bool(r.get("smooth")) != e["smooth"]]
+    return out
+
+
+def debug_try_open(stage, name, kind, go):
+    import sys as _sys
+    if stage not in _TRYOPEN_STAGES:
+        return {"error": 'stage must be "detached" or "draw"'}
+    if kind not in _TRYOPEN_SHAPES:
+        return {"error": 'kind must be "line" (the open V of test 581) or "curve" (the open arch of test 583)'}
+    if (not isinstance(name, str) or not (4 <= len(name) <= 40) or not name.startswith("ocp")
+            or any(ch not in _TRYCREATE_NAME_CHARS for ch in name)):
+        return {"error": 'name must start with "ocp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'}
+    if go != "yes":
+        what = ("builds one open contour on detached objects and reads it back (the glyph is not touched)" if stage == "detached" else
+                "draws one open contour into the empty glyph (a missing layer is created first)")
+        return {"error": f"stage={stage} {what}. Add &go=yes to run it."}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"stage": stage, "error": why, "calls_so_far": _TRYOPEN["calls"]}
+    if _TRYOPEN["calls"] >= _TRYOPEN_MAX:
+        return {"stage": stage, "error": f"the probe already ran {_TRYOPEN_MAX} times in this listener run; restart the listener to repeat it",
+                "calls_so_far": _TRYOPEN["calls"]}
+    qp = getattr(QtCore, "QPointF", None)
+    if qp is None or getattr(mod, "flContour", None) is None or getattr(mod, "flShape", None) is None:
+        return {"stage": stage, "error": "QtCore.QPointF, fontlab.flContour or fontlab.flShape is missing: nothing was built",
+                "calls_so_far": _TRYOPEN["calls"]}
+    _TRYOPEN["calls"] += 1     # counted BEFORE anything is created or built: whatever happens, it is on record
+    pts = _TRYOPEN_SHAPES[kind]
+    expected, on_index = _path_layout(pts)
+    base = {"stage": stage, "kind": kind, "name": name, "expected_nodes": [{"x": e["x"], "y": e["y"], "on": e["on"]} for e in expected],
+            "calls_so_far": _TRYOPEN["calls"], "note": _TRYOPEN_NOTE}
+    ctx, w, layer = None, None, None
+    if stage == "draw":
+        ctx, refusal = _modern_edit_target(name, create_layer=True)
+        if ctx is None:
+            return dict(base, error="the glyph is not drawable: " + str(refusal.get("reason") or refusal), refusal=_public_refusal(refusal))
+        w = ctx["w"]
+        if ctx.get("layer_created"):
+            base["layer_created"] = ctx["layer_created"]
+        state, layer = _tryshape_modern_state(w)
+        base["state_before"] = state
+        if layer is None or not _tryshape_modern_known_empty(state):
+            return dict(base, error="the glyph's layer is not KNOWN to be empty (needs readable counts of 0 shapes, 0 nodes, 0 components), so nothing was drawn")
+    try:
+        contour = _path_build_contour(mod, qp, pts, expected, on_index, closed=False)
+    except Exception as exc:
+        return dict(base, error=f"the contour could not be built detached ({exc}): nothing was attached")
+    detached = _tryopen_read(contour, expected, "detached contour")
+    base["detached"] = detached
+    if stage == "detached":
+        return base
+    if detached["closed"] is not False or detached["mismatches"]:
+        return dict(base, error="the detached contour is not the expected open contour, so nothing was attached", drawn=False)
+    step = "flShape()"
+    try:
+        shape = mod.flShape()
+        step = "shape.shapeData.addContour(contour)"
+        shape.shapeData.addContour(contour)
+        step = "layer.addShape(shape)"
+        layer.addShape(shape)
+    except Exception as exc:
+        after, _l = _tryshape_modern_state(w)
+        return dict(base, error=f"{step} failed: {type(exc).__name__}: {exc}", state_after=after,
+                    changed=(after.get("shapes") != 0 or after.get("nodes") != 0), drawn=False)
+    result = dict(base, display_refreshed=_repaint_viewport())
+    after, _l = _tryshape_modern_state(w)
+    result["state_after"] = after
+    result["changed"] = (after.get("shapes") != 0 or after.get("nodes") != 0)
+    modern = _read_modern_outline(name)
+    if modern.get("available") is True:
+        got = modern.get("contours") or []
+        result["layer_contours"] = [{"closed": c.get("closed"), "nodes": [{"x": n.get("x"), "y": n.get("y"), "kind": "On" if n.get("isOn") else (
+            "Curve" if n.get("isCurve") else "Off"), "smooth": n.get("smooth")} for n in (c.get("nodes") or [])]} for c in got]
+        mism = [] if len(got) == 1 else [f"the layer reads {len(got)} contour(s), 1 expected"]
+        if len(got) == 1:
+            rows = got[0].get("nodes") or []
+            same = [dict(e, smooth=bool(r.get("smooth"))) for r, e in zip(rows, expected)] if len(rows) == len(expected) else expected
+            mism.extend(_path_mismatches(rows, same, "layer contour"))
+        result["layer_closed"] = got[0].get("closed") if len(got) == 1 else None
+        result["layer_mismatches"] = mism
+    else:
+        result["read_back_error"] = modern.get("error")
+    result["drawn"] = (after.get("shapes") == 1 and after.get("nodes") == len(expected) and not result.get("layer_mismatches", ["unread"])
+                       and result.get("layer_closed") is False)
+    if result["changed"]:
+        _guard_mark(ctx["font"], name, "tryopen", result)
+    if ctx["tr"] is not None:
+        m, _err = _modern_margins_read(w, ctx["tr"])
+        if m is not None:
+            result["margins"] = m
     return result
 
 
@@ -7960,6 +8118,13 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
+        if path == "/debug/tryopen":
+            try:
+                return _build_response(200, debug_try_open((query.get("stage") or [""])[0], (query.get("name") or [""])[0],
+                                                           (query.get("kind") or [""])[0], (query.get("go") or [""])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
         if path == "/debug/trysetkern":
             try:
                 return _build_response(200, debug_try_set_kern((query.get("a") or [""])[0], (query.get("b") or [""])[0], (query.get("value") or [""])[0],
@@ -8207,10 +8372,20 @@ def _route(method, full_path, body=b""):
                     return None
                 return (float(d["x"]), float(d["y"]))
 
-            parsed = []
-            for ci, plist in enumerate(many):
-                if not isinstance(plist, list) or not (_POLY_MIN_POINTS <= len(plist) <= _POLY_MAX_POINTS):
-                    return _build_response(400, {"error": f"contour {ci} must be a list of {_POLY_MIN_POINTS} to {_POLY_MAX_POINTS} points"})
+            parsed, flags = [], []
+            for ci, item in enumerate(many):
+                plist, closed = item, True             # v0.126: a contour is a point list (closed) or {"points": [...], "closed": bool}
+                if isinstance(item, dict):
+                    if "points" not in item or set(item) - {"points", "closed"}:
+                        return _build_response(400, {"error": f'contour {ci}: a contour object has "points" and optionally "closed"'})
+                    plist, closed = item["points"], item.get("closed", True)
+                    if not isinstance(closed, bool):
+                        return _build_response(400, {"error": f"contour {ci}: closed must be true or false"})
+                low = _POLY_MIN_POINTS if closed else _PATH_OPEN_MIN_POINTS
+                if not isinstance(plist, list) or not (low <= len(plist) <= _POLY_MAX_POINTS):
+                    return _build_response(400, {"error": f"contour {ci} must be a list of {low} to {_POLY_MAX_POINTS} points"
+                                                          + ("" if closed else " (an open contour)")})
+                flags.append(closed)
                 pts = []
                 for pi, pt in enumerate(plist):
                     where = f"contour {ci} point {pi}"
@@ -8234,7 +8409,7 @@ def _route(method, full_path, body=b""):
                 return _build_response(400, {"error": f"at most {_POLY_MAX_TOTAL} nodes in total (every curved segment counts its two handles)"})
             rounded_contours, rounded_report = _path_apply_rule_b(parsed)
             try:
-                return _build_response(200, draw_path(name.strip(), rounded_contours, rounded_report))
+                return _build_response(200, draw_path(name.strip(), rounded_contours, rounded_report, flags))
             except Exception as exc:
                 return _build_response(500, {"error": str(exc)})
 
@@ -8473,11 +8648,14 @@ def _act_describe_write(path, payload, code, reply):
     # draw (/glyph/polygon or /glyph/path): sizes from the request, success from the reply
     payload = payload if isinstance(payload, dict) else {}
     lists = payload.get("contours") if payload.get("contours") is not None else [payload.get("points")]
-    lists = [c for c in lists if isinstance(c, list)] if isinstance(lists, list) else []
+    lists = lists if isinstance(lists, list) else []
+    n_open = sum(1 for c in lists if isinstance(c, dict) and c.get("closed") is False)      # v0.126: {"points": [...], "closed": false}
+    lists = [c.get("points") if isinstance(c, dict) else c for c in lists]
+    lists = [c for c in lists if isinstance(c, list)]
     points = sum(len(c) for c in lists)
     curved = sum(1 for c in lists for p in c if isinstance(p, dict) and p.get("c1") is not None)
     size = (f"{len(lists)} contour{'' if len(lists) == 1 else 's'}, {points} points" + (f", {curved} curved" if curved else "")
-            if points else "size unreadable")
+            + (f", {n_open} open" if n_open else "") if points else "size unreadable")
     if reply.get("drawn") is True:
         match = ", nodes match" if reply.get("nodes_match") is True else ""
         return f"{head}: {size} (verified{match}{sync})", not unsynced
