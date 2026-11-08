@@ -2,14 +2,14 @@
 
 Goal: an agent reads *any* glyph accurately and writes only what it can verify. A scenario counts as supported only when the tool's answer matches FontLab's own numbers. Until then the tool must say `unverified`, never guess.
 
-This list holds the **open** scenarios only. Row numbers are those of the v11 matrix: the full matrix, including every DONE row and its evidence, is [archive/scenarios-checklist-v11.md](archive/scenarios-checklist-v11.md). When a row is proven, record the evidence in the topic file, delete the row here, and log the date in [CURRENT-STATUS.md](CURRENT-STATUS.md).
+This list holds the **open** scenarios only. Row numbers are those of the v11 matrix: the full matrix, including every DONE row and its evidence, is [archive/scenarios-checklist-v11.md](archive/scenarios-checklist-v11.md). When a row is proven, record the evidence in the topic file, delete the row here, and log the date in [archive/CHECKLIST-closed-rows.md](archive/CHECKLIST-closed-rows.md).
 
 ## How to test a scenario
 
 1. Build a small reference glyph in a disposable font (Font > New Glyph… > Create Blank).
 2. In FontLab, note 2–3 node readouts, the transform bar values and LSB/RSB.
 3. Run `.\venv\Scripts\python.exe glyphbridge_mcp_server.py --check --outline NAME` and compare.
-4. Add the captured case to `tests/` and record the result. Never save after a live write test; quit FontLab without saving.
+4. Add the captured case to `tests/` and record the result. Do not save after a live write test unless that save test was agreed ([DECISIONS.md](DECISIONS.md)); otherwise quit FontLab without saving.
 
 ## Kerning
 
@@ -25,7 +25,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 |---|---|---|
 | 53 | Auto sync not yet proven for: multi-layer (11), quadratic (43), big glyphs (42), after save (32) | PARTLY |
 | 57 | No font open: every route answers `open: false` (`CountFonts()`, listener 0.105) | PARTLY: every read route proven, after closing the only font (227) and in a freshly started FontLab (244); writes with no font open: one create refused (227), the rest stub-only (T12) |
-| 63 | Several fonts open: which one the tools address | PARTLY: `CurrentFont()` and the current package follow the window in front (262–264); `get_kerning` reads that font, matched by path, with 2 and 3 fonts, and refuses an unsaved one (265–268); every reply names its font and a switched window is reported (269–272); create, draw, width, sidebearings and Unicode change only the font in front, across switches (273–281); a failed call swallowed the switch note (277), fixed in server 0.39 (282–284); two unsaved fonts (FontLab names the second "Unnamed1", so a switch is noticed by name), `draw_path` and `delete_glyph` change only the font in front (285–290); the other read tools follow the font in front (309–316); open: two unsaved fonts with the same name (a Font Info rename does not produce it, 322–324), three fonts (`list_glyphs`, `get_glyph_width` and every write but `draw_path` proven, 317–331; the other reads untested), a switch during one call ([topics/fonts-and-sync.md](topics/fonts-and-sync.md)) |
+| 63 | Several fonts open: which one the tools address | PARTLY: with two fonts every tool follows the font in front and every reply names it (262–316); evidence in [topics/fonts-and-sync.md](topics/fonts-and-sync.md). Open: two unsaved fonts with the same name (a Font Info rename does not produce it, 322–324), three fonts (`list_glyphs`, `get_glyph_width` and every write but `draw_path` proven, 317–331; the other reads untested), a switch during one call |
 | 62 | Modern glyph creation without `font.update()` | TODO, low priority (T6) |
 | 22 | Layer-name derivation when glyphs disagree, or when none has a layer | stub-tested only |
 | 32 | Save and reopen after API-drawn geometry | TODO when useful; save tests by preference only (T9, [DECISIONS.md](DECISIONS.md)) |
@@ -34,7 +34,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 
 | # | Scenario | Status |
 |---|---|---|
-| 8, 49 | Component (composite) glyphs | TODO (P1.1): names-only probe first; today the reader declines them and says so |
+| 8, 49 | Component (composite) glyphs | TODO (P1.1): names-only probes done (604, 605, [topics/reading.md](topics/reading.md)); next a reference glyph and a gated read; today the reader declines them and says so |
 | 9 | Element reference | TODO |
 | 10 | Component with its own transform | TODO |
 | 11 | Multiple layers or masters | TODO (T7) |
@@ -69,8 +69,4 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 |---|---|---|
 | 17, 42, 64 | Large glyphs: 1980-node request, 2001-node refusal, read 1000+ nodes, time of `Update` against the 5 s timeout | POSTPONED |
 
-Closed on 2026-11-03: row 60 (T4, tests 145a–g, 259 and 260), rows 21, 52, 61 (T2, tests 253–255), row 59 (T3, tests 256–258), row 75 (K11 on Arial, tests 158, 230–235), row 76 (K12: (a) test 168, (b) test 243; (c) handed to T5, row 63), row 77 (K13, tests 227 and 244), row 78 (K14, tests 245 and 246), row 80 (K16, tests 247–252); row 79 (K15) dropped by the user's decision.
-
-Closed on 2026-11-02: row 74 (K10, test 224).
-
-Closed on 2026-11-01: rows 73a and 73b (P0.8, kerning defects A and B: listener 0.104 / server 0.33, live tests 219–223), row 33 (tests refreshed and passing on the user's machine), row 65 (K1 deployment check), row 66 (K2 listener route), row 67 (K3 POST equals GET), row 68 (K4 three pairs through the agent), row 69 (K5 `text` mode against the KERNING panel), row 70 (K6 special characters in `text`), row 71 (K7 error cases), row 72 (K8 approval flow at 250 / 251 / 324 pairs), row 73 (K9: the exception wins over the class value when names are unambiguous).
+Rows closed since v11: [archive/CHECKLIST-closed-rows.md](archive/CHECKLIST-closed-rows.md).

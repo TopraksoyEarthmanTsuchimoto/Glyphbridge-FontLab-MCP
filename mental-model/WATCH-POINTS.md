@@ -1,6 +1,6 @@
 # Watch points
 
-What was seen in FontLab, in the tools or in agent behaviour and is **not yet explained or settled**. A proven fact belongs in its topic file, an open scenario in [CHECKLIST.md](CHECKLIST.md), a known limit in [ROADMAP.md](ROADMAP.md). Word budget: 1,250 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
+What was seen in FontLab, in the tools or in agent behaviour and is **not yet explained or settled**. A proven fact belongs in its topic file, an open scenario in [CHECKLIST.md](CHECKLIST.md), a known limit in [ROADMAP.md](ROADMAP.md). Word budget: 1,500 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
 
 ## How an entry lives
 

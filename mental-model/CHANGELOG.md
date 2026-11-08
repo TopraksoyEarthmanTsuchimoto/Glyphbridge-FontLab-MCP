@@ -11,7 +11,7 @@ Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listene
 - **Rules for an open contour**, checked by the server before sending and again by the listener: 2 to 500 points, at least 2 different positions after rounding; no `c1` / `c2` on the first point (no closing segment); no smooth first or last point (one neighbour). Inner smooth points use the existing check, without wrapping round.
 - **Listener `POST /glyph/path`:** builds an open contour with `_path_build_contour(…, closed=False)`; its `closed` flag must read False detached and on the layer, otherwise nothing is reported as drawn; the reply lists `open_contours`; the activity log line counts them ("1 open"). Closed contours are unchanged.
 - **Server `draw_path`:** needs listener 0.126 only when a contour is open (refused before sending otherwise); the reply adds `closed` per contour, `open_contours_note`, and an `agent_instruction` to tell the person that open contours have no fill and that what FontLab does with them on export is untested. The tool's input schema takes both contour forms.
-- Tests: listener 2090–2122 (2676 → 2714 lines), server 29a–29zz (1018 → 1054); other output changed only in the version lines and the `draw_path` signature (13zf). Mutation run: 17 of 17 killed, both unmutated controls passed. Not yet live-checked.
+- Tests: listener 2090–2122 (2676 → 2714 lines), server 29a–29zz (1018 → 1054); other output changed only in the version lines and the `draw_path` signature (13zf). Mutation run: 17 of 17 killed, both unmutated controls passed. Not yet live-checked at release; live 595–603 afterwards.
 
 ## Listener v0.125 (2026-11-04; server unchanged at 0.46)
 
@@ -19,7 +19,7 @@ Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listene
 - `stage=detached|draw`, `name=ocp…`, `kind=line|curve`, `go=yes`. Fixed shapes: `line` the open V of 581, `curve` the open arch of 583. The one-font gate of `/debug/trysync`; at most 6 calls per listener run, counted before anything is created or built.
 - `detached` builds the contour with `_path_build_contour(…, closed=False)` and reads it back; the glyph is not touched. `draw` builds it the same way into a glyph whose modern layer is known to be empty (a missing layer is created, as `draw_path` does), attaches it only when the detached contour reads `closed` false with the expected positions and node kinds, reads the layer back (`layer_closed`, `layer_mismatches`, `drawn`), and marks the glyph for the guard. Smooth flags are reported, not required.
 - `_path_build_contour` gains `closed=True` (default); `draw_path` and `draw_polygon` are unchanged (stub 2081, 2082).
-- Tests: listener 2050–2085 (2636 → 2676 lines); other output changed only in the version lines. Mutation run: 13 of 13 killed, the unmutated control passed. Never run in FontLab yet.
+- Tests: listener 2050–2085 (2636 → 2676 lines); other output changed only in the version lines. Mutation run: 13 of 13 killed, the unmutated control passed. Never run in FontLab at release; live 586–594 afterwards.
 
 ## Server v0.46 (2026-11-04; listener unchanged at 0.124)
 
@@ -30,7 +30,7 @@ Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listene
 - **A note** names the open contours; the `get_glyph_outline` description says how they are read.
 - Closed contours are unchanged; the legacy route's "assumed closed" note is unchanged.
 - Tests: server 28a–28z (2636 + 58 + 90 + 1018 lines); 14n (an open inner contour, margins of another shape) now reads "does not match" instead of "not computed". Mutation run: 11 of 11 killed, the unmutated control passed.
-- Not yet live-checked.
+- Not yet live-checked at release; live 579–585 afterwards.
 
 ## Server v0.45 (2026-11-04; listener unchanged at 0.124)
 

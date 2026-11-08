@@ -14,15 +14,11 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 - **`set_kerning` writes glyph : glyph pairs only, in the current master, with the `flags` key `((left, False), (right, False))`**; class names are not accepted. *Reason:* the `flags` form names both sides as glyphs, so a glyph named like a class never means the class (defect B); `set` accepts it (564).
 - **All checks run before the first write; the first pair not confirmed by the re-read stops the request**, and the reply names the pairs that were set. *Reason:* the user's choice (2026-11-04); more predictable for the designer than continuing.
-- **Not gated, like other reversible value writes; more than 250 pairs need the person's approval**, as for reads. Every reply tells the agent to say that the KERNING panel lists the pairs only after save and reopen, that closing asks no save question, and that Undo cannot take them back. *Reason:* the user approved the design as proposed; the facts are KW 557–563.
+- **Not gated, like other reversible value writes; more than 250 pairs need the person's approval**, as for reads. Every reply tells the agent to say that the KERNING panel lists the pairs only after save and reopen (since server 0.45 also after a switch to another font and back; 573, 574), that closing asks no save question, and that Undo cannot take them back. *Reason:* the user approved the design as proposed; the facts are KW 557–563.
 
 ## 2026-11-04: save tests are a preference, not a rule
 
 - **File > Save tests are avoided by preference, not forbidden.** One runs when it answers a question better than other means, and only after the user agrees to that test. The person saves through FontLab's GUI, to a disposable file outside the repository; no tool saves (save policy below). First case: KW 557–560, save and reopen after an API kerning write ([topics/kerning.md](topics/kerning.md) §13). *Supersedes* "File > Save tests are deferred" (2026-10-24) and that day's one-case exception (both archived). *Reason:* the user's choice, after that test showed the KERNING panel was only stale.
-
-## 2026-11-04: word budgets
-
-- **Word budgets: [CURRENT-STATUS.md](CURRENT-STATUS.md) 1,800, [DECISIONS.md](DECISIONS.md) 2,000 (active part), [CHECKLIST.md](CHECKLIST.md) 1,400, [WATCH-POINTS.md](WATCH-POINTS.md) 1,500** (were 1,350, 1,700, 1,300 and 1,250; CURRENT-STATUS.md was first raised to 1,600 and DECISIONS.md to 1,900 the same day). *Reason:* the user's choice, as the kerning-write results (tests 542–560) and then the open-contour work brought these files near their limits.
 
 ## 2026-11-04: the vertical check and quadratic extents (listener 0.121 / server 0.43)
 
@@ -61,6 +57,10 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 - **The log shows the name the app sends by itself** (MCP `clientInfo`), without the config entry name `glyphbridge-fontlab`. No label is set in the MCP configs. *Reason:* the user's choice: an ambiguous automatic name such as `local-agent-mode` is enough, and the configs stay untouched.
 
+## 2026-11-01: code comments and tool docstrings
+
+- **MCP tool docstrings are the agents' tool descriptions, so a tidy-up leaves them as they are. `#` comments stay next to the code they protect**; only references to session and test numbers shrink to the fact. *Reason:* about 11,000 words of history sat at the top of the two scripts; that tidy-up is archived.
+
 ## 2026-11-01: kerning groups
 
 - **AI agents must be able to see which groups have which members** ([ROADMAP.md](ROADMAP.md) P1.6; proposed first and built only after approval). *Supersedes* "group membership is deliberately not read". *Reason:* K9 and the KERNING panel method depended on membership, which only FontLab's Classes panel could show; the members of one group are a small read.
@@ -69,11 +69,7 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 - **No test may depend on the local file `savedtestfont.vfc` in the end.** Live tests build their reference glyphs in a fresh disposable font. `savedtestfont.vfc` may be used until it is no longer useful. Font files (`*.vfc`, `*.vfj`) are ignored by git. *Reason:* people who fork the repository must find everything they need in it ([ROADMAP.md](ROADMAP.md) §11).
 - **`.gitignore` lists only what this project produces.** *Reason:* the generic Python template made the repository look less maintained.
-
-- **`tests/README.md` stays in `tests/`**, an exception to the "all Markdown in `mental-model/`" rule. *Reason:* the user's choice, so it stays next to the harnesses it describes.
-- **The project folder is the cloned repository.** The scripts stay at the root, and the server uses its own `venv` there (ignored by git). *Reason:* `run_all.py` reads the scripts from the parent of `tests/`, and the MCP configs point at the root.
-- **Claude Code uses a committed `.mcp.json` with relative paths.** *Reason:* it works without user-specific paths in a public repository (verified).
-- **The old `Notes\` folder stays out of the repository.** *Reason:* the user's choice.
+- The other choices of that day (`tests/README.md`, the project folder, `.mcp.json`, `Notes\`) are in force and archived.
 
 ## 2026-10-27: kerning (v11 session)
 
