@@ -5836,3 +5836,119 @@ od_al({"name": "od2_sq", "contours": [{"points": SQ, "closed": True}]}, {"open":
 for k, v in _od_al_saved.items(): ns[k] = v
 ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
 print("2122 route documented            :", '{"points": [...], "closed": false} is drawn OPEN (v0.126)' in src)
+
+# ================= v0.129: /debug/tryshapebox (gated, read only: one inkBox() per element, or one isUnbindedDependecies()) =================
+print("\n==== v0.129 /debug/tryshapebox ====")
+# Spy fakes: any member the probe should not touch lands in SBP["forbidden"]. The one-font gate is the fake of /debug/tryopen.
+SBP = {"ink": [], "dep": 0, "forbidden": [], "mode": {}, "wrap": None, "layer": None}
+class SBPSpy:
+    def __getattr__(s, a):
+        SBP["forbidden"].append(a); raise AttributeError(a)
+class SBPRect:
+    def __init__(s, l, r, t, b): s.v = (l, r, t, b)
+    def left(s): return s.v[0]
+    def right(s): return s.v[1]
+    def top(s): return s.v[2]
+    def bottom(s): return s.v[3]
+    def width(s): return s.v[1] - s.v[0]
+    def height(s): return s.v[3] - s.v[2]
+class SBPShape(SBPSpy):
+    def __init__(s, i, box): s.__dict__.update(i=i, box=box)
+    def inkBox(s, *a):
+        SBP["ink"].append((s.i, a)); m = SBP["mode"]
+        if m.get("ink_raises") == s.i: raise RuntimeError("ink boom")
+        if m.get("ink_none"): return None
+        if m.get("mutates"): SBP["layer"].nodesCount = 99
+        return s.box
+class SBPLayer(SBPSpy):
+    name = "Regular"
+    def __init__(s, shapes): s.__dict__.update(_shapes=shapes, nodesCount=48, shapesCount=len(shapes), componentsCount=len(shapes))
+    @property
+    def shapes(s):
+        m = SBP["mode"]
+        if m.get("shapes_raises"): raise RuntimeError("shapes boom")
+        return tuple(s._shapes) if m.get("shapes_tuple") else s._shapes
+class SBPNoDep(SBPSpy):
+    def __init__(s, layer): s.__dict__.update(activeLayer=layer, advanceWidth=700.0)
+class SBPWrap(SBPNoDep):
+    def isUnbindedDependecies(s):
+        SBP["dep"] += 1; m = SBP["mode"]
+        if m.get("dep_raises"): raise RuntimeError("dep boom")
+        return m.get("dep_value", False)
+_sb_mods = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "flWorkspace", "CurrentFont")]
+_sb_ns = {k: ns[k] for k in ("_find_glyph", "_modern_wrapper")}
+def sb_setup(mode=None, count=1, packages=1, shapes=2, wrap=SBPWrap, no_layer=False, font=True):
+    boxes = [SBPRect(50, 650, 0, 700), SBPRect(220, 480, 780, 880)]
+    SBP.update(ink=[], dep=0, forbidden=[], mode=mode or {})
+    SBP["layer"] = None if no_layer else SBPLayer([SBPShape(i, boxes[i % 2]) for i in range(shapes)])
+    SBP["wrap"] = wrap(SBP["layer"])
+    def mw(g, f):
+        if SBP["mode"].get("wrap_raises"): raise RuntimeError("wrap boom")
+        return SBP["wrap"], "cached"
+    ns["_find_glyph"] = lambda f, n: "G" if n == "sbg" else None
+    ns["_modern_wrapper"] = mw
+    TO.update(count=count, packages=packages)
+    for _m in _tf_mods:
+        _m.CountFonts = _to_count; _m.flWorkspace = TOWsCls; _m.CurrentFont = (lambda: object()) if font else (lambda: None)
+    ns["_TRYSHAPEBOX"].update(shapebox=0, dependencies=0)
+def sb(tag, path, keys=("error", "calls_so_far", "open")):
+    c, d = call(path)
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| inkBox", SBP["ink"], "| dep", SBP["dep"], "| forbidden", SBP["forbidden"])
+    return d
+Q = "/debug/tryshapebox?"
+B = Q + "stage=shapebox&name=sbg&go=yes"; D = Q + "stage=dependencies&name=sbg&go=yes"
+FULL = ("elements", "element_count", "unbound_dependencies", "error", "state_before", "state_after", "side_effect_detected", "calls_so_far")
+sb_setup()
+sb("2130 shapebox without go          ", Q + "stage=shapebox&name=sbg")
+sb("2131 dependencies without go      ", Q + "stage=dependencies&name=sbg")
+sb("2132 go must be exactly yes       ", Q + "stage=shapebox&name=sbg&go=maybe")
+sb("2133 unknown stage                ", Q + "stage=bind&name=sbg&go=yes")
+sb("2134 name with a space            ", Q + "stage=shapebox&name=sb%20g&go=yes")
+sb("2135 no name                      ", Q + "stage=shapebox&go=yes")
+sb("2136 a name of 41 characters      ", Q + "stage=shapebox&go=yes&name=" + "a" * 41)
+for tag, over in (("2137 two fonts open               ", dict(count=2)), ("2138 two packages                ", dict(packages=2)),
+                  ("2139 CountFonts raises           ", dict(count=RuntimeError("count boom"))), ("2140 no font open                ", dict(count=0)),
+                  ("2141 CurrentFont is None         ", dict(font=False))):
+    sb_setup(**over); sb(tag, B)
+sb_setup(); sb("2142 a glyph that does not exist  ", Q + "stage=shapebox&name=nope&go=yes")
+sb_setup(mode={"wrap_raises": 1}); sb("2143 the wrapper raises           ", B)
+sb_setup(no_layer=True); sb("2144 shapebox, no active layer    ", B, keys=("error", "state_before", "calls_so_far"))
+sb_setup(); d = sb("2145 shapebox, two elements       ", B, keys=FULL); print("2146  note                     :", d["note"])
+sb_setup(shapes=1); sb("2147 shapebox, one element        ", B, keys=("elements", "element_count", "side_effect_detected"))
+sb_setup(shapes=0); sb("2148 shapebox, a real empty list  ", B, keys=("elements", "element_count", "error", "side_effect_detected"))
+sb_setup(shapes=20); print("2149 shapebox, 20 elements        :", sb("     ", B, keys=("element_count",)).get("element_count"))
+sb_setup(shapes=21); sb("2150 shapebox, 21 elements        ", B, keys=FULL[2:4] + ("calls_so_far", "side_effect_detected"))
+sb_setup(mode={"shapes_tuple": 1}); sb("2151 layer.shapes is not a list   ", B, keys=("error", "elements", "calls_so_far"))
+sb_setup(mode={"shapes_raises": 1}); sb("2152 layer.shapes raises          ", B, keys=("error", "elements", "calls_so_far"))
+sb_setup(mode={"ink_raises": 1}); sb("2153 the second inkBox raises     ", B, keys=("elements", "error", "side_effect_detected"))
+sb_setup(mode={"ink_none": 1}); sb("2154 inkBox returns None          ", B, keys=("elements", "error"))
+sb_setup(mode={"mutates": 1}); sb("2155 a changed node count         ", B, keys=("state_before", "state_after", "side_effect_detected"))
+sb_setup(no_layer=True); d = sb("2156 dependencies, no active layer", D, keys=FULL)
+for tag, mode in (("2157 dependencies false           ", {}), ("2158 dependencies true            ", {"dep_value": True}), ("2159 it returns 1, not a bool     ", {"dep_value": 1}),
+                  ("2160 it returns None             ", {"dep_value": None}), ("2161 it raises                   ", {"dep_raises": 1})):
+    sb_setup(mode=mode); sb(tag, D, keys=("unbound_dependencies", "side_effect_detected", "calls_so_far"))
+sb_setup(wrap=SBPNoDep); SBP["forbidden"].clear(); sb("2162 the member does not exist     ", D, keys=("unbound_dependencies", "calls_so_far"))
+sb_setup()
+for _i in range(12): call(B)
+sb("2163 shapebox: request 13 refused ", B); print("2164  inkBox calls in 12 runs  :", len(SBP["ink"]))
+sb("2165 the other stage still runs   ", D, keys=("unbound_dependencies", "calls_so_far"))
+_src129 = "\n".join(l for l in src[src.index("# /debug/tryshapebox (v0.129)"):src.index("# /debug/trykerngroups (v0.103)")].split("\n") if not l.lstrip().startswith("#"))
+print("2166 static scan of the probe (code lines):", len(_src129) > 3000, "| forbidden call syntax:",
+      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|remove\w*|bindDependencies|resetInkBox|changed|applyTransform|transform|setProperty\w*)\s*\(", _src129),
+      "| subscripts of a native object:", _re83.findall(r"\b(?:shapes|layer|shape|w)\[", _src129),
+      "| counter raised before the call:", _src129.index('_TRYSHAPEBOX[stage] += 1') < _src129.index("rows, err = _tryshapebox_boxes(layer)"))
+print("2167 route documented            :", "/debug/tryshapebox    stage=shapebox|dependencies" in src)
+_sb_al_saved = {k: ns[k] for k in ("_now_hms", "_clock")}
+ns["_now_hms"] = lambda: "12:00:00"; ns["_clock"] = lambda: 1000.0
+ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+print("2168 activity log, go=yes:")
+ns["_activity_note"]("GET", B, b"", ns["_build_response"](200, {"stage": "shapebox", "elements": []}), "claude-code")
+ns["_act_flush"]()
+for k, v in _sb_al_saved.items(): ns[k] = v
+ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+for k, v in _sb_ns.items(): ns[k] = v
+for _m, _a, _v in _sb_mods:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else:
+        setattr(_m, _a, _v)

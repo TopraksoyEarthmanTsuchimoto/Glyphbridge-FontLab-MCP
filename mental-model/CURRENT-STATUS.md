@@ -1,4 +1,4 @@
-Last verified: 2026-11-09 against commit 9bda0a6 plus uncommitted code and document updates, listener v0.128 / server v0.49 (tests PASS, deployed listener identical, `fontlab_status` 0.128 / 0.49; components 606–626 run live that day; live checks 584–603 done on 2026-11-04, not re-run)
+Last verified: 2026-11-09 against commit bf765fc plus uncommitted code and document updates, listener v0.130 / server v0.50 (tests PASS, deployed listener identical, `fontlab_status` 0.130 / 0.50; components 606–656 run live that day; live checks 584–603 done on 2026-11-04, not re-run)
 
 # Current status
 
@@ -6,11 +6,11 @@ Last verified: 2026-11-09 against commit 9bda0a6 plus uncommitted code and docum
 
 | Part | Version | md5 |
 |---|---|---|
-| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.128"` | `4934e0abec08d6d446fe5cd5379d7bdc` (455,751 bytes) |
-| server `glyphbridge_mcp_server.py` | `SERVER_VERSION = "0.49"`, `MIN_LISTENER_VERSION` (0, 82) | `344496c4f37cc4cab26bb597132fa91e` (197,037 bytes) |
-| tests | 4 harnesses | PASS at **2714 + 58 + 90 + 1109** lines |
+| listener `glyphbridge_fontlab_mcp_listener.py` | `VERSION = "0.130"` | `3e7eaebc5ff252ccfb316dfbebcfa2f8` (466,585 bytes) |
+| server `glyphbridge_mcp_server.py` | `SERVER_VERSION = "0.50"`, `MIN_LISTENER_VERSION` (0, 82) | `b6c7d213ce362d36eb7b6c997a038878` (205,104 bytes) |
+| tests | 4 harnesses | PASS at **2757 + 58 + 90 + 1159** lines |
 
-`get_kerning` needs listener 0.104 (server 0.33); with several fonts open, 0.112 / 0.37. The PostScript names from the font package need 0.118 / 0.41; the F1 fix, 0.120 / 0.42; the vertical check against `inkBox()` and exact quadratic extents, 0.121 / 0.43. Listeners 0.122 and 0.123 add only gated research probes for kerning writes; `set_kerning` needs 0.124 / 0.44, its whole-unit check and panel wording 0.45; open contours are read by server 0.46; listener 0.125 adds only the gated probe `/debug/tryopen`; `draw_path` draws open contours with 0.126 / 0.47; `create_glyph` makes the layer with 0.127 / 0.48; `get_glyph_outline` labels components with 0.128 / 0.49. What each release changed: [CHANGELOG.md](CHANGELOG.md).
+`get_kerning` needs listener 0.104 (server 0.33); with several fonts open, 0.112 / 0.37. The PostScript names from the font package need 0.118 / 0.41; the F1 fix, 0.120 / 0.42; the vertical check against `inkBox()` and exact quadratic extents, 0.121 / 0.43. Listeners 0.122 and 0.123 add only gated research probes for kerning writes; `set_kerning` needs 0.124 / 0.44, its whole-unit check and panel wording 0.45; open contours are read by server 0.46; listener 0.125 adds only the gated probe `/debug/tryopen`; `draw_path` draws open contours with 0.126 / 0.47; `create_glyph` makes the layer with 0.127 / 0.48; `get_glyph_outline` labels components with 0.128 / 0.49; listener 0.129 adds only the gated probe `/debug/tryshapebox`; a component is checked on its own and against its source with 0.130 / 0.50. What each release changed: [CHANGELOG.md](CHANGELOG.md).
 
 ## Environment (verified 2026-11-01)
 
@@ -40,7 +40,7 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 
 ## Not proven or not built
 
-- Not built: components, multi-master fonts, several shapes per glyph, editing an existing outline, a create-font tool, save-and-reopen checks (T9). See [ROADMAP.md](ROADMAP.md).
+- Not built: multi-master fonts, several shapes per glyph, editing an existing outline, a create-font tool, save-and-reopen checks (T9). Components: one or two in a glyph are read and labelled ("Resume here" below); placing them by tool and the rest are open. See [ROADMAP.md](ROADMAP.md).
 - Open scenarios: [CHECKLIST.md](CHECKLIST.md).
 - **F1** is fixed in 0.120 / 0.42 (V120 in [LIVE-TESTS.md](LIVE-TESTS.md)), **but still open** for paths not run live: `delete_glyph` and `set_glyph_unicode` after a read or write of a Power Brush glyph, several elements, and the debug probes, which still touch the legacy layer ([topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8l).
 - **Add Component crash on a glyph with no layer (612–619):** fixed for one master in 0.127 / 0.48 (620, one run). Not fixed for multi-master fonts or a `create_glyph` reply with `layer_note`: avoid Add Component on such a glyph in a font with unsaved work ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §9).
@@ -48,20 +48,20 @@ Setup steps: [RUNBOOK.md](RUNBOOK.md).
 
 ## Resume here (session of 2026-11-09)
 
-- **Components (P1.1), live 606–626:** one component, identity, offset and horizontal scale read `verified` ([topics/reading.md](topics/reading.md)); since 0.128 / 0.49 `get_glyph_outline` labels a component and names its source (624–626). The crash fix is live-checked (620–623). The code and these documents are uncommitted.
-- **FontLab:** the test fonts are gone; every test needs a new disposable font.
-- **Next:** (1) rotation and the other component transforms; (2) several components in one glyph; (3) open questions of open contours, each only with the user's OK: what FontLab does with them on export (a save test), quadratic; (4) **final polish for kerning** (the user's decision of 2026-11-04, for later): an exception over a class on a disposable copy of a real font; writes with two saved fonts open; multi-master, a design decision before any test.
+- **Components (P1.1), live 606–656:** one component, identity, offset and horizontal scale read `verified` ([topics/reading.md](topics/reading.md)); since 0.128 / 0.49 `get_glyph_outline` labels a component and names its source (624–626). The crash fix is live-checked (620–623). Two components in a glyph and one source shared by two glyphs read correctly (627–636). Since 0.130 / 0.50 an accent inside its base reads `verified` element by element (652), and a component behind its source reads `unverified` (`source_in_step`, 651, 653; plain offsets only). **A tool edit of a source reached the glyphs using it once in five; GUI edits did all four times** (638–655). No tool places a component yet.
+- **FontLab:** the test font of 627–656 is unsaved; after a FontLab restart every test needs a new disposable font.
+- **Next:** (1) rotation and the other component transforms; (2) open questions of open contours, each only with the user's OK: what FontLab does with them on export (a save test), quadratic; (3) **final polish for kerning** (the user's decision of 2026-11-04, for later): an exception over a class on a disposable copy of a real font; writes with two saved fonts open; multi-master, a design decision before any test.
 
 ## Next steps (the user's priority of 2026-11-01)
 
-1. **Components are under way** (the user's choice of 2026-11-06); open contours and kerning polish wait: see "Resume here" above. Other candidates (none approved): `delete_glyph` and `set_glyph_unicode` after a Power Brush write; the review of legacy calls (goal 6 in [PROJECT.md](PROJECT.md); the table in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10), starting with `get_glyph_width` (legacy `glyph.width`, while the writes use `advanceWidth`) and `font.info` (it disagreed with Font Info, 298).
+1. **Components are under way** (the user's choice of 2026-11-06); open contours and kerning polish wait: see "Resume here" above. Other candidates (none approved): a tool that places a component (P2.7, research first), finding why tool edits of a source miss its composites ([WATCH-POINTS.md](WATCH-POINTS.md)); `delete_glyph` and `set_glyph_unicode` after a Power Brush write; the review of legacy calls (goal 6 in [PROJECT.md](PROJECT.md); the table in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10), starting with `get_glyph_width` (legacy `glyph.width`, while the writes use `advanceWidth`) and `font.info` (it disagreed with Font Info, 298).
 2. The **T-series**: T2, T3 and T4 are done. What is open in T5 is in [CHECKLIST.md](CHECKLIST.md) row 63; the candidates for several open fonts, none approved, are in [ROADMAP.md](ROADMAP.md) P0.5.
 3. **S1** (proposed, none approved): say so in the reminder and the tool descriptions, or find out whether the API can mark a font as changed without saving it.
 4. Candidates after that (none approved): P0.3 / P0.4, a create-font tool. Required by the user, not yet designed: P1.6, kerning group membership.
 
-The next free test number is **627**; the numbers in use: [LIVE-TESTS.md](LIVE-TESTS.md). Large-glyph and very-large-read tests stay in the LAST block.
+The next free test number is **657**; the numbers in use: [LIVE-TESTS.md](LIVE-TESTS.md). Large-glyph and very-large-read tests stay in the LAST block.
 
 ## Contradictions and watch points
 
-- Between the documents and the code: none known (versions, md5 and tests checked 2026-11-09 against listener 0.128 / server 0.49; tools and the main routes checked 2026-11-06, none added since; ARCHITECTURE's "the path never leaves the listener" corrected after test 273).
-- Open watch points (seen, not yet explained or settled): **19**, in [WATCH-POINTS.md](WATCH-POINTS.md).
+- Between the documents and the code: none known (versions, md5 and tests checked 2026-11-09 against listener 0.130 / server 0.50; tools and the main routes checked 2026-11-06, none added since; ARCHITECTURE's "the path never leaves the listener" corrected after test 273).
+- Open watch points (seen, not yet explained or settled): **22**, in [WATCH-POINTS.md](WATCH-POINTS.md).

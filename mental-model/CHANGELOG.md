@@ -4,6 +4,20 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.130 / server v0.50 (2026-11-09)
+
+**A component is checked on its own and against its source** ([topics/reading.md](topics/reading.md), [DECISIONS.md](DECISIONS.md)).
+- **Listener:** for a component only, each outline read adds `ink_box` (one `shape.inkBox()`) and `source_ink_box` (one `layer.inkBox()` on the source's active layer, when its name equals `component_layer`). At most 20 elements; an unreadable box is `{"error"}`.
+- **Server:** an outer box that fits with and without the transforms is settled element by element (`element_boxes_checked`). Each component says `source_in_step`: true, false or `"unknown"`. False makes the read `unverified`, gives both boxes and an `agent_instruction`. Both checks cover plain offsets only. `set_glyph_sidebearings` has a `component_note`. An older listener gets the previous behaviour.
+- Tests: part 32 in `create_unicode_tests.py` (1109 → 1159 lines); other output changed only in the version lines, the list of `inkBox` calls (1675) and the sidebearing reply. Mutation run: 40 of 40 caught, after three added cases. Live 651–656; the error paths and a vertical offset are stub-tested only.
+
+## Listener v0.129 (2026-11-09; server unchanged at v0.49)
+
+**A research route, `/debug/tryshapebox`** (read only, gated, P1.1; [topics/reading.md](topics/reading.md)).
+- **`stage=shapebox`:** one `shape.inkBox()` per element of the modern active layer, used only when `layer.shapes` is a real list of at most 20. **`stage=dependencies`:** one `flGlyph.isUnbindedDependecies()`.
+- Both need `go=yes` and exactly one font open, at most 12 per stage and listener run, counted before the call. Layer counts and advance width are compared before and after (`side_effect_detected`). Never called: `bindDependencies`, `update`, `changed`, `resetInkBox`, `font.update()`, save.
+- Tests: cases 2130–2168 in `stub_listener_tests.py` (2714 → 2757 lines); other output changed only in the version lines and the list of `inkBox` calls (1675). Mutation run: 23 of 23 caught, after one mutation that had changed a comment was aimed at the call. Live 644–650.
+
 ## Listener v0.128 / server v0.49 (2026-11-09)
 
 **`get_glyph_outline` says when a glyph holds a component** (gap found in 607; [topics/reading.md](topics/reading.md)).

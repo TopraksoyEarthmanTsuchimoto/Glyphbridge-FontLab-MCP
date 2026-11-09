@@ -1,6 +1,6 @@
 # Watch points
 
-What was seen in FontLab, in the tools or in agent behaviour and is **not yet explained or settled**. A proven fact belongs in its topic file, an open scenario in [CHECKLIST.md](CHECKLIST.md), a known limit in [ROADMAP.md](ROADMAP.md). Word budget: 1,500 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
+What was seen in FontLab, in the tools or in agent behaviour and is **not yet explained or settled**. A proven fact belongs in its topic file, an open scenario in [CHECKLIST.md](CHECKLIST.md), a known limit in [ROADMAP.md](ROADMAP.md). Word budget: 1,800 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
 
 ## How an entry lives
 
@@ -24,7 +24,10 @@ What was seen in FontLab, in the tools or in agent behaviour and is **not yet ex
 - **A dot after the glyph name in its tab** (2026-11-04, INK: 533). Opened from the grid with all nodes selected and nothing moved, the tab read "testglyph2•"; the only change in the font was `create_glyph w25a_one` (531). Open: does the dot mark the glyph, the font, or a GUI selection? Settles: open an untouched glyph in a freshly opened font, then again after one tool write elsewhere.
 - **The package's change flags stay false** (2026-11-04, KW: 553–556). `flPackage.isChanged` and `hasChanges` read false in a new font changed through the tools, by an API kerning write and by a GUI kerning edit; the kerning container's flags moved (`changed()`, `Update`). One font, one session. Open: what FontLab's "modified" state reads from, and whether it relates to S1. Settle by reading the flags before and after a GUI glyph edit that makes FontLab ask on close.
 - **The Add Component crash** (2026-11-09, 612–619). The fact is in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §9. Open: why a layerless `cp1comp` survived as the font's first component; multi-master fonts. Settles: Add Component on a layerless glyph as the first component of a new font, repeated.
-- **The Elements badge** (2026-11-09, 606–615). It read 2, 3, 4 and 5 as uses of the source were added, as if counting them; `referenceCount` read 2 on the source and 1 on the component (609, 610). Open: is it `referenceCount`? Settles: read the source after adding a use.
+- **The Elements badge** (2026-11-09, 606–615). It read 2, 3, 4 and 5 as uses of the source were added, as if counting them; `referenceCount` read 2 on the source and 1 on the component (609, 610). With one use it read 2, with two uses 3 (629, 635). Open: is it `referenceCount`? Settles: read the source after adding a use.
+- **A tool edit of a source that misses its composites** (2026-11-09, 638–655). The fact is in [topics/reading.md](topics/reading.md). Open: why `set_glyph_sidebearings` reached them once (638) and missed four times (638b, 640, 648, 653), when GUI edits always did (639, 643, 652, 655); a non-zero offset was tried as the cause and dropped (640); `fontlab.Update` on the composite did not help (642); `isUnbindedDependecies()` did not change (647, 649). Settles: a run that predicts which tool edit will reach them.
+- **`componentsCount` of 0** (2026-11-09, 644–650). The modern layer's `componentsCount` read 0 on `mx1Odieresis` and `mx1Udieresis`, whose two elements each read `isComponent` true. Open: what it counts. Settles: read it on a layer with a known component made another way.
+- **`setSB` as an element offset on a plain contour** (2026-11-09, 638). It put `dx` 200 on the element of `mx1dieresis` and left the nodes, unlike `testglyph2` (145c); inside the composites that offset read as part of the component's coordinates. Open: is it because the glyph is used as a component? Settles: `setSB` on the same outline in a glyph no component uses.
 - **Two GUI events** (2026-11-09). Editing X, Y and width of a component together changed nothing and left its source glyph in front; each field alone worked. One Font > New Glyph added no glyph. Neither repeated.
 
 ## Agents and clients

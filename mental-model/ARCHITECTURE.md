@@ -42,6 +42,8 @@ Each outline reply carries a status:
 - `calibrated`: transforms estimated from the bounding box.
 - `unverified`: the coordinates are raw, and the reply says which coordinate space they are in.
 
+On a glyph with components (server 0.50, plain offsets only), an outer box that fits with and without the transforms is settled element by element (`element_boxes_checked`), and a component found behind its source makes the read `unverified` (`source_in_step`): [topics/reading.md](topics/reading.md).
+
 Every write is reported as successful only after a re-read agrees. Drawings are compared node by node (`nodes_match`). Details: [topics/reading.md](topics/reading.md) §4 and [topics/geometry.md](topics/geometry.md).
 
 ## Tools (server) and routes (listener)

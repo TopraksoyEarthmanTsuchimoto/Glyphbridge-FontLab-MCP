@@ -131,6 +131,45 @@ Reading: Add Component crashes on a glyph with no layer once the font already ha
 
 **The small element panel** (bottom of the Glyph window; seen on `cp1comp` and `cp3one`): X and Y set the component's absolute offset, and width % its scale, keeping the offset: X 0, then 40, on `cp1comp` read LSB 200, then 240, and `dx` 0, then 40; on `cp3one` X 70, Y 30, width 200% gave LSB 376, RSB −280 as predicted. The rectangle moves while typing; LSB, RSB and Δ change on Enter or when the field loses focus. One attempt to set X, Y and width together on `cp1comp` changed nothing and left the source glyph in front; the single-field edits did not ([WATCH-POINTS.md](WATCH-POINTS.md)).
 
+### MX series: Ö and Ü from shared components (2026-11-09, FontLab 8.9.5, listener 0.128 / server 0.49; results in [topics/reading.md](topics/reading.md))
+
+One disposable, unsaved, one-master font holding only `.notdef` at the start; prefix `mx1`. Tool-drawn `mx1O` (width 700), `mx1U` (640) and `mx1dieresis` (two circles, 400); `mx1Odieresis` and `mx1Udieresis` empty at first. The person added the components with Glyph > Add Component and set X in the small element panel. Numbers are LSB / RSB / width. A "read" is `get_glyph_outline` or `get_glyph_sidebearings`.
+
+| # | Test | Predicted | Result |
+|---|---|---|---|
+| 627 | `create_glyph`, `draw_path`, `set_glyph_width` for the three sources; read | `mx1O` ink x 50–650, y 0–700, 50 / 50 / 700; `mx1U` 60–580, 0–700, 60 / 60 / 640; `mx1dieresis` 70–330, 780–880, 70 / 70 / 400; all `verified` | as predicted |
+| 628 | `create_glyph` for the two accented glyphs, Unicode 214 and 220, widths 700 and 640 | a layer on each | `layer_created: "Regular"`, as predicted |
+| 629 | Add Component `mx1O` on `mx1Odieresis` | no crash, 50 / 50 / 700, labelled | as predicted on screen and in the read, `verified`; Elements badge on `mx1O` 2 |
+| 630 | Add Component `mx1dieresis` on it | no crash, 2 components, ink y 0–880, dots at drawn place | as predicted, `verified`, 48 nodes; the read lists `mx1O` first, the Elements panel has `mx1dieresis` on top |
+| 631 | by accident, X 150 on `mx1O` (set back to 0 afterwards) | `dx` 150, ink x 70–800, 70 / −100 / 700 | as predicted, `verified`, `dx` 0 on the other component; the panel still showed 50 / 50 |
+| 632 | font tab, then back | panel 70 / −100 / 700 | as predicted; Elements panel Δ=(150,0) |
+| 633 | X 150 on `mx1dieresis` | dots x 220–320, 380–480; 50 / 50 / 700 | numbers as predicted, Δ=(150,0) on screen; status **`unverified`**, not predicted: the box fits with and without the transform |
+| 634 | Add Component `mx1U` on `mx1Udieresis` | `verified`, 60 / 60 / 640 | as predicted; read only, no screenshot |
+| 635 | Add Component `mx1dieresis` on it | 2 components, dots at drawn place, `verified`, badge 3 if it counts uses | as predicted on screen and in the read; badges `mx1dieresis` 3, `mx1U` 2 |
+| 636 | X 120 on `mx1dieresis` in `mx1Udieresis`; both glyphs read | dots x 190–290, 350–450; 60 / 60 / 640; `unverified`; Ö still 150 | as predicted; Δ=(120,0) on screen |
+| 637 | names only, `/debug/classdir` on `flShape` | n/a | lists `inkBox([QTransform])` and `boundingBox` (QRectF); neither called |
+| 638 | `set_glyph_sidebearings mx1dieresis` 270, −130 | source 270 / −130 / 400; Ö 50 / 20 / 700; Ü 60 / −10 / 640; `verified` | as predicted in the read. The source got an element offset `dx` 200, its nodes unmoved. Font tab: old numbers and thumbnails; back on the glyph tab: 60 / −10 / 640, right dot past the stem |
+| 638b | restore: 70, 70 | source 70 / 70 / 400, `dx` 0; Ö 50 / 50, Ü 60 / 60 | source as predicted. **Ö stayed 50 / 20, Ü 60 / −10**, `verified`; prediction wrong. Unchanged after a re-read, a tab switch, closing and reopening the Ü tab (screen and read agree), and opening the source (screen 70 / 70 / 400) |
+| 639 | GUI: Element tool, click a dot, X 10 in the small panel of `mx1dieresis` | 80 / 60 / 400; Ö 50 / 50; Ü 60 / 60 | as predicted (margins read, dot positions not); Δ=(10,0) |
+| 640 | `set_glyph_sidebearings mx1dieresis` 260, −120 | Ö 50 / 30; Ü 60 / 0, if a non-zero offset reaches them | **Ö 50 / 50, Ü 60 / 60, unchanged**; source 260 / −120, drawn at once, Δ=(190,0); the bottom boxes stale at 80 / 60 and X 10. Theory dropped |
+| 641 | names only: `flGlyph`, `flShape`, `flShapeData`, module `fontlab` | n/a | `bindDependencies()` on the three, `isUnbindedDependecies()` on `flGlyph`, `isUnbindedDependencies` on `flShape`; none called |
+| 642 | gated `/debug/tryrefresh?stage=unicode&name=mx1Odieresis&value=214&go=yes`: one `fontlab.Update` on Ö; Ü the control | Ö 50 / 30 if `Update` helps; Ü unchanged | no error, Unicode 214; **no change** in either |
+| 642b | `draw_path` two diamonds into `mx1dieresis` | refused | refused ("not KNOWN to be empty"), nothing changed |
+| 643 | GUI: Contour > Convert > To Line on one circle of `mx1dieresis` | Ö 40 nodes, 50 / 30 / 700; Ü 34 nodes, 60 / 0 / 640 | as predicted, `verified`; both also took the offset of 640 |
+| 644 | listener 0.129; gated `/debug/tryshapebox?stage=shapebox&name=mx1Odieresis&go=yes` | `mx1O` x 50–650, y 0–700; `mx1dieresis` x 410–670, y 780–880 | as predicted; no crash, `side_effect_detected` false; `top` holds the lower y; the layer's `componentsCount` read 0 |
+| 645 | the same on `mx1Udieresis` | `mx1U` x 60–580, y 0–700; `mx1dieresis` x 380–640, y 780–880 | as predicted, no side effect |
+| 646 | the same on `mx1dieresis` | x 260–520, y 780–880 | as predicted, no side effect |
+| 647 | gated `stage=dependencies` on the source, Ö and Ü, in step | no prediction | a real bool, `false` on all three; no side effect |
+| 648 | `set_glyph_sidebearings mx1dieresis` 280, −140 | Ö 50 / 10, Ü 60 / −20 if they follow; 50 / 30, 60 / 0 if they miss it | source 280 / −140; **Ö 50 / 30 / 700, Ü 60 / 0 / 640: missed** |
+| 649 | `stage=dependencies` again on the three, out of step | no prediction | `false` on all three, as in 647; no side effect |
+| 650 | `stage=shapebox` again on the three, out of step | the source moved, the composites' elements old | source x 280–540; Ö `mx1dieresis` x 410–670, Ü x 380–640. Source box plus offset would be 430–690 and 400–660: **the sum differs**, where it agreed in 644–646. No side effect |
+| 651 | listener 0.130 / server 0.50; `get_glyph_outline` on Ö and Ü as left by 648 | `unverified`, `source_in_step` false; Ö 410–670 against 430–690 | as predicted; Ü 380–640 against 400–660; the reply tells the agent what to say; the identity components read true |
+| 652 | GUI: X 0 on the element of `mx1dieresis`; both read | back in step, accent inside the base: `verified`, `element_boxes_checked` true, `source_in_step` true; 50 / 50 / 700, 60 / 60 / 640 | as predicted |
+| 653 | `set_glyph_sidebearings mx1dieresis` 90, 50; Ö read | `unverified`, false, 220–480 against 240–500 if missed | **missed**, as described; `element_boxes_checked` still true; the reply carries `component_note` |
+| 654 | `get_glyph_outline mx1U`, no components | unchanged, no new fields | as predicted, `verified` |
+| 655 | GUI: width 50 % in the small panel on the element of `mx1dieresis` (meant for the component in Ü; see 656); Ü read, Ö margins | the composites follow; Ü dots x 175–305, `verified`, in step | as predicted; X read 20 in the panel; Ö 50 / 50 / 700 |
+| 656 | GUI: width 40 % on the `mx1dieresis` component in Ü (X 120); read | `source_in_step` `"unknown"`, dots x 142–194, `verified` as before the build | as predicted; 60 / 60 / 640 on screen |
+
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 
 | Id | Test | Stage / how | Expected | Status |

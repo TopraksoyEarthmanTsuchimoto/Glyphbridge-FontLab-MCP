@@ -2190,3 +2190,213 @@ print("31w docs -> outline names is_component:", "is_component" in _g31, "| name
 print("31z version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 srv._reset_change_tracking()
+
+# ---------------------------------------------------------------- part 32: listener 0.130 / server 0.50, boxes per component ----
+print("\n==== 32. listener 0.130 / server 0.50: a box per component, an accent inside its base, a composite behind its source (live 633-650 are the reason; stubs only) ====")
+
+
+class Box32:
+    def __init__(self, left, right, top, bottom):
+        self.v = (left, right, top, bottom)
+    def left(self): return self.v[0]
+    def right(self): return self.v[1]
+    def top(self): return self.v[2]
+    def bottom(self): return self.v[3]
+    def width(self): return self.v[1] - self.v[0]
+    def height(self): return self.v[3] - self.v[2]
+
+
+SPY32 = {"forbidden": [], "ink": [], "source": []}
+
+
+class Spy32:
+    def __getattr__(self, a):
+        SPY32["forbidden"].append(a); raise AttributeError(a)
+
+
+class Sh32(Spy32):
+    def __init__(self, tag, box):
+        self.__dict__.update(tag=tag, box=box)
+    def inkBox(self, *a):
+        SPY32["ink"].append((self.tag, a))
+        if isinstance(self.box, Exception): raise self.box
+        return self.box
+
+
+class Src32(Spy32):
+    def __init__(self, name, box):
+        self.__dict__.update(name=name, box=box)
+    def inkBox(self, *a):
+        SPY32["source"].append((self.name, a))
+        if isinstance(self.box, Exception): raise self.box
+        return self.box
+
+
+class Lay32(Spy32):
+    def __init__(self, shapes):
+        self.__dict__["_s"] = shapes
+    @property
+    def shapes(self):
+        if isinstance(self._s, Exception): raise self._s
+        return self._s
+    def inkBox(self):                             # the glyph's own layer: the proven layer.inkBox() of every outline read
+        return Box32(50, 650, 0, 880)
+
+
+class W32(Spy32):
+    def __init__(self, layer):
+        self.__dict__["activeLayer"] = layer
+
+
+def C32(glyph="acc", layer="Regular"):
+    return {"is_component": True, "component_glyph": glyph, "component_layer": layer}
+
+
+def b32(d):
+    return d.get("error") if "error" in d else (d["left"], d["right"], d["top"], d["bottom"])
+
+
+_saved32 = {k: ns[k] for k in ("_find_glyph", "_modern_wrapper", "_open_font", "_tryshape_modern_state", "_read_modern_outline", "_describe_modern_glyph")}
+
+
+def src32():
+    return {"base": Src32("Regular", Box32(50, 650, 0, 700)), "acc": Src32("Regular", Box32(70, 330, 780, 880))}
+
+
+def patch32(sources, wrap_raises=False):
+    SPY32.update(forbidden=[], ink=[], source=[])
+    def wrapper(g, f):
+        if wrap_raises: raise RuntimeError("wrap boom")
+        return W32(sources[g[2:]]), "cached"
+    ns["_find_glyph"] = lambda f, n: ("G:" + n) if n in sources else None
+    ns["_modern_wrapper"] = wrapper
+
+
+def a32(tag, entries, shapes, sources=None, wrap_raises=False):
+    patch32(src32() if sources is None else sources, wrap_raises)
+    ns["_add_component_boxes"](W32(Lay32(shapes)), object(), entries)
+    print(tag, "->", [{k: b32(e[k]) for k in ("ink_box", "source_ink_box") if k in e} for e in entries], "| inkBox", SPY32["ink"], "| source", SPY32["source"], "| forbidden", SPY32["forbidden"])
+
+
+_A32 = Box32(220, 480, 780, 880)
+_B32 = Box32(50, 650, 0, 700)
+a32("32a two components", [C32("base"), C32()], [Sh32(0, _B32), Sh32(1, _A32)])
+a32("32b a plain element gets no key", [{"is_component": False}, C32()], [Sh32(0, _B32), Sh32(1, _A32)])
+a32("32c no component: nothing is asked", [{"is_component": False}], RuntimeError("must not be read"))
+a32("32d flag could not be read: no key", [{"is_component": "<error: x>"}], [Sh32(0, _B32)])
+a32("32e inkBox raises, the source is still read", [C32()], [Sh32(0, RuntimeError("ink boom"))])
+a32("32f inkBox returns None", [C32()], [Sh32(0, None)])
+a32("32g layer.shapes raises", [C32()], RuntimeError("shapes boom"))
+a32("32h layer.shapes is not a list", [C32()], (Sh32(0, _A32),))
+a32("32i layer.shapes has another length", [C32(), {"is_component": False}], [Sh32(0, _A32)])
+a32("32j 21 elements", [C32()] + [{"is_component": False}] * 20, [Sh32(i, _A32) for i in range(21)])
+a32("32k 20 elements", [C32()] + [{"is_component": False}] * 19, [Sh32(i, _A32) for i in range(20)])
+a32("32l the source name is missing", [{"is_component": True, "component_layer": "Regular"}], [Sh32(0, _A32)])
+a32("32m the source glyph is gone", [C32("nope")], [Sh32(0, _A32)])
+a32("32n the source's wrapper raises", [C32()], [Sh32(0, _A32)], wrap_raises=True)
+a32("32o the source has no active layer", [C32()], [Sh32(0, _A32)], sources={"acc": None})
+a32("32p another layer name", [C32(layer="Bold")], [Sh32(0, _A32)])
+a32("32q the source's inkBox raises", [C32()], [Sh32(0, _A32)], sources={"acc": Src32("Regular", RuntimeError("src boom"))})
+a32("32r one source used twice: read once", [C32(), C32()], [Sh32(0, _A32), Sh32(1, _A32)])
+patch32(src32())
+ns["_open_font"] = lambda: object()
+ns["_tryshape_modern_state"] = lambda w: ({"nodes": 4, "layer_name": "Regular", "components": 0, "shapes": 1}, w.activeLayer)
+ns["_read_modern_outline"] = lambda name: {"available": True, "node_count": 4, "contours": []}
+ns["_describe_modern_glyph"] = lambda w, out: out.update(layer_name="Regular", shapes=[C32()])
+_mw32 = ns["_modern_wrapper"]
+ns["_modern_wrapper"] = lambda g, f: (W32(Lay32([Sh32(0, _A32)])), "cached") if g == "G:acc" and not SPY32.get("target") and not SPY32.update(target=True) else _mw32(g, f)
+_o32 = ns["_modern_only_outline"]("acc", "body")
+print("32s the outline route adds the boxes ->", {k: b32(_o32["elements"]["shapes"][0][k]) for k in ("ink_box", "source_ink_box")}, "| forbidden", SPY32["forbidden"])
+ns["_describe_modern_glyph"] = lambda w, out: out.update(shapes_error="no list")
+SPY32.pop("target", None)
+_o32 = ns["_modern_only_outline"]("acc", "body")
+print("32t no element list: no boxes, the error stays ->", _o32["elements"])
+SPY32.pop("target", None)
+for k, v in _saved32.items(): ns[k] = v
+_lsrc32 = open(find("glyphbridge_fontlab_mcp_listener.py"), encoding="utf-8").read()
+_body32 = "\n".join(l for l in _lsrc32[_lsrc32.index("_COMPONENT_BOX_MAX = 20"):_lsrc32.index("def _modern_only_outline(")].split("\n") if not l.lstrip().startswith("#"))
+print("32u static scan of the new listener code:", len(_body32) > 1500, "| forbidden call syntax:",
+      re.findall(r"\.(?:update|save\w*|export\w*|close|release|remove\w*|bindDependencies|resetInkBox|changed|applyTransform|transform|setProperty\w*)\s*\(", _body32),
+      "| subscripts of native objects other than a checked list:", [m for m in re.findall(r"\b(\w+)\[", _body32) if m in ("layer", "glyph", "shape", "w")])
+
+
+def sq32(left, right, bottom, top):
+    return kn([(left, bottom), (right, bottom), (right, top), (left, top)])
+
+
+def rect32(left, right, bottom, top):
+    return {"type": "QRectF", "left": float(left), "right": float(right), "top": float(bottom), "bottom": float(top), "width": float(right - left), "height": float(top - bottom)}
+
+
+def mx32(dx=0.0, dy=0.0, m11=1.0, m12=0.0):
+    return {"m11": m11, "m12": m12, "m21": 0.0, "m22": 1.0, "dx": float(dx), "dy": float(dy)}
+
+
+_RB32, _RA32 = rect32(50, 650, 0, 700), rect32(220, 480, 780, 880)
+_SA32 = rect32(70, 330, 780, 880)
+
+
+def el32(name, matrix, **kw):
+    return dict({"shape_type": "contours", "contours": 1, "is_component": True, "is_composite": True, "component_glyph": name, "component_layer": "Regular", "matrix": matrix}, **kw)
+
+
+def base32(**kw):
+    return el32("base", mx32(), ink_box=_RB32, source_ink_box=_RB32, **kw)
+
+
+_M32 = {"lsb": 50.0, "rsb": 50.0, "advance": 700.0}
+
+
+def reply32(accent, margins=_M32, extra=None):
+    contours = [sq32(50, 650, 0, 700), sq32(70, 330, 780, 880)] + ([e[0] for e in extra] if extra else [])
+    reply = g26(contours, margins, fontlab_ink_box=ink(0, 880))
+    reply["elements"]["shapes"] = [base32(), accent] + ([e[1] for e in extra] if extra else [])
+    reply["shape_count"] = len(reply["elements"]["shapes"])
+    return reply
+
+
+def s32(tag, reply):
+    s10_reset(); S9["get"]["/glyph/outline"] = reply
+    r = srv.read_glyph_outline("A")
+    v = r["verification"]
+    print(tag, "->", v["status"], "| element_boxes_checked", v.get("element_boxes_checked", "absent"), "| note", v.get("element_boxes_note", "absent"), "| reason", (v.get("reason") or "none")[:230],
+          "| in step", [e.get("source_in_step", "absent") for e in r.get("elements", [])], "| step notes", [e["source_in_step_note"] for e in r.get("elements", []) if "source_in_step_note" in e],
+          "| instruction", (r.get("agent_instruction") or "none")[:240])
+    return r
+
+
+s32("32v accent inside its base, in step", reply32(el32("acc", mx32(150), ink_box=_RA32, source_ink_box=_SA32)))
+s32("32w sides in Qt's y-down order are ordered by value", reply32(el32("acc", mx32(150), ink_box=dict(_RA32, top=880.0, bottom=780.0), source_ink_box=_SA32)))
+s32("32x older listener: no boxes, as before", reply32(el32("acc", mx32(150))))
+s32("32y element box is an error", reply32(el32("acc", mx32(150), ink_box={"error": "ink boom"}, source_ink_box=_SA32)))
+s32("32z element box is malformed", reply32(el32("acc", mx32(150), ink_box={"left": "x"}, source_ink_box=_SA32)))
+s32("32za element box elsewhere", reply32(el32("acc", mx32(150), ink_box=rect32(225, 485, 780, 880), source_ink_box=rect32(75, 335, 780, 880))))
+s32("32zb element box fits the untransformed nodes", reply32(el32("acc", mx32(150), ink_box=_SA32, source_ink_box=rect32(-80, 180, 780, 880))))
+s32("32zba an offset too small to tell the readings apart", reply32(el32("acc", mx32(0.01), ink_box=_SA32, source_ink_box=_SA32)))
+s32("32zc source box is an error, boxes still settle it", reply32(el32("acc", mx32(150), ink_box=_RA32, source_ink_box={"error": "src boom"})))
+s32("32zd only a source box arrived", reply32(el32("acc", mx32(150), source_ink_box=_SA32)))
+s32("32ze behind its source, accent inside the base", reply32(el32("acc", mx32(150), ink_box=_RA32, source_ink_box=rect32(90, 350, 780, 880))))
+s32("32zf behind vertically only", reply32(el32("acc", mx32(150), ink_box=_RA32, source_ink_box=rect32(70, 330, 790, 890))))
+s32("32zg just inside the tolerance", reply32(el32("acc", mx32(150), ink_box=_RA32, source_ink_box=rect32(70.04, 330.04, 780, 880))))
+s32("32zh just outside the tolerance", reply32(el32("acc", mx32(150), ink_box=_RA32, source_ink_box=rect32(70.06, 330.06, 780, 880))))
+_P32 = {"lsb": 50.0, "rsb": 20.0, "advance": 700.0}
+s32("32zi accent past its base, in step", reply32(el32("acc", mx32(350), ink_box=rect32(420, 680, 780, 880), source_ink_box=_SA32), margins=_P32))
+s32("32zj accent past its base, behind its source", reply32(el32("acc", mx32(350), ink_box=rect32(420, 680, 780, 880), source_ink_box=rect32(90, 350, 780, 880)), margins=_P32))
+s32("32zk scaled component inside its base", reply32(el32("acc", mx32(150, m11=0.5), ink_box=rect32(185, 315, 780, 880), source_ink_box=_SA32)))
+s32("32zl slanted component", reply32(el32("acc", mx32(150, m12=0.1), ink_box=_RA32, source_ink_box=_SA32)))
+_plain32 = {"shape_type": "contours", "contours": 1, "is_component": False, "is_composite": False, "matrix": mx32(100)}
+s32("32zm a moved plain element beside a moved component", reply32(el32("acc", mx32(150), ink_box=_RA32, source_ink_box=_SA32), extra=[(sq32(100, 200, 300, 400), _plain32)]))
+s32("32zn only a moved plain element", reply32(dict(_plain32, matrix=mx32(150), is_component=False)))
+_r32 = reply32(el32("acc", mx32(150), ink_box=_RA32, source_ink_box=rect32(90, 350, 780, 880))); _r32["modern_outline"]["margins"] = {"lsb": 40.0, "rsb": 50.0, "advance": 700.0}
+s32("32zo behind its source and an earlier reason", _r32)
+_r32 = reply32(el32("acc", mx32(150), ink_box=_RA32, source_ink_box=_SA32)); _r32["elements"]["shapes"][1]["contours"] = 2
+s32("32zp element list does not map: no check", _r32)
+_r32 = reply32(el32("acc", mx32(150, 20), ink_box=rect32(220, 480, 800, 900), source_ink_box=_SA32)); _r32["fontlab_ink_box"] = ink(0, 900)
+s32("32zpa a vertical offset, in step", _r32)
+s32("32zpb a plain element carrying boxes gets no verdict", reply32(dict(_plain32, matrix=mx32(0.0), ink_box=_SA32, source_ink_box=rect32(0, 10, 0, 10))))
+s32("32zpc a box with an error beside its numbers", reply32(el32("acc", mx32(150), ink_box=dict(_RA32, error="partial read"), source_ink_box=_SA32)))
+_g32, _s32 = srv.get_glyph_outline.__doc__ or "", srv.set_glyph_sidebearings.__doc__ or ""
+print("32zq docs -> outline names source_in_step:", "source_in_step" in _g32, "| element_boxes_checked:", "element_boxes_checked" in _g32, "| sidebearings warns:", "may not follow" in _s32, "component_note" in _s32)
+print("32zr listener / server versions:", ns["VERSION"], srv.SERVER_VERSION, "| MIN_LISTENER_VERSION:", srv.MIN_LISTENER_VERSION)
+srv._call_listener, srv._call_listener_post = wire_get, wire_post
+srv._reset_change_tracking()

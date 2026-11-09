@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.128)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.130)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -139,6 +139,8 @@ Routes (GET unless marked POST):
                           10 per listener run (v0.107, K11)
     /debug/tryopen        stage=detached|draw&name=ocp...&kind=line|curve: ONE open contour (never closed), detached or drawn into an
                           empty glyph and read back; 6 per listener run (v0.125, P2.1 research)
+    /debug/tryshapebox    stage=shapebox|dependencies&name=X: read only; ONE shape.inkBox() per element, or ONE
+                          flGlyph.isUnbindedDependecies(); exactly one font open; 12 per stage and listener run (v0.129, P1.1 research)
     /debug/setcurrent     changes which glyph FontLab displays (no use for the modern API)
 
   Dead ends, kept as history: /debug/contours and /debug/drawpen (the pen protocol returns
@@ -166,7 +168,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.128"
+VERSION = "0.130"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -4996,6 +4998,75 @@ def _read_modern_outline(name):
     return result
 
 
+_COMPONENT_BOX_MAX = 20     # v0.130: a glyph with more elements gets no boxes, and each component says why
+
+
+def _component_source_read(font, name):
+    """v0.130. {"layer_name", "box"} of a component's source glyph, or {"error"}: its modern active layer and ONE layer.inkBox()
+    (live 519-530, no F1 after it). Modern objects only, so a Power Brush source is not armed. Never raises."""
+    glyph, err = _tl_call(lambda: _find_glyph(font, name))
+    if err is not None:
+        return {"error": f"the source glyph could not be looked up ({err})"}
+    if glyph is None:
+        return {"error": f"no glyph named {name!r}"}
+    pair, err = _tl_call(lambda: _modern_wrapper(glyph, font))
+    if err is not None:
+        return {"error": f"the source glyph's modern side could not be reached ({err})"}
+    layer, err = _tl_call(lambda: pair[0].activeLayer)
+    if err is not None or layer is None:
+        return {"error": f"the source glyph has no readable modern active layer ({err or 'None'})"}
+    layer_name, err = _tl_call(lambda: str(_call0(layer, "name")))
+    if err is not None:
+        return {"error": f"the source layer's name could not be read ({err})"}
+    box = _modern_ink_box(layer)
+    if "error" in box:
+        return {"error": f"the source layer's ink box could not be read ({box['error']})"}
+    return {"layer_name": layer_name, "box": box}
+
+
+def _component_source_box(font, entry, cache):
+    """v0.130. The ink box of the source layer this component names, or {"error"}; one read per source glyph and outline."""
+    name = entry.get("component_glyph")
+    if not isinstance(name, str) or not name:
+        return {"error": "the name of the source glyph could not be read"}
+    if name not in cache:
+        cache[name] = _component_source_read(font, name)
+    read = cache[name]
+    if "error" in read:
+        return {"error": read["error"]}
+    if entry.get("component_layer") != read["layer_name"]:
+        return {"error": f"the component names layer {entry.get('component_layer')!r}, the source glyph's active layer is {read['layer_name']!r}"}
+    return read["box"]
+
+
+def _add_component_boxes(w, font, entries):
+    """v0.130. For every element that is a component (live 606, 610): "ink_box", ONE shape.inkBox() with its transforms applied
+    (live 644-646, 650), and "source_ink_box", the box of the source layer it names. Components only: inkBox() on a Power Brush
+    shape is untested (F1). layer.shapes must be a real list that still matches the element list. A box that could not be read
+    is {"error"}, never missing or empty. Plain elements get no key. Never raises."""
+    wanted = [i for i, e in enumerate(entries) if e.get("is_component") is True]
+    if not wanted:
+        return
+    shapes, err = _tl_call(lambda: w.activeLayer.shapes)
+    why = None
+    if err is not None:
+        why = f"layer.shapes could not be read ({err})"
+    elif type(shapes) is not list or len(shapes) != len(entries):
+        why = "layer.shapes is not a plain list matching the element list"
+    elif len(entries) > _COMPONENT_BOX_MAX:
+        why = f"the glyph has {len(entries)} elements, more than {_COMPONENT_BOX_MAX}"
+    sources = {}
+    for i in wanted:
+        entry = entries[i]
+        if why is not None:
+            entry["ink_box"], entry["source_ink_box"] = {"error": why}, {"error": why}
+            continue
+        shape = shapes[i]
+        box, call_err = _tl_call(lambda: shape.inkBox())
+        entry["ink_box"] = {"error": call_err} if call_err is not None else _rect_plain(box)
+        entry["source_ink_box"] = _component_source_box(font, entry, sources)
+
+
 def _modern_only_outline(name, route):
     """v0.120 (F1). The outline of a glyph that has modern nodes, read from the modern layer only: never glyph.layer,
     glyph.layers, bodyLayer, findNode or the legacy margins, which can flatten a Power Brush glyph at the next
@@ -5035,6 +5106,7 @@ def _modern_only_outline(name, route):
     if desc.get("shapes_error") or not isinstance(desc.get("shapes"), list):
         elements = {"available": False, "wrapper": how, "error": desc.get("shapes_error", "no shapes list")}
     else:
+        _add_component_boxes(w, font, desc["shapes"])
         elements = {"available": True, "wrapper": how, "source": "flGlyph(fgGlyph, fgFont)",
                     "layer_name": desc.get("layer_name"), "shapes": desc["shapes"]}
     return dict(base, node_count=mo["node_count"], contour_count=len(mo["contours"]), modern_outline=mo,
@@ -6846,6 +6918,119 @@ def _tryrefresh_unicode(upd, font, name, codepoint):
 
 
 # --------------------------------------------------------------------------
+# /debug/tryshapebox (v0.129) - RESEARCH for P1.1, read only. Two questions from live 633-643: can an accent inside its base be
+# verified from a box per element, and does FontLab say when a composite is out of step with its source? Both calls were seen by
+# name only (637, 641). Every stage needs go=yes and the one-font gate of /debug/trysync; at most _TRYSHAPEBOX_MAX requests per
+# stage and listener run, counted BEFORE the first call under test:
+#   stage=shapebox      layer.shapes of the modern active layer, only when it is a real list, then ONE shape.inkBox() per element, no
+#                       argument, read through the zero-argument getters of the QRectF (at most _TRYSHAPEBOX_MAX_SHAPES elements)
+#   stage=dependencies  ONE flGlyph.isUnbindedDependecies() (FontLab's spelling), no argument; only a real bool is passed on
+# The layer's shape, node and component counts and the advance width are read before and after (side_effect_detected).
+# Never called by this probe: bindDependencies, update, changed, resetInkBox, font.update(), save.
+# --------------------------------------------------------------------------
+
+_TRYSHAPEBOX_MAX = 12
+_TRYSHAPEBOX_MAX_SHAPES = 20
+_TRYSHAPEBOX = {"shapebox": 0, "dependencies": 0}
+_TRYSHAPEBOX_STAGES = ("shapebox", "dependencies")
+_TRYSHAPEBOX_NOTE = ("RESEARCH, read only: compare with get_glyph_outline and FontLab's own numbers; a box or flag that could not be read is an "
+                     "error here, never an empty result; nothing is saved by Glyphbridge")
+
+
+def _tryshapebox_state(w):
+    """(snapshot, layer or None): the modern layer's counts and the advance width, for the side-effect check. Read only."""
+    st, layer = _tryshape_modern_state(w)
+    adv, err = _tl_call(lambda: _num(w.advanceWidth))
+    st["advance_width"] = adv if err is None else f"<error: {err}>"
+    return st, layer
+
+
+def _tryshapebox_boxes(layer):
+    """(rows, None), one row per element in layer.shapes order, or (None, reason) when no inkBox() was called. A real list only."""
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None:
+        return None, f"layer.shapes could not be read ({err}): no inkBox() was called"
+    if type(shapes) is not list:
+        return None, f"layer.shapes is a {type(shapes).__name__}, not a plain list: it was not indexed and no inkBox() was called"
+    if len(shapes) > _TRYSHAPEBOX_MAX_SHAPES:
+        return None, f"the layer has {len(shapes)} elements, more than {_TRYSHAPEBOX_MAX_SHAPES}: no inkBox() was called"
+    rows = []
+    for index, shape in enumerate(shapes):
+        box, call_err = _tl_call(lambda: shape.inkBox())
+        rows.append({"index": index, "ink_box": {"error": call_err} if call_err is not None else _rect_plain(box)})
+    return rows, None
+
+
+def _tryshapebox_unbound(w):
+    """{"value": bool} from ONE w.isUnbindedDependecies(), or {"error": why}. Anything but a real bool is reported, not passed on."""
+    fn, err = _tl_call(lambda: getattr(w, "isUnbindedDependecies", None))
+    if err is not None:
+        return {"error": f"the member could not be read ({err})"}
+    if not callable(fn):
+        return {"error": "the modern glyph has no callable isUnbindedDependecies"}
+    value, call_err = _tl_call(fn)
+    if call_err is not None:
+        return {"error": call_err}
+    if type(value) is not bool:
+        return {"error": f"it returned type {type(value).__name__}, not a bool"}
+    return {"value": value}
+
+
+def _tryshapebox_compare(before, after):
+    """True or False when both snapshots hold plain numbers for every count and the width; otherwise None (not comparable)."""
+    keys = ("shapes", "nodes", "components", "advance_width")
+    plain = all(isinstance(s.get(k), (int, float)) and not isinstance(s.get(k), bool) for s in (before, after) for k in keys)
+    return any(before[k] != after[k] for k in keys) if plain else None
+
+
+def debug_try_shapebox(stage, name, go):
+    import sys as _sys
+    if stage not in _TRYSHAPEBOX_STAGES:
+        return {"error": 'stage must be "shapebox" or "dependencies"'}
+    if not isinstance(name, str) or not (1 <= len(name) <= 40) or any(ch not in _TRYCREATE_NAME_CHARS for ch in name):
+        return {"error": "name must be 1 to 40 characters from A-Z a-z 0-9 . _ -"}
+    if go != "yes":
+        what = "calls shape.inkBox() once per element" if stage == "shapebox" else "calls isUnbindedDependecies() once on the modern glyph"
+        return {"error": f"stage={stage} {what}; it changes nothing, but neither call has been made live before. Add &go=yes to run it."}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"stage": stage, "error": why, "calls_so_far": dict(_TRYSHAPEBOX)}
+    if _TRYSHAPEBOX[stage] >= _TRYSHAPEBOX_MAX:
+        return {"stage": stage, "error": f"this stage already ran {_TRYSHAPEBOX_MAX} times in this listener run; restart the listener to repeat it",
+                "calls_so_far": dict(_TRYSHAPEBOX)}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    glyph = _find_glyph(font, name)
+    if glyph is None:
+        return {"stage": stage, "error": f"no glyph named {name!r}", "calls_so_far": dict(_TRYSHAPEBOX)}
+    try:
+        w, _wrapper_how = _modern_wrapper(glyph, font)
+    except Exception as exc:
+        return {"stage": stage, "name": name, "error": f"the modern glyph could not be reached ({exc}); nothing was called",
+                "calls_so_far": dict(_TRYSHAPEBOX)}
+    before, layer = _tryshapebox_state(w)
+    if stage == "shapebox" and layer is None:
+        return {"stage": stage, "name": name, "error": "the glyph has no modern active layer: no inkBox() was called", "state_before": before,
+                "calls_so_far": dict(_TRYSHAPEBOX)}
+    _TRYSHAPEBOX[stage] += 1     # counted BEFORE the call under test: whatever happens, it is on record
+    result = {"stage": stage, "name": name, "calls_so_far": dict(_TRYSHAPEBOX), "note": _TRYSHAPEBOX_NOTE}
+    if stage == "shapebox":
+        rows, err = _tryshapebox_boxes(layer)
+        if rows is None:
+            result["error"] = err
+        else:
+            result["elements"], result["element_count"] = rows, len(rows)
+    else:
+        result["unbound_dependencies"] = _tryshapebox_unbound(w)
+    after, _layer_after = _tryshapebox_state(w)
+    result["state_before"], result["state_after"] = before, after
+    result["side_effect_detected"] = _tryshapebox_compare(before, after)
+    return result
+
+
+# --------------------------------------------------------------------------
 # /debug/trykerngroups (v0.103) - RESEARCH for P0.8: where does FontLab keep a kerning group's MEMBERS and its SIDE? R0 (/debug/moddir,
 # names only, 2026-11-01): fontgate.fgGroup has id, isBoth, isFeaGroup, isLeft, isRight, mode, name (modes KernLeftGroupMode,
 # KernRightGroupMode, KernBothSideGroupMode, FeaClassGroupMode) but no member names; fgKerningGroups ("Dictionary of kerning groups")
@@ -8180,6 +8365,12 @@ def _route(method, full_path, body=b""):
             try:
                 return _build_response(200, debug_try_open((query.get("stage") or [""])[0], (query.get("name") or [""])[0],
                                                            (query.get("kind") or [""])[0], (query.get("go") or [""])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/tryshapebox":
+            try:
+                return _build_response(200, debug_try_shapebox((query.get("stage") or [""])[0], (query.get("name") or [""])[0], (query.get("go") or [""])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

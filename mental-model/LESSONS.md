@@ -54,3 +54,9 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 - **Copied virtual environments do not travel.** `pyvenv.cfg` points at the old machine's Python. Create a fresh venv.
 - **The Store (MSIX) Claude Desktop reads its config from its own data folder, not from `%APPDATA%\Claude`.** A config written to the documented path was silently ignored. The location was found in Claude Desktop's own `main.log`. Use Settings > Developer > Edit Config ([RUNBOOK.md](RUNBOOK.md)).
 - **Claude Code and the Desktop chat are configured separately.** The Code tab worked through `.mcp.json` while the chat still had no server.
+
+## Components session (2026-11-09)
+
+- **A GUI instruction must name something that tells the two states apart.** "Check that the panel says `mx1dieresis`" passed on the source glyph as well as on the component, so a scale meant for the component went onto the source (655). "It is already selected" had also stopped being true by the time it was acted on (631). The tab title would have told them apart.
+- **A mutation that survives may have changed a comment.** One target string first occurred in a header comment, so the code was never mutated. Aim mutations at the code, and read a survivor before trusting or dismissing it.
+- **After repeated wrong predictions about a cause, stop proposing causes and run a control.** Three explanations of why tool edits missed the composites failed in turn (638b, 640, 642); keeping Ü untouched as a control in 642 showed more than any of them. A later read that compares two numbers FontLab gives (650) found a way to detect the miss without explaining it.

@@ -2,6 +2,11 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-09: components against their source (listener 0.130 / server 0.50)
+
+- **A composite found behind its source reads `unverified`, with both boxes and an instruction to tell the person.** *Reason:* its numbers match what FontLab holds, but can change at the next GUI edit (638–653). The user approved the design as proposed.
+- **The per-element and in-step checks cover plain offsets only;** anything else stays as before and says `"unknown"`. *Reason:* only offsets were tested.
+
 ## 2026-11-09: a new glyph gets its layer (listener 0.127 / server 0.48)
 
 - **`create_glyph` creates the glyph's layer at once in a font with one master. When it cannot, the glyph is still created and the reply says why, with a warning about Add Component.** *Reason:* Add Component crashes FontLab on a glyph with no layer (612–619); refusing the create would remove what works today in order to protect a later GUI step. The user approved the design as proposed.
@@ -24,11 +29,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 - **File > Save tests are avoided by preference, not forbidden.** One runs when it answers a question better than other means, and only after the user agrees to that test. The person saves through FontLab's GUI, to a disposable file outside the repository; no tool saves (save policy below). First case: KW 557–560, save and reopen after an API kerning write ([topics/kerning.md](topics/kerning.md) §13). *Supersedes* "File > Save tests are deferred" (2026-10-24) and that day's one-case exception (both archived). *Reason:* the user's choice, after that test showed the KERNING panel was only stale.
 
-## 2026-11-04: the vertical check and quadratic extents (listener 0.121 / server 0.43)
-
-- **`verified` on the modern route needs the vertical extent too, checked against FontLab's own `inkBox()`**; without a usable box the reply says `y_extent_checked: false` and why. *Supersedes* the horizontal-only check of the F1 fix (archived). *Reason:* `inkBox()` equalled the exact extents on five glyphs with no F1 (519–533); FontLab displays no vertical ink number to compare with (533).
-- **Quadratic outlines are checked from their exact extents, computed by the server.** *Reason:* the user's choice; `inkBox()` agreed with them (522, 526).
-
 ## 2026-11-04: the modern API first
 
 - **Prefer FontLab's modern API. A legacy call is used only where the modern one is missing or proven worse, and the reason and test number are recorded** in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10. Legacy calls in use before this decision stay until each is reviewed; until then their record says "not yet reviewed". **Goal:** every legacy call that might safely be replaced is replaced ([PROJECT.md](PROJECT.md), goal 6). *Reason:* the user's choice, after reviewing where both APIs can do a task: the legacy view can be stale or disagree with what FontLab shows (sidebearings, `font.info`, kerning), and touching it caused F1.
@@ -36,11 +36,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 ## 2026-11-04: macOS compatibility
 
 - **Glyphbridge is kept macOS-compatible, although for now it can be tested only on Windows.** Where the code depends on the operating system (file locations, shortcuts, process calls), it handles macOS with the standard library as well. Such a macOS path is stub-tested where possible and recorded in [CHANGELOG.md](CHANGELOG.md) as never run on a Mac; nothing is called working on macOS before a live run there. Earlier cases: the launcher name (server 0.35 / 0.36) and the save shortcut (server 0.40). *Reason:* the user's choice: running tests on macOS may become possible only in the future.
-
-## 2026-11-04: the F1 fix (listener 0.120 / server 0.42)
-
-- **A glyph with modern nodes is read from the modern layer only**; when that read fails the reply is an error, never a legacy fallback. *Reason:* touching `glyph.layer` or reading `glyph.layers` of a Power Brush glyph lets the next `font.update()` flatten it (332–496).
-- **After a width or sidebearing write the sync check compares only the legacy width**; drawings and new layers keep the full check. *Reason:* the same facts; `glyph.width` is safe (486–488).
 
 ## 2026-11-03: names read at the moment, not fixed strings
 
@@ -56,10 +51,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 ## 2026-11-03: proven container calls on native objects
 
 - **Container access (`[]`, `get`, `keys`, `values`, `items`, `has_key`, iteration) on a native FontLab object is forbidden until proven, per object and call form.** The proven calls form one table in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10, with their test numbers. This replaces the blanket ban and its two one-off exceptions (the kerning `get`, the K11 `keys()`). *Reason:* the user's choice, the tidiest option. The ban rests on one crash (`font.shapes`), the `keys()` exception was noticed only after the live runs, and one proof path keeps the rules and the reports consistent.
-
-## 2026-11-02: the client's name in the activity log
-
-- **The log shows the name the app sends by itself** (MCP `clientInfo`), without the config entry name `glyphbridge-fontlab`. No label is set in the MCP configs. *Reason:* the user's choice: an ambiguous automatic name such as `local-agent-mode` is enough, and the configs stay untouched.
 
 ## 2026-11-01: code comments and tool docstrings
 

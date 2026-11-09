@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.49)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.50)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.49"      # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.50"      # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1048,6 +1048,10 @@ def read_kerning(pairs: Any = None, text: Any = None, confirmed_large_read: Any 
     return reply
 
 
+_SIDEBEARINGS_COMPONENT_NOTE = ("If other glyphs use this glyph as a component, they may not follow this change (seen live): get_glyph_outline on such a "
+                                "glyph says source_in_step. A real edit of this glyph in FontLab has brought them back in step.")
+
+
 def write_glyph_sidebearings(name: str, left: float, right: Any = None) -> dict:
     clean = name.strip() if isinstance(name, str) else ""
     if not clean:
@@ -1086,6 +1090,7 @@ def write_glyph_sidebearings(name: str, left: float, right: Any = None) -> dict:
         "advance_width_before": _tidy_number(before.get("advance")), "advance_width_after": _tidy_number(after.get("advance")),
         "ink_width": _tidy_number(data.get("ink_width")),
         "note": "advance width = left + ink width + right; the outline moved, its shape did not change.",
+        "component_note": _SIDEBEARINGS_COMPONENT_NOTE,
     }
     if data.get("display_note"):
         result["display_note"] = data["display_note"]
@@ -2669,11 +2674,72 @@ def _component_notes(shapes: list) -> list:
     return notes
 
 
-def _modern_first_result(clean: str, data: dict) -> dict:
+def _box_sides(box: Any):
+    """v0.50: (left, right, bottom, top) in y-up font units from a box the listener sent, or None. Qt names its sides y-down
+    ("top" is the lower y, live 644), so each pair is ordered by value, never trusted by name."""
+    if not isinstance(box, dict) or box.get("error"):
+        return None
+    left, right, top, bottom = box.get("left"), box.get("right"), box.get("top"), box.get("bottom")
+    if not all(_num(v) for v in (left, right, top, bottom)):
+        return None
+    return min(left, right), max(left, right), min(top, bottom), max(top, bottom)
+
+
+def _same_box(a: tuple, b: tuple) -> bool:
+    return all(abs(x - y) < _CURVE_BOX_TOLERANCE for x, y in zip(a, b))
+
+
+def _box_text(b: tuple) -> str:
+    return f"x {_tidy_number(round(b[0], 3))}..{_tidy_number(round(b[1], 3))}, y {_tidy_number(round(b[2], 3))}..{_tidy_number(round(b[3], 3))}"
+
+
+def _box_problem(box: Any) -> str:
+    return box["error"] if isinstance(box, dict) and isinstance(box.get("error"), str) and box["error"] else "it was missing or malformed"
+
+
+def _contours_box(clean: str, mo: dict, contours: list):
+    """v0.50: the exact (left, right, bottom, top) of these contours, curve extents included, or None."""
+    res = _modern_outline_result(clean, dict(mo, contours=contours), None, {}, modern_first=True)
+    b = res.get("ink_bbox")
+    if res.get("ink_bbox_exact") is not True or not isinstance(b, dict):
+        return None
+    return b["left"], b["right"], b["bottom"], b["top"]
+
+
+def _elements_settle(clean: str, mo: dict, moved: list, shapes: list, found: list, counts: list):
+    """v0.50 (listener 0.130): a glyph whose outer box fits with and without its transforms (an accent inside its base, live 633, 636)
+    is settled element by element: (True, None) only when each moved element's computed box equals FontLab's own box of that
+    element and its box without the transform does not. (False, why) otherwise; why is None when the listener sent no boxes."""
+    moved_elements = [i for i, m in enumerate(found) if not _is_identity(m)]
+    if not any("ink_box" in shapes[i] for i in moved_elements):
+        return False, None
+    spans, start = [], 0
+    for count in counts:
+        spans.append((start, start + count))
+        start += count
+    for i in moved_elements:
+        m = found[i]
+        if abs(m[0] - 1) >= 1e-6 or abs(m[3] - 1) >= 1e-6 or abs(m[1]) >= 1e-6 or abs(m[2]) >= 1e-6:
+            return False, f"element {i} is scaled, slanted, rotated or mirrored; the per-element check is proven for plain offsets only"
+        fontlab = _box_sides(shapes[i].get("ink_box"))
+        if fontlab is None:
+            return False, f"FontLab's box of element {i} could not be used: {_box_problem(shapes[i].get('ink_box'))}"
+        first, last = spans[i]
+        applied, raw = _contours_box(clean, mo, moved[first:last]), _contours_box(clean, mo, mo["contours"][first:last])
+        if applied is None or raw is None:
+            return False, f"the exact box of element {i} could not be computed"
+        if not _same_box(applied, fontlab):
+            return False, f"element {i}: computed {_box_text(applied)}, FontLab {_box_text(fontlab)}"
+        if _same_box(raw, fontlab):
+            return False, f"element {i}: FontLab's box fits with and without the element's transform"
+    return True, None
+
+
+def _modern_first_read(clean: str, data: dict) -> dict:
     """v0.42 (F1, listener 0.120): the listener read a glyph that has modern nodes from the modern layer only. The element
     transforms are applied by contour counts, as on the legacy route, and the result is checked against FontLab's modern
-    left sidebearing and ink width. Whether the modern node coordinates already include the element transform is not
-    known from a live run, so both readings are checked and only an unambiguous match is called verified.
+    left sidebearing and ink width. Live 608, 611 and 631 showed the modern node coordinates leave the element transform out;
+    both readings are still checked, and only an unambiguous match is called verified.
     v0.43 (listener 0.121): the vertical extent is checked too, against FontLab's own ink box (layer.inkBox()): verified needs
     both, a vertical mismatch makes the result unverified, and the vertical check also decides between the two readings.
     Without that box (an older listener, a failed call, a box that is not the exact curve extents) the check stays
@@ -2725,13 +2791,20 @@ def _modern_first_result(clean: str, data: dict) -> dict:
             result["coordinate_space"] = ("FontLab view (FontLab's element transform, read directly, has been applied; raw_x / raw_y are the "
                                           "element's own values)")
             if ok_applied and ok_raw:
-                result["verification"]["status"] = "unverified"
-                if y_applied and y_raw:
-                    result["verification"]["reason"] = ("the coordinates match FontLab's horizontal margins and its ink box both with and "
-                                                         "without the element transform, so which reading is right cannot be told")
+                settled, settle_note = _elements_settle(clean, mo, moved, shapes, found, counts)
+                if settled:
+                    result["verification"]["element_boxes_checked"] = True
                 else:
-                    result["verification"]["reason"] = ("the coordinates match FontLab's horizontal margins both with and without the element "
-                                                         "transform, so the vertical placement cannot be confirmed on this route")
+                    result["verification"]["status"] = "unverified"
+                    if settle_note:
+                        result["verification"]["element_boxes_checked"] = False
+                        result["verification"]["element_boxes_note"] = settle_note
+                    if y_applied and y_raw:
+                        result["verification"]["reason"] = ("the coordinates match FontLab's horizontal margins and its ink box both with and "
+                                                             "without the element transform, so which reading is right cannot be told")
+                    else:
+                        result["verification"]["reason"] = ("the coordinates match FontLab's horizontal margins both with and without the element "
+                                                             "transform, so the vertical placement cannot be confirmed on this route")
     if elements is not None:
         result["elements"] = elements
         result["notes"].extend(_component_notes(shapes))
@@ -2758,7 +2831,61 @@ def _modern_first_result(clean: str, data: dict) -> dict:
     return result
 
 
-_STALE_MARGIN_TOLERANCE = 0.05    # font units: modern sidebearings / advance vs the legacy reader's margins
+def _source_step(sh: dict, m: dict):
+    """v0.50 (listener 0.130): (True | False | "unknown", note). In step, a component's own box equals its source's box plus its offset
+    (live 644-646); after a tool edit its source moved without it, it does not (live 650). Pure offsets only: nothing else was tested."""
+    box, source = _box_sides(sh.get("ink_box")), _box_sides(sh.get("source_ink_box"))
+    if box is None:
+        return "unknown", f"FontLab's box of this element could not be used: {_box_problem(sh.get('ink_box'))}"
+    if source is None:
+        return "unknown", f"the box of its source glyph could not be used: {_box_problem(sh.get('source_ink_box'))}"
+    if abs(m["m11"] - 1) >= 1e-6 or abs(m["m22"] - 1) >= 1e-6 or abs(m["m12"]) >= 1e-6 or abs(m["m21"]) >= 1e-6:
+        return "unknown", "this element is scaled, slanted, rotated or mirrored; the comparison is proven for plain offsets only"
+    expected = (source[0] + m["dx"], source[1] + m["dx"], source[2] + m["dy"], source[3] + m["dy"])
+    if _same_box(box, expected):
+        return True, None
+    return False, f"FontLab holds this element at {_box_text(box)}; its source's box plus the element's offset gives {_box_text(expected)}"
+
+
+def _apply_source_step(result: dict, data: dict) -> None:
+    """v0.50: says for each component whether it is in step with its source, and makes the read unverified when one is not, whatever
+    the box checks said: they compare with what FontLab holds for this glyph, which is then behind its source (live 638b, 640, 648)."""
+    el = data.get("elements")
+    shapes = el.get("shapes") if isinstance(el, dict) and el.get("available") else None
+    rows = result.get("elements")
+    if not isinstance(shapes, list) or not isinstance(rows, list) or len(shapes) != len(rows):
+        return
+    behind = []
+    for index, (sh, row) in enumerate(zip(shapes, rows)):
+        if sh.get("is_component") is not True or not ("ink_box" in sh or "source_ink_box" in sh):
+            continue
+        state, note = _source_step(sh, row["matrix"])
+        row["source_in_step"] = state
+        if note:
+            row["source_in_step_note"] = note
+        if state is False:
+            behind.append((index, row.get("component_glyph") or "its source glyph", note))
+    if not behind:
+        return
+    v = result["verification"]
+    earlier = v.get("reason")
+    detail = "; ".join(f"element {index} ({name}): {note}" for index, name, note in behind)
+    v["status"] = "unverified"
+    v["reason"] = f"out of step with its component source: {detail}" + (f". Also: {earlier}" if earlier else "")
+    sources = ", ".join(dict.fromkeys(repr(name) for _index, name, _note in behind))
+    result["agent_instruction"] = (f"Tell the person that glyph {result.get('name')!r} does not match the current state of {sources}: FontLab still holds "
+                                   "the older position for the component. A real edit of the source glyph in FontLab has brought such glyphs back in step; "
+                                   "a change made through a tool may not, and waiting or reopening the glyph did not.")
+
+
+def _modern_first_result(clean: str, data: dict) -> dict:
+    """v0.50: the modern-first read, then the check of each component against its source."""
+    result = _modern_first_read(clean, data)
+    _apply_source_step(result, data)
+    return result
+
+
+_STALE_MARGIN_TOLERANCE = 0.05   # font units: modern sidebearings / advance vs the legacy reader's margins
 
 
 def _num(v) -> bool:
@@ -2954,7 +3081,9 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     check could not be completed and the numbers should not be relied on for
     exact work. A glyph that holds a component: on the modern route its nodes are returned where FontLab draws them, each element
     says is_component and names its source (component_glyph, component_layer), and a note says the nodes are that glyph's outline,
-    not one of this glyph's own; the source glyph is not read separately. On the older legacy route a composite glyph reports a note,
+    not one of this glyph's own; the source glyph is not read separately. Each component also says source_in_step (needs listener 0.130): true, false, or
+    "unknown" for anything but a plain offset. false means FontLab holds this glyph behind its source: the status is then 'unverified' and agent_instruction says what
+    to tell the person. An accent placed inside its base does not change the glyph's outer box, so it is verified element by element (element_boxes_checked). On the older legacy route a composite glyph reports a note,
     not the outlines it references.
 
     Preferred route: FontLab's own element transform (position, scale, rotation,
@@ -3164,7 +3293,8 @@ def set_glyph_sidebearings(name: str, left: float, right: float | None = None, c
     once in an editor tab in FontLab). This tool never creates a layer. Success (verified: true) is only reported after re-reading left, right and the advance
     width confirms them; the reply gives the values before and after. The reply's display_note explains that parts of
     FontLab's screen (centre info box, ghost fill, grid thumbnail) refresh only when the person switches to the grid tab and
-    back; the saved numbers are right.
+    back; the saved numbers are right. If other glyphs use this glyph as a component, they may not follow the change (the
+    reply's component_note; get_glyph_outline on such a glyph says source_in_step).
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
