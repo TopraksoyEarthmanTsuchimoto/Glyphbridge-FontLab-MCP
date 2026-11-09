@@ -5952,3 +5952,253 @@ for _m, _a, _v in _sb_mods:
         if hasattr(_m, _a): delattr(_m, _a)
     else:
         setattr(_m, _a, _v)
+
+# ================= v0.131: /debug/trynotify (gated S1 research: flags and history positions, ONE flItems notification from a fixed list) =================
+print("\n==== v0.131 /debug/trynotify ====")
+# Spy fakes: any member the probe should not touch lands in NT["forbidden"]. NT["calls"] holds every notification made.
+NT = {"calls": [], "forbidden": [], "mode": {}, "pkg": None, "ws": None, "wrap": None, "npk": 1}
+class NTSpy:
+    def __getattr__(s, a):
+        NT["forbidden"].append(a); raise AttributeError(a)
+class NTFlags(NTSpy):
+    def __init__(s, **kw): s.__dict__.update(isChanged=False, hasChanges=False, hasHistoryStates=False, _cur=0); s.__dict__.update(kw)
+    def currentHistoryState(s):
+        m = NT["mode"]
+        if m.get("hist_raises"): raise RuntimeError("history boom")
+        if m.get("hist_native"): return object()
+        return s._cur
+    def initialHistoryState(s): return 0
+class NTPkg(NTFlags):
+    isNull = False
+    def __init__(s, **kw): super().__init__(glyphsCount=3, id=77); s.__dict__.update(kw)
+class NTWs(NTFlags):
+    def packages(s): return [NT["pkg"]] * NT["npk"]
+    currentPackage = property(lambda s: NT["pkg"])
+class NTLayer(NTSpy):
+    name = "Regular"; nodesCount = 8; shapesCount = 1; componentsCount = 0
+class NTGlyph(NTFlags):
+    def __init__(s, **kw): super().__init__(activeLayer=NTLayer(), advanceWidth=500.0, id=9); s.__dict__.update(kw)
+_NT_NAMES = ("notifyChangesApplied", "notifyWorkspaceHasChanges", "notifyPackageUpdated", "notifyPackageContentUpdated", "notifyGlyphUpdated")
+def _nt_notify(where, name):
+    def f(*a):
+        NT["calls"].append((where, name, tuple(x if isinstance(x, (str, bool, int)) else type(x).__name__ for x in a)))
+        m = NT["mode"]
+        if m.get("raises"): raise RuntimeError("notify boom")
+        if m.get("marks"): NT["pkg"].__dict__.update(hasChanges=True, _cur=1)
+        if m.get("adds_glyph"): NT["pkg"].glyphsCount = 4
+        return m.get("ret")
+    return f
+class NTInst(NTSpy): pass
+class NTItems: pass
+for _n in _NT_NAMES:
+    setattr(NTInst, _n, (lambda _f: lambda s, *a: _f(*a))(_nt_notify("instance", _n)))
+    setattr(NTItems, _n, staticmethod(_nt_notify("class", _n)))
+def _nt_instance():
+    if NT["mode"].get("inst_raises"): raise RuntimeError("instance boom")
+    return NTInst()
+NTItems.instance = staticmethod(_nt_instance)
+NTWsCls = type("flWorkspace", (), {"instance": staticmethod(lambda: NT["ws"])})
+_nt_mods = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "flWorkspace", "CurrentFont", "flItems")]
+_nt_ns = {k: ns[k] for k in ("_find_glyph", "_modern_wrapper")}
+def nt_setup(mode=None, count=1, npk=1, font=True, items=True, pkg_kw=None, glyph_kw=None):
+    NT.update(calls=[], forbidden=[], mode=mode or {}, npk=npk, pkg=NTPkg(**(pkg_kw or {})), ws=NTWs(), wrap=NTGlyph(**(glyph_kw or {})))
+    def mw(g, f):
+        if NT["mode"].get("wrap_raises"): raise RuntimeError("wrap boom")
+        return NT["wrap"], "cached"
+    ns["_find_glyph"] = lambda f, n: "G" if n == "ntg" else None
+    ns["_modern_wrapper"] = mw
+    TO.update(count=count, packages=npk)
+    for _m in _tf_mods:
+        _m.CountFonts = _to_count; _m.flWorkspace = NTWsCls; _m.CurrentFont = (lambda: object()) if font else (lambda: None)
+        if items: _m.flItems = NTItems
+        elif hasattr(_m, "flItems"): delattr(_m, "flItems")
+    for _k in ns["_TRYNOTIFY"]: ns["_TRYNOTIFY"][_k] = 0
+def nt(tag, path, keys=("error", "calls_so_far", "open")):
+    c, d = call(path)
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| notify", NT["calls"], "| forbidden", NT["forbidden"])
+    return d
+Q = "/debug/trynotify?"
+S = Q + "stage=state&name=ntg&go=yes"
+C = lambda w, on="": Q + "stage=call&which=" + w + "&name=ntg&go=yes" + on
+FULL = ("call", "return_value", "call_error", "changed_readings", "side_effect_detected", "calls_so_far")
+nt_setup()
+nt("2170 state without go             ", Q + "stage=state&name=ntg")
+nt("2171 call without go              ", Q + "stage=call&which=changes_applied&name=ntg")
+nt("2172 go must be exactly yes       ", Q + "stage=call&which=changes_applied&name=ntg&go=maybe")
+nt("2173 unknown stage                ", Q + "stage=restore&name=ntg&go=yes")
+nt("2174 which not on the list        ", C("project_saved"))
+nt("2175 no which                     ", Q + "stage=call&name=ntg&go=yes")
+nt("2176 on must be class or instance ", C("changes_applied", "&on=other"))
+nt("2177 name with a space            ", Q + "stage=state&name=nt%20g&go=yes")
+nt("2178 no name                      ", Q + "stage=state&go=yes")
+nt("2179 a name of 41 characters      ", Q + "stage=state&go=yes&name=" + "a" * 41)
+for tag, over in (("2180 two fonts open               ", dict(count=2)), ("2181 two packages                ", dict(npk=2)),
+                  ("2182 CountFonts raises           ", dict(count=RuntimeError("count boom"))), ("2183 no font open                ", dict(count=0)),
+                  ("2184 CurrentFont is None         ", dict(font=False))):
+    nt_setup(**over); nt(tag, C("changes_applied"))
+nt_setup(); nt("2185 a glyph that does not exist  ", Q + "stage=call&which=changes_applied&name=nope&go=yes")
+nt_setup(mode={"wrap_raises": 1}); nt("2186 the wrapper raises           ", C("changes_applied"))
+nt_setup(items=False); nt("2187 the module has no flItems    ", C("changes_applied"))
+nt_setup(items=False); print("2188 state does not need flItems :", "state" in nt("     ", S))
+nt_setup(); d = nt("2189 state                        ", S, keys=("state", "calls_so_far")); print("2190  note                     :", d["note"])
+nt_setup(mode={"hist_raises": 1}); nt("2191 a history getter raises      ", S, keys=("state",))
+nt_setup(mode={"hist_native": 1}); nt("2192 a history getter gives a native object", S, keys=("state",))
+for tag, w in (("2193 changes_applied              ", "changes_applied"), ("2194 workspace_has_changes        ", "workspace_has_changes"),
+               ("2195 package_updated              ", "package_updated"), ("2196 package_content              ", "package_content"),
+               ("2197 glyph_updated                ", "glyph_updated")):
+    nt_setup(); nt(tag, C(w), keys=FULL)
+nt_setup(); nt("2198 on=instance                  ", C("changes_applied", "&on=instance"), keys=FULL)
+nt_setup(mode={"inst_raises": 1}); nt("2199 instance() raises            ", C("changes_applied", "&on=instance"), keys=FULL)
+nt_setup(mode={"raises": 1}); nt("2200 the call raises              ", C("changes_applied"), keys=FULL + ("state_after",))
+nt_setup(mode={"ret": object()}); nt("2201 it returns a native object   ", C("package_updated"), keys=("return_value", "call_error"))
+nt_setup(mode={"marks": 1}); nt("2202 the package's state moves    ", C("changes_applied"), keys=FULL)
+nt_setup(mode={"adds_glyph": 1}); nt("2203 a glyph appears              ", C("package_updated"), keys=FULL)
+nt_setup(pkg_kw={"glyphsCount": "x"}); nt("2204 count not comparable         ", C("package_updated"), keys=("side_effect_detected",))
+nt_setup(pkg_kw={"id": "77"}); nt("2205 package id not a number      ", C("package_content"))
+nt_setup(pkg_kw={"id": True}); nt("2206 package id is a bool         ", C("glyph_updated"))
+nt_setup(glyph_kw={"id": None}); nt("2207 glyph id is None             ", C("glyph_updated"))
+nt_setup()
+for _i in range(3): call(C("changes_applied"))
+nt("2208 request 4 refused            ", C("changes_applied")); print("2209  calls made in 4 requests  :", len(NT["calls"]))
+nt("2210 another call still runs      ", C("package_updated"), keys=("call", "calls_so_far"))
+nt_setup()
+for _i in range(20): call(S)
+nt("2211 state: request 21 refused    ", S)
+_src131 = "\n".join(l for l in src[src.index("# /debug/trynotify (v0.131)"):src.index("# /debug/tryshapebox (v0.129)")].split("\n") if not l.lstrip().startswith("#"))
+print("2212 static scan of the probe (code lines):", len(_src131) > 3000, "| forbidden call syntax:",
+      _re83.findall(r"\.(?:update|save\w*|export\w*|close\w*|release|remove\w*|changed|restoreHistoryState|clearAboveHistory|historyStates|blockUpdate|unblockUpdate)\s*\(", _src131),
+      "| subscripts of a native object:", _re83.findall(r"\b(?:pkg|ws|w|items|mod)\[", _src131),
+      "| counter raised before the call:", _src131.rindex('_TRYNOTIFY[key] += 1') < _src131.index("before = _trynotify_snapshot"), _src131.index("before = _trynotify_snapshot") < _src131.index("make_call(items if"))
+print("2213 route documented, registered once:", "/debug/trynotify      stage=state|call" in src, src.count('path == "/debug/trynotify"') == 1)
+_nt_al_saved = {k: ns[k] for k in ("_now_hms", "_clock")}
+ns["_now_hms"] = lambda: "12:00:00"; ns["_clock"] = lambda: 1000.0
+ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+print("2214 activity log, go=yes:")
+ns["_activity_note"]("GET", C("changes_applied"), b"", ns["_build_response"](200, {"stage": "call", "which": "changes_applied"}), "claude-code")
+ns["_act_flush"]()
+for k, v in _nt_al_saved.items(): ns[k] = v
+ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+for k, v in _nt_ns.items(): ns[k] = v
+for _m, _a, _v in _nt_mods:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else:
+        setattr(_m, _a, _v)
+
+# ================= v0.132: the changed mark after a verified, synced glyph write (live 657-667 are the reason; stubs only) =================
+print("\n==== v0.132 the changed mark ====")
+MK = {"calls": [], "seq": [], "mode": {}}
+class MKW:
+    @property
+    def activeLayer(s):
+        m = MK["mode"]
+        if m.get("layer_raises"): raise RuntimeError("layer boom")
+        return None if m.get("no_layer") else "L"
+    @property
+    def hasChanges(s):
+        m = MK["mode"]
+        if m.get("has_raises"): raise RuntimeError("has boom")
+        return m.get("has", True)
+class MKItems:
+    @staticmethod
+    def notifyChangesApplied(*a):
+        MK["calls"].append(tuple(x if isinstance(x, (str, bool)) else type(x).__name__ for x in a)); MK["seq"].append("notify")
+        if MK["mode"].get("raises"): raise RuntimeError("notify boom")
+_mk_keys = ("_find_glyph", "_modern_wrapper", "_auto_sync", "_guard_register", "_guard_state", "_MARK_CHANGED", "_guard_mark", "_mark_font_changed", "_repaint_viewport",
+            "_open_font", "_guard_decide", "_other_glyphs_with_unicode", "_one_master_problem", "_modern_edit_target")
+_mk_ns = {k: ns[k] for k in _mk_keys}
+_mk_mods = [(m, getattr(m, "flItems", None)) for m in _tf_mods]
+def mk_setup(mode=None, items=True, sync=True):
+    MK.update(calls=[], seq=[], mode=mode or {})
+    for k, v in _mk_ns.items(): ns[k] = v
+    def mw(g, f):
+        if MK["mode"].get("wrap_raises"): raise RuntimeError("wrap boom")
+        return MKW(), "cached"
+    def auto(f, n):
+        MK["seq"].append("sync")
+        return {"attempted": True, "synced": sync, "verdict": "synced" if sync else "unsynced"}
+    ns.update(_find_glyph=lambda f, n: None if n == "nope" else "G", _modern_wrapper=mw, _auto_sync=auto, _guard_register=lambda *a: None, _guard_state=lambda f: {"glyphs": {}})
+    for _m in _tf_mods:
+        if items: _m.flItems = MKItems
+        elif hasattr(_m, "flItems"): delattr(_m, "flItems")
+def mk(tag, how="width", name="g", no_mark=None):
+    r = {}
+    ns["_guard_mark"]("F", name, how, r, no_mark=no_mark)
+    print(tag, ":", r.get("fontlab_changed_mark", "<no field>"), "| synced", r.get("synced_with_fontlab"), "| notify", MK["calls"], "| order", MK["seq"])
+    return r
+mk_setup(); mk("2220 width, synced                ")
+for tag, how in (("2221 create                    ", "layer_created"), ("2222 sidebearings              ", "sidebearings"),
+                 ("2223 polygon                   ", "draw_polygon"), ("2224 path                      ", "draw_path")):
+    mk_setup(); mk(tag, how=how)
+mk_setup(); mk("2225 a probe's write is not marked", how="tryopen")
+mk_setup(); mk("2226 the caller's reason          ", no_mark="the width did not change")
+mk_setup(sync=False); mk("2227 sync not confirmed            ")
+mk_setup(); ns["_MARK_CHANGED"] = False; mk("2228 switched off                  ")
+mk_setup(items=False); mk("2229 no flItems                    ")
+mk_setup(); mk("2230 the glyph is gone             ", name="nope")
+mk_setup(mode={"wrap_raises": 1}); mk("2231 the wrapper raises            ")
+mk_setup(mode={"no_layer": 1}); mk("2232 no modern layer               ")
+mk_setup(mode={"layer_raises": 1}); mk("2233 the layer read raises         ")
+mk_setup(mode={"raises": 1}); mk("2234 the call raises               ")
+mk_setup(mode={"has": False}); mk("2235 hasChanges false after the call")
+mk_setup(mode={"has": "x"}); mk("2236 hasChanges is not a bool      ")
+mk_setup(mode={"has_raises": 1}); mk("2237 hasChanges raises             ")
+mk_setup()
+def _mk_boom(*a): raise RuntimeError("mark boom")
+ns["_mark_font_changed"] = _mk_boom
+print("2238 a failure in the mark never fails the write:", sorted(mk("     ").keys()))
+class MKAdv:
+    def __init__(s, v, sticks=True): s.__dict__.update(v=v, sticks=sticks)
+    advanceWidth = property(lambda s: s.v, lambda s, x: s.__dict__.update(v=x if s.sticks else s.v))
+GM = []
+def mk_width(tag, start, want, sticks=True):
+    mk_setup(); GM.clear()
+    ns["_guard_mark"] = lambda f, n, h, r, no_mark=None: GM.append((h, no_mark))
+    ns["_repaint_viewport"] = lambda: True
+    r = ns["_set_width_modern"]({"w": MKAdv(start, sticks), "tr": None, "font": "F"}, "g", want)
+    print(tag, ": set", r.get("set"), "| guard_mark", GM)
+mk_width("2239 width changes                 ", 400.0, 500)
+mk_width("2240 width stays the same          ", 500.0, 500)
+mk_width("2241 width not confirmed           ", 400.0, 500, sticks=False)
+class MKLegacy:
+    def __init__(s, **kw): s.__dict__.update(kw)
+    def update(s): MK["seq"].append("update")
+mk_setup(); ns["_guard_decide"] = lambda f: (True, {})
+_mk_g = MKLegacy(name="g", width=0); ns["_find_glyph"] = lambda f, n: _mk_g
+print("2242 legacy width route            :", ns["_set_width_legacy"](MKLegacy(), _mk_g, "g", 300).get("fontlab_changed_mark"), "| notify", MK["calls"])
+print("2243 the other write sites         :", ['"sidebearings", result, no_mark=None if result["set"] else' in src, '"draw_polygon", result, no_mark=None if result["drawn"] else' in src, '"draw_path", result, no_mark=None if result["drawn"] else' in src])
+def mk_uni(tag, start, want, guard_ok=True, raises=False):
+    mk_setup()
+    class G(MKLegacy):
+        name = "g"
+        def __setattr__(s, k, v):
+            if raises and k == "unicode": raise RuntimeError("unicode boom")
+            object.__setattr__(s, k, v)
+    g = G(); object.__setattr__(g, "unicode", start)
+    F = MKLegacy(glyphs=[g])
+    MR = []
+    ns.update(_open_font=lambda: F, _guard_decide=lambda f: (guard_ok, {}), _other_glyphs_with_unicode=lambda *a: {}, _find_glyph=lambda f, n: g,
+              _mark_font_changed=lambda f, n, h: MR.append(h) or {"called": True})
+    r = ns["set_glyph_unicode"]("g", want)
+    print(tag, ": set", r.get("set"), "| mark", r.get("fontlab_changed_mark", "<no field>"), "| calls", MR)
+mk_uni("2244 Unicode changes               ", None, 66)
+mk_uni("2245 Unicode stays the same        ", 66, 66)
+mk_uni("2246 Unicode cleared               ", 66, 0)
+mk_uni("2247 another glyph unsynced        ", None, 66, guard_ok=False)
+mk_uni("2248 the write raises              ", None, 66, raises=True)
+def mk_create(tag, problem=None, ctx=None, refusal=None):
+    mk_setup(); GM.clear()
+    ns.update(_one_master_problem=lambda: problem, _modern_edit_target=lambda n, create_layer=False: (ctx, refusal))
+    ns["_guard_mark"] = lambda f, n, h, r, no_mark=None: GM.append((h, no_mark))
+    print(tag, ":", ns["_create_glyph_layer"]("g"), "| guard_mark", GM)
+mk_create("2249 several masters               ", problem="two masters")
+mk_create("2250 the layer cannot be made      ", refusal={"reason": "no name"})
+mk_create("2251 the layer is made             ", ctx={"layer_created": "Regular", "layer_name_source": "package master", "font": "F"})
+mk_create("2252 no layer made here            ", ctx={"font": "F"})
+print("2253 the call in the source        :", src.count("items.notifyChangesApplied(_MARK_TITLES[how], w, False)") == 1, "| switch on:", ns["_MARK_CHANGED"] is True or _mk_ns["_MARK_CHANGED"] is True)
+for k, v in _mk_ns.items(): ns[k] = v
+for _m, _v in _mk_mods:
+    if _v is None:
+        if hasattr(_m, "flItems"): delattr(_m, "flItems")
+    else:
+        _m.flItems = _v

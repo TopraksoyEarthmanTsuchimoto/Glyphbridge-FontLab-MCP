@@ -2,6 +2,14 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-09: the budget of CURRENT-STATUS.md
+
+- **The word budget of CURRENT-STATUS.md goes from 1,800 to 2,000.** *Reason:* the user's choice, so that important findings are never cut to fit a budget.
+
+## 2026-11-09: tool writes mark the font as changed (listener 0.132 / server 0.51)
+
+- **After a verified, synced glyph write, the listener makes one `flItems.notifyChangesApplied` call, so that FontLab asks to save on close; nothing is ever saved. The reply says what was done (`fontlab_changed_mark`) and never claims FontLab's icon or question; a write it could not mark gets `save_question_note`.** Kerning writes and deletes are not marked yet (stage 2, research first). `_MARK_CHANGED = False` switches it off. *Reason:* closing lost tool work silently (S1); the call brought the question back and a control without it did not (657–667). The user approved the design as proposed.
+
 ## 2026-11-09: components against their source (listener 0.130 / server 0.50)
 
 - **A composite found behind its source reads `unverified`, with both boxes and an instruction to tell the person.** *Reason:* its numbers match what FontLab holds, but can change at the next GUI edit (638–653). The user approved the design as proposed.

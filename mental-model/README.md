@@ -34,4 +34,4 @@ Scope and non-goals: [PROJECT.md](PROJECT.md).
 
 ## Status in one line
 
-Listener 0.130 and server 0.50 are the current releases, on Windows 11 with FontLab 8.9.5. Reading, writing basic geometry (open contours included) and reading kerning (from the current master's table, with its source) work; writing kerning between two glyphs is live-checked; classes and other masters are not covered. Components are partly proven; multi-master fonts and save-and-reopen checks (T9) are open. See [CURRENT-STATUS.md](CURRENT-STATUS.md).
+Listener 0.132 and server 0.51 are the current releases, on Windows 11 with FontLab 8.9.5. Reading, writing basic geometry (open contours included) and reading kerning (from the current master's table, with its source) work; writing kerning between two glyphs is live-checked; classes and other masters are not covered. Components are partly proven; multi-master fonts and save-and-reopen checks (T9) are open. See [CURRENT-STATUS.md](CURRENT-STATUS.md).

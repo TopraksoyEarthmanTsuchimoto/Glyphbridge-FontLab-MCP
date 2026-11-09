@@ -2400,3 +2400,38 @@ print("32zq docs -> outline names source_in_step:", "source_in_step" in _g32, "|
 print("32zr listener / server versions:", ns["VERSION"], srv.SERVER_VERSION, "| MIN_LISTENER_VERSION:", srv.MIN_LISTENER_VERSION)
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 srv._reset_change_tracking()
+
+# ---------------------------------------------------------------- part 33: server 0.51, the changed mark in a write reply ----
+print("\n==== 33. server 0.51: fontlab_changed_mark and save_question_note (stubs only) ====")
+
+
+def r33(data, modified=True):
+    res = {}
+    srv._add_guard_fields(res, data)
+    srv._mark_modified(res, modified)
+    return {k: res[k] for k in ("fontlab_changed_mark", "save_question_note", "font_modified") if k in res}
+
+
+M33 = "fontlab_changed_mark"
+print("33a confirmed                    ->", r33({M33: {"called": True, "glyph_has_changes": True}}))
+print("33b not called, with its reason  ->", r33({M33: {"called": False, "reason": "the width did not change"}}))
+print("33c the call failed              ->", r33({M33: {"called": True, "call_error": "RuntimeError: x", "glyph_has_changes": True}}))
+print("33d hasChanges false             ->", r33({M33: {"called": True, "glyph_has_changes": False}}))
+print("33e hasChanges unknown           ->", r33({M33: {"called": True, "glyph_has_changes": "unknown"}}))
+print("33f an older listener: no field  ->", r33({}))
+print("33g no real change, no note      ->", r33({M33: {"called": False, "reason": "same value"}}, modified=False))
+print("33h not a dict                   ->", r33({M33: "yes"}))
+print("33i called is not a bool         ->", r33({M33: {"called": 1, "glyph_has_changes": True}}))
+print("33j hasChanges 1 is not passed on ->", r33({M33: {"called": True, "glyph_has_changes": 1}}))
+print("33k unknown keys are not passed on ->", r33({M33: {"called": True, "glyph_has_changes": True, "extra": "x", "reason": 5}}))
+print("33ka not called, whatever else it says ->", r33({M33: {"called": False, "glyph_has_changes": True}}))
+_w33 = srv._write_post
+srv._write_post = lambda path, payload, timeout=None: {"open": True, "set": True, "before": 400.0, "after": 500.0, M33: {"called": True, "glyph_has_changes": True}, "synced_with_fontlab": True}
+_r33 = srv.write_glyph_width("g", 500)
+print("33l write_glyph_width carries it :", _r33.get(M33), "| note", "save_question_note" in _r33, "| modified", _r33.get("font_modified"))
+srv._write_post = lambda path, payload, timeout=None: {"open": True, "set": True, "before": 0, "after": 500.0, "route": "legacy_empty_glyph", M33: {"called": False, "reason": "the legacy width route is used only for a glyph with no modern layer"}}
+_r33 = srv.write_glyph_width("g", 500)
+print("33m the legacy route gets the note:", _r33.get(M33), "| note", _r33.get("save_question_note"))
+srv._write_post = _w33
+print("33n the note claims no icon and no question:", not any(t in srv._SAVE_QUESTION_NOTE.lower() for t in ("blue", "will ask", "asks to save")), "| kerning warning kept:", "closing the font asks no save question" in srv._SET_KERNING_INSTRUCTION if hasattr(srv, "_SET_KERNING_INSTRUCTION") else "asks no save question" in open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read())
+srv._reset_change_tracking()

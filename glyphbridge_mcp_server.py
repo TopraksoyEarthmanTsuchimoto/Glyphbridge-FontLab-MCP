@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.50)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.51)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.50"      # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.51"     # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -259,13 +259,21 @@ def _note_change(sure: bool = True) -> None:
     _CHANGES["session" if sure else "session_unsure"] += 1
 
 
+_SAVE_QUESTION_NOTE = ("FontLab may not count this change as unsaved, so closing the font may ask no save question and lose it silently (see "
+                       "fontlab_changed_mark). Tell the person if they may close the font before saving.")
+
+
 def _mark_modified(result: dict, modified: bool) -> None:
-    """Add font_modified to a write reply; a real change is counted and the agent is told how to remind the person ONCE."""
+    """Add font_modified to a write reply; a real change is counted and the agent is told how to remind the person ONCE. v0.51: a write
+    the listener could not mark gets save_question_note; a listener or a tool without the mark adds nothing."""
     result["font_modified"] = bool(modified)
     if modified:
         _note_change()
         existing = result.get("agent_instruction")
         result["agent_instruction"] = (existing + " " + _SAVE_INSTRUCTION) if existing else _SAVE_INSTRUCTION
+        mark = result.get("fontlab_changed_mark")
+        if isinstance(mark, dict) and not (mark.get("called") is True and not mark.get("call_error") and mark.get("glyph_has_changes") is True):
+            result["save_question_note"] = _SAVE_QUESTION_NOTE
 
 
 def _write_post(path: str, payload: dict, timeout=None) -> dict:
@@ -710,6 +718,16 @@ def _add_guard_fields(result: dict, data: dict) -> None:
                     fwd[key] = fs[key]
             if fwd:
                 result["fontlab_sync"] = fwd
+        mark = data.get("fontlab_changed_mark")          # v0.51 (listener 0.132); never claims FontLab's icon or that it will ask
+        if isinstance(mark, dict) and isinstance(mark.get("called"), bool):
+            fwd = {"called": mark["called"]}
+            for key in ("reason", "call_error"):
+                if isinstance(mark.get(key), str) and mark[key]:
+                    fwd[key] = mark[key]
+            has = mark.get("glyph_has_changes")
+            if isinstance(has, bool) or has == "unknown":
+                fwd["glyph_has_changes"] = has
+            result["fontlab_changed_mark"] = fwd
         if result.get("synced_with_fontlab") is False:
             if isinstance(result.get("fontlab_sync"), dict) and result["fontlab_sync"].get("attempted") is True:
                 extra.append(_GUARD_SYNC_FAILED_INSTRUCTION)

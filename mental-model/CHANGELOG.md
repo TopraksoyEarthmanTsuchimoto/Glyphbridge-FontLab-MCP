@@ -4,6 +4,19 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.132 / server v0.51 (2026-11-09)
+
+**Tool writes mark the font as changed** ([DECISIONS.md](DECISIONS.md), S1).
+- **Listener:** after a verified, synced write of `create_glyph` with its layer, width, sidebearings, `draw_polygon`, `draw_path` or Unicode: one `flItems.notifyChangesApplied(title, <flGlyph>, False)`, reported in `fontlab_changed_mark` (`called`, `reason`, `call_error`, `glyph_has_changes`). A write that changed nothing, was not confirmed, is not synced or has no layer is not marked and says why. Kerning writes and deletes are not marked. `_MARK_CHANGED = False` switches it off.
+- **Server:** forwards the field, type-checked, and adds `save_question_note` to a real change that was not confirmed marked. **Known fault:** `glyph_has_changes` read false while the mark worked (668), so the note can warn wrongly.
+- Tests: `stub_listener_tests.py` 2806 → 2843 lines, part 33 in `create_unicode_tests.py` (1159 → 1176); other output changed only in the version lines and the reasons on `create_glyph` without a layer. Mutation run: 33 of 33 caught, after one added case. Live: `create_glyph` only (668, 669); the other writes, the error paths and the skip paths are stub-tested only.
+
+## Listener v0.131 (2026-11-09; server unchanged at v0.50)
+
+**A research probe for S1** ([WATCH-POINTS.md](WATCH-POINTS.md)); no product route changed.
+- **Listener:** gated `/debug/trynotify`: `stage=state` reads `isChanged`, `hasChanges`, `hasHistoryStates`, `currentHistoryState()` and `initialHistoryState()` of the package, workspace and one glyph; `stage=call&which=...` makes ONE call from a fixed list of `flItems` notifications, on the class or on `flItems.instance()`. One font open, `go=yes`, 20 state reads and 3 per call in a listener run.
+- Tests: `stub_listener_tests.py` 2757 → 2806 lines; other output changed only in the version lines. Mutation run: 25 of 25 caught. Live 659b–667: only `which=changes_applied` on the class was called; the other four calls, `on=instance` and the error paths are stub-tested only.
+
 ## Listener v0.130 / server v0.50 (2026-11-09)
 
 **A component is checked on its own and against its source** ([topics/reading.md](topics/reading.md), [DECISIONS.md](DECISIONS.md)).

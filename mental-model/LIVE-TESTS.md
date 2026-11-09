@@ -170,6 +170,25 @@ One disposable, unsaved, one-master font holding only `.notdef` at the start; pr
 | 655 | GUI: width 50 % in the small panel on the element of `mx1dieresis` (meant for the component in Ü; see 656); Ü read, Ö margins | the composites follow; Ü dots x 175–305, `verified`, in step | as predicted; X read 20 in the panel; Ö 50 / 50 / 700 |
 | 656 | GUI: width 40 % on the `mx1dieresis` component in Ü (X 120); read | `source_in_step` `"unknown"`, dots x 142–194, `verified` as before the build | as predicted; 60 / 60 / 640 on screen |
 
+### S series: the changed icon and the save question (2026-11-09, FontLab 8.9.5, listener 0.130 to 0.132 / server 0.50 and 0.51; a new font each round; facts in [WATCH-POINTS.md](WATCH-POINTS.md))
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 657 | new font; `/debug/trysync?stage=state` | package `isChanged` false, 1 glyph | as predicted; workspace false; icon dark |
+| 658 | `create_glyph s1a_one`; state | flags false, 2 glyphs, icon dark | as predicted |
+| 659 | GUI: Font > New Glyph `s1b_gui`; state; `/debug/walk` for `hasChanges` | icon blue, 3 glyphs; flags unknown | blue; all flags and `hasChanges` false on package and workspace |
+| 659b | listener 0.131; `stage=state` on both glyphs; then close | history moved, `s1b_gui` showing it | package `hasHistoryStates` true, current 1, initial 0; workspace and both glyphs 0: **the glyph part wrong**. Closed: asked to save |
+| 660 | new font; `create_glyph s2a_one`; state | package false, 0, 0; icon dark | current 0, initial 0, icon dark; `hasHistoryStates` true: **wrong** |
+| 661 | `which=changes_applied` on the class, `s2a_one`; hover over the title | no crash, package history 0 → 1; icon unsure | no crash, `None`; package still 0: **wrong**; glyph `hasChanges` true, history 0 → 2 (current and initial); content unchanged; icon blue on the hover; Undo greyed out |
+| 662 | close | asks to save | asked |
+| 663 | control: new font; `create_glyph s3a_one`; state; hover; close, no call | flags and history unmoved, dark, no question | as predicted |
+| 664 | new font; `create_glyph s4a_one`, `draw_polygon` square; state; outline; hover | `verified`, glyph `hasChanges` false, dark | as predicted |
+| 665 | `which=changes_applied`, `s4a_one`; outline; hover | same nodes, `hasChanges` true, blue | as predicted; history 0 → 3 |
+| 666 | `create_glyph s4b_one`; outline; state | the drawing survives | as predicted: 4 nodes, `verified`, 3 glyphs |
+| 667 | close | asks to save | asked |
+| 668 | listener 0.132 / server 0.51; new font; `create_glyph s5a_one`; state; close | `called` true, `glyph_has_changes` true; blue after a hover; asks to save | `called` true; `glyph_has_changes` false: **wrong**, and `save_question_note` came; glyph history 0 → 1; blue **without a hover**; asked |
+| 669 | repeat on a new font, `s6a_one` | as 668: `glyph_has_changes` false, history 1 | `glyph_has_changes` true and history 0 → 2: **wrong**; no note; blue without a hover; asked |
+
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 
 | Id | Test | Stage / how | Expected | Status |

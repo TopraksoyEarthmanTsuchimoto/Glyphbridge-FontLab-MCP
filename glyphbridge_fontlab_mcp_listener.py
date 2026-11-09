@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.130)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.132)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -28,6 +28,10 @@ Since v0.109 a line without a client name starts with "[Glyphbridge]" (no guesse
 name comes with a new X-Glyphbridge-Launcher value (the file name of the program that started the server, read by the
 server from the operating system) one line names both ("[glyphbridge] local-agent-mode | CLAUDE"); the first pair is in
 the "Connected" line. Since v0.110 the launcher is shown without ".exe" and in capitals, alike on Windows and macOS.
+
+CHANGED MARK (v0.132): after a verified, synced glyph write, one flItems.notifyChangesApplied call makes FontLab count the
+change, so it shows its blue icon and asks to save on close (live 657-667). The reply says what was done (fontlab_changed_mark).
+Kerning writes and deletes are not marked. Nothing is ever saved. _MARK_CHANGED = False switches it off.
 
 NO FONT OPEN (v0.105): every product route answers {"open": false} when CountFonts() is 0 (see _open_font):
 with no font open, CurrentFont() still returns a placeholder font.
@@ -141,6 +145,9 @@ Routes (GET unless marked POST):
                           empty glyph and read back; 6 per listener run (v0.125, P2.1 research)
     /debug/tryshapebox    stage=shapebox|dependencies&name=X: read only; ONE shape.inkBox() per element, or ONE
                           flGlyph.isUnbindedDependecies(); exactly one font open; 12 per stage and listener run (v0.129, P1.1 research)
+    /debug/trynotify      stage=state|call&name=X[&which=W][&on=class|instance]: S1 research; the changed flags and history positions of the
+                          package, workspace and glyph; stage=call makes ONE flItems notification from a fixed list (W), 3 per W and
+                          listener run; exactly one font open (v0.131)
     /debug/setcurrent     changes which glyph FontLab displays (no use for the modern API)
 
   Dead ends, kept as history: /debug/contours and /debug/drawpen (the pen protocol returns
@@ -168,7 +175,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.130"
+VERSION = "0.132"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -462,6 +469,9 @@ def _is_scan_codepoint(value):
 _UNSYNCED = {"font": None, "glyphs": {}, "overflow": False}
 _UNSYNCED_MAX = 500
 _AUTO_SYNC = True       # v0.89: sync a glyph right after a modern write (fontlab.Update(flGlyph)); False restores the v0.88 behaviour
+_MARK_CHANGED = True    # v0.132: tell FontLab that a verified, synced tool write changed the glyph (S1, live 657-667); False switches it off
+_MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge width", "sidebearings": "Glyphbridge sidebearings",
+                "draw_polygon": "Glyphbridge polygon", "draw_path": "Glyphbridge path", "unicode": "Glyphbridge Unicode"}
 _SYNCED_NOTE = ("Glyphbridge asked FontLab to sync this glyph right after the change and FontLab's legacy view now matches the modern layer, so the "
                 "change is durable against the display refresh of create_glyph, delete_glyph, set_glyph_unicode and the legacy width route. "
                 "FontLab's own screen (editor numbers, grid thumbnail) may still repaint only at its next event.")
@@ -529,8 +539,57 @@ def _auto_sync(font, name):
     return out
 
 
-def _guard_mark(font, name, how, result):
-    """Register and say so in the reply; v0.89: then ask FontLab to sync the glyph (_AUTO_SYNC). Never raises."""
+def _mark_font_changed(font, name, how):
+    """v0.132: ONE flItems.notifyChangesApplied(title, <flGlyph>, False) for a glyph that has a modern layer. Returns the
+    fontlab_changed_mark block: "called", and "reason" when nothing was called, or "call_error" and "glyph_has_changes" (read after
+    the call; true, false or "unknown"). No reading shows FontLab's icon or says it will ask, so the block never claims either."""
+    try:
+        if not _MARK_CHANGED:
+            return {"called": False, "reason": "the changed mark is switched off in the listener"}
+        import sys as _sys
+        mod = _sys.modules.get("fontlab") or fl
+        items = getattr(mod, "flItems", None)
+        if items is None:
+            return {"called": False, "reason": "the fontlab module has no flItems"}
+        glyph = _find_glyph(font, name)
+        if glyph is None:
+            return {"called": False, "reason": "the glyph could not be found"}
+        w, _how = _modern_wrapper(glyph, font)
+    except Exception as exc:
+        return {"called": False, "reason": f"the modern glyph could not be reached ({type(exc).__name__}: {exc})"}
+    layer, err = _tl_call(lambda: w.activeLayer)
+    if err is not None:
+        return {"called": False, "reason": f"the modern layer could not be read ({err})"}
+    if layer is None:
+        return {"called": False, "reason": "the glyph has no modern active layer"}
+    mark = {"called": True}
+    try:
+        items.notifyChangesApplied(_MARK_TITLES[how], w, False)
+    except Exception as exc:
+        mark["call_error"] = f"{type(exc).__name__}: {exc}"
+    value, err = _pkg_get(w, "hasChanges")
+    mark["glyph_has_changes"] = value if err is None and type(value) is bool else "unknown"
+    return mark
+
+
+def _record_changed_mark(font, name, how, result, no_mark):
+    """v0.132: put fontlab_changed_mark into a write reply. Only a confirmed change of a kind in _MARK_TITLES that FontLab has synced is
+    marked: no_mark is the caller's reason why not. Never raises, so a verified write never fails here."""
+    try:
+        if how not in _MARK_TITLES:
+            return
+        if no_mark is not None:
+            result["fontlab_changed_mark"] = {"called": False, "reason": no_mark}
+        elif result.get("synced_with_fontlab") is not True:
+            result["fontlab_changed_mark"] = {"called": False, "reason": "FontLab's sync of this glyph was not confirmed"}
+        else:
+            result["fontlab_changed_mark"] = _mark_font_changed(font, name, how)
+    except Exception:
+        pass
+
+
+def _guard_mark(font, name, how, result, no_mark=None):
+    """Register and say so in the reply; v0.89: then ask FontLab to sync the glyph (_AUTO_SYNC); v0.132: then the changed mark. Never raises."""
     _guard_register(font, name, how)
     try:
         result["synced_with_fontlab"] = False
@@ -547,9 +606,10 @@ def _guard_mark(font, name, how, result):
                 result["durability_note"] = _SYNCED_NOTE
         except Exception:
             pass
+    _record_changed_mark(font, name, how, result, no_mark)
 
 
-_GUARD_FULL_KINDS = ("draw_polygon", "draw_path", "layer_created")
+_GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created")
 _GUARD_LIGHT_KINDS = ("width", "sidebearings")
 
 
@@ -738,7 +798,7 @@ def _create_glyph_layer(name):
     the font holds a component (live 612-618); with a layer it did not (619). Returns the fields for the reply: layer_created when a
     layer was made, layer_note when the glyph has none, neither when it already had one. Never raises; the glyph stays created."""
     def no_layer(why):
-        return {"layer_note": f"The glyph has no layer: {why}."}
+        return {"layer_note": f"The glyph has no layer: {why}.", "fontlab_changed_mark": {"called": False, "reason": "the glyph has no layer"}}
     try:
         why = _one_master_problem()
         if why is not None:
@@ -751,6 +811,8 @@ def _create_glyph_layer(name):
             out["layer_created"] = ctx["layer_created"]
             out["layer_name_source"] = ctx.get("layer_name_source")
             _guard_mark(ctx["font"], name, "layer_created", out)
+        else:
+            out["fontlab_changed_mark"] = {"called": False, "reason": "no layer was created for the glyph here"}
         return out
     except Exception as exc:
         return no_layer(f"creating it failed ({type(exc).__name__}: {exc})")
@@ -1213,7 +1275,7 @@ def _set_width_modern(ctx, name, new_width):
     result = {"open": True, "set": success, "name": name, "route": "modern", "before": before, "after": after,
               "requested": new_width, "display_refreshed": repainted, "display_note": _DISPLAY_NOTE}
     if success:
-        _guard_mark(ctx["font"], name, "width", result)
+        _guard_mark(ctx["font"], name, "width", result, no_mark=None if abs(after - before) >= 0.01 else "the width did not change")
     if call_error:
         result["call_error"] = call_error
     if not success and not call_error:
@@ -1248,7 +1310,8 @@ def _set_width_legacy(font, glyph, name, new_width):
     after = glyph_again.width if glyph_again is not None else None
     success = (after is not None) and abs(after - float(new_width)) < 0.01
     result = {"open": True, "set": success, "name": name, "route": "legacy_empty_glyph", "before": before,
-              "after": after, "requested": new_width}
+              "after": after, "requested": new_width,
+              "fontlab_changed_mark": {"called": False, "reason": "the legacy width route is used only for a glyph with no modern layer"}}
     result.update(guard_report)
     if call_error:
         result["call_error"] = call_error
@@ -1326,7 +1389,7 @@ def set_glyph_sidebearings(name, left, right):
     result["changed"] = any(abs(after[k] - before[k]) > 0.001 for k in ("lsb", "rsb", "advance"))
     result["set"] = all(checks.values())
     if result["changed"]:
-        _guard_mark(ctx["font"], name, "sidebearings", result)
+        _guard_mark(ctx["font"], name, "sidebearings", result, no_mark=None if result["set"] else "the new margins were not confirmed")
     if not result["set"]:
         mismatch = ", ".join(k for k, v in checks.items() if not v)
         result["reason"] = ("FontLab raised an error in setSB; the re-read margins differ from the request: " if call_error
@@ -1400,7 +1463,7 @@ def draw_polygon(name, contours, rounded=None):
     result["drawn"] = all(v is not False for v in result["checks"].values()) and result["checks"]["shapes_ok"] and result["checks"]["nodes_ok"]
     result["changed"] = (after.get("shapes") != 0 or after.get("nodes") != 0)
     if result["changed"]:
-        _guard_mark(ctx["font"], name, "draw_polygon", result)
+        _guard_mark(ctx["font"], name, "draw_polygon", result, no_mark=None if result["drawn"] else "the drawing was not confirmed")
     if ctx["tr"] is not None:
         m, _err = _modern_margins_read(w, ctx["tr"])
         if m is not None:
@@ -1684,7 +1747,7 @@ def draw_path(name, contours, rounded=None, closed_flags=None):
     result["nodes_match"] = nodes_match
     result["drawn"] = bool(result["checks"]["shapes_ok"] and result["checks"]["nodes_ok"] and nodes_match is True)
     if after.get("shapes") != 0 or after.get("nodes") != 0:
-        _guard_mark(ctx["font"], name, "draw_path", result)
+        _guard_mark(ctx["font"], name, "draw_path", result, no_mark=None if result["drawn"] else "the drawing was not confirmed")
     if ctx["tr"] is not None:
         m, _err = _modern_margins_read(w, ctx["tr"])
         if m is not None:
@@ -2390,6 +2453,9 @@ def set_glyph_unicode(name, new_codepoint):
         result["reason"] = "unicode did not change to the requested value after setting"
     if success and int(new_codepoint) != 0:
         result["duplicate_check"] = _other_glyphs_with_unicode(font, name, int(new_codepoint))
+    if success and before != after:
+        result["fontlab_changed_mark"] = (_mark_font_changed(font, name, "unicode") if guard_ok else
+                                          {"called": False, "reason": "another glyph is still unsynced, so nothing further was called"})
     return result
 
 
@@ -6918,6 +6984,145 @@ def _tryrefresh_unicode(upd, font, name, codepoint):
 
 
 # --------------------------------------------------------------------------
+# /debug/trynotify (v0.131) - RESEARCH for S1: tool writes leave the blue "changed" icon dark (FontLab then asks no save question and
+# offers no Undo), and the isChanged / hasChanges flags do not follow that icon (657-659). Can one of FontLab's own flItems notifications
+# turn it blue? Are the history positions what it shows? Every stage needs go=yes and the one-font gate of /debug/trysync. The counter
+# is raised BEFORE the first call under test, and a call that failed is an error here, never an empty result.
+#   stage=state              reads isChanged, hasChanges, hasHistoryStates, currentHistoryState(), initialHistoryState() of the package,
+#                            the workspace and one glyph; none of the history getters has been called live before
+#   stage=call&which=W       those reads, ONE call from the fixed list below, the reads again. on=class calls it on the flItems class,
+#                            on=instance on flItems.instance() (the docstrings do not say which is right)
+# Never called by this probe: restoreHistoryState, clearAboveHistory, historyStates, blockUpdate, unblockUpdate, release, remove, save, close,
+# export, update, changed, font.update().
+# --------------------------------------------------------------------------
+
+_TRYNOTIFY_WHICH = ("changes_applied", "workspace_has_changes", "package_updated", "package_content", "glyph_updated")
+_TRYNOTIFY_ON = ("class", "instance")
+_TRYNOTIFY_MAX_STATE = 20
+_TRYNOTIFY_MAX_CALL = 3
+_TRYNOTIFY = {"state": 0, "changes_applied": 0, "workspace_has_changes": 0, "package_updated": 0, "package_content": 0, "glyph_updated": 0}
+_TRYNOTIFY_TITLE = "Glyphbridge test"
+_TRYNOTIFY_READS = ("isChanged", "hasChanges", "hasHistoryStates", "currentHistoryState", "initialHistoryState")
+_TRYNOTIFY_NOTE = ("RESEARCH: a notification may change FontLab's display or its history. Look at the icon before the font's name and at Edit > Undo; "
+                   "a reading that could not be made is an <error> here, never an empty result; nothing is saved by Glyphbridge")
+
+
+def _trynotify_read(obj, attr):
+    """A plain value, the type name of a native object, or "<error: why>". ONE read; a zero-argument callable is called once."""
+    value, err = _pkg_get(obj, attr)
+    return f"<error: {err}>" if err is not None else _tryfont_plain(value)
+
+
+def _trynotify_snapshot(ws, pkg, w):
+    """Read only: the flags and history positions of the three objects, the glyph's content and the number of glyphs."""
+    content, _layer = _tryshapebox_state(w)
+    return {"package": {attr: _trynotify_read(pkg, attr) for attr in _TRYNOTIFY_READS},
+            "workspace": {attr: _trynotify_read(ws, attr) for attr in _TRYNOTIFY_READS},
+            "glyph": {attr: _trynotify_read(w, attr) for attr in _TRYNOTIFY_READS},
+            "glyph_content": content, "package_glyphsCount": _trynotify_read(pkg, "glyphsCount")}
+
+
+def _trynotify_changes(before, after):
+    """One line per reading that differs between the two snapshots."""
+    return [f"{part}.{attr}: {before[part][attr]!r} -> {after[part][attr]!r}" for part in ("package", "workspace", "glyph")
+            for attr in _TRYNOTIFY_READS if before[part][attr] != after[part][attr]]
+
+
+def _trynotify_side_effect(before, after):
+    """True or False when the glyph's content and the number of glyphs can be compared; otherwise None (not comparable)."""
+    content = _tryshapebox_compare(before["glyph_content"], after["glyph_content"])
+    counts = before["package_glyphsCount"], after["package_glyphsCount"]
+    if content is None or any(type(c) is not int for c in counts):
+        return None
+    return content or counts[0] != counts[1]
+
+
+def _trynotify_id(obj, label):
+    """(a plain number, None) or (None, reason)."""
+    value, err = _pkg_get(obj, "id")
+    if err is not None:
+        return None, f"{label} id could not be read ({err})"
+    if type(value) is not int:
+        return None, f"{label} id is a {type(value).__name__}, not a plain number"
+    return value, None
+
+
+def _trynotify_plan(which, pkg, w):
+    """(function of the flItems target, text naming the call, None), or (None, None, reason) when nothing may be called."""
+    if which == "changes_applied":
+        return (lambda t: t.notifyChangesApplied(_TRYNOTIFY_TITLE, w, False)), f"notifyChangesApplied({_TRYNOTIFY_TITLE!r}, <flGlyph>, False)", None
+    if which == "workspace_has_changes":
+        return (lambda t: t.notifyWorkspaceHasChanges(True)), "notifyWorkspaceHasChanges(True)", None
+    if which == "package_updated":
+        return (lambda t: t.notifyPackageUpdated(pkg)), "notifyPackageUpdated(<flPackage>)", None
+    pid, err = _trynotify_id(pkg, "the package's")
+    if err is not None:
+        return None, None, err
+    if which == "package_content":
+        return (lambda t: t.notifyPackageContentUpdated(pid)), f"notifyPackageContentUpdated({pid})", None
+    gid, err = _trynotify_id(w, "the glyph's")
+    if err is not None:
+        return None, None, err
+    return (lambda t: t.notifyGlyphUpdated(pid, gid)), f"notifyGlyphUpdated({pid}, {gid})", None
+
+
+def debug_try_notify(stage, which, on, name, go):
+    import sys as _sys
+    if stage not in ("state", "call"):
+        return {"error": 'stage must be "state" or "call"'}
+    if stage == "call" and which not in _TRYNOTIFY_WHICH:
+        return {"error": "which must be one of: " + ", ".join(_TRYNOTIFY_WHICH)}
+    if stage == "call" and on not in _TRYNOTIFY_ON:
+        return {"error": 'on must be "class" or "instance"'}
+    if not isinstance(name, str) or not (1 <= len(name) <= 40) or any(ch not in _TRYCREATE_NAME_CHARS for ch in name):
+        return {"error": "name must be 1 to 40 characters from A-Z a-z 0-9 . _ -"}
+    if go != "yes":
+        what = "reads flags and history positions that have not been read live before" if stage == "state" else f"makes ONE flItems call ({which})"
+        return {"error": f"stage={stage} {what}. Add &go=yes to run it."}
+    key = "state" if stage == "state" else which
+    limit = _TRYNOTIFY_MAX_STATE if stage == "state" else _TRYNOTIFY_MAX_CALL
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"stage": stage, "error": why, "calls_so_far": dict(_TRYNOTIFY)}
+    if _TRYNOTIFY[key] >= limit:
+        return {"stage": stage, "error": f"{key} already ran {limit} times in this listener run; restart the listener to repeat it",
+                "calls_so_far": dict(_TRYNOTIFY)}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    glyph = _find_glyph(font, name)
+    if glyph is None:
+        return {"stage": stage, "error": f"no glyph named {name!r}", "calls_so_far": dict(_TRYNOTIFY)}
+    try:
+        w, _wrapper_how = _modern_wrapper(glyph, font)
+    except Exception as exc:
+        return {"stage": stage, "name": name, "error": f"the modern glyph could not be reached ({exc}); nothing was called",
+                "calls_so_far": dict(_TRYNOTIFY)}
+    if stage == "state":
+        _TRYNOTIFY[key] += 1     # counted BEFORE the first read under test: whatever happens, it is on record
+        return {"stage": stage, "name": name, "state": _trynotify_snapshot(ws, pkg, w), "calls_so_far": dict(_TRYNOTIFY), "note": _TRYNOTIFY_NOTE}
+    items = getattr(mod, "flItems", None)
+    if items is None:
+        return {"stage": stage, "which": which, "error": "the fontlab module has no flItems: nothing was called", "calls_so_far": dict(_TRYNOTIFY)}
+    make_call, text, why_not = _trynotify_plan(which, pkg, w)
+    if make_call is None:
+        return {"stage": stage, "which": which, "error": why_not + ": nothing was called", "calls_so_far": dict(_TRYNOTIFY)}
+    _TRYNOTIFY[key] += 1         # counted BEFORE the first read and the call under test: whatever happens, it is on record
+    before = _trynotify_snapshot(ws, pkg, w)
+    returned, call_error = None, None
+    try:
+        returned = _tryfont_plain(make_call(items if on == "class" else items.instance()))
+    except Exception as exc:
+        call_error = f"{type(exc).__name__}: {exc}"
+    after = _trynotify_snapshot(ws, pkg, w)
+    return {"stage": stage, "which": which, "on": on, "name": name, "call": ("flItems." if on == "class" else "flItems.instance().") + text,
+            "return_value": returned, "call_error": call_error, "state_before": before, "state_after": after,
+            "changed_readings": _trynotify_changes(before, after), "side_effect_detected": _trynotify_side_effect(before, after),
+            "calls_so_far": dict(_TRYNOTIFY), "note": _TRYNOTIFY_NOTE}
+
+
+# --------------------------------------------------------------------------
 # /debug/tryshapebox (v0.129) - RESEARCH for P1.1, read only. Two questions from live 633-643: can an accent inside its base be
 # verified from a box per element, and does FontLab say when a composite is out of step with its source? Both calls were seen by
 # name only (637, 641). Every stage needs go=yes and the one-font gate of /debug/trysync; at most _TRYSHAPEBOX_MAX requests per
@@ -8365,6 +8570,13 @@ def _route(method, full_path, body=b""):
             try:
                 return _build_response(200, debug_try_open((query.get("stage") or [""])[0], (query.get("name") or [""])[0],
                                                            (query.get("kind") or [""])[0], (query.get("go") or [""])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/trynotify":
+            try:
+                return _build_response(200, debug_try_notify((query.get("stage") or [""])[0], (query.get("which") or [""])[0], (query.get("on") or ["class"])[0],
+                                                             (query.get("name") or [""])[0], (query.get("go") or [""])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
