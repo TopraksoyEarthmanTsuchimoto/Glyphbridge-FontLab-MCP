@@ -4,6 +4,33 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Server v0.55 (2026-11-10; listener unchanged at v0.134)
+
+**The icon note, and a truthful reply when nothing changed** ([DECISIONS.md](DECISIONS.md)).
+- When a kerning write was marked, the `set_kerning` instruction gains point (4): the changed icon may stay dark until the mouse moves near the font's title, and a dark icon does not mean the change failed; said once per package. `_ICON_MAY_LAG_KERNING = False` retires it.
+- When no entry changed, point (2) says the request adds nothing that needs saving, instead of the warning about closing (720).
+- Tests: `create_unicode_tests.py` 1192 → 1204 lines, part 33 extended; other output changed only in the version lines and in 33y. Mutation run: 19 of 19 caught. Live 727, 728.
+
+## Listener v0.134 / server v0.54 (2026-11-10)
+
+**A kerning write that changed an entry marks the font as changed** ([DECISIONS.md](DECISIONS.md), S1).
+- **Listener:** `/kerning/set` makes one `flItems.notifyChangesApplied("Glyphbridge kerning", <flGlyph>, False)` when at least one entry is known to have changed, also when the request stopped partway. Target: the left glyph of the first changed pair, then its right glyph, then the sides of later changed pairs, never `.notdef`, at most 20 tried; `via_glyph` names it. The loop is shared with the delete's mark (`_mark_through_first`).
+- **Server:** `set_kerning` forwards `fontlab_changed_mark`; point (2) of its instruction says FontLab was told when the mark was made, and keeps the old warning otherwise; `save_question_note` follows as for other writes.
+- Tests: `stub_listener_tests.py` 2861 → 2885 lines, `create_unicode_tests.py` 1181 → 1192; other output changed only in the version lines and in the new field of the `/kerning/set` replies. Mutation run: 23 of 23 caught. Live 718–721; the fallback to other glyphs, a failed notification and the cap of 20 are stub-tested only.
+
+## Listener v0.133 / server v0.53 (2026-11-09)
+
+**A verified delete marks the font as changed** ([DECISIONS.md](DECISIONS.md), S1).
+- **Listener:** after a delete confirmed by the re-read: one `flItems.notifyChangesApplied("Glyphbridge delete", <flGlyph>, False)` on the first surviving glyph that is not `.notdef` and has a modern active layer, at most 20 tried, reported in `fontlab_changed_mark` with `via_glyph`. With none to notify: `called` false and the reason. `_MARK_CHANGED = False` switches it off.
+- **Server:** forwards `via_glyph`, type-checked; `save_question_note` follows as for other writes; the `delete_glyph` description explains it.
+- Tests: `stub_listener_tests.py` 2843 → 2861 lines, part 33 in `create_unicode_tests.py` 1176 → 1181; other output changed only in the version lines. Mutation run: 14 of 14 caught. Live 688–691c; a failed notification and the cap of 20 are stub-tested only.
+
+## Server v0.52 (2026-11-09; listener unchanged at v0.132)
+
+**`save_question_note` no longer warns wrongly** ([DECISIONS.md](DECISIONS.md), S1).
+- **Server:** the note comes only when the mark call was not made or failed. `glyph_has_changes` stays in `fontlab_changed_mark` as information; it read false while the mark worked (668).
+- Tests: line counts unchanged; `create_unicode_tests.py` output changed in the version lines and in 33d, 33e, 33j, which lost the note. Mutation run: 6 of 6 caught. Live 670–682: no note on 20 marks; `glyph_has_changes` never read false there; it did in the setup of 688, with no note.
+
 ## Listener v0.132 / server v0.51 (2026-11-09)
 
 **Tool writes mark the font as changed** ([DECISIONS.md](DECISIONS.md), S1).

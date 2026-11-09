@@ -2,13 +2,36 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
-## 2026-11-09: the budget of CURRENT-STATUS.md
+## 2026-11-10: tool-written kerning pairs in the KERNING panel
 
-- **The word budget of CURRENT-STATUS.md goes from 1,800 to 2,000.** *Reason:* the user's choice, so that important findings are never cut to fit a budget.
+- **Goal: a kerning pair written by a tool shows in FontLab's KERNING panel at once, without a save and reopen** ([PROJECT.md](PROJECT.md), goal 8). *Reason:* the user's goal; until then a designer can take a valid pair for missing, or kern it again.
+
+## 2026-11-10: the changed icon can lag behind a tool write (server 0.55)
+
+- **Where FontLab's changed icon is not reliably immediate after a kind of tool write, the agent tells the person, once per package of changes: the icon may stay dark until the mouse moves near the font's title, which can make FontLab redraw it, and a dark icon does not mean the change failed.** *Reason:* the user's policy; a verified write with a dark icon looks like nothing happened. Today this covers `set_kerning` (719, 722, 723, 725, 726 needed a hover; 724 did not).
+- **A kind of write observed as immediate gets no such note.** Glyph writes: blue with the mouse on Claude Desktop and FontLab unfocused (668, 669, 677–681, conditions by the user's recollection). Deletes: blue at once (688), but always after the person's click on Yes in FontLab's dialog, so the lag would not be seen in use.
+- **The note is retired by evidence, not by a reading:** no reading follows the icon (659). `_ICON_MAY_LAG_KERNING = False`, with its own entry here, after five live runs in a row blue at once, mixing new and changed pairs, with the mouse outside FontLab. The test is repeated on each new FontLab version and when the marking code changes ([CHECKLIST.md](CHECKLIST.md) row 84).
+
+## 2026-11-10: a kerning write is marked through a glyph of a changed pair (listener 0.134 / server 0.54)
+
+- **A kerning write that changed an entry makes one `notifyChangesApplied` call, on the left glyph of the first changed pair, then its right glyph, then the sides of later changed pairs, never `.notdef`, at most 20 tried; `via_glyph` names it. A request that changed nothing makes no call. The reply says what was done and never claims FontLab's icon or question.** *Reason:* a kerning write has no glyph of its own to report; the call brought the save question back (713–717, 718–721). The user approved the design as proposed.
+
+## 2026-11-09: a delete is marked through a surviving glyph (listener 0.133 / server 0.53)
+
+- **After a verified delete the listener makes one `notifyChangesApplied` call on the first surviving glyph that is not `.notdef` and has a modern layer, at most 20 tried; `via_glyph` names it. When none can be notified, the reply gets `save_question_note`.** *Reason:* a deleted glyph cannot be reported, and this brought the save question back (684–688). The user approved the design as proposed.
+
+## 2026-11-09: the save question for every tool change (server 0.52)
+
+- **Goal: FontLab offers its save question for every tool change, as it does for a GUI change** ([PROJECT.md](PROJECT.md), goal 7). *Reason:* the user's goal; FontLab does not treat API writes like GUI writes, so closing can lose tool work silently (S1).
+- **`save_question_note` depends only on whether the mark call was made without an error; `glyph_has_changes` stays in the reply as information.** *Reason:* it read false while the mark worked (668), and no reading follows FontLab's icon (659). The user approved the fix as proposed.
+
+## 2026-11-09: the live-proven record gets its own file
+
+- **The live-proven record and the version needs move unchanged to [WHAT-WORKS.md](WHAT-WORKS.md) (budget 1,500), which is not a core file. CURRENT-STATUS.md keeps a summary by area, and [AGENTS.md](../AGENTS.md) says when to read the file.** *Reason:* the user's choice; the record grows with every milestone, and most sessions need only one area of it.
 
 ## 2026-11-09: tool writes mark the font as changed (listener 0.132 / server 0.51)
 
-- **After a verified, synced glyph write, the listener makes one `flItems.notifyChangesApplied` call, so that FontLab asks to save on close; nothing is ever saved. The reply says what was done (`fontlab_changed_mark`) and never claims FontLab's icon or question; a write it could not mark gets `save_question_note`.** Kerning writes and deletes are not marked yet (stage 2, research first). `_MARK_CHANGED = False` switches it off. *Reason:* closing lost tool work silently (S1); the call brought the question back and a control without it did not (657–667). The user approved the design as proposed.
+- **After a verified, synced glyph write, the listener makes one `flItems.notifyChangesApplied` call, so that FontLab asks to save on close; nothing is ever saved. The reply says what was done (`fontlab_changed_mark`) and never claims FontLab's icon or question; a write it could not mark gets `save_question_note`.** Kerning writes are not marked yet (stage 2, research first). `_MARK_CHANGED = False` switches it off. *Reason:* closing lost tool work silently (S1); the call brought the question back and a control without it did not (657–667). The user approved the design as proposed.
 
 ## 2026-11-09: components against their source (listener 0.130 / server 0.50)
 
@@ -18,20 +41,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 ## 2026-11-09: a new glyph gets its layer (listener 0.127 / server 0.48)
 
 - **`create_glyph` creates the glyph's layer at once in a font with one master. When it cannot, the glyph is still created and the reply says why, with a warning about Add Component.** *Reason:* Add Component crashes FontLab on a glyph with no layer (612–619); refusing the create would remove what works today in order to protect a later GUI step. The user approved the design as proposed.
-
-## 2026-11-04: open contours in `draw_path` (listener 0.126 / server 0.47)
-
-- **A contour given as `{"points": [...], "closed": false}` is drawn open; a plain list stays closed**, so existing calls are unchanged. An open contour may not carry `c1` / `c2` on its first point or be smooth at an end. Every reply with an open contour tells the agent to say that open contours have no fill and that what FontLab does with them on export is untested. *Reason:* the user approved the design as proposed; the facts are 586–603.
-
-## 2026-11-04: whole kerning units (server 0.45)
-
-- **`set_kerning` refuses a value that is not a whole number, before anything is sent**, instead of rounding it. *Reason:* FontLab stores kerning in whole units, rounded to the nearest with halves away from zero (567–569); the tool must never write a value nobody asked for. The user approved it as proposed.
-
-## 2026-11-04: the kerning write tool (listener 0.124 / server 0.44)
-
-- **`set_kerning` writes glyph : glyph pairs only, in the current master, with the `flags` key `((left, False), (right, False))`**; class names are not accepted. *Reason:* the `flags` form names both sides as glyphs, so a glyph named like a class never means the class (defect B); `set` accepts it (564).
-- **All checks run before the first write; the first pair not confirmed by the re-read stops the request**, and the reply names the pairs that were set. *Reason:* the user's choice (2026-11-04); more predictable for the designer than continuing.
-- **Not gated, like other reversible value writes; more than 250 pairs need the person's approval**, as for reads. Every reply tells the agent to say that the KERNING panel lists the pairs only after save and reopen (since server 0.45 also after a switch to another font and back; 573, 574), that closing asks no save question, and that Undo cannot take them back. *Reason:* the user approved the design as proposed; the facts are KW 557–563.
 
 ## 2026-11-04: save tests are a preference, not a rule
 
@@ -48,7 +57,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 ## 2026-11-03: names read at the moment, not fixed strings
 
 - **Text shown to the person or the agent names things from facts read at that moment** (the client's own name, the font's name and file, the system's save shortcut), never from fixed strings. A name the sender gives is shown as given, ambiguous ones such as `local-agent-mode` included; a missing one stays missing. *Reason:* the user's rule after test 290, where the delete dialog said "Claude" whoever sent the request. Built in listener 0.114 / server 0.40.
-- **Not pursued** (the user's choice): the fixed "all 132 groups of Arial" in a debug note, and "FontLab 8" in tool descriptions and the unreachable message (the project's scope; no fact can be read there).
 - **PostScript names come from the font package** (design C, listener 0.118 / server 0.41): the values FontLab's Font Info shows; no name is reported as "not set", since whether FontLab derived it or a person typed it cannot be read. *Reason:* tests 291–300 found no such marker, and showed the legacy `font.info` disagreeing with Font Info (298).
 
 ## 2026-11-03: several open fonts
@@ -71,8 +79,6 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 ## 2026-11-01: repository workflow (migration day)
 
 - **No test may depend on the local file `savedtestfont.vfc` in the end.** Live tests build their reference glyphs in a fresh disposable font. `savedtestfont.vfc` may be used until it is no longer useful. Font files (`*.vfc`, `*.vfj`) are ignored by git. *Reason:* people who fork the repository must find everything they need in it ([ROADMAP.md](ROADMAP.md) §11).
-- **`.gitignore` lists only what this project produces.** *Reason:* the generic Python template made the repository look less maintained.
-- The other choices of that day (`tests/README.md`, the project folder, `.mcp.json`, `Notes\`) are in force and archived.
 
 ## 2026-10-27: kerning (v11 session)
 

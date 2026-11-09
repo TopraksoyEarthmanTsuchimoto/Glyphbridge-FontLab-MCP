@@ -6,6 +6,7 @@ Instructions for any AI agent working in this repository.
 
 - **Start at [mental-model/MARKDOWN-MAP.md](mental-model/MARKDOWN-MAP.md).** It lists every Markdown file, its role, and the word budgets of the core files.
 - **Startup core files:** this file, [CLAUDE.md](CLAUDE.md) (Claude only), and in `mental-model/`: README, PROJECT, ARCHITECTURE, CURRENT-STATUS, DECISIONS, MARKDOWN-MAP, CHECKLIST.
+- **Read on a trigger:** [mental-model/WHAT-WORKS.md](mental-model/WHAT-WORKS.md) is not a core file. Read it before saying that something works, proposing a build, or planning a live test in that area.
 - **Each fact lives in one file.** Other files link to it with relative Markdown links instead of repeating it. No `[[wikilinks]]`.
 - **Word budgets:** the core files have budgets in MARKDOWN-MAP.md. When you propose a new or changed Markdown file, report its word count against its budget (`wc -w`). If it would go over, propose what to move to a linked file or to `mental-model/archive/`. If you cannot run a word-count tool, say that your counts are approximate.
 - Changing a budget needs the user's approval and an entry in DECISIONS.md.

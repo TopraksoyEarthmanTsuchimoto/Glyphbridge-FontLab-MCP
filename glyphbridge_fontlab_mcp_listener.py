@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.132)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.134)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -31,7 +31,9 @@ the "Connected" line. Since v0.110 the launcher is shown without ".exe" and in c
 
 CHANGED MARK (v0.132): after a verified, synced glyph write, one flItems.notifyChangesApplied call makes FontLab count the
 change, so it shows its blue icon and asks to save on close (live 657-667). The reply says what was done (fontlab_changed_mark).
-Kerning writes and deletes are not marked. Nothing is ever saved. _MARK_CHANGED = False switches it off.
+Since v0.133 a verified delete is marked through one surviving glyph (live 684-687; via_glyph names it). Since v0.134 a kerning
+write that changed an entry is marked through one glyph of a changed pair (research 713-717). Nothing is ever saved.
+_MARK_CHANGED = False switches it off.
 
 NO FONT OPEN (v0.105): every product route answers {"open": false} when CountFonts() is 0 (see _open_font):
 with no font open, CurrentFont() still returns a placeholder font.
@@ -91,7 +93,8 @@ Routes (GET unless marked POST):
     POST /kerning/set           {"pairs": [[left, right, value], ...]} (v0.124): glyph : glyph pairs into the current
                                 master's table, set(((left, False), (right, False)), value), each verified by re-reading;
                                 all checks before the first write; stops at the first pair not confirmed. The KERNING panel
-                                lists such pairs only after save and reopen; FontLab asks no save question for them
+                                lists such pairs only after save and reopen; since v0.134 a write that changed an entry makes
+                                one notification through a glyph of a changed pair (fontlab_changed_mark)
     /kerning/pairs?pairs=A:V,T:o  or  ?text=AVATAR
                                 FontLab's effective kerning per pair from the current master's table
                                 (v0.104), class kerning included; source says which kind of entry
@@ -175,7 +178,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.132"
+VERSION = "0.134"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -471,7 +474,9 @@ _UNSYNCED_MAX = 500
 _AUTO_SYNC = True       # v0.89: sync a glyph right after a modern write (fontlab.Update(flGlyph)); False restores the v0.88 behaviour
 _MARK_CHANGED = True    # v0.132: tell FontLab that a verified, synced tool write changed the glyph (S1, live 657-667); False switches it off
 _MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge width", "sidebearings": "Glyphbridge sidebearings",
-                "draw_polygon": "Glyphbridge polygon", "draw_path": "Glyphbridge path", "unicode": "Glyphbridge Unicode"}
+                "draw_polygon": "Glyphbridge polygon", "draw_path": "Glyphbridge path", "unicode": "Glyphbridge Unicode", "delete": "Glyphbridge delete",
+                "kerning": "Glyphbridge kerning"}
+_MARK_DELETE_MAX_TRIES = 20    # v0.133: how many surviving glyphs a delete's mark may try before it says none could be notified; v0.134: also a kerning write's mark
 _SYNCED_NOTE = ("Glyphbridge asked FontLab to sync this glyph right after the change and FontLab's legacy view now matches the modern layer, so the "
                 "change is durable against the display refresh of create_glyph, delete_glyph, set_glyph_unicode and the legacy width route. "
                 "FontLab's own screen (editor numbers, grid thumbnail) may still repaint only at its next event.")
@@ -586,6 +591,59 @@ def _record_changed_mark(font, name, how, result, no_mark):
             result["fontlab_changed_mark"] = _mark_font_changed(font, name, how)
     except Exception:
         pass
+
+
+def _mark_font_changed_after_delete(font, names):
+    """v0.133: a deleted glyph cannot be reported, so ONE notification goes to a surviving glyph (live 684-687: the icon turned blue
+    and FontLab asked to save). names: the glyph list after the delete. The target is the first glyph that is not .notdef (untested as
+    a target) and has a modern active layer, at most _MARK_DELETE_MAX_TRIES tried; "via_glyph" names it. Its content does not change.
+    Never raises, so a verified delete never fails here."""
+    try:
+        if not _MARK_CHANGED:
+            return {"called": False, "reason": "the changed mark is switched off in the listener"}
+        candidates = [n for n in names if n != ".notdef"][:_MARK_DELETE_MAX_TRIES]
+        if not candidates:
+            return {"called": False, "reason": "no glyph other than .notdef is left to notify"}
+        return _mark_through_first(font, candidates, "delete")
+    except Exception as exc:
+        return {"called": False, "reason": f"the mark failed ({type(exc).__name__}: {exc})"}
+
+
+def _mark_through_first(font, candidates, how):
+    """v0.134 (from v0.133's delete): ONE notification, to the first of candidates that can take it; "via_glyph" names it."""
+    reason = None
+    for name in candidates:
+        mark = _mark_font_changed(font, name, how)
+        if mark.get("called") is True:        # also when the call raised: one notification at most
+            mark["via_glyph"] = name
+            return mark
+        reason = mark.get("reason")
+    return {"called": False, "reason": f"none of the {len(candidates)} glyphs tried could be notified ({reason})"}
+
+
+def _mark_font_changed_after_kerning(font, results):
+    """v0.134: a kerning write has no glyph of its own to report, so ONE notification goes to a glyph of a pair whose entry changed (research
+    713-717: blue icon, FontLab asked, the pair was saved at that question). results: the per-pair entries of set_kerning_pairs. Only an
+    entry known to have changed counts, so re-setting the same value makes no call; a request that stopped partway still marks what changed.
+    The target is the left glyph of the first changed pair, then its right glyph, then the sides of the later changed pairs, never .notdef
+    (untested as a target), at most _MARK_DELETE_MAX_TRIES tried. The glyph's content does not change. Never raises, so a verified write never fails here."""
+    try:
+        if not _MARK_CHANGED:
+            return {"called": False, "reason": "the changed mark is switched off in the listener"}
+        changed = [e for e in results if e.get("changed") is True]
+        if not changed:
+            return {"called": False, "reason": "no kerning entry is known to have changed"}
+        candidates, seen = [], set()
+        for entry in changed:
+            for name in (entry.get("left"), entry.get("right")):
+                if name != ".notdef" and name not in seen:
+                    seen.add(name)
+                    candidates.append(name)
+        if not candidates:
+            return {"called": False, "reason": "the changed pairs name only .notdef, which is not used as a target"}
+        return _mark_through_first(font, candidates[:_MARK_DELETE_MAX_TRIES], "kerning")
+    except Exception as exc:
+        return {"called": False, "reason": f"the mark failed ({type(exc).__name__}: {exc})"}
 
 
 def _guard_mark(font, name, how, result, no_mark=None):
@@ -917,6 +975,8 @@ def delete_glyph(name):
         result["call_error"] = call_error
     if not deleted and not call_error:
         result["reason"] = "removeGlyph() did not raise, but the glyph is still in font.glyphs afterward"
+    if deleted:
+        result["fontlab_changed_mark"] = _mark_font_changed_after_delete(font, after)
     return result
 
 
@@ -2293,8 +2353,9 @@ def set_kerning_pairs(pairs):
     "not attempted". changed says whether the exact entry changed (None: it could not be read back). len() is read before and
     after; table_size_as_expected compares the growth with the new entries. Kerning members used: get, set (one per pair) and
     len(); never remove, clear, setPlainPairs, add*, delete*, rename*, scale or a whole-table read; no Update(),
-    font.update() or save. FontLab's KERNING panel lists such a pair only after save and reopen (557-560); closing the font
-    asks no save question and loses it (561, 562); Edit > Undo does not take it back (563)."""
+    font.update() or save. FontLab's KERNING panel lists such a pair only after save and reopen (557-560); without a notification,
+    closing the font asks no save question and loses it (561, 562), so since v0.134 a write that changed an entry makes one
+    (_mark_font_changed_after_kerning, research 713-717); Edit > Undo does not take it back (563)."""
     if not isinstance(pairs, list) or not pairs:
         return _kern_bad('"pairs" must be a non-empty list of [left, right, value]')
     wanted, seen = [], set()
@@ -2399,7 +2460,7 @@ def set_kerning_pairs(pairs):
             "set_count": sum(1 for e in results if e.get("set") is True), "stopped": stopped,
             "table_size_before": len_before, "table_size_after": len_after,
             "table_size_as_expected": (len_after - len_before == new_entries) if None not in (len_before, len_after, new_entries) else None,
-            "results": results}
+            "results": results, "fontlab_changed_mark": _mark_font_changed_after_kerning(font, results)}
 
 
 def set_glyph_unicode(name, new_codepoint):

@@ -24,6 +24,7 @@ Scope and non-goals: [PROJECT.md](PROJECT.md).
 | You want to know… | Read |
 |---|---|
 | where the project stands and what is next | [CURRENT-STATUS.md](CURRENT-STATUS.md) |
+| what is already proven in FontLab | [WHAT-WORKS.md](WHAT-WORKS.md) |
 | why something is the way it is | [DECISIONS.md](DECISIONS.md) |
 | which scenarios are still unproven | [CHECKLIST.md](CHECKLIST.md) |
 | what was seen but is not yet explained | [WATCH-POINTS.md](WATCH-POINTS.md) |
@@ -34,4 +35,4 @@ Scope and non-goals: [PROJECT.md](PROJECT.md).
 
 ## Status in one line
 
-Listener 0.132 and server 0.51 are the current releases, on Windows 11 with FontLab 8.9.5. Reading, writing basic geometry (open contours included) and reading kerning (from the current master's table, with its source) work; writing kerning between two glyphs is live-checked; classes and other masters are not covered. Components are partly proven; multi-master fonts and save-and-reopen checks (T9) are open. See [CURRENT-STATUS.md](CURRENT-STATUS.md).
+Listener 0.134 and server 0.55 are the current releases, on Windows 11 with FontLab 8.9.5. Reading, writing basic geometry (open contours included) and reading kerning (from the current master's table, with its source) work; writing kerning between two glyphs is live-checked; classes and other masters are not covered. Components are partly proven; multi-master fonts are open. See [CURRENT-STATUS.md](CURRENT-STATUS.md).

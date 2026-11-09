@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.51)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.55)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.51"     # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.55"     # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -265,14 +265,15 @@ _SAVE_QUESTION_NOTE = ("FontLab may not count this change as unsaved, so closing
 
 def _mark_modified(result: dict, modified: bool) -> None:
     """Add font_modified to a write reply; a real change is counted and the agent is told how to remind the person ONCE. v0.51: a write
-    the listener could not mark gets save_question_note; a listener or a tool without the mark adds nothing."""
+    the listener could not mark gets save_question_note; a listener or a tool without the mark adds nothing. v0.52: the note depends only
+    on the call being made without an error; glyph_has_changes stays in the reply as information, since it read false while the mark worked."""
     result["font_modified"] = bool(modified)
     if modified:
         _note_change()
         existing = result.get("agent_instruction")
         result["agent_instruction"] = (existing + " " + _SAVE_INSTRUCTION) if existing else _SAVE_INSTRUCTION
         mark = result.get("fontlab_changed_mark")
-        if isinstance(mark, dict) and not (mark.get("called") is True and not mark.get("call_error") and mark.get("glyph_has_changes") is True):
+        if isinstance(mark, dict) and not (mark.get("called") is True and not mark.get("call_error")):
             result["save_question_note"] = _SAVE_QUESTION_NOTE
 
 
@@ -721,7 +722,7 @@ def _add_guard_fields(result: dict, data: dict) -> None:
         mark = data.get("fontlab_changed_mark")          # v0.51 (listener 0.132); never claims FontLab's icon or that it will ask
         if isinstance(mark, dict) and isinstance(mark.get("called"), bool):
             fwd = {"called": mark["called"]}
-            for key in ("reason", "call_error"):
+            for key in ("reason", "call_error", "via_glyph"):     # via_glyph (v0.53, listener 0.133): the surviving glyph a delete's mark went to
                 if isinstance(mark.get(key), str) and mark[key]:
                     fwd[key] = mark[key]
             has = mark.get("glyph_has_changes")
@@ -1120,6 +1121,16 @@ def write_glyph_sidebearings(name: str, left: float, right: Any = None) -> dict:
 _POLY_LIMITS = (3, 500)
 
 
+_KERN_NOT_MARKED = "(2) FontLab does not count it as a change: closing the font asks no save question and loses the pair silently."
+# v0.54 (listener 0.134): says what was done, never that FontLab's icon changed or that it will ask (research 713-717)
+_KERN_MARKED = ("(2) FontLab was told that the font changed, through one glyph of a changed pair, whose content did not change (fontlab_changed_mark, "
+                "via_glyph); the pair is still lost if the font is closed without saving.")
+_KERN_NO_CHANGE = "(2) This request changed no entry, so it adds nothing that needs saving."        # v0.55 (live 720)
+# v0.55, the policy of 2026-11-10 (DECISIONS.md): FontLab's changed icon is not reliably immediate after a kerning write (719, 722, 723, 725, 726; blue at once
+# only in 724), and no reading follows the icon. False retires the note, after the live test the policy names, with its own DECISIONS.md entry.
+_ICON_MAY_LAG_KERNING = True
+_KERN_ICON_LAG = (" (4) FontLab's display can lag: the changed icon before the font's name may stay dark until the mouse moves near the font's title, "
+                  "which can make FontLab redraw it. A dark icon does not mean the change failed. Tell the person this once per package of changes.")
 _KERN_SET_INSTRUCTION = (
     "Each pair marked set was written as a glyph : glyph entry in the current master's kerning table (master names it) and verified "
     "by re-reading it. 'before' is the value FontLab applied before, with its source; 'after' is the value now. exception_over_class "
@@ -1127,9 +1138,8 @@ _KERN_SET_INSTRUCTION = (
     "facts about kerning written this way: (1) FontLab applies the value in text at once, but its KERNING panel does not show it "
     "yet: a new pair is missing from the panel and a pair it already lists keeps its old value, until the person switches to "
     "another open font and back (with one font open: File > New Font, then back to this font's tab; the new font can be closed "
-    "without saving) or saves and reopens the font. (2) FontLab does not count it as a change: closing the font asks no save "
-    "question and loses the pair silently. (3) Edit > Undo cannot take it back; to revert, call set_kerning again with the "
-    "'before' value. A pair that had no entry (source 'none') cannot be removed again: setting it to 0 leaves an explicit zero "
+    "without saving) or saves and reopens the font. {save} (3) Edit > Undo cannot take it back; to revert, call set_kerning again with the "
+    "'before' value.{lag} A pair that had no entry (source 'none') cannot be removed again: setting it to 0 leaves an explicit zero "
     "entry. Other masters, classes and feature-based kerning were not changed."
 )
 
@@ -1252,7 +1262,11 @@ def write_kerning(pairs: Any, confirmed_large_write: Any = None) -> dict:
             raise ToolError(f"Kerning was set for {set_count} of {len(results)} pairs (set: {done}).{where}{tail} The values that were set are "
                             f"listed by get_kerning. {_CHANGED_BY_ERROR_NOTE}")
         raise ToolError(f"Kerning was NOT set for all pairs (set: {done}).{where}{tail}" + (f" {_UNSURE_NOTE}" if unsure else " Nothing was changed."))
-    instruction = _KERN_SET_INSTRUCTION
+    _add_guard_fields(reply, data)        # v0.54: fontlab_changed_mark, type-checked; the old warning stays unless the mark was made
+    mark = reply.get("fontlab_changed_mark")
+    marked = isinstance(mark, dict) and mark.get("called") is True and not mark.get("call_error")
+    point2 = _KERN_MARKED if marked else (_KERN_NOT_MARKED if changed else _KERN_NO_CHANGE)        # v0.55: reached only when every pair was verified, so changed is known
+    instruction = _KERN_SET_INSTRUCTION.replace("{save}", point2).replace("{lag}", _KERN_ICON_LAG if marked and _ICON_MAY_LAG_KERNING else "")
     if reply["fonts_open"] is not None and reply["fonts_open"] > 1:
         which = f" ({reply['family_name']})" if reply["family_name"] else ""
         instruction += (f" {reply['fonts_open']} fonts are open in FontLab; this changed the current one, the font whose window is in front{which}, "
@@ -3283,9 +3297,11 @@ def set_kerning(pairs: list[list[Any]], confirmed_large_write: bool | None = Non
     Never set confirmed_large_write=true on your own.
     Values must be whole numbers: FontLab keeps kerning in whole font units, so a fraction is refused.
     Tell the person: FontLab's KERNING panel shows such pairs (new ones, and new values of listed ones) only after switching
-    to another open font and back, or after the font is saved and reopened; FontLab asks no save question for them when the
-    font is closed, so unsaved they are lost silently; Edit > Undo cannot take them back (to revert, set the 'before' value
-    again). It changes the current font, the one whose window is in front; with several fonts
+    to another open font and back, or after the font is saved and reopened; unsaved they are lost when the font is closed. Since
+    listener 0.134 the reply's fontlab_changed_mark says that FontLab was told of the change; with an older listener, or when the
+    reply has save_question_note, FontLab asks no save question for them, so they are lost silently. FontLab's changed icon may
+    stay dark until the mouse moves near the font's title: the reply says when to tell the person.
+    Edit > Undo cannot take them back (to revert, set the 'before' value again). It changes the current font, the one whose window is in front; with several fonts
     open it refuses when that font cannot be matched to its kerning table (for example a new, unsaved font). Other masters,
     classes and feature-based kerning are not changed. Needs listener v0.124.
 
@@ -3471,6 +3487,10 @@ def delete_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
     permanent for this editing session and cannot be undone through this
     bridge. Success is only ever reported after re-checking the font's
     glyph list confirms the glyph is really gone.
+
+    A deleted glyph cannot be reported to FontLab as changed, so the listener tells FontLab through one surviving glyph, whose content
+    does not change: fontlab_changed_mark says what was done and via_glyph names that glyph. save_question_note appears when this was
+    not possible (for example when only .notdef is left).
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person

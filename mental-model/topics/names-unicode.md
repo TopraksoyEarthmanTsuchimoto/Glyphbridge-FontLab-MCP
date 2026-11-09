@@ -1,6 +1,6 @@
 # Glyph creation, names and Unicode
 
-**A new glyph's layer (listener 0.127 / server 0.48, live 620–623):** in a font with one master, `create_glyph` also creates the glyph's layer and syncs it; the reply gives `layer_created` and `layer_name_source`. When it cannot, the glyph is still created and `layer_note` gives the reason (stub-tested only). Why: [FONTLAB-API-RULES.md](../FONTLAB-API-RULES.md) §9. Older text below that says a new glyph has no layer describes earlier versions.
+**A new glyph's layer (listener 0.127 / server 0.48, live 620–623):** in a font with one master, `create_glyph` also creates the glyph's layer and syncs it; the reply gives `layer_created` and `layer_name_source`. When it cannot, the glyph is still created and `layer_note` gives the reason (live 691a: the first glyphs of a new font while another font is open; such a glyph is not marked). Why: [FONTLAB-API-RULES.md](../FONTLAB-API-RULES.md) §9. Older text below that says a new glyph has no layer describes earlier versions.
 
 > Moved from milestone summary v11 (§8) on 2026-11-01, edited only where the chat-era workflow or a personal path no longer applies. The original section numbers are kept, so older cross-references such as "section 8p" still resolve: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md) lists which file holds each section. Snapshot: [archive/milestone-summary-v11.md](../archive/milestone-summary-v11.md).
 

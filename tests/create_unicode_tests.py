@@ -2432,6 +2432,62 @@ print("33l write_glyph_width carries it :", _r33.get(M33), "| note", "save_quest
 srv._write_post = lambda path, payload, timeout=None: {"open": True, "set": True, "before": 0, "after": 500.0, "route": "legacy_empty_glyph", M33: {"called": False, "reason": "the legacy width route is used only for a glyph with no modern layer"}}
 _r33 = srv.write_glyph_width("g", 500)
 print("33m the legacy route gets the note:", _r33.get(M33), "| note", _r33.get("save_question_note"))
+print("33o via_glyph is passed on        ->", r33({M33: {"called": True, "glyph_has_changes": True, "via_glyph": "a"}}))
+print("33p via_glyph not text is dropped ->", r33({M33: {"called": True, "glyph_has_changes": True, "via_glyph": 5}}))
+_d33 = {"open": True, "deleted": True, "before_count": 3, "after_count": 2}
+srv._write_post = lambda path, payload, timeout=None: dict(_d33, **{M33: {"called": True, "glyph_has_changes": True, "via_glyph": "a"}})
+_r33 = srv.delete_existing_glyph("b")
+print("33q a delete carries the mark     :", _r33.get(M33), "| note", "save_question_note" in _r33, "| modified", _r33.get("font_modified"))
+srv._write_post = lambda path, payload, timeout=None: dict(_d33, **{M33: {"called": False, "reason": "no glyph other than .notdef is left to notify"}})
+_r33 = srv.delete_existing_glyph("b")
+print("33r a delete it could not mark    :", _r33.get(M33), "| note", "save_question_note" in _r33)
+srv._write_post = lambda path, payload, timeout=None: dict(_d33)
+_r33 = srv.delete_existing_glyph("b")
+print("33s an older listener: no field   :", _r33.get(M33), "| note", "save_question_note" in _r33)
 srv._write_post = _w33
+print("--- server 0.54: set_kerning carries the mark and changes point (2) of its instruction (faked listener replies)")
+_keep33 = (srv._call_listener, srv._call_listener_post)
+srv._call_listener, srv._call_listener_post = _k27_get, _k27_post
+def k33(label, mark, changed=True, version="0.134"):
+    extra = {} if mark is None else {M33: mark}
+    r = k27(setreply([okset("A", "B", -60, changed=changed)], **extra), version=version, pairs=[["A", "B", -60]])
+    ai = r["agent_instruction"]
+    print(label, ":", r.get(M33, "<no field>"), "| note", "save_question_note" in r, "| modified", r.get("font_modified"), "| old warning", srv._KERN_NOT_MARKED in ai, "| marked text", srv._KERN_MARKED in ai, "| placeholder left", "{save}" in ai)
+k33("33t marked                       ", {"called": True, "glyph_has_changes": True, "via_glyph": "A"})
+k33("33u hasChanges false, still marked", {"called": True, "glyph_has_changes": False, "via_glyph": "A"})
+k33("33v an older listener: no field  ", None, version="0.133")
+k33("33w not called, with its reason  ", {"called": False, "reason": "none of the 2 glyphs tried could be notified (x)"})
+k33("33x the call failed              ", {"called": True, "call_error": "RuntimeError: x", "glyph_has_changes": "unknown", "via_glyph": "A"})
+k33("33y same value, no call          ", {"called": False, "reason": "no kerning entry is known to have changed"}, changed=False)
+k33("33z not a dict                   ", "yes")
+k33("33za called is not a bool        ", {"called": 1, "via_glyph": "A"})
+srv._call_listener, srv._call_listener_post = _keep33
+print("33zb the marked text claims no icon and no question:", not any(t in srv._KERN_MARKED.lower() for t in ("blue", "will ask", "asks", "icon")), "| says it is lost unsaved:", "closed without saving" in srv._KERN_MARKED)
+print("33zc the docstring names both cases:", all(t in (srv.set_kerning.__doc__ or "") for t in ("listener 0.134", "fontlab_changed_mark", "save_question_note", "asks no save question")))
+print("--- server 0.55: the icon note (policy of 2026-11-10) and the sentence for a request that changed nothing (faked listener replies)")
+_keep33b = (srv._call_listener, srv._call_listener_post)
+srv._call_listener, srv._call_listener_post = _k27_get, _k27_post
+def k34(label, mark, rows=None, version="0.134"):
+    extra = {} if mark is None else {M33: mark}
+    rows = rows or [okset("A", "B", -60)]
+    r = k27(setreply(rows, **extra), version=version, pairs=[[e["left"], e["right"], e["requested"]] for e in rows])
+    ai = r["agent_instruction"]
+    print(label, ":", "(2)", "marked" if srv._KERN_MARKED in ai else "not-marked" if srv._KERN_NOT_MARKED in ai else "no-change" if srv._KERN_NO_CHANGE in ai else "NONE",
+          "| icon note", srv._KERN_ICON_LAG in ai, "| save note", "save_question_note" in r, "| modified", r.get("font_modified"), "| placeholder left", "{" in ai)
+_m34 = {"called": True, "glyph_has_changes": True, "via_glyph": "A"}
+k34("34a marked: the icon note          ", _m34)
+_lag34 = srv._ICON_MAY_LAG_KERNING; srv._ICON_MAY_LAG_KERNING = False
+k34("34b marked, the switch is off      ", _m34); srv._ICON_MAY_LAG_KERNING = _lag34
+k34("34c changed, not called            ", {"called": False, "reason": "none of the 2 glyphs tried could be notified (x)"})
+k34("34d changed, the call failed       ", {"called": True, "call_error": "RuntimeError: x", "via_glyph": "A"})
+k34("34e changed, an older listener     ", None, version="0.133")
+k34("34f same value, no call            ", {"called": False, "reason": "no kerning entry is known to have changed"}, rows=[okset("A", "B", -60, changed=False)])
+k34("34g same value, an older listener  ", None, rows=[okset("A", "B", -60, changed=False)], version="0.133")
+k34("34h one changed of two, marked     ", _m34, rows=[okset("A", "B", -60, changed=False), okset("T", "o", -40)])
+k34("34i one changed of two, not called ", {"called": False, "reason": "x"}, rows=[okset("A", "B", -60, changed=False), okset("T", "o", -40)])
+srv._call_listener, srv._call_listener_post = _keep33b
+_t34 = srv._KERN_ICON_LAG.lower()
+print("34j the note says may, not will   :", "may stay dark" in _t34, "can make" in _t34, not any(t in _t34 for t in ("will turn", "will ask", "always")), "| names the title:", "font's title" in _t34, "| not a failure:", "does not mean the change failed" in _t34, "| once per package:", "once per package" in _t34)
+print("34k the no-change text            :", "changed no entry" in srv._KERN_NO_CHANGE, "| switch on:", _lag34 is True, "| docstring:", "font's title" in (srv.set_kerning.__doc__ or ""))
 print("33n the note claims no icon and no question:", not any(t in srv._SAVE_QUESTION_NOTE.lower() for t in ("blue", "will ask", "asks to save")), "| kerning warning kept:", "closing the font asks no save question" in srv._SET_KERNING_INSTRUCTION if hasattr(srv, "_SET_KERNING_INSTRUCTION") else "asks no save question" in open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read())
 srv._reset_change_tracking()

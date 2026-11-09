@@ -5620,6 +5620,20 @@ print("2030 spy over the set cases       : forbidden members touched:", [f for f
 _ks_real = ns["set_kerning_pairs"]
 def _ks_boom(pairs): raise RuntimeError("set boom in the route")
 ns["set_kerning_pairs"] = _ks_boom; ks_setup(); ksp("2031 function raises: HTTP 500   ", {"pairs": [["A", "V", -10]]}); ns["set_kerning_pairs"] = _ks_real
+# v0.134: the route hands its per-pair results to the mark once, after the writes, and the reply carries what the mark says (spy; stubs only)
+def ks_mark(tag, payload, **setup):
+    ks_setup(**setup); MS = []
+    _keep = ns["_mark_font_changed_after_kerning"]
+    ns["_mark_font_changed_after_kerning"] = lambda f, results: MS.append([(e["left"], e["right"], e.get("changed"), e.get("status")) for e in results]) or {"called": True, "via_glyph": "spy"}
+    r = ns["_route"]("POST", "/kerning/set", json.dumps(payload).encode("utf-8")); h, _, b = r.partition(b"\r\n\r\n")
+    ns["_mark_font_changed_after_kerning"] = _keep
+    d = json.loads(b)
+    print(tag, ":", h.split(b"\r\n")[0].decode()[9:12], "| mark", d.get("fontlab_changed_mark", "<no field>"), "| spy", MS, "| set calls", len(KS["sets"]))
+ks_mark("2031a a new pair: marked once      ", {"pairs": [["A", "B", -60]]})
+ks_mark("2031b the same value: results go in", {"pairs": [["A", "V", -152]]})
+ks_mark("2031c three pairs: one mark call   ", {"pairs": [["A", "B", -60], ["T", "o", -200], ["V", "A", 10.5]]})
+ks_mark("2031d stopped partway              ", {"pairs": [["A", "B", -60], ["T", "o", -200]]}, set_mode={("T", "o"): "ignore"})
+ks_mark("2031e refused: no mark call        ", {"pairs": [["A", "nope", -60]]})
 print("2032 GET /kerning/set             :", call("/kerning/set?pairs=A:V:-10"))
 _ks_src = src[src.index("_KERN_CLASS_SOURCES = "):src.index("\ndef ", src.index("def set_kerning_pairs(") + 10)]
 _ks_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _ks_src).splitlines())
@@ -6195,6 +6209,87 @@ mk_create("2249 several masters               ", problem="two masters")
 mk_create("2250 the layer cannot be made      ", refusal={"reason": "no name"})
 mk_create("2251 the layer is made             ", ctx={"layer_created": "Regular", "layer_name_source": "package master", "font": "F"})
 mk_create("2252 no layer made here            ", ctx={"font": "F"})
+# v0.133: a verified delete is marked through one surviving glyph (live 684-687 are the reason; stubs only)
+MD = []
+def mkd_setup(no_layer=(), **kw):
+    mk_setup(**kw); MD.clear()
+    class W(MKW):
+        def __init__(s, n): s.n = n
+        activeLayer = property(lambda s: None if s.n in no_layer else "L")
+    def mw(g, f):
+        MD.append(g)
+        return W(g), "cached"
+    ns.update(_find_glyph=lambda f, n: n, _modern_wrapper=mw)
+def mkd(tag, names, **kw):
+    mkd_setup(**kw)
+    print(tag, ":", ns["_mark_font_changed_after_delete"]("F", names), "| tried", MD, "| notify", MK["calls"])
+mkd("2254 first ordinary glyph        ", [".notdef", "a", "b"])
+mkd("2255 the first has no layer      ", [".notdef", "a", "b"], no_layer=("a",))
+mkd("2256 only .notdef survives       ", [".notdef"])
+mkd("2257 nothing survives            ", [])
+mkd("2258 none has a layer            ", [".notdef", "a", "b"], no_layer=("a", "b"))
+_mk25 = ["g%d" % i for i in range(25)]
+mkd_setup(no_layer=tuple(_mk25)); _r = ns["_mark_font_changed_after_delete"]("F", _mk25)
+print("2259 tries are capped            :", len(MD), "of", len(_mk25), "|", _r)
+mkd("2260 the call raises: one call   ", ["a", "b"], mode={"raises": 1})
+mkd_setup(); ns["_MARK_CHANGED"] = False
+print("2261 switched off                :", ns["_mark_font_changed_after_delete"]("F", ["a"]), "| tried", MD)
+mkd("2262 no flItems                  ", ["a"], items=False)
+mkd_setup(); ns["_mark_font_changed"] = _mk_boom
+print("2263 a failure never raises      :", ns["_mark_font_changed_after_delete"]("F", ["a"]))
+_mk_confirm = ns["_confirm_deletion"]
+def mk_delete(tag, names, target="b", confirm=True, removes=True, raises=False, guard_ok=True):
+    mkd_setup()
+    class F:
+        def __init__(s): s.gl = [MKLegacy(name=n) for n in names]
+        glyphs = property(lambda s: list(s.gl))
+        def removeGlyph(s, n):
+            MK["seq"].append("remove")
+            if removes: s.gl = [g for g in s.gl if g.name != n]
+            if raises: raise RuntimeError("remove boom")
+        def update(s): MK["seq"].append("update")
+    f = F()
+    ns.update(_open_font=lambda: f, _guard_decide=lambda x: (guard_ok, {}), _confirm_deletion=lambda n: confirm)
+    r = ns["delete_glyph"](target)
+    print(tag, ":", r.get("deleted"), "| mark", r.get("fontlab_changed_mark", "<no field>"), "| call_error", r.get("call_error"), "| order", MK["seq"])
+mk_delete("2264 verified delete             ", [".notdef", "a", "b"])
+mk_delete("2265 update skipped by the guard ", [".notdef", "a", "b"], guard_ok=False)
+mk_delete("2266 declined                    ", [".notdef", "a", "b"], confirm=False)
+mk_delete("2267 no such glyph               ", [".notdef", "a"])
+mk_delete("2268 still there after the call  ", [".notdef", "a", "b"], removes=False)
+mk_delete("2269 raised, still there         ", [".notdef", "a", "b"], removes=False, raises=True)
+mk_delete("2270 raised, but gone            ", [".notdef", "a", "b"], raises=True)
+mk_delete("2271 only .notdef survives       ", [".notdef", "b"])
+ns["_confirm_deletion"] = _mk_confirm
+# v0.134: a kerning write is marked through one glyph of a changed pair (research 713-717 is the reason; stubs only)
+def _ke(left, right, changed=True): return {"left": left, "right": right, "changed": changed}
+def mkk(tag, results, **kw):
+    mkd_setup(**kw)
+    print(tag, ":", ns["_mark_font_changed_after_kerning"]("F", results), "| tried", MD, "| notify", MK["calls"])
+mkk("2272 the left glyph of the pair  ", [_ke("a", "b")])
+mkk("2273 the same value: no call     ", [_ke("a", "b", False)])
+mkk("2274 changed unknown: no call    ", [_ke("a", "b", None)])
+mkk("2275 the first CHANGED pair      ", [_ke("a", "b", False), _ke("c", "d")])
+mkk("2276 left has no layer: right    ", [_ke("a", "b")], no_layer=("a",))
+mkk("2277 neither side: next changed  ", [_ke("a", "b"), _ke("c", "d")], no_layer=("a", "b"))
+mkk("2278 unchanged pair's glyphs skipped", [_ke("x", "y", False), _ke("a", "b")], no_layer=("a", "b"))
+mkk("2279 none can be notified        ", [_ke("a", "b")], no_layer=("a", "b"))
+mkk("2280 .notdef on the left: right  ", [_ke(".notdef", "b")])
+mkk("2281 only .notdef                ", [_ke(".notdef", ".notdef")])
+mkk("2282 a glyph is tried once       ", [_ke("a", "a"), _ke("a", "b")], no_layer=("a",))
+_mkk30 = [_ke("l%d" % i, "r%d" % i) for i in range(30)]
+mkd_setup(no_layer=tuple("l%d" % i for i in range(30)) + tuple("r%d" % i for i in range(30))); _r = ns["_mark_font_changed_after_kerning"]("F", _mkk30)
+print("2283 tries are capped            :", len(MD), "of 60 |", _r)
+mkk("2284 the call raises: one call   ", [_ke("a", "b")], mode={"raises": 1})
+mkk("2285 no results                  ", [])
+mkd_setup(); ns["_MARK_CHANGED"] = False
+print("2286 switched off                :", ns["_mark_font_changed_after_kerning"]("F", [_ke("a", "b")]), "| tried", MD)
+mkk("2287 no flItems                  ", [_ke("a", "b")], items=False)
+mkd_setup(); ns["_mark_font_changed"] = _mk_boom
+print("2288 a failure never raises      :", ns["_mark_font_changed_after_kerning"]("F", [_ke("a", "b")]))
+mkd_setup()
+print("2289 not a list of dicts         :", ns["_mark_font_changed_after_kerning"]("F", [5]))
+print("2290 the kerning title, one route:", ns["_MARK_TITLES"].get("kerning"), "|", src.count("_mark_font_changed_after_kerning(font, results)"), "| the delete keeps its own target rule:", '_mark_through_first(font, candidates, "delete")' in src)
 print("2253 the call in the source        :", src.count("items.notifyChangesApplied(_MARK_TITLES[how], w, False)") == 1, "| switch on:", ns["_MARK_CHANGED"] is True or _mk_ns["_MARK_CHANGED"] is True)
 for k, v in _mk_ns.items(): ns[k] = v
 for _m, _v in _mk_mods:
