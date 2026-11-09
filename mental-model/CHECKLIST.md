@@ -34,9 +34,9 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 
 | # | Scenario | Status |
 |---|---|---|
-| 8, 49 | Component (composite) glyphs | TODO (P1.1): names-only probes done (604, 605, [topics/reading.md](topics/reading.md)); next a reference glyph and a gated read; today the reader declines them and says so |
+| 8, 49 | Component (composite) glyphs | PARTLY (P1.1): one component, one master, read `verified`, labelled with its source since 0.128 / 0.49 (606–611, 624–626, [topics/reading.md](topics/reading.md)); open: several components, other masters |
 | 9 | Element reference | TODO |
-| 10 | Component with its own transform | TODO |
+| 10 | Component with its own transform | PARTLY: offset (608) and horizontal scale with offset (611); rotation, slant, mirroring, vertical scale TODO |
 | 11 | Multiple layers or masters | TODO (T7) |
 | 12c, 12d, 12e | Rotation, mirroring, combined transform on real data | TODO (T11), simulated only |
 | 13 | Two elements with different transforms | TODO |
@@ -54,6 +54,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | # | Scenario | Status |
 |---|---|---|
 | 28 | Draw an open contour | PARTLY: `draw_path` with `"closed": false` (listener 0.126 / server 0.47): open straight and cubic contours, and an open one with a closed one, drawn and read `verified`; refusals change nothing (595–603; research 586–594; [topics/geometry.md](topics/geometry.md) §8g); open: quadratic, what FontLab does with them on export |
+| 82 | `create_glyph` in a font with components, then Add Component on the new glyph | PARTLY: FontLab crashes on a glyph with no layer (612–618); fixed for one master in 0.127 / 0.48 (620, one run); open: multi-master, `layer_note` live ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §9) |
 | 30 | Several separate shapes in one glyph | TODO (P2.2) |
 | 31 | Draw into, or edit, an existing outline | not supported; decide the behaviour first (P2.2) |
 | 43 | `draw_path` in a quadratic font | TODO, low (T8) |

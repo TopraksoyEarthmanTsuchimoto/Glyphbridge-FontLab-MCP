@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.126)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.128)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -166,7 +166,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.126"
+VERSION = "0.128"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -703,7 +703,55 @@ def create_glyph(name, scan_unicode=None):
         result.update(_unicode_after_create(font, name))
         if result.get("unicode_status") == "none" and _is_scan_codepoint(scan_unicode):
             result["duplicate_check"] = _other_glyphs_with_unicode(font, name, scan_unicode)
+        result.update(_create_glyph_layer(name))        # v0.127: last, after the glyph is known to exist
     return result
+
+
+def _one_master_problem():
+    """None when the font in front has exactly one master, otherwise the reason. READ ONLY. flWorkspace.currentPackage follows the
+    font window in front (live 262-264)."""
+    import sys as _sys
+    mod = _sys.modules.get("fontlab") or fl
+    try:
+        ws = mod.flWorkspace.instance()
+    except Exception as exc:
+        return f"the workspace could not be read ({type(exc).__name__}: {exc})"
+    pkg, err = _pkg_get(ws, "currentPackage")
+    if err is not None:
+        return err
+    if pkg is None:
+        return "the workspace has no current package"
+    masters_count, err = _pkg_get(pkg, "mastersCount")
+    if err is not None:
+        return err
+    if type(masters_count) is not int or isinstance(masters_count, bool):
+        return f"the number of masters is unknown (mastersCount is {masters_count!r})"
+    if masters_count != 1:
+        return f"this font has {masters_count} masters, and a layer at creation was tested only with one"
+    return None
+
+
+def _create_glyph_layer(name):
+    """v0.127: give a glyph made by create_glyph its layer at once. Glyph > Add Component on a glyph without a layer crashes FontLab once
+    the font holds a component (live 612-618); with a layer it did not (619). Returns the fields for the reply: layer_created when a
+    layer was made, layer_note when the glyph has none, neither when it already had one. Never raises; the glyph stays created."""
+    def no_layer(why):
+        return {"layer_note": f"The glyph has no layer: {why}."}
+    try:
+        why = _one_master_problem()
+        if why is not None:
+            return no_layer(why)
+        ctx, refusal = _modern_edit_target(name, create_layer=True)
+        if ctx is None:
+            return no_layer(str(refusal.get("reason") or "the layer could not be created"))
+        out = {}
+        if ctx.get("layer_created"):
+            out["layer_created"] = ctx["layer_created"]
+            out["layer_name_source"] = ctx.get("layer_name_source")
+            _guard_mark(ctx["font"], name, "layer_created", out)
+        return out
+    except Exception as exc:
+        return no_layer(f"creating it failed ({type(exc).__name__}: {exc})")
 
 
 def _deletion_text(name):
@@ -5606,6 +5654,16 @@ def _describe_modern_glyph(g, out):
                 entry[key] = v if isinstance(v, (int, float, bool)) or v is None else str(v)
             except Exception as exc:
                 entry[key] = f"<error: {exc}>"
+        if entry["is_component"] is True:           # v0.128: the component's source (live 609-611); a plain shape is not asked
+            try:
+                sd = sh.shapeData
+                for key, attr in (("component_glyph", "componentGlyph"), ("component_layer", "componentLayer")):
+                    v = _get(sd, attr)
+                    if not isinstance(v, str) or (key == "component_glyph" and not v):
+                        raise ValueError(f"{attr} read {v!r}")
+                    entry[key] = v
+            except Exception as exc:
+                entry["component_error"] = f"{type(exc).__name__}: {exc}"
         try:
             tr = sh.transform
             m = {}

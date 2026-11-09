@@ -74,6 +74,9 @@ sys.modules.update({"fontlab": fl, "PythonQt": pq, "PythonQt.QtCore": qc, "Pytho
 src = open(find("glyphbridge_fontlab_mcp_listener.py"), encoding="utf-8").read().replace("\nstart()\n", "\n")
 ns = {}
 exec(compile(src, "glyphbridge_fontlab_mcp_listener.py", "exec"), ns)
+# v0.127: the parts below test names and Unicode; the layer step of create_glyph has its own part 30, which restores the real one.
+_real_create_glyph_layer = ns["_create_glyph_layer"]
+ns["_create_glyph_layer"] = lambda name: {}
 
 
 def lget(path):
@@ -1971,5 +1974,219 @@ _d29 = srv.draw_path.__doc__ or ""
 print("29zg docs                       -> open contours:", "OPEN contours" in _d29, "| object form:", '"closed": false' in _d29, "| listener 0.126:", "listener 0.126" in _d29,
       "| export untested:", "has not been tested" in _d29, "| signature:", _inspect.signature(srv.draw_path))
 print("29zz version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
+srv._call_listener, srv._call_listener_post = wire_get, wire_post
+srv._reset_change_tracking()
+
+# ---------------------------------------------------------------- part 30: listener 0.127 / server 0.48, the layer of a new glyph ----
+print("\n==== 30. listener 0.127 / server 0.48: create_glyph gives the new glyph its layer (live 612-619 are the reason; stubs only) ====")
+ns["_create_glyph_layer"] = _real_create_glyph_layer
+T30 = {"target": None, "calls": []}
+_saved30 = {k: ns[k] for k in ("_modern_edit_target", "_guard_mark")}
+
+
+def _target30(name, create_layer=False):
+    T30["calls"].append(f"target({name}, create_layer={create_layer})")
+    if isinstance(T30["target"], Exception):
+        raise T30["target"]
+    return T30["target"]
+
+
+def _guard30(font, name, how, result):
+    T30["calls"].append(f"guard({name}, {how})")
+    result["synced_with_fontlab"] = True
+
+
+ns["_modern_edit_target"], ns["_guard_mark"] = _target30, _guard30
+
+
+class Pk30:
+    def __init__(self, masters):
+        self._m = masters
+    @property
+    def mastersCount(self):
+        if isinstance(self._m, Exception):
+            raise self._m
+        return self._m
+
+
+def ws30(pkg):
+    fl.flWorkspace = types.SimpleNamespace(instance=lambda: types.SimpleNamespace(currentPackage=pkg))
+
+
+def c30(tag, pkg, target=None):
+    T30["target"], T30["calls"] = target, []
+    ws30(pkg)
+    print(tag, "->", ns["_create_glyph_layer"]("g30"), "| calls:", T30["calls"])
+
+
+_made30 = ({"font": "F", "layer_created": "Regular", "layer_name_source": "other glyphs"}, None)
+c30("30a one master, layer made", Pk30(1), _made30)
+c30("30b one master, already has a layer", Pk30(1), ({"font": "F", "layer_created": None}, None))
+c30("30c layer refused, with its reason", Pk30(1), (None, {"reason": "the glyphs of this font have different layer names"}))
+c30("30d layer refused, no reason given", Pk30(1), (None, {}))
+c30("30e the layer step raises", Pk30(1), RuntimeError("boom"))
+c30("30f two masters: nothing attempted", Pk30(2), _made30)
+c30("30g no master at all", Pk30(0), _made30)
+c30("30h mastersCount raises", Pk30(RuntimeError("no count")), _made30)
+c30("30i mastersCount is True, not a number", Pk30(True), _made30)
+c30("30j mastersCount is text", Pk30("1"), _made30)
+c30("30k no current package", None, _made30)
+del fl.flWorkspace
+T30["target"], T30["calls"] = _made30, []
+print("30l no workspace ->", ns["_create_glyph_layer"]("g30"), "| calls:", T30["calls"])
+
+
+class Font30(Font):
+    def createGlyph(self, name):
+        T30["calls"].append("createGlyph")
+        return Font.createGlyph(self, name)
+    def update(self):
+        T30["calls"].append("font.update")
+
+
+K30 = ("created", "layer_created", "layer_name_source", "layer_note", "synced_with_fontlab")
+
+
+def r30(tag, font, masters, target, name="g30"):
+    T30["target"], T30["calls"] = target, []
+    ws30(Pk30(masters))
+    CUR["font"] = font
+    c, d = lpost("/glyph/create", {"name": name})
+    print(tag, "->", c, short(d, K30), "| calls:", T30["calls"])
+
+
+r30("30m route: order of the calls", Font30(), 1, _made30)
+r30("30n route: layer refused, glyph still created", Font30(), 1, (None, {"reason": "no name"}))
+r30("30o route: the layer step raises, glyph still created", Font30(), 1, RuntimeError("boom"))
+r30("30p route: two masters, glyph still created", Font30(), 2, _made30)
+r30("30q route: createGlyph did nothing, no layer step", Font30(noop=True), 1, _made30)
+r30("30r route: name exists, no layer step", Font30(glyphs=[Gl("g30")]), 1, _made30)
+for k, v in _saved30.items():
+    ns[k] = v
+ns["_create_glyph_layer"] = lambda name: {}
+del fl.flWorkspace
+CUR["font"] = None
+
+srv._call_listener_post = fake_post
+_warn30 = "not to use Glyph > Add Component"
+K30S = ("created", "layer_created", "layer_name_source", "layer_note", "font_modified")
+
+
+def s30(tag, **kw):
+    listener_says(unicode=None, **kw)
+    r = srv.create_new_glyph("zzcontrol")
+    print(tag, "->", short(r, K30S), "| warns:", _warn30 in r["agent_instruction"], "| save rule kept:", "finish_changes ONCE" in r["agent_instruction"])
+
+
+s30("30s layer made", layer_created="Regular", layer_name_source="other glyphs")
+s30("30t no layer", layer_note="The glyph has no layer: this font has 2 masters, and a layer at creation was tested only with one.")
+s30("30u older listener: neither field")
+s30("30v layer_created is not text", layer_created=5, layer_name_source=7)
+s30("30w empty texts", layer_created="", layer_note="")
+s30("30x layer_note is not text", layer_note=9)
+s30("30y layer_name_source missing", layer_created="Regular")
+_d30 = srv.create_glyph.__doc__ or ""
+print("30z docs -> layer at once:", "gets its editable layer at once" in _d30, "| layer_note:", "'layer_note' says why" in _d30, "| warns:", "Glyph > Add Component" in _d30)
+srv._call_listener, srv._call_listener_post = wire_get, wire_post
+srv._reset_change_tracking()
+
+# ---------------------------------------------------------------- part 31: listener 0.128 / server 0.49, components are labelled ----
+print("\n==== 31. listener 0.128 / server 0.49: a component says what it is (live 606-611 are the reason; stubs only) ====")
+
+
+class Tr31:
+    m11, m12, m21, m22, dx, dy = 1.0, 0.0, 0.0, 1.0, 0.0, 0.0
+    isIdentity = True
+
+
+class Sd31:
+    def __init__(self, glyph="base", layer="Regular", log=None):
+        self._g, self._l, self._log = glyph, layer, log
+    @property
+    def componentGlyph(self):
+        if isinstance(self._g, Exception): raise self._g
+        return self._g
+    def componentLayer(self):                     # a method, on purpose: the listener's _get calls a callable
+        if isinstance(self._l, Exception): raise self._l
+        return self._l
+
+
+class Sh31:
+    shapeType, contoursCount, isComposite, transform = "ShapeContours", 1, False, Tr31()
+    def __init__(self, comp=True, data=None):
+        self._c, self._d, self.asked = comp, data, []
+    @property
+    def isComponent(self):
+        if isinstance(self._c, Exception): raise self._c
+        return self._c
+    @property
+    def shapeData(self):
+        self.asked.append("shapeData")
+        if isinstance(self._d, Exception): raise self._d
+        return self._d if self._d is not None else Sd31()
+
+
+def l31(tag, shape):
+    glyph = types.SimpleNamespace(name="g", activeLayer=types.SimpleNamespace(name="Regular", nodesCount=4, shapes=[shape]))
+    out = {}
+    ns["_describe_modern_glyph"](glyph, out)
+    e = out["shapes"][0]
+    print(tag, "->", {k: e[k] for k in ("is_component", "component_glyph", "component_layer", "component_error") if k in e}, "| asked:", shape.asked)
+
+
+l31("31a listener: a component", Sh31())
+l31("31b listener: a plain shape is not asked", Sh31(comp=False))
+l31("31c listener: shapeData raises", Sh31(data=RuntimeError("boom")))
+l31("31d listener: componentGlyph raises", Sh31(data=Sd31(glyph=RuntimeError("no name"))))
+l31("31e listener: componentGlyph is not text", Sh31(data=Sd31(glyph=5)))
+l31("31f listener: componentGlyph is empty", Sh31(data=Sd31(glyph="")))
+l31("31g listener: componentLayer raises, the name stays", Sh31(data=Sd31(layer=RuntimeError("no layer"))))
+l31("31h listener: componentLayer is empty", Sh31(data=Sd31(layer="")))
+l31("31i listener: isComponent raises, nothing asked", Sh31(comp=RuntimeError("x")))
+_N31 = kn([(100, 50), (400, 50), (400, 250), (100, 250)])
+_M31 = {"lsb": 100.0, "rsb": -400.0, "advance": 0.0}
+
+
+def s31(tag, shape_fields, margins=_M31, elements=None, matrix=None):
+    reply = g26([_N31], margins, matrix=matrix, fontlab_ink_box=ink(50, 250))
+    reply["elements"]["shapes"][0].update(shape_fields)
+    for k in [k for k, v in shape_fields.items() if v is DEL31]:
+        del reply["elements"]["shapes"][0][k]
+    if elements is not None:
+        reply["elements"] = elements
+    s10_reset(); S9["get"]["/glyph/outline"] = reply
+    r = srv.read_glyph_outline("A")
+    e = (r.get("elements") or [{}])[0]
+    notes = [n for n in r["notes"] if "component" in n]
+    print(tag, "->", r["verification"]["status"], "|", {k: e[k] for k in ("is_component", "component_glyph", "component_layer", "description") if k in e}, "| notes:", notes)
+    return r
+
+
+DEL31 = object()
+_OK31 = {"is_component": True, "component_glyph": "base", "component_layer": "Regular"}
+s31("31j component, source and layer", _OK31)
+s31("31k plain shape", {"is_component": False})
+s31("31l name not read, reason given", {"is_component": True, "component_error": "RuntimeError: boom"})
+s31("31m name not read, no reason (older listener)", {"is_component": True})
+s31("31n flag could not be read", {"is_component": "<error: x>"})
+s31("31o flag is None", {"is_component": None})
+s31("31p no flag at all", {"is_component": DEL31})
+s31("31q name is not text", {"is_component": True, "component_glyph": 5})
+s31("31qa reason is not text", {"is_component": True, "component_error": 7})
+s31("31r no layer name", {"is_component": True, "component_glyph": "base", "component_layer": ""})
+_off31 = {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": 50.0, "dy": 30.0}
+_inkoff31 = {"lsb": 150.0, "rsb": -450.0, "advance": 0.0}
+reply31 = g26([_N31], _inkoff31, matrix=_off31, fontlab_ink_box=ink(80, 280)); reply31["elements"]["shapes"][0].update(_OK31)
+s10_reset(); S9["get"]["/glyph/outline"] = reply31
+r31 = srv.read_glyph_outline("A")
+print("31s component with an offset ->", r31["verification"]["status"], "| first node:", r31["contours"][0]["node_list"][0]["x"], r31["contours"][0]["node_list"][0]["y"],
+      "| description:", r31["elements"][0]["description"], "| notes:", sum("component of" in n for n in r31["notes"]))
+s31("31t element list does not map", {"contours": 2})
+s31("31u element list unavailable", {}, elements={"available": False, "error": "no list"})
+print("31v -0 in a description ->", srv._describe_matrix((1.0, 0.0, 0.0, 1.0, -0.0, 30.0)), "|", srv._describe_matrix((1.0, 0.0, 0.0, 1.0, 40.0, -0.0)), "|", srv._describe_matrix((2.0, 0.0, 0.0, 1.0, -100.0, 30.0)))
+_g31, _p31 = srv.get_glyph_outline.__doc__ or "", srv.draw_polygon.__doc__ or ""
+print("31w docs -> outline names is_component:", "is_component" in _g31, "| names source:", "component_glyph" in _g31, "| old claim only for legacy:", "On the older legacy route a composite glyph" in _g31,
+      "| draw_polygon corrected:", "A glyph made by create_glyph has no editable layer" not in _p31, "| still explains layer_created:", "layer_created" in _p31)
+print("31z version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 srv._reset_change_tracking()

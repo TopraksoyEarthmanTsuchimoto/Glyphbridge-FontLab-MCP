@@ -1,5 +1,7 @@
 # Glyph creation, names and Unicode
 
+**A new glyph's layer (listener 0.127 / server 0.48, live 620–623):** in a font with one master, `create_glyph` also creates the glyph's layer and syncs it; the reply gives `layer_created` and `layer_name_source`. When it cannot, the glyph is still created and `layer_note` gives the reason (stub-tested only). Why: [FONTLAB-API-RULES.md](../FONTLAB-API-RULES.md) §9. Older text below that says a new glyph has no layer describes earlier versions.
+
 > Moved from milestone summary v11 (§8) on 2026-11-01, edited only where the chat-era workflow or a personal path no longer applies. The original section numbers are kept, so older cross-references such as "section 8p" still resolve: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md) lists which file holds each section. Snapshot: [archive/milestone-summary-v11.md](../archive/milestone-summary-v11.md).
 
 ## 8. Glyph creation, names and Unicode (live-verified, test font; listener 0.50 / 0.51, server v0.13 to v0.16; server v0.17 and v0.18 are stub-tested only). Sections 8b to 8h below cover the geometry work of v0.52 to v0.82

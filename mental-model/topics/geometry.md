@@ -4,6 +4,8 @@
 
 ## 8b. Glyphs made by `create_glyph` have no modern layer; creating it (live-verified, v0.70 to v0.72)
 
+**Since listener 0.127 `create_glyph` makes the layer itself in a font with one master** ([names-unicode.md](names-unicode.md)); this section still describes `font.createGlyph`, which leaves none, and what happens in a multi-master font.
+
 **The problem.** A glyph made by `createGlyph` has a legacy glyph but NO modern layer (`flGlyph.activeLayer` is `None`) until it is opened once in an editor tab, so nothing can be drawn into it and the modern margins cannot be read.
 **The solution.** `flGlyph.findLayerCreate(name[, caseSensitivity])` creates the layer (live: it also appears on a REBUILT wrapper). The right layer name is `test_font` in the user's font; the listener derives it from the font's OTHER glyphs
 (`_derive_layer_name`: up to 40 glyphs examined; every glyph that has a modern layer must report the same name; if none have one, or they disagree, nothing is created and the call is refused). `font.master` is an `fgLayer` whose `name` is an

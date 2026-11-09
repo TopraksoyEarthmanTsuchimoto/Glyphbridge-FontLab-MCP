@@ -66,14 +66,14 @@ Tool names as Claude sees them: [CLAUDE.md](../../CLAUDE.md). After a server upd
 - **POST `/glyph/create`** body `{"name": ..., "scan_unicode": N (optional)}`: when created, the reply carries `unicode` and `unicode_status` (`assigned` = FontLab mapped the name itself, because the
   script never sets a codepoint at creation; `none`; `unreadable` + `unicode_error`), and, if the status is `none` and `scan_unicode` is a plain integer 1..10FFFF, `duplicate_check`
   (`scanned`, `also_held_by`, `unreadable`, or `scan_error`). If NOT created but a glyph appeared under another name, `created_under_other_names` lists the new names (a multiset difference, so a
-  second nameless glyph is seen too; it may contain `""`).
+  second nameless glyph is seen too; it may contain `""`). Since listener 0.127 a created glyph also carries `layer_created` and `layer_name_source`, or `layer_note` when it has no layer ([names-unicode.md](names-unicode.md)).
 - **POST `/glyph/unicode`** body `{"name", "unicode"}`: success means the re-read equals the request, **or the request was 0 and the re-read is none**. On success with a non-zero codepoint the reply
   carries `duplicate_check` (a read-only scan of the OTHER glyphs' primary `glyph.unicode`; unreadable glyphs are counted, a failed scan is reported; secondary codepoints are not looked at).
 - **GET `/glyph/outline`** `?name=X`, optional `&layer=body|active|strict|glayer`, `&modern=no`: contours (`kind`, `smooth`, `x`, `y`),
   `fontlab_bbox`, `margins`, `component_count`, `shape_count`, `layer_name`, `elements` (true transforms). A zero-layer glyph answers
   `node_count` 0 with `layer_count` 0; a layer that cannot be reached although layers exist gives `layer_unreachable: true` + error.
   Since listener 0.120 a glyph with modern nodes is answered from the modern layer (`source: "modern"`, `modern_outline`, `elements`),
-  with `fontlab_ink_box` since 0.121 ([reading.md](reading.md) §8p).
+  with `fontlab_ink_box` since 0.121 ([reading.md](reading.md) §8p). Since 0.128 a component's entry in `elements.shapes` also carries `component_glyph` and `component_layer`, or `component_error`; the server turns them into labels and a note ([reading.md](reading.md)).
 - **GET `/font/notdef`**: read-only `.notdef` check. **POST `/font/notdef/warn`**: re-checks, then shows the dialog if warranted
   (`{"force": true}` shows it again). Section 7.
 - **New gated probes (v0.83 to v0.86; all need `go=yes`, none ever saves, closes, exports or removes anything; each is tested with a forbidden-member spy and a static scan of its source):**

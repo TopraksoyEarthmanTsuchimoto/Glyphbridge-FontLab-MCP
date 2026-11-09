@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.47)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.49)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.47"        # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.49"      # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -788,6 +788,14 @@ def create_new_glyph(name: str) -> dict:
     if warnings:
         result["name_warnings"] = warnings
         instruction += " The name_warnings are hints only (the glyph WAS created); mention them to the person."
+    if isinstance(data.get("layer_created"), str) and data["layer_created"]:      # v0.48 (listener 0.127)
+        result["layer_created"] = data["layer_created"]
+        if isinstance(data.get("layer_name_source"), str) and data["layer_name_source"]:
+            result["layer_name_source"] = data["layer_name_source"]
+    if isinstance(data.get("layer_note"), str) and data["layer_note"]:
+        result["layer_note"] = data["layer_note"]
+        instruction += (" The glyph WAS created but has no layer (see layer_note). Tell the person not to use Glyph > Add Component on it "
+                        "until it has one: FontLab crashed on such glyphs in testing, which loses unsaved work.")
     result["agent_instruction"] = instruction
     _add_guard_fields(result, data)
     _mark_modified(result, True)
@@ -1969,7 +1977,7 @@ def _describe_matrix(mx) -> str:
         parts.append(f"general transformation: rotation about {math.degrees(math.atan2(m12, m11)):.2f} degrees, "
                      f"matrix [{m11:.5f} {m12:.5f} {m21:.5f} {m22:.5f}]")
     if abs(dx) > eps or abs(dy) > eps:
-        parts.append(f"offset ({dx:g}, {dy:g})")
+        parts.append(f"offset ({dx + 0.0:g}, {dy + 0.0:g})")        # + 0.0: FontLab stores -0.0, which would print as -0
     return "; ".join(parts)
 
 
@@ -2618,6 +2626,49 @@ def _y_extent_ok(res: dict, lo, hi):
     return abs(b["bottom"] - lo) < _CURVE_BOX_TOLERANCE and abs(b["top"] - hi) < _CURVE_BOX_TOLERANCE
 
 
+_COMPONENTS_UNKNOWN = " Whether this glyph contains components is therefore unknown."
+
+
+def _element_component_fields(sh: dict) -> dict:
+    """v0.49 (listener 0.128): what an element says about being a component. Nothing when the listener sent no flag at all."""
+    if "is_component" not in sh:
+        return {}
+    flag = sh["is_component"]
+    if flag is False:
+        return {"is_component": False}
+    if flag is not True:
+        return {"is_component": "unknown"}
+    out = {"is_component": True}
+    for key in ("component_glyph", "component_layer"):
+        value = sh.get(key)
+        if isinstance(value, str) and value:
+            out[key] = value
+    return out
+
+
+def _component_notes(shapes: list) -> list:
+    """v0.49: one note per element that is a component, or whose state could not be read."""
+    notes = []
+    for index, sh in enumerate(shapes):
+        fields = _element_component_fields(sh)
+        flag = fields.get("is_component")
+        if flag == "unknown":
+            notes.append(f"Whether element {index} is a component could not be read.")
+        elif flag is True:
+            name = fields.get("component_glyph")
+            if name:
+                layer = fields.get("component_layer")
+                where = f" (layer {layer!r})" if layer else ""
+                notes.append(f"Element {index} is a component of {name!r}{where}. Its nodes are shown where FontLab draws them, but they are "
+                             "that glyph's outline, not one of this glyph's own.")
+            else:
+                why = sh.get("component_error")
+                why = why if isinstance(why, str) and why else "FontLab reported no name"
+                notes.append(f"Element {index} is a component, but the name of its source glyph could not be read ({why}). Its nodes are shown "
+                             "where FontLab draws them, but they are its source glyph's outline, not one of this glyph's own.")
+    return notes
+
+
 def _modern_first_result(clean: str, data: dict) -> dict:
     """v0.42 (F1, listener 0.120): the listener read a glyph that has modern nodes from the modern layer only. The element
     transforms are applied by contour counts, as on the legacy route, and the result is checked against FontLab's modern
@@ -2640,14 +2691,14 @@ def _modern_first_result(clean: str, data: dict) -> dict:
                 and all(m is not None for m in found) and sum(counts) == len(mo["contours"])):
             mats = [m for m, c in zip(found, counts) for _ in range(c)]
             elements = [{"index": si, "contours": counts[si], "shape_type": sh.get("shape_type"),
-                         "is_composite": bool(sh.get("is_composite")),
+                         "is_composite": bool(sh.get("is_composite")), **_element_component_fields(sh),
                          "matrix": {k: _tidy_number(round(v, 6)) for k, v in zip(_MATRIX_KEYS, m)},
                          "description": _describe_matrix(m)} for si, (sh, m) in enumerate(zip(shapes, found))]
         else:
             mapping_note = ("FontLab's element list does not map onto the contours read (contour counts or matrices missing or "
-                            "different), so no element transform was applied.")
+                            "different), so no element transform was applied." + _COMPONENTS_UNKNOWN)
     else:
-        mapping_note = f"FontLab's element transforms could not be read ({el.get('error') or 'no element list'}), so none was applied."
+        mapping_note = f"FontLab's element transforms could not be read ({el.get('error') or 'no element list'}), so none was applied." + _COMPONENTS_UNKNOWN
     raw = _modern_outline_result(clean, mo, None, data, modern_first=True)
     result = raw
     lo, hi, y_why = _fontlab_ink_y(data)
@@ -2683,6 +2734,7 @@ def _modern_first_result(clean: str, data: dict) -> dict:
                                                          "transform, so the vertical placement cannot be confirmed on this route")
     if elements is not None:
         result["elements"] = elements
+        result["notes"].extend(_component_notes(shapes))
     if mapping_note:
         result["notes"].append(mapping_note)
     v = result["verification"]
@@ -2900,7 +2952,9 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     Calibration assumes one element and no rotation or slant; otherwise the
     status is 'unverified'. 'unverified' means the
     check could not be completed and the numbers should not be relied on for
-    exact work. Components are not followed: a composite glyph reports a note,
+    exact work. A glyph that holds a component: on the modern route its nodes are returned where FontLab draws them, each element
+    says is_component and names its source (component_glyph, component_layer), and a note says the nodes are that glyph's outline,
+    not one of this glyph's own; the source glyph is not read separately. On the older legacy route a composite glyph reports a note,
     not the outlines it references.
 
     Preferred route: FontLab's own element transform (position, scale, rotation,
@@ -2968,6 +3022,10 @@ def create_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
     exists, or if FontLab did not actually add it. Success is only ever
     reported after re-checking the font's glyph list confirms the glyph
     is really there.
+
+    In a font with one master the new glyph also gets its editable layer at once (the reply says layer_created). When it
+    cannot, the glyph is still created, 'layer_note' says why, and the person must be told not to use Glyph > Add Component
+    on that glyph: FontLab crashed on glyphs without a layer in testing.
 
     FontLab assigns a Unicode value by itself when the name is a standard one
     ('B' -> 66, 'eacute' -> 233); other names (alternates like 'A.alt',
@@ -3134,8 +3192,8 @@ def draw_polygon(name: str, points: list[list[float]] | None = None,
     clockwise; a quadratic (TrueType-flavoured) font uses the opposite convention. In the ring example above the outer
     rectangle runs counterclockwise and the hole clockwise.
 
-    A glyph made by create_glyph has no editable layer. This tool creates it by itself (the reply says layer_created); nobody
-    needs to open the glyph in an editor tab. If the layer cannot be created safely (no other glyph of the font shows the right layer
+    A glyph without an editable layer (for example one in a multi-master font, or made by a listener older than 0.127) gets one from
+    this tool (the reply then says layer_created); nobody needs to open the glyph in an editor tab. If the layer cannot be created safely (no other glyph of the font shows the right layer
     name, or they disagree) the call is refused and says so.
     Success (verified: true) is only reported after re-reading the layer confirms 1 shape, one node per point and one contour per polygon; the reply
     also gives left, right, advance_width and ink_width. Drawing does NOT change the advance width: set it afterwards with

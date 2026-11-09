@@ -23,10 +23,14 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
   *Lesson:* `run_all.py` forces UTF-8. Never `--update` over such a diff.
 - **A follow-up message slipped (v11).** The deploy steps for a build were sent only after the user asked.
   *Lesson:* every build turn ends with what changed, the deploy steps and the next live checks.
+- **The Add Component crash (2026-11-09).** FontLab crashed five times when a component was added to a glyph made by `create_glyph`. The first suspect, `font.update()`, looked convincing and was wrong: a run without it crashed the same way (617). The cause was the glyph having no layer, and the fix was built only after a run with a layer did not crash (619, 620).
+  *Lesson:* a good suspect is still a guess. Add back one factor at a time until the result changes. Details: [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §9, [LIVE-TESTS.md](LIVE-TESTS.md).
 
 ## Method lessons
 
 - **FontLab is the oracle; stubs are not FontLab.** Several theories that looked right in stubs were wrong live ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md), §9).
+- **For a crash that might be ours, first repeat the steps with no tools and no listener.** That shows which side to look at before any theory is built (613–615).
+- **Windows' Application log gives a crash's address.** The same address across runs shows it is the same fault, even when the steps look different (Event ID 1000).
 - **Predict before you measure.** For curve tests, compute the exact extents independently and write them down before drawing. Agreement only means something then.
 - **Predictions must include how FontLab stores numbers.** The T4 prediction for sidebearings 50 / 60 shifted the nodes by the exact −52.1548; FontLab moved them by a whole −52 (test 145c). Ask whether a target can be reached in whole units before predicting it.
 - **A write can land in the element transform, not in the nodes.** In 145f the node list of `A` was unchanged while its margins had moved: `setSB` had set the Power Brush element's dx to −142. Read the element matrix before concluding anything from node lists.

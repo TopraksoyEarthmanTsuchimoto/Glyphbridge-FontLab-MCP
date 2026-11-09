@@ -2,6 +2,10 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-09: a new glyph gets its layer (listener 0.127 / server 0.48)
+
+- **`create_glyph` creates the glyph's layer at once in a font with one master. When it cannot, the glyph is still created and the reply says why, with a warning about Add Component.** *Reason:* Add Component crashes FontLab on a glyph with no layer (612–619); refusing the create would remove what works today in order to protect a later GUI step. The user approved the design as proposed.
+
 ## 2026-11-04: open contours in `draw_path` (listener 0.126 / server 0.47)
 
 - **A contour given as `{"points": [...], "closed": false}` is drawn open; a plain list stays closed**, so existing calls are unchanged. An open contour may not carry `c1` / `c2` on its first point or be smooth at an end. Every reply with an open contour tells the agent to say that open contours have no fill and that what FontLab does with them on export is untested. *Reason:* the user approved the design as proposed; the facts are 586–603.

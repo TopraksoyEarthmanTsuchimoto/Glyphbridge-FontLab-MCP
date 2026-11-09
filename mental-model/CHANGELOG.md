@@ -4,6 +4,21 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.128 / server v0.49 (2026-11-09)
+
+**`get_glyph_outline` says when a glyph holds a component** (gap found in 607; [topics/reading.md](topics/reading.md)).
+- **Listener:** `_describe_modern_glyph` reads `shape.shapeData.componentGlyph` and `componentLayer`, for a component only; a failed read gives `component_error`, never an empty name.
+- **Server, modern-first branch:** each element gains `is_component` (`"unknown"` when the flag could not be read) and, for a component, `component_glyph` and `component_layer`; one note per component names its source. When the element list cannot be used, the note says that whether the glyph holds components is unknown.
+- **Wording:** the `get_glyph_outline` and `draw_polygon` descriptions are corrected; a description no longer prints `-0` for an offset.
+- Tests: part 31 in `create_unicode_tests.py` (1082 → 1109 lines); other output changed only in the version lines and the two "unknown" notes. Mutation run: 23 of 23 caught, after one added case. Live 624–626 afterwards, one master; the failure paths and the `-0` fix are stub-tested only.
+
+## Listener v0.127 / server v0.48 (2026-11-09)
+
+**`create_glyph` gives the new glyph its layer** (the Add Component crash, [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §9; live 612–619).
+- **Listener `POST /glyph/create`:** after the glyph is known to exist, in a font with exactly one master, `_create_glyph_layer` creates the layer with the existing `_modern_edit_target(name, create_layer=True)` and syncs it with `_guard_mark`. The reply adds `layer_created` and `layer_name_source`. When no layer can be made (several masters, an unreadable master count, a layer name that cannot be determined, any error), the glyph is still created and the reply adds `layer_note` with the reason.
+- **Server `create_glyph`:** forwards these fields, type-checked; with `layer_note` the `agent_instruction` tells the agent to warn the person not to use Add Component on that glyph. The tool description says so. The `draw_polygon` description, which still says a new glyph has no layer, was left unchanged.
+- Tests: server and listener part 30 in `create_unicode_tests.py` (1054 → 1082 lines); other output changed only in the version lines. Mutation run: 20 of 20 caught. Live 620–623 afterwards, one master; `layer_note` is stub-tested only.
+
 ## Listener v0.126 / server v0.47 (2026-11-04)
 
 **`draw_path` draws open contours** (P2.1; research 586–594, [topics/geometry.md](topics/geometry.md) §8g).
