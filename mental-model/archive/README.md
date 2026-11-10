@@ -27,6 +27,8 @@ Snapshots and retired material. Nothing here is current: live facts are in the f
 | [scenarios-checklist-v11.md](scenarios-checklist-v11.md) | the full 80-row scenario matrix of v11 with its evidence, verbatim |
 | [CHECKLIST-closed-rows.md](CHECKLIST-closed-rows.md) | rows closed since v11, with dates and tests; moved from CHECKLIST on 2026-11-06 and still added to |
 | [DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md) | superseded decisions |
+| [WATCH-POINTS-settled.md](WATCH-POINTS-settled.md) | watch points settled or dropped, one line each; moved from WATCH-POINTS on 2026-11-10 and still added to |
+| [CURRENT-STATUS-resume-2026-11-10.md](CURRENT-STATUS-resume-2026-11-10.md) | the finished items of CURRENT-STATUS's "Resume here" (S1, save and reopen, kerning marks, the KERNING panel, T9), unchanged |
 | [listener-history-to-v0.95.md](listener-history-to-v0.95.md) | the listener's module docstring at v0.95, with its version history, unchanged |
 | [server-history-to-v0.31.md](server-history-to-v0.31.md) | the server's module docstring at v0.31, with its version history, unchanged |
 

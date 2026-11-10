@@ -70,3 +70,9 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 ## KERNING panel session (2026-11-10)
 
 - **A call that failed has not tested the idea behind it.** `notifyPackageContentUpdated` raised `SystemError` with the object id (732) and could have been written off with the others that showed no row. The docstring asked for a `uint`, and the id was a 13-digit object id. With `fgId` the same call was the one that worked (738). Compare what a call received with what its docstring asks for before recording "no effect".
+
+## Open contours and rotation session (2026-11-10)
+
+- **Start a timed read only after the person has read the steps and says "go".** In 769 the first timer ran out while the person was still reading, so its reads came before Apply and settled nothing.
+- **Read after each GUI change, not only at the end.** In 771 the scale was lost after two field edits in the small element panel, and which edit dropped it cannot be told.
+- **For an unattended read, ask the listener's route directly.** `--check` also calls `get_current_font`, which can open the `.notdef` dialog and block every request after it; `GET /glyph/outline?name=…` reads only the glyph (769).

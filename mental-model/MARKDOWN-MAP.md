@@ -49,6 +49,8 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 - [archive/scenarios-checklist-v11.md](archive/scenarios-checklist-v11.md): the full scenario matrix with its DONE rows, verbatim.
 - [archive/CHECKLIST-closed-rows.md](archive/CHECKLIST-closed-rows.md): rows closed since v11, with dates and tests.
 - [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md): superseded decisions.
+- [archive/WATCH-POINTS-settled.md](archive/WATCH-POINTS-settled.md): watch points settled or dropped, one line each.
+- [archive/CURRENT-STATUS-resume-2026-11-10.md](archive/CURRENT-STATUS-resume-2026-11-10.md): the finished items of CURRENT-STATUS's "Resume here", as of 2026-11-10.
 - [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md): the old module docstrings with the full version history.
 
 ## Where the sections of milestone summary v11 went
