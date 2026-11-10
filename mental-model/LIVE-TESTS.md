@@ -245,6 +245,39 @@ One disposable, unsaved, one-master font holding only `.notdef` at the start; pr
 | 727 | listener 0.134 / server 0.55; existing pair `s12c_one : s12e_one` −10 → −12 | `called` true, `via_glyph` `s12c_one`, marked point (2), point (4), no note | as predicted; the icon was not observed in this run |
 | 728 | the same pair and value again | `changed` false, `called` false, point (2) "changed no entry", no point (4), no note, `font_modified` false | as predicted |
 
+### KP series: the KERNING panel (2026-11-10, FontLab 8.9.5, a saved disposable font, one master; listener 0.134 to 0.136 / server 0.55 to 0.57; results in [topics/kerning.md](topics/kerning.md) §14)
+
+"No row" means the panel did not list the pair after a hover over the panel. Probe: `/debug/trynotify?stage=call&name=p1a_one&which=W&on=class&go=yes`, plus `&id_from=fg` from 737.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 729 | names only: `/debug/classdir?name=flItems`, docstrings of 15 members | the four calls exist with the probe's arguments | as predicted; no name mentions kerning or classes; `notifyFontSelected(uint id)`, `notifyPackagesUpdated()`, `notifyFeaturesChanged(uint, bool)`, `notifyModelChanged()` seen |
+| 730 | new `p1a_one`, `p1b_one`; `set_kerning p1a_one : p1b_one` −30 | set, no row | as predicted; table 5 → 6, footer 5 |
+| 731 | `glyph_updated`, object ids | no error, no row | **wrong on the error**: `SystemError` "returned a result with an exception set"; no side effect; no row |
+| 733 | `package_updated`, the `flPackage` (run before 732) | no error, **a row** | no error, no side effect; **wrong: no row**. The grid selection moved by the person's click; those clicks refreshed nothing |
+| 732 | `package_content`, object id | `SystemError`, no row | as predicted |
+| 734 | `workspace_has_changes` | no error, no row | as predicted |
+| 735 | names only: `flPackage`, `flWorkspace`, `flGlyph` docstrings | another id-like name; no "set current package" | `fgId` `int`, `findFgId(uint)`, `findPackageId(uint)`, `fgGlyphId` `FgTypeId`, `id` "object id"; `activateNext`, `activatePrev` unexplained |
+| 736 | listener 0.135; `stage=ids&name=p1a_one&go=yes` | `fgId` small, `findPackageId` returns this package | as predicted: `fgId` 1, `fgGlyphId` 11, `same_package` true, no side effect |
+| 737 | `font_selected`, `fgId` 1 | no error, no row | as predicted |
+| 738 | `package_content`, `fgId` 1 | no error, no row | no error; **wrong: a row appears**, footer 6, no hover (the panel sat a little higher afterwards) |
+| 739 | `p1b_one : p1a_one` −20 | set, no row | as predicted; table 7, footer 6 |
+| 740 | `font_selected` alone, repeat of 737 | no row | as predicted, after a wait |
+| 741 | `package_content`, same pair | a row, footer 7 | as predicted, the mouse on Claude Desktop |
+| 742 | `p1a_one : p1a_one` −10 (no row, footer 7), then `package_content` with no `font_selected` between | a row, footer 8 | as predicted |
+| 743 | new listener run; −10 → −15 (row still −10, after a hover), then `package_content` | row −15, footer 8 | as predicted, at once |
+| 744 | 0.136 / 0.56; `p1b_one : p1b_one` −25 | row at once, `called` true, "was asked" text | as predicted; footer 9, no hover; `glyph_has_changes` false (first mark after a listener start) |
+| 745 | −25 → −28 | −28 at once | as predicted |
+| 746 | −28 again | no calls, panel unchanged | as predicted; point (1) still said the panel "does not show it yet": a wording flaw, fixed in 0.57 |
+| 747 | two saved fonts, the test font in front; `s12b_one : p1a_one` −33 | `matched_by` `path`, row at once; the other font does not gain it | as predicted; table 10; the other font's list empty, footer 0. Its `fgId` was not read |
+| 749 | font saved, icon dark; mouse on Claude Desktop, FontLab unfocused; new `s12c_one : p1a_one` −11 | blue at once | as predicted |
+| 750 | same conditions; −11 → −13 | blue at once | as predicted; footer stays 11 |
+| 751 | same; new `s12d_one : p1a_one` −14 | blue at once, footer 12 | as predicted |
+| 752 | same; −14 → −16 | blue at once | as predicted |
+| 753 | same; new `s12e_one : p1a_one` −17 | blue at once, footer 13 | as predicted |
+| 748 | server 0.57, FontLab freshly started and the font reopened (the pair of 753 read back); `s12b_one : p1b_one` −9, the mouse off FontLab | row at once, blue at once, no hover note | as predicted; table 13 → 14, footer 14 |
+| 754 | −9 again | no calls, point (1) "already set" | as predicted, `font_modified` false |
+
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 
 | Id | Test | Stage / how | Expected | Status |

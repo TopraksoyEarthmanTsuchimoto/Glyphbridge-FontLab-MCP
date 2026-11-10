@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.55)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.57)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.55"     # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.57"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1128,17 +1128,24 @@ _KERN_MARKED = ("(2) FontLab was told that the font changed, through one glyph o
 _KERN_NO_CHANGE = "(2) This request changed no entry, so it adds nothing that needs saving."        # v0.55 (live 720)
 # v0.55, the policy of 2026-11-10 (DECISIONS.md): FontLab's changed icon is not reliably immediate after a kerning write (719, 722, 723, 725, 726; blue at once
 # only in 724), and no reading follows the icon. False retires the note, after the live test the policy names, with its own DECISIONS.md entry.
-_ICON_MAY_LAG_KERNING = True
+# v0.57: retired. With the panel refresh of listener 0.136 / server 0.56 five runs in a row were blue at once, new and changed pairs, the mouse outside FontLab (749-753).
+_ICON_MAY_LAG_KERNING = False
 _KERN_ICON_LAG = (" (4) FontLab's display can lag: the changed icon before the font's name may stay dark until the mouse moves near the font's title, "
                   "which can make FontLab redraw it. A dark icon does not mean the change failed. Tell the person this once per package of changes.")
+_KERN_PANEL_STALE = ("(1) FontLab applies the value in text at once, but its KERNING panel does not show it "
+                     "yet: a new pair is missing from the panel and a pair it already lists keeps its old value, until the person switches to "
+                     "another open font and back (with one font open: File > New Font, then back to this font's tab; the new font can be closed "
+                     "without saving) or saves and reopens the font.")
+# v0.56 (listener 0.136): says what was done, never what the panel shows; no reading follows the panel (738, 741-743)
+_KERN_PANEL_ASKED = ("(1) FontLab applies the value in text at once, and it was asked to refresh its KERNING panel (fontlab_panel_refresh). If the panel "
+                     "does not show a new pair or a new value, switching to another open font and back (with one font open: File > New Font, then back "
+                     "to this font's tab; the new font can be closed without saving) or saving and reopening the font makes it show them.")
+_KERN_PANEL_NO_CHANGE = "(1) The value was already set, so FontLab was not asked to refresh its KERNING panel."        # v0.57 (live 746)
 _KERN_SET_INSTRUCTION = (
     "Each pair marked set was written as a glyph : glyph entry in the current master's kerning table (master names it) and verified "
     "by re-reading it. 'before' is the value FontLab applied before, with its source; 'after' is the value now. exception_over_class "
     "true means the pair had a class value before: the new entry is an exception for these two glyphs only. Tell the person these "
-    "facts about kerning written this way: (1) FontLab applies the value in text at once, but its KERNING panel does not show it "
-    "yet: a new pair is missing from the panel and a pair it already lists keeps its old value, until the person switches to "
-    "another open font and back (with one font open: File > New Font, then back to this font's tab; the new font can be closed "
-    "without saving) or saves and reopens the font. {save} (3) Edit > Undo cannot take it back; to revert, call set_kerning again with the "
+    "facts about kerning written this way: {panel} {save} (3) Edit > Undo cannot take it back; to revert, call set_kerning again with the "
     "'before' value.{lag} A pair that had no entry (source 'none') cannot be removed again: setting it to 0 leaves an explicit zero "
     "entry. Other masters, classes and feature-based kerning were not changed."
 )
@@ -1266,7 +1273,17 @@ def write_kerning(pairs: Any, confirmed_large_write: Any = None) -> dict:
     mark = reply.get("fontlab_changed_mark")
     marked = isinstance(mark, dict) and mark.get("called") is True and not mark.get("call_error")
     point2 = _KERN_MARKED if marked else (_KERN_NOT_MARKED if changed else _KERN_NO_CHANGE)        # v0.55: reached only when every pair was verified, so changed is known
-    instruction = _KERN_SET_INSTRUCTION.replace("{save}", point2).replace("{lag}", _KERN_ICON_LAG if marked and _ICON_MAY_LAG_KERNING else "")
+    panel = data.get("fontlab_panel_refresh")        # v0.56 (listener 0.136), type-checked; never claims what the panel shows
+    if isinstance(panel, dict) and isinstance(panel.get("called"), bool):
+        reply["fontlab_panel_refresh"] = {"called": panel["called"]}
+        for key in ("reason", "call_error"):
+            if isinstance(panel.get(key), str) and panel[key]:
+                reply["fontlab_panel_refresh"][key] = panel[key]
+    forwarded = reply.get("fontlab_panel_refresh")
+    refreshed = isinstance(forwarded, dict) and forwarded.get("called") is True and not forwarded.get("call_error")
+    point1 = _KERN_PANEL_ASKED if refreshed else (_KERN_PANEL_STALE if changed else _KERN_PANEL_NO_CHANGE)        # v0.57: reached only when every pair was verified
+    instruction = (_KERN_SET_INSTRUCTION.replace("{panel}", point1).replace("{save}", point2)
+                   .replace("{lag}", _KERN_ICON_LAG if marked and _ICON_MAY_LAG_KERNING else ""))
     if reply["fonts_open"] is not None and reply["fonts_open"] > 1:
         which = f" ({reply['family_name']})" if reply["family_name"] else ""
         instruction += (f" {reply['fonts_open']} fonts are open in FontLab; this changed the current one, the font whose window is in front{which}, "
@@ -3296,11 +3313,12 @@ def set_kerning(pairs: list[list[Any]], confirmed_large_write: bool | None = Non
     refused until the PERSON has approved it: ask them, and only after a yes repeat the call with confirmed_large_write=true.
     Never set confirmed_large_write=true on your own.
     Values must be whole numbers: FontLab keeps kerning in whole font units, so a fraction is refused.
-    Tell the person: FontLab's KERNING panel shows such pairs (new ones, and new values of listed ones) only after switching
-    to another open font and back, or after the font is saved and reopened; unsaved they are lost when the font is closed. Since
+    Since listener 0.136, after a write that changed an entry, FontLab is asked to refresh its KERNING panel (fontlab_panel_refresh).
+    With an older listener, or when that call was not made or failed, tell the person: FontLab's KERNING panel shows such pairs (new ones,
+    and new values of listed ones) only after switching to another open font and back, or after the font is saved and reopened; the
+    reply says which applies. Unsaved they are lost when the font is closed. Since
     listener 0.134 the reply's fontlab_changed_mark says that FontLab was told of the change; with an older listener, or when the
-    reply has save_question_note, FontLab asks no save question for them, so they are lost silently. FontLab's changed icon may
-    stay dark until the mouse moves near the font's title: the reply says when to tell the person.
+    reply has save_question_note, FontLab asks no save question for them, so they are lost silently.
     Edit > Undo cannot take them back (to revert, set the 'before' value again). It changes the current font, the one whose window is in front; with several fonts
     open it refuses when that font cannot be matched to its kerning table (for example a new, unsaved font). Other masters,
     classes and feature-based kerning are not changed. Needs listener v0.124.

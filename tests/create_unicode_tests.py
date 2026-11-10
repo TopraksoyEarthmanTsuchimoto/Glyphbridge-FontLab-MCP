@@ -2475,9 +2475,10 @@ def k34(label, mark, rows=None, version="0.134"):
     print(label, ":", "(2)", "marked" if srv._KERN_MARKED in ai else "not-marked" if srv._KERN_NOT_MARKED in ai else "no-change" if srv._KERN_NO_CHANGE in ai else "NONE",
           "| icon note", srv._KERN_ICON_LAG in ai, "| save note", "save_question_note" in r, "| modified", r.get("font_modified"), "| placeholder left", "{" in ai)
 _m34 = {"called": True, "glyph_has_changes": True, "via_glyph": "A"}
+_lag34 = srv._ICON_MAY_LAG_KERNING; srv._ICON_MAY_LAG_KERNING = True        # v0.57: the shipped switch is off (749-753); the note's path stays tested with it on
 k34("34a marked: the icon note          ", _m34)
-_lag34 = srv._ICON_MAY_LAG_KERNING; srv._ICON_MAY_LAG_KERNING = False
-k34("34b marked, the switch is off      ", _m34); srv._ICON_MAY_LAG_KERNING = _lag34
+srv._ICON_MAY_LAG_KERNING = False
+k34("34b marked, the switch is off      ", _m34); srv._ICON_MAY_LAG_KERNING = True
 k34("34c changed, not called            ", {"called": False, "reason": "none of the 2 glyphs tried could be notified (x)"})
 k34("34d changed, the call failed       ", {"called": True, "call_error": "RuntimeError: x", "via_glyph": "A"})
 k34("34e changed, an older listener     ", None, version="0.133")
@@ -2485,9 +2486,40 @@ k34("34f same value, no call            ", {"called": False, "reason": "no kerni
 k34("34g same value, an older listener  ", None, rows=[okset("A", "B", -60, changed=False)], version="0.133")
 k34("34h one changed of two, marked     ", _m34, rows=[okset("A", "B", -60, changed=False), okset("T", "o", -40)])
 k34("34i one changed of two, not called ", {"called": False, "reason": "x"}, rows=[okset("A", "B", -60, changed=False), okset("T", "o", -40)])
+srv._ICON_MAY_LAG_KERNING = _lag34
+k34("34l as shipped: marked, no icon note", _m34)
 srv._call_listener, srv._call_listener_post = _keep33b
 _t34 = srv._KERN_ICON_LAG.lower()
 print("34j the note says may, not will   :", "may stay dark" in _t34, "can make" in _t34, not any(t in _t34 for t in ("will turn", "will ask", "always")), "| names the title:", "font's title" in _t34, "| not a failure:", "does not mean the change failed" in _t34, "| once per package:", "once per package" in _t34)
-print("34k the no-change text            :", "changed no entry" in srv._KERN_NO_CHANGE, "| switch on:", _lag34 is True, "| docstring:", "font's title" in (srv.set_kerning.__doc__ or ""))
+print("34k the no-change text            :", "changed no entry" in srv._KERN_NO_CHANGE, "| shipped switch off:", _lag34 is False, "| docstring no longer names the title:", "font's title" not in (srv.set_kerning.__doc__ or ""))
+print("--- server 0.56: fontlab_panel_refresh and point (1) of the set_kerning instruction (faked listener replies)")
+_keep35 = (srv._call_listener, srv._call_listener_post)
+srv._call_listener, srv._call_listener_post = _k27_get, _k27_post
+P35 = "fontlab_panel_refresh"
+def k35(label, panel, rows=None, version="0.136"):
+    extra = {M33: {"called": True, "glyph_has_changes": True, "via_glyph": "A"}}
+    if panel is not None: extra[P35] = panel
+    rows = rows or [okset("A", "B", -60)]
+    r = k27(setreply(rows, **extra), version=version, pairs=[[e["left"], e["right"], e["requested"]] for e in rows])
+    ai = r["agent_instruction"]
+    print(label, ":", r.get(P35, "<no field>"), "| (1)", "asked" if srv._KERN_PANEL_ASKED in ai else "stale" if srv._KERN_PANEL_STALE in ai else "no-change" if srv._KERN_PANEL_NO_CHANGE in ai else "NONE", "| placeholder left", "{" in ai, "| modified", r.get("font_modified"))
+k35("35a the refresh was made          ", {"called": True})
+k35("35b an older listener: no field   ", None, version="0.135")
+k35("35c not called, with its reason   ", {"called": False, "reason": "the package's fgId is None, not a plain number that fits a uint"})
+k35("35d the call failed               ", {"called": True, "call_error": "RuntimeError: x"})
+k35("35e same value, no call           ", {"called": False, "reason": "no kerning entry is known to have changed"}, rows=[okset("A", "B", -60, changed=False)])
+k35("35f not a dict                    ", "yes")
+k35("35g called is not a bool          ", {"called": 1})
+k35("35h a reason that is not text     ", {"called": False, "reason": 5})
+k35("35i an empty call_error           ", {"called": True, "call_error": ""})
+k35("35j an unknown key is dropped     ", {"called": True, "panel_shows_it": True})
+k35("35m same value, an older listener ", None, rows=[okset("A", "B", -60, changed=False)], version="0.135")
+k35("35n a call reported, nothing changed", {"called": True}, rows=[okset("A", "B", -60, changed=False)])
+k35("35o one changed of two, not called", {"called": False, "reason": "x"}, rows=[okset("A", "B", -60, changed=False), okset("T", "o", -40)])
+srv._call_listener, srv._call_listener_post = _keep35
+_t35 = srv._KERN_PANEL_ASKED.lower()
+print("35k the asked text claims nothing :", not any(t in _t35 for t in ("now shows", "now lists", "is listed", "will show", "will list")), "| names the field:", P35 in _t35, "| keeps the fallback:", "another open font and back" in _t35, "saving and reopening" in _t35)
+print("35p the no-change text            :", "already set" in srv._KERN_PANEL_NO_CHANGE, "was not asked" in srv._KERN_PANEL_NO_CHANGE, "| claims nothing about the panel's state:", not any(t in srv._KERN_PANEL_NO_CHANGE.lower() for t in ("does not show", "shows", "lists")))
+print("35l the docstring                 :", all(t in (srv.set_kerning.__doc__ or "") for t in ("listener 0.136", P35, "another open font and back")))
 print("33n the note claims no icon and no question:", not any(t in srv._SAVE_QUESTION_NOTE.lower() for t in ("blue", "will ask", "asks to save")), "| kerning warning kept:", "closing the font asks no save question" in srv._SET_KERNING_INSTRUCTION if hasattr(srv, "_SET_KERNING_INSTRUCTION") else "asks no save question" in open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read())
 srv._reset_change_tracking()

@@ -17,7 +17,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 
 | # | Scenario | Status |
 |---|---|---|
-| 81 | Write a kerning pair (KW) | PARTLY: a glyph : glyph pair set, re-read, applied and saved (544–560); the KERNING panel lists it only after save and reopen (545–560); before 0.134 closing asked nothing and lost the pair (561, 562), since 0.134 / 0.54 the write is marked and FontLab asks (718–721); Edit > Undo does not cover it (563); `set` accepts the tuple and the `flags` form (564); `set_kerning` live-checked (565–574): glyph : glyph pairs, whole units, refusals, the panel after a font switch; server 0.45 live-checked (575, 576); saved and reopened (577); open: the pair in the panel at once (goal 8), an exception over a class on a real font, writes with several saved fonts, multi-master ([topics/kerning.md](topics/kerning.md) §13) |
+| 81 | Write a kerning pair (KW) | PARTLY: a glyph : glyph pair set, re-read, applied and saved (544–560); before 0.136 the KERNING panel listed it only after save and reopen (545–560); before 0.134 closing asked nothing and lost the pair (561, 562), since 0.134 / 0.54 the write is marked and FontLab asks (718–721); Edit > Undo does not cover it (563); `set` accepts the tuple and the `flags` form (564); `set_kerning` live-checked (565–574): glyph : glyph pairs, whole units, refusals, the panel after a font switch; server 0.45 live-checked (575, 576); saved and reopened (577); since 0.136 / 0.56 the panel shows new pairs and new values at once (738–748); open: the panel refresh on a font with thousands of pairs (untimed), an exception over a class on a real font, writes with several saved fonts, multi-master ([topics/kerning.md](topics/kerning.md) §13) |
 
 ## Sync, fonts and agent level
 
@@ -26,7 +26,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 53 | Auto sync not yet proven for: multi-layer (11), quadratic (43), big glyphs (42) | PARTLY |
 | 57 | No font open: every route answers `open: false` (`CountFonts()`, listener 0.105) | PARTLY: every read route proven, after closing the only font (227) and in a freshly started FontLab (244); writes with no font open: one create refused (227), the rest stub-only (T12) |
 | 63 | Several fonts open: which one the tools address | PARTLY: with two fonts every tool follows the font in front and every reply names it (262–316); evidence in [topics/fonts-and-sync.md](topics/fonts-and-sync.md). Open: two unsaved fonts with the same name (a Font Info rename does not produce it, 322–324), three fonts (`list_glyphs`, `get_glyph_width` and every write but `draw_path` proven, 317–331; `get_kerning` only its refusal of an unsaved font in front, 268; the other reads untested), a switch during one call |
-| 84 | FontLab's changed icon after a kerning write | Not reliably immediate (719, 722–726); retest on each new FontLab version and when the marking code changes; five runs in a row blue at once retire the note ([DECISIONS.md](DECISIONS.md)) |
+| 84 | FontLab's changed icon after a kerning write | Not reliably immediate before 0.136 / 0.56 (719, 722–726); blue at once in five runs in a row since then (749–753) and in a fresh FontLab (748), so the note is retired in server 0.57; retest on each new FontLab version and when the marking code changes ([DECISIONS.md](DECISIONS.md)) |
 | 62 | Modern glyph creation without `font.update()` | TODO, low priority (T6) |
 | 22 | Layer-name derivation when glyphs disagree, or when none has a layer | stub-tested only |
 

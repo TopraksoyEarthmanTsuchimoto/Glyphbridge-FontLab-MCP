@@ -4,6 +4,26 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Server v0.57 (2026-11-10; listener unchanged at v0.136)
+
+**The icon note is retired, and a request that changed nothing no longer calls the panel stale** ([DECISIONS.md](DECISIONS.md)).
+- `_ICON_MAY_LAG_KERNING = False` (749–753); the `set_kerning` description no longer mentions the icon's lag. The note's code stays and is tested with the switch on.
+- Point (1) of a request that changed nothing: "The value was already set, so FontLab was not asked to refresh its KERNING panel." (746).
+- Tests: `create_unicode_tests.py` 1217 → 1222 lines; other output changed only in the version lines, 34k and 35e. Mutation run: 15 of 15 caught. Live 748, 754.
+
+## Listener v0.136 / server v0.56 (2026-11-10)
+
+**A kerning write that changed an entry refreshes FontLab's KERNING panel** ([DECISIONS.md](DECISIONS.md), goal 8).
+- **Listener:** `/kerning/set` makes one `flItems.notifyPackageContentUpdated(<package fgId>)` after the changed mark, on the package the write used, when at least one entry is known to have changed, also when the request stopped partway. An `fgId` that is not a plain number fitting a `uint` means no call and a reason. The reply gains `fontlab_panel_refresh` (`called`, `reason`, `call_error`). `_REFRESH_KERNING_PANEL = False` switches it off.
+- **Server:** forwards the field, type-checked; point (1) of the instruction says FontLab was asked to refresh the panel when the call was made without error; the `set_kerning` description says so.
+- Tests: `stub_listener_tests.py` 2924 → 2951 lines, `create_unicode_tests.py` 1204 → 1217; other output changed only in the version lines and the new field. Mutation run: 36 of 36 caught. Live 744–747, 749–753; the failure paths are stub-tested only.
+
+## Listener v0.135 (2026-11-10; server unchanged at v0.55)
+
+**`/debug/trynotify` can pass FontLab's small ids** (research for goal 8).
+- `stage=ids` reads the object ids, `fgId` and `fgGlyphId`, and asks `findPackageId` and `isEqual`; `which=font_selected`; `id_from=object|fg` for the calls that take an id; a number that does not fit a `uint` is refused before any call.
+- Tests: `stub_listener_tests.py` 2885 → 2924 lines; other output changed only in the version lines, the two new counters and the error wording. Mutation run: 34 of 34 caught, after one added case. Live 736–743.
+
 ## Server v0.55 (2026-11-10; listener unchanged at v0.134)
 
 **The icon note, and a truthful reply when nothing changed** ([DECISIONS.md](DECISIONS.md)).

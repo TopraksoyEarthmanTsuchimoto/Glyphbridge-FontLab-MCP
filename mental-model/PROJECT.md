@@ -22,7 +22,7 @@ As of October 2026 there was only one MCP project for FontLab on GitHub which at
 5. **Work the same with several fonts open.** The most desirable result: any operation runs without confusion when 2, 3 or more fonts are open. Where closing the other fonts is the only way to a goal, the tool says so, and that research has shown it to be a limitation of FontLab ([DECISIONS.md](DECISIONS.md), [topics/fonts-and-sync.md](topics/fonts-and-sync.md)).
 6. **Replace legacy calls with modern ones.** Any legacy method that might have a chance to be safely replaced with a modern one should be replaced with a modern one. Each replacement is proven by the probe steps in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10, where the legacy calls in use are listed with their review state.
 7. **Get FontLab's save question for every tool change.** FontLab does not treat API writes like GUI writes, so a font changed only through the tools can close without "Save changes to the font before closing?" and lose the work. Every such case is to be resolved. Where research shows that FontLab allows no way, the reply says so ([CURRENT-STATUS.md](CURRENT-STATUS.md)).
-8. **Show tool-written kerning pairs in the KERNING panel at once.** Today the panel lists a new pair only after a save and reopen or a switch to another font and back. Where research shows that FontLab allows no way, the reply says so ([topics/kerning.md](topics/kerning.md) §14).
+8. **Show tool-written kerning pairs in the KERNING panel at once.** Since listener 0.136 / server 0.56 a kerning write asks FontLab to refresh the panel, which then showed new pairs and new values at once (glyph : glyph pairs, one master). Classes and other masters are untested ([topics/kerning.md](topics/kerning.md) §14).
 
 ## Scope
 

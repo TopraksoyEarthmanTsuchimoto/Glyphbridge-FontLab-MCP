@@ -5634,6 +5634,21 @@ ks_mark("2031b the same value: results go in", {"pairs": [["A", "V", -152]]})
 ks_mark("2031c three pairs: one mark call   ", {"pairs": [["A", "B", -60], ["T", "o", -200], ["V", "A", 10.5]]})
 ks_mark("2031d stopped partway              ", {"pairs": [["A", "B", -60], ["T", "o", -200]]}, set_mode={("T", "o"): "ignore"})
 ks_mark("2031e refused: no mark call        ", {"pairs": [["A", "nope", -60]]})
+# v0.136: the route asks for the panel refresh once, after the mark, on the package the write used (spies; stubs only)
+def ks_refresh(tag, payload, **setup):
+    ks_setup(**setup); SEQ = []
+    _keep = {k: ns[k] for k in ("_mark_font_changed_after_kerning", "_refresh_kerning_panel")}
+    ns["_mark_font_changed_after_kerning"] = lambda f, results: SEQ.append("mark") or {"called": True, "via_glyph": "spy"}
+    ns["_refresh_kerning_panel"] = lambda pkg, results: SEQ.append(("refresh", type(pkg).__name__, [(e["left"], e.get("changed")) for e in results])) or {"called": True}
+    r = ns["_route"]("POST", "/kerning/set", json.dumps(payload).encode("utf-8")); h, _, b = r.partition(b"\r\n\r\n")
+    ns.update(_keep)
+    d = json.loads(b)
+    print(tag, ":", h.split(b"\r\n")[0].decode()[9:12], "| refresh", d.get("fontlab_panel_refresh", "<no field>"), "| order", SEQ)
+ks_refresh("2031f a new pair: mark, then refresh", {"pairs": [["A", "B", -60]]})
+ks_refresh("2031g the same value: results go in ", {"pairs": [["A", "V", -152]]})
+ks_refresh("2031h three pairs: one refresh call", {"pairs": [["A", "B", -60], ["T", "o", -200], ["V", "A", 10.5]]})
+ks_refresh("2031i stopped partway              ", {"pairs": [["A", "B", -60], ["T", "o", -200]]}, set_mode={("T", "o"): "ignore"})
+ks_refresh("2031j refused: no refresh call     ", {"pairs": [["A", "nope", -60]]})
 print("2032 GET /kerning/set             :", call("/kerning/set?pairs=A:V:-10"))
 _ks_src = src[src.index("_KERN_CLASS_SOURCES = "):src.index("\ndef ", src.index("def set_kerning_pairs(") + 10)]
 _ks_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _ks_src).splitlines())
@@ -5984,15 +5999,29 @@ class NTFlags(NTSpy):
     def initialHistoryState(s): return 0
 class NTPkg(NTFlags):
     isNull = False
-    def __init__(s, **kw): super().__init__(glyphsCount=3, id=77); s.__dict__.update(kw)
+    def __init__(s, **kw): super().__init__(glyphsCount=3, id=77, fgId=5); s.__dict__.update(kw)
+    def isEqual(s, other):
+        NT["calls"].append(("package", "isEqual", (type(other).__name__,)))
+        if NT["mode"].get("equal_raises"): raise RuntimeError("equal boom")
+        return other is s
 class NTWs(NTFlags):
     def packages(s): return [NT["pkg"]] * NT["npk"]
     currentPackage = property(lambda s: NT["pkg"])
+    def findPackageId(s, i):
+        NT["calls"].append(("workspace", "findPackageId", (i,)))
+        m = NT["mode"]
+        if m.get("find_marks"): NT["pkg"].__dict__.update(glyphsCount=4, hasChanges=True)
+        if m.get("find_raises"): raise RuntimeError("find boom")
+        if m.get("find_none"): return None
+        if m.get("find_null"): return NTPkg(isNull=True)
+        if m.get("find_badnull"): return NTPkg(isNull=lambda: (_ for _ in ()).throw(RuntimeError("null boom")))
+        if m.get("find_other"): return NTPkg()
+        return NT["pkg"]
 class NTLayer(NTSpy):
     name = "Regular"; nodesCount = 8; shapesCount = 1; componentsCount = 0
 class NTGlyph(NTFlags):
-    def __init__(s, **kw): super().__init__(activeLayer=NTLayer(), advanceWidth=500.0, id=9); s.__dict__.update(kw)
-_NT_NAMES = ("notifyChangesApplied", "notifyWorkspaceHasChanges", "notifyPackageUpdated", "notifyPackageContentUpdated", "notifyGlyphUpdated")
+    def __init__(s, **kw): super().__init__(activeLayer=NTLayer(), advanceWidth=500.0, id=9, fgGlyphId=6); s.__dict__.update(kw)
+_NT_NAMES = ("notifyChangesApplied", "notifyWorkspaceHasChanges", "notifyPackageUpdated", "notifyPackageContentUpdated", "notifyGlyphUpdated", "notifyFontSelected")
 def _nt_notify(where, name):
     def f(*a):
         NT["calls"].append((where, name, tuple(x if isinstance(x, (str, bool, int)) else type(x).__name__ for x in a)))
@@ -6084,6 +6113,49 @@ print("2212 static scan of the probe (code lines):", len(_src131) > 3000, "| for
       "| subscripts of a native object:", _re83.findall(r"\b(?:pkg|ws|w|items|mod)\[", _src131),
       "| counter raised before the call:", _src131.rindex('_TRYNOTIFY[key] += 1') < _src131.index("before = _trynotify_snapshot"), _src131.index("before = _trynotify_snapshot") < _src131.index("make_call(items if"))
 print("2213 route documented, registered once:", "/debug/trynotify      stage=state|call" in src, src.count('path == "/debug/trynotify"') == 1)
+# v0.135: stage=ids, id_from, font_selected, and the guard that a number must fit a uint (live 731, 732: the object ids were refused by FontLab)
+IDS = Q + "stage=ids&name=ntg&go=yes"
+IK = ("reads", "lookups", "changed_readings", "side_effect_detected", "error", "calls_so_far")
+FG = "&id_from=fg"
+_NT_BIG = 1379668187344
+_nt_boom = lambda: (_ for _ in ()).throw(RuntimeError("read boom"))
+nt_setup(); nt("2213a ids without go              ", Q + "stage=ids&name=ntg")
+nt_setup(); nt("2213b ids, all small              ", IDS, keys=IK)
+nt_setup(pkg_kw={"id": _NT_BIG}); nt("2213c ids, the object id too large", IDS, keys=IK)
+nt_setup(pkg_kw={"id": -1}); nt("2213d ids, a negative id           ", IDS, keys=IK)
+nt_setup(pkg_kw={"fgId": _nt_boom}); nt("2213e ids, fgId cannot be read     ", IDS, keys=IK)
+nt_setup(pkg_kw={"fgId": object()}); nt("2213f ids, fgId is a native object ", IDS, keys=IK)
+nt_setup(glyph_kw={"fgGlyphId": object()}); nt("2213g ids, fgGlyphId is native     ", IDS, keys=IK)
+nt_setup(mode={"find_raises": 1}); nt("2213h ids, findPackageId raises    ", IDS, keys=IK)
+nt_setup(mode={"find_none": 1}); nt("2213i ids, findPackageId gives None", IDS, keys=IK)
+nt_setup(mode={"find_null": 1}); nt("2213j ids, a null package: no isEqual", IDS, keys=IK)
+nt_setup(mode={"find_other": 1}); nt("2213k ids, another package         ", IDS, keys=IK)
+nt_setup(mode={"equal_raises": 1}); nt("2213l ids, isEqual raises          ", IDS, keys=IK)
+nt_setup(mode={"adds_glyph": 0}, items=False); print("2213m ids does not need flItems    :", "reads" in nt("      ", IDS))
+nt_setup(count=2); nt("2213n ids, two fonts open          ", IDS, keys=IK)
+nt_setup()
+for _i in range(3): call(IDS)
+nt("2213o ids: request 4 refused       ", IDS, keys=IK); print("2213p  findPackageId calls in 4 requests:", sum(1 for c in NT["calls"] if c[1] == "findPackageId"))
+for tag, w in (("2213q font_selected, object id     ", "font_selected"),):
+    nt_setup(); nt(tag, C(w), keys=FULL)
+for tag, w in (("2213r font_selected, fg            ", "font_selected"), ("2213s package_content, fg          ", "package_content"), ("2213t glyph_updated, fg            ", "glyph_updated")):
+    nt_setup(); nt(tag, C(w, FG), keys=FULL)
+nt_setup(); print("2213u the reply names id_from      :", call(C("font_selected", FG))[1].get("id_from"), call(C("package_updated"))[1].get("id_from"))
+nt_setup(); nt("2213v id_from not on the list      ", C("font_selected", "&id_from=other"))
+nt_setup(); nt("2213w id_from on a call with no id ", C("package_updated", FG))
+for tag, kw, w, on in (("2213x the object id 731 refused    ", dict(pkg_kw={"id": _NT_BIG}), "package_content", ""), ("2213y font_selected, too large     ", dict(pkg_kw={"id": _NT_BIG}), "font_selected", ""),
+                       ("2213z one above the largest uint   ", dict(pkg_kw={"fgId": 4294967296}), "font_selected", FG), ("2213aa a negative number           ", dict(pkg_kw={"fgId": -1}), "font_selected", FG),
+                       ("2213ab the glyph id too large       ", dict(glyph_kw={"fgGlyphId": _NT_BIG}), "glyph_updated", FG), ("2213ac fgGlyphId a native object    ", dict(glyph_kw={"fgGlyphId": object()}), "glyph_updated", FG),
+                       ("2213ad fgId cannot be read          ", dict(pkg_kw={"fgId": _nt_boom}), "package_content", FG), ("2213ae fgId is a bool               ", dict(pkg_kw={"fgId": True}), "font_selected", FG)):
+    nt_setup(**kw); nt(tag, C(w, on))
+for tag, v in (("2213af the largest uint is allowed   ", 4294967295), ("2213ag zero is allowed              ", 0)):
+    nt_setup(pkg_kw={"fgId": v}); nt(tag, C("font_selected", FG), keys=FULL)
+nt_setup()
+for _i in range(3): call(C("font_selected", FG))
+nt("2213ah font_selected: request 4 refused", C("font_selected", FG)); print("2213ai  calls made in 4 requests  :", len(NT["calls"]))
+print("2213aj id_from and ids documented  :", "id_from=object|fg" in src, "stage=state|call|ids" in src, '"id_from"' in src)
+nt_setup(mode={"find_marks": 1}); nt("2213ak ids, findPackageId changes the font", IDS, keys=("changed_readings", "side_effect_detected"))
+nt_setup(mode={"find_badnull": 1}); nt("2213al ids, isNull cannot be read, no isEqual", IDS, keys=("lookups",))
 _nt_al_saved = {k: ns[k] for k in ("_now_hms", "_clock")}
 ns["_now_hms"] = lambda: "12:00:00"; ns["_clock"] = lambda: 1000.0
 ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
@@ -6290,6 +6362,45 @@ print("2288 a failure never raises      :", ns["_mark_font_changed_after_kerning
 mkd_setup()
 print("2289 not a list of dicts         :", ns["_mark_font_changed_after_kerning"]("F", [5]))
 print("2290 the kerning title, one route:", ns["_MARK_TITLES"].get("kerning"), "|", src.count("_mark_font_changed_after_kerning(font, results)"), "| the delete keeps its own target rule:", '_mark_through_first(font, candidates, "delete")' in src)
+# v0.136: one notifyPackageContentUpdated(fgId) after a kerning write that changed an entry (live 738, 741-743 are the reason; stubs only)
+MKR = []; _rk_forbid = []
+def _mkr(*a):
+    MKR.append(a)
+    if MK["mode"].get("refresh_raises"): raise RuntimeError("refresh boom")
+MKItems.notifyPackageContentUpdated = staticmethod(_mkr)
+class RKPkg:
+    def __init__(s, fg): s.__dict__["fgId"] = fg
+    def __getattr__(s, a):
+        _rk_forbid.append(a); raise AttributeError(a)
+_rk_boom = lambda: (_ for _ in ()).throw(RuntimeError("fgId boom"))
+def rk(tag, results, fg=1, **kw):
+    mkd_setup(**kw); MKR.clear(); _rk_forbid.clear()
+    print(tag, ":", ns["_refresh_kerning_panel"](RKPkg(fg), results), "| notify", MKR, "| forbidden", _rk_forbid)
+rk("2291a one pair changed            ", [_ke("a", "b")])
+rk("2291b the same value: no call     ", [_ke("a", "b", False)])
+rk("2291c changed unknown: no call    ", [_ke("a", "b", None)])
+rk("2291d no results                  ", [])
+rk("2291e two changed: one call       ", [_ke("a", "b"), _ke("c", "d")])
+rk("2291f a later pair changed        ", [_ke("a", "b", False), _ke("c", "d")])
+rk("2291g stopped partway             ", [_ke("a", "b"), {"left": "c", "right": "d", "status": "not attempted"}])
+rk("2291h the object id is refused    ", [_ke("a", "b")], fg=1379668187344)
+rk("2291i the largest uint            ", [_ke("a", "b")], fg=4294967295)
+rk("2291j one above it                ", [_ke("a", "b")], fg=4294967296)
+rk("2291k zero                        ", [_ke("a", "b")], fg=0)
+rk("2291l negative                    ", [_ke("a", "b")], fg=-1)
+rk("2291m a bool                      ", [_ke("a", "b")], fg=True)
+rk("2291n text                        ", [_ke("a", "b")], fg="1")
+rk("2291o None                        ", [_ke("a", "b")], fg=None)
+rk("2291p a native object             ", [_ke("a", "b")], fg=object())
+rk("2291q fgId cannot be read         ", [_ke("a", "b")], fg=_rk_boom)
+rk("2291r the call raises             ", [_ke("a", "b")], mode={"refresh_raises": 1})
+rk("2291s no flItems                  ", [_ke("a", "b")], items=False)
+_rk_sw = ns["_REFRESH_KERNING_PANEL"]; ns["_REFRESH_KERNING_PANEL"] = False
+rk("2291t switched off                ", [_ke("a", "b")]); ns["_REFRESH_KERNING_PANEL"] = _rk_sw
+rk("2291u not a list of dicts         ", [5])
+print("2291v the call in the source      :", src.count("items.notifyPackageContentUpdated(pid)") == 1, "| switch on:", _rk_sw is True, "| the route asks once:", src.count("refresh = _refresh_kerning_panel(pkg, results)") == 1,
+      "| the mark first:", src.index("mark = _mark_font_changed_after_kerning(font, results)") < src.index("refresh = _refresh_kerning_panel(pkg, results)"))
+del MKItems.notifyPackageContentUpdated
 print("2253 the call in the source        :", src.count("items.notifyChangesApplied(_MARK_TITLES[how], w, False)") == 1, "| switch on:", ns["_MARK_CHANGED"] is True or _mk_ns["_MARK_CHANGED"] is True)
 for k, v in _mk_ns.items(): ns[k] = v
 for _m, _v in _mk_mods:

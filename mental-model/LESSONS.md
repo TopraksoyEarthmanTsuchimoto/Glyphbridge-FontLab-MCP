@@ -66,3 +66,7 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 - **Do not build a cause on one result.** The focus idea rested on 724 and was dropped at 725; the prediction that followed from it was wrong.
 - **A control separates a tool's effect from FontLab's own.** A brush glyph no tool wrote to (712) showed that the fractions at load do not need a tool write.
 - **`run_all.py` shows at most 60 lines of a diff.** The lines that mattered (33d, 33e, 33j) came after version lines and were cut off. Compare the whole output with the expected file before `--update`.
+
+## KERNING panel session (2026-11-10)
+
+- **A call that failed has not tested the idea behind it.** `notifyPackageContentUpdated` raised `SystemError` with the object id (732) and could have been written off with the others that showed no row. The docstring asked for a `uint`, and the id was a 13-digit object id. With `fgId` the same call was the one that worked (738). Compare what a call received with what its docstring asks for before recording "no effect".

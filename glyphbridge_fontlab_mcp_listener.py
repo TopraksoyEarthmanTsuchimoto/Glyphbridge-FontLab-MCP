@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.134)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.136)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -34,6 +34,10 @@ change, so it shows its blue icon and asks to save on close (live 657-667). The 
 Since v0.133 a verified delete is marked through one surviving glyph (live 684-687; via_glyph names it). Since v0.134 a kerning
 write that changed an entry is marked through one glyph of a changed pair (research 713-717). Nothing is ever saved.
 _MARK_CHANGED = False switches it off.
+
+KERNING PANEL (v0.136): after a kerning write that changed an entry, and after its changed mark, one flItems.notifyPackageContentUpdated(<package fgId>)
+makes FontLab's KERNING panel list the change at once (live 738, 741-743, one font, one master). The reply says what was done (fontlab_panel_refresh),
+never what the panel shows. _REFRESH_KERNING_PANEL = False switches it off.
 
 NO FONT OPEN (v0.105): every product route answers {"open": false} when CountFonts() is 0 (see _open_font):
 with no font open, CurrentFont() still returns a placeholder font.
@@ -94,7 +98,8 @@ Routes (GET unless marked POST):
                                 master's table, set(((left, False), (right, False)), value), each verified by re-reading;
                                 all checks before the first write; stops at the first pair not confirmed. The KERNING panel
                                 lists such pairs only after save and reopen; since v0.134 a write that changed an entry makes
-                                one notification through a glyph of a changed pair (fontlab_changed_mark)
+                                one notification through a glyph of a changed pair (fontlab_changed_mark); since v0.136 it also
+                                asks FontLab to refresh the KERNING panel (fontlab_panel_refresh)
     /kerning/pairs?pairs=A:V,T:o  or  ?text=AVATAR
                                 FontLab's effective kerning per pair from the current master's table
                                 (v0.104), class kerning included; source says which kind of entry
@@ -148,9 +153,10 @@ Routes (GET unless marked POST):
                           empty glyph and read back; 6 per listener run (v0.125, P2.1 research)
     /debug/tryshapebox    stage=shapebox|dependencies&name=X: read only; ONE shape.inkBox() per element, or ONE
                           flGlyph.isUnbindedDependecies(); exactly one font open; 12 per stage and listener run (v0.129, P1.1 research)
-    /debug/trynotify      stage=state|call&name=X[&which=W][&on=class|instance]: S1 research; the changed flags and history positions of the
-                          package, workspace and glyph; stage=call makes ONE flItems notification from a fixed list (W), 3 per W and
-                          listener run; exactly one font open (v0.131)
+    /debug/trynotify      stage=state|call|ids&name=X[&which=W][&on=class|instance][&id_from=object|fg]: S1 and KERNING panel research; the changed
+                          flags and history positions of the package, workspace and glyph; stage=call makes ONE flItems notification from a
+                          fixed list (W), 3 per W and listener run; stage=ids reads the ids and asks findPackageId, 3 per listener run;
+                          exactly one font open (v0.131, ids and id_from v0.135)
     /debug/setcurrent     changes which glyph FontLab displays (no use for the modern API)
 
   Dead ends, kept as history: /debug/contours and /debug/drawpen (the pen protocol returns
@@ -178,7 +184,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.134"
+VERSION = "0.136"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -473,6 +479,7 @@ _UNSYNCED = {"font": None, "glyphs": {}, "overflow": False}
 _UNSYNCED_MAX = 500
 _AUTO_SYNC = True       # v0.89: sync a glyph right after a modern write (fontlab.Update(flGlyph)); False restores the v0.88 behaviour
 _MARK_CHANGED = True    # v0.132: tell FontLab that a verified, synced tool write changed the glyph (S1, live 657-667); False switches it off
+_REFRESH_KERNING_PANEL = True    # v0.136: ask FontLab to refresh its KERNING panel after a kerning write that changed an entry (live 738, 741-743); False switches it off
 _MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge width", "sidebearings": "Glyphbridge sidebearings",
                 "draw_polygon": "Glyphbridge polygon", "draw_path": "Glyphbridge path", "unicode": "Glyphbridge Unicode", "delete": "Glyphbridge delete",
                 "kerning": "Glyphbridge kerning"}
@@ -644,6 +651,37 @@ def _mark_font_changed_after_kerning(font, results):
         return _mark_through_first(font, candidates[:_MARK_DELETE_MAX_TRIES], "kerning")
     except Exception as exc:
         return {"called": False, "reason": f"the mark failed ({type(exc).__name__}: {exc})"}
+
+
+def _refresh_kerning_panel(pkg, results):
+    """v0.136: ONE flItems.notifyPackageContentUpdated(<package fgId>) when at least one entry is known to have changed, also when the request stopped
+    partway. It takes a uint: the package's object id does not fit and raises (731, 732), fgId is accepted (738). In testing FontLab's KERNING panel then
+    listed new pairs and new values at once (738, 741-743); no reading shows the panel, so the block says only what was called. Never raises, so a verified write never fails here."""
+    try:
+        if not _REFRESH_KERNING_PANEL:
+            return {"called": False, "reason": "the panel refresh is switched off in the listener"}
+        if not any(e.get("changed") is True for e in results):
+            return {"called": False, "reason": "no kerning entry is known to have changed"}
+        import sys as _sys
+        mod = _sys.modules.get("fontlab") or fl
+        items = getattr(mod, "flItems", None)
+        if items is None:
+            return {"called": False, "reason": "the fontlab module has no flItems"}
+        pid, err = _pkg_get(pkg, "fgId")
+        if err is not None:
+            return {"called": False, "reason": err}
+        if type(pid) is not int:
+            return {"called": False, "reason": f"the package's fgId is a {type(pid).__name__}, not a plain number"}
+        if not 0 <= pid <= _TRYNOTIFY_UINT_MAX:
+            return {"called": False, "reason": f"the package's fgId is {pid}, which does not fit a uint"}
+    except Exception as exc:
+        return {"called": False, "reason": f"the panel refresh failed ({type(exc).__name__}: {exc})"}
+    refresh = {"called": True}
+    try:
+        items.notifyPackageContentUpdated(pid)
+    except Exception as exc:
+        refresh["call_error"] = f"{type(exc).__name__}: {exc}"
+    return refresh
 
 
 def _guard_mark(font, name, how, result, no_mark=None):
@@ -2353,7 +2391,8 @@ def set_kerning_pairs(pairs):
     "not attempted". changed says whether the exact entry changed (None: it could not be read back). len() is read before and
     after; table_size_as_expected compares the growth with the new entries. Kerning members used: get, set (one per pair) and
     len(); never remove, clear, setPlainPairs, add*, delete*, rename*, scale or a whole-table read; no Update(),
-    font.update() or save. FontLab's KERNING panel lists such a pair only after save and reopen (557-560); without a notification,
+    font.update() or save. FontLab's KERNING panel does not list such a pair by itself (557-560), so since v0.136 a write that changed an entry
+    asks it to refresh (_refresh_kerning_panel, 738, 741-743); without a notification,
     closing the font asks no save question and loses it (561, 562), so since v0.134 a write that changed an entry makes one
     (_mark_font_changed_after_kerning, research 713-717); Edit > Undo does not take it back (563)."""
     if not isinstance(pairs, list) or not pairs:
@@ -2455,12 +2494,14 @@ def set_kerning_pairs(pairs):
             entry["reason"] = why
             stopped = True
     len_after = _kern_len(kerning)
+    mark = _mark_font_changed_after_kerning(font, results)
+    refresh = _refresh_kerning_panel(pkg, results)      # after the mark, so that a repaint comes after FontLab has counted the change
     return {"open": True, "fonts_open": count, "matched_by": target["matched_by"], "family_name": _kern_family(font), "master": master,
             "master_count": len(target["masters"]), "units_per_em": upm, "count": len(results),
             "set_count": sum(1 for e in results if e.get("set") is True), "stopped": stopped,
             "table_size_before": len_before, "table_size_after": len_after,
             "table_size_as_expected": (len_after - len_before == new_entries) if None not in (len_before, len_after, new_entries) else None,
-            "results": results, "fontlab_changed_mark": _mark_font_changed_after_kerning(font, results)}
+            "results": results, "fontlab_changed_mark": mark, "fontlab_panel_refresh": refresh}
 
 
 def set_glyph_unicode(name, new_codepoint):
@@ -7053,15 +7094,25 @@ def _tryrefresh_unicode(upd, font, name, codepoint):
 #                            the workspace and one glyph; none of the history getters has been called live before
 #   stage=call&which=W       those reads, ONE call from the fixed list below, the reads again. on=class calls it on the flItems class,
 #                            on=instance on flItems.instance() (the docstrings do not say which is right)
+#   stage=ids (v0.135)       RESEARCH for the KERNING panel: the object ids (id) were refused by the calls that take a uint (731, 732) and look like
+#                            memory addresses. Reads id and fgId of the package, id and fgGlyphId of the glyph, then ONE
+#                            flWorkspace.findPackageId(n) for each package number that fits a uint and, on an object that is not null, ONE isEqual
+#   id_from=object|fg (v0.135)  which id a call that takes one passes: id, or fgId and fgGlyphId. A number that is not a plain integer fitting a uint
+#                            is refused before anything is called
 # Never called by this probe: restoreHistoryState, clearAboveHistory, historyStates, blockUpdate, unblockUpdate, release, remove, save, close,
 # export, update, changed, font.update().
 # --------------------------------------------------------------------------
 
-_TRYNOTIFY_WHICH = ("changes_applied", "workspace_has_changes", "package_updated", "package_content", "glyph_updated")
+_TRYNOTIFY_WHICH = ("changes_applied", "workspace_has_changes", "package_updated", "package_content", "glyph_updated", "font_selected")
+_TRYNOTIFY_TAKES_ID = ("package_content", "glyph_updated", "font_selected")
+_TRYNOTIFY_ID_FROM = {"object": ("id", "id"), "fg": ("fgId", "fgGlyphId")}     # (the package's member, the glyph's member)
+_TRYNOTIFY_UINT_MAX = 4294967295
 _TRYNOTIFY_ON = ("class", "instance")
 _TRYNOTIFY_MAX_STATE = 20
 _TRYNOTIFY_MAX_CALL = 3
-_TRYNOTIFY = {"state": 0, "changes_applied": 0, "workspace_has_changes": 0, "package_updated": 0, "package_content": 0, "glyph_updated": 0}
+_TRYNOTIFY_MAX_IDS = 3
+_TRYNOTIFY = {"state": 0, "changes_applied": 0, "workspace_has_changes": 0, "package_updated": 0, "package_content": 0, "glyph_updated": 0,
+              "font_selected": 0, "ids": 0}
 _TRYNOTIFY_TITLE = "Glyphbridge test"
 _TRYNOTIFY_READS = ("isChanged", "hasChanges", "hasHistoryStates", "currentHistoryState", "initialHistoryState")
 _TRYNOTIFY_NOTE = ("RESEARCH: a notification may change FontLab's display or its history. Look at the icon before the font's name and at Edit > Undo; "
@@ -7098,17 +7149,57 @@ def _trynotify_side_effect(before, after):
     return content or counts[0] != counts[1]
 
 
-def _trynotify_id(obj, label):
-    """(a plain number, None) or (None, reason)."""
-    value, err = _pkg_get(obj, "id")
+def _trynotify_id(obj, label, attr="id"):
+    """(a plain number that fits FontLab's uint, None) or (None, reason). v0.135: a number too large for a uint is refused (731, 732)."""
+    value, err = _pkg_get(obj, attr)
     if err is not None:
-        return None, f"{label} id could not be read ({err})"
+        return None, f"{label} {attr} could not be read ({err})"
     if type(value) is not int:
-        return None, f"{label} id is a {type(value).__name__}, not a plain number"
+        return None, f"{label} {attr} is a {type(value).__name__}, not a plain number"
+    if not 0 <= value <= _TRYNOTIFY_UINT_MAX:
+        return None, f"{label} {attr} is {value}, which does not fit a uint (0 to {_TRYNOTIFY_UINT_MAX})"
     return value, None
 
 
-def _trynotify_plan(which, pkg, w):
+def _trynotify_same(pkg, found):
+    """v0.135: what findPackageId returned: its type, isNull and, only for an object that is not null, ONE pkg.isEqual(found)."""
+    out = {"result": _tryfont_plain(found), "same_package": None}
+    if found is None:
+        return out
+    null, err = _pkg_get(found, "isNull")
+    if err is not None:
+        out["same_package"] = f"<error: {err}>"
+        return out
+    out["is_null"] = _tryfont_plain(null)
+    if null is not False:
+        return out
+    try:
+        out["same_package"] = _tryfont_plain(pkg.isEqual(found))
+    except Exception as exc:
+        out["same_package"] = f"<error: {type(exc).__name__}: {exc}>"
+    return out
+
+
+def _trynotify_ids(ws, pkg, w):
+    """v0.135, stage=ids: the four ids, each read once, and ONE findPackageId per package number that fits a uint. A failure is reported, never raised."""
+    reads = {"package_id": _trynotify_read(pkg, "id"), "package_fgId": _trynotify_read(pkg, "fgId"),
+             "glyph_id": _trynotify_read(w, "id"), "glyph_fgGlyphId": _trynotify_read(w, "fgGlyphId")}
+    lookups = {}
+    for label in ("package_id", "package_fgId"):
+        value = reads[label]
+        if type(value) is not int or not 0 <= value <= _TRYNOTIFY_UINT_MAX:
+            lookups[label] = {"called": False, "reason": f"{value!r} is not a plain number that fits a uint"}
+            continue
+        try:
+            found = ws.findPackageId(value)
+        except Exception as exc:
+            lookups[label] = {"called": True, "value": value, "call_error": f"{type(exc).__name__}: {exc}"}
+            continue
+        lookups[label] = {"called": True, "value": value, **_trynotify_same(pkg, found)}
+    return reads, lookups
+
+
+def _trynotify_plan(which, pkg, w, id_from="object"):
     """(function of the flItems target, text naming the call, None), or (None, None, reason) when nothing may be called."""
     if which == "changes_applied":
         return (lambda t: t.notifyChangesApplied(_TRYNOTIFY_TITLE, w, False)), f"notifyChangesApplied({_TRYNOTIFY_TITLE!r}, <flGlyph>, False)", None
@@ -7116,32 +7207,40 @@ def _trynotify_plan(which, pkg, w):
         return (lambda t: t.notifyWorkspaceHasChanges(True)), "notifyWorkspaceHasChanges(True)", None
     if which == "package_updated":
         return (lambda t: t.notifyPackageUpdated(pkg)), "notifyPackageUpdated(<flPackage>)", None
-    pid, err = _trynotify_id(pkg, "the package's")
+    pkg_attr, glyph_attr = _TRYNOTIFY_ID_FROM[id_from]
+    pid, err = _trynotify_id(pkg, "the package's", pkg_attr)
     if err is not None:
         return None, None, err
     if which == "package_content":
         return (lambda t: t.notifyPackageContentUpdated(pid)), f"notifyPackageContentUpdated({pid})", None
-    gid, err = _trynotify_id(w, "the glyph's")
+    if which == "font_selected":
+        return (lambda t: t.notifyFontSelected(pid)), f"notifyFontSelected({pid})", None
+    gid, err = _trynotify_id(w, "the glyph's", glyph_attr)
     if err is not None:
         return None, None, err
     return (lambda t: t.notifyGlyphUpdated(pid, gid)), f"notifyGlyphUpdated({pid}, {gid})", None
 
 
-def debug_try_notify(stage, which, on, name, go):
+def debug_try_notify(stage, which, on, name, go, id_from="object"):
     import sys as _sys
-    if stage not in ("state", "call"):
-        return {"error": 'stage must be "state" or "call"'}
+    if stage not in ("state", "ids", "call"):
+        return {"error": 'stage must be "state", "ids" or "call"'}
     if stage == "call" and which not in _TRYNOTIFY_WHICH:
         return {"error": "which must be one of: " + ", ".join(_TRYNOTIFY_WHICH)}
     if stage == "call" and on not in _TRYNOTIFY_ON:
         return {"error": 'on must be "class" or "instance"'}
+    if stage == "call" and id_from not in _TRYNOTIFY_ID_FROM:
+        return {"error": 'id_from must be "object" or "fg"'}
+    if stage == "call" and id_from != "object" and which not in _TRYNOTIFY_TAKES_ID:
+        return {"error": f"{which} takes no id, so id_from does not apply to it"}
     if not isinstance(name, str) or not (1 <= len(name) <= 40) or any(ch not in _TRYCREATE_NAME_CHARS for ch in name):
         return {"error": "name must be 1 to 40 characters from A-Z a-z 0-9 . _ -"}
     if go != "yes":
-        what = "reads flags and history positions that have not been read live before" if stage == "state" else f"makes ONE flItems call ({which})"
+        what = {"state": "reads flags and history positions that have not been read live before",
+                "ids": "reads the ids and asks findPackageId and isEqual, which have not been called live before"}.get(stage, f"makes ONE flItems call ({which})")
         return {"error": f"stage={stage} {what}. Add &go=yes to run it."}
-    key = "state" if stage == "state" else which
-    limit = _TRYNOTIFY_MAX_STATE if stage == "state" else _TRYNOTIFY_MAX_CALL
+    key = stage if stage in ("state", "ids") else which
+    limit = {"state": _TRYNOTIFY_MAX_STATE, "ids": _TRYNOTIFY_MAX_IDS}.get(stage, _TRYNOTIFY_MAX_CALL)
     mod = _sys.modules.get("fontlab") or fl
     ws, pkg, why = _trysync_target(mod)
     if ws is None:
@@ -7163,10 +7262,17 @@ def debug_try_notify(stage, which, on, name, go):
     if stage == "state":
         _TRYNOTIFY[key] += 1     # counted BEFORE the first read under test: whatever happens, it is on record
         return {"stage": stage, "name": name, "state": _trynotify_snapshot(ws, pkg, w), "calls_so_far": dict(_TRYNOTIFY), "note": _TRYNOTIFY_NOTE}
+    if stage == "ids":
+        _TRYNOTIFY[key] += 1     # counted BEFORE the first read and call under test
+        start = _trynotify_snapshot(ws, pkg, w)
+        reads, lookups = _trynotify_ids(ws, pkg, w)
+        end = _trynotify_snapshot(ws, pkg, w)
+        return {"stage": stage, "name": name, "reads": reads, "lookups": lookups, "changed_readings": _trynotify_changes(start, end),
+                "side_effect_detected": _trynotify_side_effect(start, end), "calls_so_far": dict(_TRYNOTIFY), "note": _TRYNOTIFY_NOTE}
     items = getattr(mod, "flItems", None)
     if items is None:
         return {"stage": stage, "which": which, "error": "the fontlab module has no flItems: nothing was called", "calls_so_far": dict(_TRYNOTIFY)}
-    make_call, text, why_not = _trynotify_plan(which, pkg, w)
+    make_call, text, why_not = _trynotify_plan(which, pkg, w, id_from)
     if make_call is None:
         return {"stage": stage, "which": which, "error": why_not + ": nothing was called", "calls_so_far": dict(_TRYNOTIFY)}
     _TRYNOTIFY[key] += 1         # counted BEFORE the first read and the call under test: whatever happens, it is on record
@@ -7177,7 +7283,7 @@ def debug_try_notify(stage, which, on, name, go):
     except Exception as exc:
         call_error = f"{type(exc).__name__}: {exc}"
     after = _trynotify_snapshot(ws, pkg, w)
-    return {"stage": stage, "which": which, "on": on, "name": name, "call": ("flItems." if on == "class" else "flItems.instance().") + text,
+    return {"stage": stage, "which": which, "on": on, "id_from": id_from, "name": name, "call": ("flItems." if on == "class" else "flItems.instance().") + text,
             "return_value": returned, "call_error": call_error, "state_before": before, "state_after": after,
             "changed_readings": _trynotify_changes(before, after), "side_effect_detected": _trynotify_side_effect(before, after),
             "calls_so_far": dict(_TRYNOTIFY), "note": _TRYNOTIFY_NOTE}
@@ -8637,7 +8743,7 @@ def _route(method, full_path, body=b""):
         if path == "/debug/trynotify":
             try:
                 return _build_response(200, debug_try_notify((query.get("stage") or [""])[0], (query.get("which") or [""])[0], (query.get("on") or ["class"])[0],
-                                                             (query.get("name") or [""])[0], (query.get("go") or [""])[0]))
+                                                             (query.get("name") or [""])[0], (query.get("go") or [""])[0], (query.get("id_from") or ["object"])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
