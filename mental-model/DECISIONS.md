@@ -2,10 +2,14 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-10: the WHAT-WORKS.md budget
+
+- **The word budget of [WHAT-WORKS.md](WHAT-WORKS.md) goes from 1,500 to 1,700** ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)). *Reason:* the user's choice, with the file at 1,433 words before the PB2 results (802–812) were added.
+
 ## 2026-11-10: the icon note is retired for kerning writes (server 0.57)
 
 - **`_ICON_MAY_LAG_KERNING = False`: a marked kerning write no longer tells the person that the icon may lag.** *Reason:* the rule of the earlier policy was met: five live runs in a row blue at once, new and changed pairs, the mouse outside FontLab (749–753), and again in a freshly started FontLab (748). *Supersedes* "the changed icon can lag behind a tool write" (2026-11-10, [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md)).
-- **Where the icon is not reliably immediate after another kind of tool write, the agent still tells the person, once per package.** The kerning test is repeated on each new FontLab version and when the marking code changes ([CHECKLIST.md](CHECKLIST.md) row 84). No reading follows the icon (659).
+- **Where the icon is not reliably immediate after another kind of tool write, the agent still tells the person, once per package.** The kerning test is repeated on each new FontLab version and when the marking code changes ([RUNBOOK.md](RUNBOOK.md) §13, 3g). No reading follows the icon (659).
 
 ## 2026-11-10: a kerning write refreshes the KERNING panel (listener 0.136 / server 0.56)
 

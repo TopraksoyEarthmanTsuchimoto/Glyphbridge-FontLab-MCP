@@ -4,6 +4,19 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Server v0.59 (2026-11-11; listener unchanged at v0.136)
+
+**`get_glyph_sidebearings` no longer claims to show what FontLab's panel shows** (PB2 820, 827, [topics/reading.md](topics/reading.md) §8p).
+- The description and the reply's `note` said the values are "exactly what FontLab's editor panel shows". They are FontLab's exact values; its editor panel and font grid bar show sidebearings rounded down to whole units (61.75 as 61, −38.25 as −39). Both texts now say so, and the description tells the agent to give the exact value and say that the panel shows it rounded down.
+- Tests: `create_unicode_tests.py` stays at 1222 lines; 9t (the `note`) changed, the rest only in version lines. Text only, no new code path, so no mutation run. Live 829, 830: the reply carries the new note; the description in a Claude Code session after one restart was still the old one.
+
+## Server v0.58 (2026-11-10; listener unchanged at v0.136)
+
+**The `draw_path` texts state the export result** (EX 779–791, [topics/geometry.md](topics/geometry.md) §8g).
+- `_OPEN_CONTOUR_INSTRUCTION`: no longer "has NOT been tested"; it now says that FontLab 8.9.5's export (TrueType and OpenType PS, default settings) dropped open contours without a warning, that a glyph made only of them came out empty, that they must be closed or turned into outlines first, and that other export settings were not tested.
+- The `draw_path` description says the same in one sentence.
+- Tests: `create_unicode_tests.py` stays at 1222 lines; 29d (the instruction) and 29zg (the description check, now "export drops them" and "old 'not been tested' gone") changed, the rest only in version lines. No new code path, so no mutation run. Live 800, 801: the reply carries the new text; the description in a Claude Code session after one restart was still the old one.
+
 ## Server v0.57 (2026-11-10; listener unchanged at v0.136)
 
 **The icon note is retired, and a request that changed nothing no longer calls the panel stale** ([DECISIONS.md](DECISIONS.md)).

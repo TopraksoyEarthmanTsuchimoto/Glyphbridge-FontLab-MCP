@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.57)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.59)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.57"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.59"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -914,7 +914,10 @@ def read_glyph_sidebearings(name: str) -> dict:
         raise ToolError(f"Sidebearings of glyph '{clean}' could not be read: {data.get('reason') or 'unknown reason'}")
     return {"name": clean, "left": _tidy_number(data.get("lsb")), "right": _tidy_number(data.get("rsb")),
             "advance_width": _tidy_number(data.get("advance")), "ink_width": _tidy_number(data.get("ink_width")),
-            "note": "Left, right and advance width as FontLab's editor panel shows them; ink_width = advance - left - right."}
+            # v0.59: FontLab's panels round these DOWN to whole units (live: 61.75 -> 61, -38.25 -> -39)
+            "note": ("Left, right and advance width are FontLab's exact values; ink_width = advance - left - right. "
+                     "FontLab's editor panel and font grid bar show sidebearings rounded DOWN to whole units "
+                     "(61.75 shows as 61, -38.25 as -39), so a value with a fraction looks lower on screen.")}
 
 
 _KERN_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,63}$")
@@ -1537,9 +1540,10 @@ def write_glyph_path(name: str, contours: Any) -> dict:
 
 
 _OPEN_CONTOUR_INSTRUCTION = ("Tell the person that the glyph has OPEN contours: they have no fill, so they are strokes or construction lines, "
-                             "not filled shapes. Also tell them that what FontLab does with open contours when it generates a font (closes "
-                             "them, drops them or keeps them) has NOT been tested with Glyphbridge, so they should check that before relying "
-                             "on this glyph in an exported font.")
+                             "not filled shapes. Also tell them that in testing (FontLab 8.9.5, File > Export with the TrueType and the "
+                             "OpenType PS profiles, default settings) FontLab dropped open contours from the generated font without a "
+                             "warning: a glyph made only of open contours came out empty. To keep such a shape in a generated font, its "
+                             "contours must be closed or turned into outlines in FontLab first. Other export settings were not tested.")
 
 _UNI_NAME =re.compile(r"uni([0-9A-F]{4})")        # uniXXXX: exactly one codepoint, UPPERCASE hex
 _U_NAME = re.compile(r"u([0-9A-F]{4,6})")          # uXXXX .. uXXXXXX
@@ -3271,7 +3275,9 @@ def set_glyph_width(name: str, width: float, ctx: Context | None = None) -> dict
 def get_glyph_sidebearings(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Read the left and right sidebearing, the advance width and the ink width of one glyph that has an outline.
 
-    Values are in font units and are exactly what FontLab's editor panel shows: advance width = left + ink width + right.
+    Values are FontLab's exact values in font units: advance width = left + ink width + right. FontLab's editor panel and
+    font grid bar show sidebearings rounded DOWN to whole units (seen live: 61.75 shows as 61, -38.25 as -39), so when a
+    value has a fraction, give the person the exact value and say that FontLab's panel shows it rounded down.
     The glyph needs an editable layer (the person opens it once in an editor tab in FontLab); otherwise this answers with
     an error that says so. Reading changes nothing.
     """
@@ -3421,7 +3427,8 @@ def draw_path(name: str, contours: list[list[dict[str, Any]] | dict[str, Any]], 
     closed contours can be mixed in one call. Needs listener 0.126. Example, an open arch from (105, 104) to (398, 104):
     [{"points":[{"x":105,"y":104},{"x":398,"y":104,"c1":{"x":105,"y":280},"c2":{"x":398,"y":255}}],"closed":false}].
     The reply then lists closed per contour and an agent_instruction: tell the person that open contours have no fill, and that
-    what FontLab does with them when it generates a font has not been tested with Glyphbridge.
+    FontLab's export dropped open contours without a warning in testing (TrueType and OpenType PS, default settings), so a glyph
+    that must appear in a generated font needs closed contours.
 
     RULE B (whole units): FontLab stores whole numbers here. Every coordinate is rounded to the nearest whole unit (a half rounds up)
     and the reply lists each coordinate that changed in coordinates_rounded (with a rounding_note); give whole numbers to avoid that.

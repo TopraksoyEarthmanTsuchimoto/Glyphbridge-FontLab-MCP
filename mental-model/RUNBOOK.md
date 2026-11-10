@@ -27,10 +27,15 @@ piped); numbers may print with a decimal comma, depending on the Windows locale 
 
 **FontLab GUI facts for testing:** only the *Element* selection tool shows the transform bar (X/Y, horizontal/vertical %, rotation,
 slant). The X/Y box at the bottom shows the selected node in the *displayed* (transformed) space, one decimal. The Glyph panel's
-width/LSB/RSB are **truncated integers**: compare exact values through the API. Fonts opened from the system get pseudo paths such
+width/LSB/RSB, and the grid bar's, are **rounded down** to whole units (toward minus infinity: 61.75 shows as 61, −38.25 as −39;
+tests 820, 827): compare exact values through the API. Fonts opened from the system get pseudo paths such
 as `:/Arial: Normal`. A new font's Font window uses the encoding Latin Simple, which shows grey placeholder cells for glyphs that do
 not exist: set the Encoding box in the Font window's toolbar to **None** before using the grid as evidence of which glyphs exist
-([topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k, test 578).
+([topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k, test 578). FontLab 8.9.5's File menu (seen 2026-11-10, 811): a `.vfc` or `.vfj` is
+opened with **File > Open Fonts… (Ctrl+O)**; **File > Open** is a submenu with only *Font Folder…* and *Installed Fonts…*
+(Ctrl+Alt+Shift+O). *Export Font As… (Ctrl+E)* sits directly in the File menu; the *Export* submenu was not looked into. The brush is set in **Window > Panels > Brush** (a size field and an ellipse marked 60° and 50%); the tool's
+property bar picks only the kind of brush. A size change acts at once on the stroke of the glyph in front, even with nothing
+selected (821): change brush settings only with an empty glyph in front.
 
 ## 13. Re-verify after any change
 
@@ -40,6 +45,7 @@ not exist: set the Encoding box in the Font window's toolbar to **None** before 
 3c. Stale-legacy-view smoke test (v0.25 / v0.26): on a glyph that the person has OPENED in an editor tab: read the outline (expect `verified` and `modern_margins_check: agrees`), `set_glyph_sidebearings(20, 30)`, read the outline at once (expect `unverified`, `stale_legacy_view: true`, legacy 0 / 50 against modern 20 / 30 for the bulging rectangle), ask the person to CLOSE the editor tab and double-click the thumbnail, read again (expect `verified`, nodes moved by +20, `agrees`).
 3e. Auto-sync smoke test (v0.89 / v0.29, disposable font open, nothing saved): Appendix A (142 as written there): every write reply must say `synced_with_fontlab: true` with `fontlab_sync.synced: true`, the outline reads must show `margins_agree: true`, the creates must not skip their refresh, nothing may be lost; quit FontLab WITHOUT saving afterwards.
 3f. Kerning smoke test (v0.95 / v0.31; Arial open, listener v0.95, pure reads): K1, K2 and K4 of section 14 (A4 in Appendix A): the 13 proven pairs answer the values of section 8p with `errors` 0, `table_size` 1370, `side_effect_detected` false; through Claude Desktop the agent reads only the pairs asked for. A request for more than 250 pairs must be refused and the agent must ask the person (K8).
+3g. The changed icon after a kerning write (on each new FontLab version and when the marking code changes; moved from CHECKLIST row 84): one `set_kerning` that changes an entry, the mouse outside FontLab; expect the icon blue at once, as in 748–753 since listener 0.136 / server 0.56 ([DECISIONS.md](DECISIONS.md)).
 4. For reference glyphs of the local test font: `.\venv\Scripts\python.exe glyphbridge_mcp_server.py --check --outline NAME`; expect `verified` and "read directly". 5. After one outline call: `1..3 | ForEach-Object { (Invoke-RestMethod "http://127.0.0.1:8765/glyph/outline?name=NAME").elements.wrapper }` prints `cached` x3. 6. `Invoke-RestMethod "http://127.0.0.1:8765/font/notdef" | ConvertTo-Json -Compress`. 7. Ask Claude about a glyph's shape. 8. For name/Unicode changes: create a standard-named glyph (expect `assigned`), create a name with an unsafe character (expect a refusal and an unchanged glyph count), `create_glyph('uni00e8')` (expect the lowercase-hex hint), then quit FontLab without saving. 9. For the save policy: ask Claude for several changes in ONE request (e.g. create three glyphs, set a width, delete one) and check that the chat ends with ONE bold "You must save..." line, none per step, and that FontLab shows no extra dialog (and that a pure read request produces no reminder).
 
 ## Appendix A. Ready PowerShell commands (all single-line; helper `Gb`; output `N_name.txt`, read by the agent or shared by the user; a screenshot only if the GUI shows something odd)

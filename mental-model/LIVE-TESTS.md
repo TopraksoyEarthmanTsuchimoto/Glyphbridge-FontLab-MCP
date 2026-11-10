@@ -8,7 +8,7 @@
 
 **CLOSED (do not repeat):** v8 list (sidebearings and width on a curved glyph; O with counter vs the GUI; diagonal-node circle; S-like blob; smooth gate at 0.33 / 2.73 degrees, zero-length handle on a smooth node, c1 = c2, line-to-handle smooth node, negative x; refusals create no layer; 180- and 990-node draws; `fontlab_status` version reporting). v10: the stale legacy view (fixed at the source by `Update(flGlyph)` and by the 0.88 fallback); the guard live (139a / 139b, 142: a drawing survives a create, and a synced glyph survives a later `font.update()`); first glyph of a new font (layer `Regular` from the package master); margin comparison on a scaled and on a skewed glyph (143); `fillFgData` is useless; sidebearings and width are carried by the sync (141, 142). Evidence only from stubs: the layer guard's own refusal path (8h); the failed-sync path of 0.89.
 
-**Test numbers in use** (moved from [CURRENT-STATUS.md](CURRENT-STATUS.md) on 2026-11-03; the next free number is kept there): 155 to 520 (K-series, P0.8 research and checks, 189–190 the v0.101 check and the activity log, 225–229 the checks of 0.105 / 0.106, 158 and 230–235 K11, 236–242 the sender tests, 243 K12(b), 244 K13, 245–246 K14, 247–252 K16, 253–255 T2, 256–258 T3, 145a–g (reserved for T4), 259 and 260 T4, 261–290 T5, 291–302 N1, 303–308 the checks of 0.114 / 0.40 / 0.41 ([CHANGELOG.md](CHANGELOG.md)), 309–316 T5 (read tools), 317–321 T5 (three fonts), 322–324 T5 (a Font Info rename), 325–331 T5 (writes with three fonts), 332–496 F1, 497–520 V120 (the checks of 0.120 / 0.42), 521–533 INK (`inkBox()` research), 534–541 V121 (the checks of 0.121 / 0.43), 542–564 KW (kerning writes, below), 565–577 SK (`set_kerning` live checks, below), 578 E1 (the Font window's encoding, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k), 579–585 OC (open contours, [topics/reading.md](topics/reading.md) §8e), 586–594 OD (drawing open contours, [topics/geometry.md](topics/geometry.md) §8g), 595–603 OT (`draw_path` with open contours, the same section), 604–605 CP (the component API by name, [topics/reading.md](topics/reading.md)), 606–626 CP (components live, the Add Component crash and its fix, the labels, below), 627–656 CP (components, continued), 657–728 S (the changed icon, the save question, save and reopen, marking kerning writes), 729–754 KP (the KERNING panel, below), 755–764 OS (open contours through a save and reopen, below), 765–771 RT (rotated components, below), 772–778 T9 (save and reopen of a font made by `flPackage()`, below); details in [LIVE-TESTS.md](LIVE-TESTS.md) and [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4).
+**Test numbers in use** (moved from [CURRENT-STATUS.md](CURRENT-STATUS.md) on 2026-11-03; the next free number is kept there): 155 to 520 (K-series, P0.8 research and checks, 189–190 the v0.101 check and the activity log, 225–229 the checks of 0.105 / 0.106, 158 and 230–235 K11, 236–242 the sender tests, 243 K12(b), 244 K13, 245–246 K14, 247–252 K16, 253–255 T2, 256–258 T3, 145a–g (reserved for T4), 259 and 260 T4, 261–290 T5, 291–302 N1, 303–308 the checks of 0.114 / 0.40 / 0.41 ([CHANGELOG.md](CHANGELOG.md)), 309–316 T5 (read tools), 317–321 T5 (three fonts), 322–324 T5 (a Font Info rename), 325–331 T5 (writes with three fonts), 332–496 F1, 497–520 V120 (the checks of 0.120 / 0.42), 521–533 INK (`inkBox()` research), 534–541 V121 (the checks of 0.121 / 0.43), 542–564 KW (kerning writes, below), 565–577 SK (`set_kerning` live checks, below), 578 E1 (the Font window's encoding, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k), 579–585 OC (open contours, [topics/reading.md](topics/reading.md) §8e), 586–594 OD (drawing open contours, [topics/geometry.md](topics/geometry.md) §8g), 595–603 OT (`draw_path` with open contours, the same section), 604–605 CP (the component API by name, [topics/reading.md](topics/reading.md)), 606–626 CP (components live, the Add Component crash and its fix, the labels, below), 627–656 CP (components, continued), 657–728 S (the changed icon, the save question, save and reopen, marking kerning writes), 729–754 KP (the KERNING panel, below), 755–764 OS (open contours through a save and reopen, below), 765–771 RT (rotated components, below), 772–778 T9 (save and reopen of a font made by `flPackage()`, below), 779–791 EX (open contours on export, below), 792–799 PB (Power Brush fractions at load, below), 800–801 the server 0.58 check (after the PB series), 802–828 PB2 (`.vfc` against `.vfj`, another brush, how the panel shows fractions, below), 829–830 the server 0.59 check (below); details in [LIVE-TESTS.md](LIVE-TESTS.md) and [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4).
 
 ### K-series: reading kerning (current priority, decision of the user of 2026-10-27; before the T-series)
 
@@ -71,7 +71,7 @@
 | 557 | `get_kerning`, unsaved | -100 and +20, `table_size` 2 |
 | 558 | File > Save As a new `.vfc` outside the repository | table and panel unchanged |
 | 559 | close with the font window's X | no save question |
-| 560 | File > Open of that file | the panel lists both pairs, footer 2; `get_kerning` the same |
+| 560 | File > Open Fonts… of that file | the panel lists both pairs, footer 2; `get_kerning` the same |
 | 561 | S1 on the 560 file: (a) close with X, reopen; (b) `/debug/trysetkern?a=ks1L&b=ks1L&value=-50&form=tuple&go=yes`; (c) `get_kerning`; (d) close with X | (a) no question; the changed icon in the font's tab not blue; FontLab selects `.notdef` on opening; (b) `None` → -50.0, `len` 2 → 3; (c) -100, +20, -50, `table_size` 3; icon not blue, panel two rows; (d) **no save question** |
 | 562 | reopen, `get_kerning` | -100, +20, `ks1L:ks1L` 0 `none`, `table_size` 2: the pair was lost |
 | 563 | Undo on the reopened 560 file: (a) Edit menu; (b) `/debug/trysetkern?a=ks1L&b=ks1L&value=-50&form=tuple&go=yes`; (c) `get_kerning`; (d) Edit menu | (a) Undo and Redo greyed out; (b) `None` → -50.0, `len` 2 → 3; (c) -100, +20, -50, `table_size` 3; (d) **Undo still greyed out**, icon not blue, panel two rows; "Paste" had become an active "Paste Artwork", probably from a screenshot on the clipboard (inferred); cleanup close: no question |
@@ -224,19 +224,19 @@ One disposable, unsaved, one-master font holding only `.notdef` at the start; pr
 | 702–706 | setup: `create_glyph s12d_one`, `s12e_one`; saved, dark; File > New Font, its icon dark; one click back on the first font; in one run on the font in front: `s12b_one` width 300 (702), sidebearings 50 / 50 (703), Unicode 57347 (704); `draw_polygon s12d_one` (705); `draw_path s12e_one` (706) | each lands in the front font, `fonts_open` 2, `called` true, no note; front blue, the font behind stays dark | as predicted; all five `verified` or re-read, no note; front blue, behind dark. Only the first write could turn the front icon blue |
 | 707 | the font of 702–706 (blue, in front), an empty new font behind; close with X; Save | asks with two fonts open; closes; no file dialog | as predicted |
 | 708 | `fontlab_status`, before the reopen | the other font in front, `fonts_open` 1, switch noted | as predicted |
-| 709 | File > Open the same file; 6 glyphs; outlines, Unicode | plain glyphs unchanged; `s12a_brush` 50 / 80 / 515, the same raw nodes and 6 fractions, `dx` −4, E002 | plain glyphs and Unicode as predicted (nodes, metrics, E003); brush: advance, `dx`, E002, 77 nodes and the brush element as predicted, the panel 50 / 515 / 80, Δ=(-4,0); **wrong for the nodes**: nearly all with new fractions, each under one unit away, left 50.466, right 80.362, ink width 384.171 |
+| 709 | File > Open Fonts… the same file; 6 glyphs; outlines, Unicode | plain glyphs unchanged; `s12a_brush` 50 / 80 / 515, the same raw nodes and 6 fractions, `dx` −4, E002 | plain glyphs and Unicode as predicted (nodes, metrics, E003); brush: advance, `dx`, E002, 77 nodes and the brush element as predicted, the panel 50 / 515 / 80, Δ=(-4,0); **wrong for the nodes**: nearly all with new fractions, each under one unit away, left 50.466, right 80.362, ink width 384.171 |
 | 710 | control: new glyph `s13a_brush`, one Power Brush stroke in the GUI, no tool write; outline | `verified`, equal to the panel, mostly whole units | as predicted; 84 nodes, 6 with fractions, 32 / 44 / 500, ink width 424 |
-| 711 | close with X; Save; `fontlab_status`; File > Open | asks; closes; no file dialog | as predicted; 7 glyphs |
+| 711 | close with X; Save; `fontlab_status`; File > Open Fonts… | asks; closes; no file dialog | as predicted; 7 glyphs |
 | 712 | outline of `s13a_brush`; sidebearings of `s12a_brush` | same node count, brush kept, most nodes with fractions, ink width within one unit; `s12a_brush` still 50.466 / 80.362 | as predicted; 84 nodes, nearly all with fractions, 32.466 / 43.834 / 500, ink width 423.700, `verified`; `s12a_brush` unchanged (its nodes were not re-read) |
 | 713 | close the empty new font behind; `fontlab_status` | closes, one font, icon of the saved font dark | as predicted |
 | 714 | `set_kerning s12b_one : s12c_one` −30, alone; hover | 0 `none` → −30 `glyph : glyph`, table 0 → 1, reply warns; dark | as predicted, but `matched_by` `only font`, not `path` (wrong prediction: one font open); dark after a hover |
 | 715 | gated `/debug/trynotify?stage=call&name=s12b_one&which=changes_applied&go=yes`, once, the pair's left glyph | `None`, no side effect, content unchanged, blue, perhaps after a hover | as predicted; **blue at once**; glyph `hasChanges` false → true, history 0 → 40; package flags unchanged |
 | 716 | close with X; Cancel | asks | asked; the KERNING panel still empty |
-| 717 | close with X; Save; File > Open; `get_kerning` | −30 `glyph : glyph`, `table_size` 1, the panel lists it, 7 glyphs | as predicted |
+| 717 | close with X; Save; File > Open Fonts…; `get_kerning` | −30 `glyph : glyph`, `table_size` 1, the panel lists it, 7 glyphs | as predicted |
 | 718 | listener 0.134 / server 0.54; the font of 717, dark; `set_kerning s12d_one : s12e_one` −40 | 0 `none` → −40, table 1 → 2, `called` true, `via_glyph` `s12d_one`, no note, new point (2), blue | as predicted; `glyph_has_changes` false (the first mark after a listener start, as in 668 and 688); blue **only after a hover** |
 | 719 | close with X; Cancel | asks | asked; the KERNING panel still lists one pair |
 | 720 | Ctrl+S, dark; `set_kerning` the same pair and value | `changed` false, `called` false "no kerning entry is known to have changed", no note, `font_modified` false, stays dark | as predicted; the instruction still says closing loses the pair: a wording flaw |
-| 721 | close with X, no question; File > Open; `get_kerning` | −30 and −40, both `glyph : glyph`, `table_size` 2, the panel lists both | as predicted (saved by the Ctrl+S of 720, not at the question) |
+| 721 | close with X, no question; File > Open Fonts…; `get_kerning` | −30 and −40, both `glyph : glyph`, `table_size` 2, the panel lists both | as predicted (saved by the Ctrl+S of 720, not at the question) |
 | 722 | listener 0.134 / server 0.54; the font of 721, just reopened, dark; mouse on Claude Desktop, FontLab unfocused; new pair `s12c_one : s12d_one` −20, alone | `called` true, `via_glyph` `s12c_one`, no note; icon not predicted | as predicted; dark until a hover |
 | 723 | Ctrl+S, dark; same conditions; existing pair `s12b_one : s12c_one` −30 → −35, alone | `called` true, `via_glyph` `s12b_one`, no note, table unchanged | as predicted; dark until a hover. Saved and reopened by the person: −35 and the −20 of 722 read back, the panel lists both |
 | 724 | just reopened, dark; FontLab focused, mouse still in the grid (write 20 s after the person's reply); new pair `s12e_one : s12b_one` −15 | `called` true, no note; icon not predicted | as predicted; **blue at once** |
@@ -289,7 +289,7 @@ One disposable, unsaved, one-master font holding only `.notdef` at the start; pr
 | 759 | control: `create_glyph os1_gui`; the person draws an open V with the Pen tool; outline | `verified`, `closed` [false] | as predicted: (38, 451), (150, 97), (243, 407), 38 / −243 / 0 |
 | 760 | close with X; Save | asks; no file dialog; closes | as predicted |
 | 761 | `fontlab_status` | `font_open` false | as predicted |
-| 762 | File > Open the file; `fontlab_status`, `list_glyphs` | 5 glyphs | as predicted; FontLab reopened the `os1_gui` editor tab by itself |
+| 762 | File > Open Fonts… the file; `fontlab_status`, `list_glyphs` | 5 glyphs | as predicted; FontLab reopened the `os1_gui` editor tab by itself |
 | 763 | outlines of the four glyphs | identical to 756–759, `verified` | as predicted: nodes, kinds, smooth and `closed` flags, boxes and margins identical |
 | 764 | the person's screenshot, `os1_mix` selected | the Elements panel lists an open "3/3" and a closed "4/4" with different icons | as predicted; the bottom bar 24 / 0 / −450 |
 
@@ -317,7 +317,102 @@ Rotations were set in the Transform panel with Apply, its origin selector left a
 | 775 | `create_glyph t9a_box`, `draw_polygon` (100, 0) to (500, 700), width 600, sidebearings 60 / 40, Unicode E000; `create_glyph t9a_curve`, `draw_path` the bulging square from x 50; `create_glyph t9a_open`, `draw_path` the open arch of 757; widths 620 and 500; outlines | every write verified and marked; the first glyph's layer `Regular` from the package master | as predicted: `layer_name_source` "package master", then "other glyphs"; `called` true eleven times (`glyph_has_changes` false only on the first create); all three `verified` |
 | 776 | close with X | FontLab asks; a file dialog, since there is no path | as predicted; the dialog "Save Font File" offered the name `Unnamed-Regular` and FontLab Compact (*.vfc); the person saved; the font closed |
 | 777 | `fontlab_status` | `font_open` false | as predicted |
-| 778 | File > Open the file; `fontlab_status`, `list_glyphs`, three outlines, `check_glyph_unicode t9a_box` | a path, 4 glyphs, everything as in 775 | as predicted: nodes, `closed` flags, boxes, margins, widths and E000 identical, all `verified`. The layer name was not re-read |
+| 778 | File > Open Fonts… the file; `fontlab_status`, `list_glyphs`, three outlines, `check_glyph_unicode t9a_box` | a path, 4 glyphs, everything as in 775 | as predicted: nodes, `closed` flags, boxes, margins, widths and E000 identical, all `verified`. The layer name was not re-read |
+
+### EX series: open contours on export (2026-11-10, FontLab 8.9.5, listener 0.136 / server 0.57, through Claude Code; the saved font of the T9 series, one master, prefix `ex1_`; results in [topics/geometry.md](topics/geometry.md) §8g)
+
+The person exported with File > Export > Export Font As…, default settings, only the profile chosen, to a disposable folder outside the repository. The exported files were read twice: by a read-only standard-library script outside the repository (TrueType `glyf`, CFF charstrings), and by FontLab after File > Open. The OUTPUT panel printed only FontLab's line "Font has been successfully exported to: …" for each export.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 779 | `fontlab_status`, `list_glyphs` | a new unsaved font, only `.notdef` | **wrong, no effect on the test**: the saved T9 font, 4 glyphs |
+| 780 | `create_glyph ex1_v`; `draw_path` the open V of 756 | `verified`, `closed` [false], 3 nodes | as predicted; advance 0 |
+| 781 | `create_glyph ex1_mix`; the open V and the closed square of 758 | `closed` [false, true], `verified` | as predicted |
+| 782 | control: `create_glyph ex1_sq`, the closed square alone | `verified`, `closed` [true] | as predicted |
+| 783 | the person: export, profile **TrueType** | a `.ttf`; a warning about open contours possible | `t9a.ttf`; no warning, only the success line |
+| 784 | the script reads the `.ttf` | each open contour closed by an implicit segment (the V a 3-point triangle); dropped or outlined as alternatives | **wrong: dropped.** `ex1_v` and `t9a_open` (the open arch of 775) empty; `ex1_mix` only the square; `ex1_sq` unchanged. The squares clockwise, cubics turned quadratic, `t9a_box` named `uniE000`, `.null`, `uni000D`, `space` added, 10 glyphs |
+| 785 | the person saves and closes the `.vfc`, opens the `.ttf` | one font, the `.ttf` | as predicted (the save was not planned; harmless) |
+| 786 | outlines of the four glyphs in the `.ttf` | as in 784 | as predicted: both empty, the squares `verified` and clockwise; FontLab lists `.null` as `NULL` |
+| 787 | the person closes the `.ttf` and reopens the `.vfc`; outlines of `ex1_v`, `ex1_mix` | the open V intact | as predicted: nodes and `closed` flags as in 780, 781, `verified` |
+| 788 | the person: export, profile **OpenType PS** | `ex1_v` and `t9a_open` empty, `ex1_mix` only the square; or the V kept as a closed path | `t9a.otf`; no warning, only the success line |
+| 789 | the script reads the `.otf` | as predicted in 788 | as predicted: dropped; the squares counterclockwise, cubics kept, null glyph `uni0000`, 10 glyphs |
+| 790 | the person opens the `.otf` (the `.vfc` behind); outlines | as in 789 | as predicted, `fonts_open` 2 |
+| 791 | the person closes the `.otf` | the `.vfc` left open | as predicted: `fontlab_status` before 792 showed one font, `t9a.vfc` |
+
+### PB series: Power Brush fractions at load (2026-11-10, FontLab 8.9.5, listener 0.136 / server 0.57, through Claude Code; the font of the EX series, one master, prefix `pb1_`; results in [topics/reading.md](topics/reading.md) §8p)
+
+No tool wrote to the brush glyphs. The `.vfj` file was read read-only as JSON, outside the repository. FontLab's Thickness tool sets only local thickness (its tooltip), so no second brush could be set; `pb1_b` uses the default brush too.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 792 | the person: Font > New Glyph > Create Blank `pb1_a`, one Power Brush stroke, default brush | n/a | drawn; the panel 117 / 112 / 500 |
+| 793 | the same for `pb1_b` (the plan said another brush width: not available) | n/a | drawn, thickness unchanged; the panel 52 / 88 / 500 |
+| 794 | outlines | `verified`, mostly whole units, a few fractions | as predicted: `pb1_a` 75 nodes, 6 fractional (control points), 117 / 112, ink width 271; `pb1_b` 71 nodes, 18 fractional, 52 / 88, ink width 360; one brush element (`is_composite` true) each |
+| 795 | the person: File > Save As, FontLab JSON, `pb1.vfj` | the font stays open | as predicted; OUTPUT "is saved to" the file |
+| 796 | the `.vfj` read as text | the stroke stored; whole-unit or no outline nodes; or fractional nodes as the alternative | **half right**: each glyph stores its outline as in memory (the same 6 and 18 fractions, written to 6 significant digits, e.g. 295.232 for 295.23195…) **and** its open skeleton in whole units (9 and 12 nodes) with `"strokeBrush": "50,50,60,1,1,100,100,100,100,100"` |
+| 797 | outline of `pb1_a` | unchanged | as predicted (`pb1_b` not re-read) |
+| 798 | the person closes with X (no question) and opens `pb1.vfj` | reopens | as predicted |
+| 799 | outlines; the person reads the panel | nearly all nodes fractional; `pb1_a` gains .466 on the left; `pb1_b` another fraction if the brush sets it; the panel in whole numbers | node counts 75 and 71 kept, **every node fractional**, each under one unit away, `verified`; `pb1_a` 117.023 / 112.466, ink width 270.511 (**wrong**: .466 on the right, not the left); `pb1_b` 52.466 / 88.466, ink width 359.068 (no second brush, so not a test of the brush); on both, x extremes end in .466 / .534 and y extremes in .472 / .528; the panel 117 / 112 and 52 / 88, in the grid bar and the editor |
+
+### Server 0.58 check (2026-11-10, FontLab 8.9.5, listener 0.136 / server 0.58, through Claude Code after a full restart of Claude Desktop; `pb1.vfj`, prefix `ex2_`)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 800 | `fontlab_status` | 0.136 / 0.58 | as predicted |
+| 801 | `create_glyph ex2_v`; `draw_path` the open V of 756 | `verified`, `closed` [false], the new `agent_instruction` (export drops open contours) | as predicted, nothing else changed. The `draw_path` description loaded in this Claude Code session after one restart still had the 0.57 text (stale tool description) |
+
+### PB2 series: a `.vfc` against a `.vfj` at load (2026-11-10, FontLab 8.9.5, listener 0.136 / server 0.58, through Claude Code; a font made with File > New Font, one master, prefix `pb2_`; stage A of three, stages B and C below; results in [topics/reading.md](topics/reading.md) §8p)
+
+No tool wrote anything (the change counter stayed at 2). Both files were saved from the same font in memory, to a disposable folder outside the repository, and each was reopened alone with File > Open Fonts… The `.vfc` itself was not read (binary). The PB line "x extremes end in .466 / .534" (799) holds only for the right extreme: `pb1_a` ended in .023 on the left.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 802 | `fontlab_status` | 0.136 / 0.58, no font open | as predicted |
+| 803 | the person: File > New Font, Encoding None | one unsaved font | as predicted: "Unnamed Regular", no path, `.notdef` only |
+| 804 | the person: Create Blank `pb2_a`, one Power Brush stroke, default brush | drawn | the panel 55 / 124 / 500 |
+| 805 | outline | `verified`, mostly whole units, a few fractional control points | as predicted: 66 nodes, 4 fractional (control points), ink box 55..376 × 125..438, 55 / 124 / 500, one brush element, identity |
+| 806 | the person: File > Save As, FontLab JSON, `pb2.vfj` | the font stays open | as predicted (6,196 bytes) |
+| 806b | the `.vfj` read as text | as 796 | as predicted: the outline as in memory (fractions to 6 significant digits, `56.0409 330.065`), an open skeleton in whole units (11 node entries), the default `strokeBrush` |
+| 807 | the person: File > Save As, FontLab Compact, `pb2.vfc` | the font stays open, its path the `.vfc` | as predicted (7,578 bytes) |
+| 808 | outline | as 805 | as predicted |
+| 809 | the person closes with X, opens `pb2.vfc` | no question | as predicted; FontLab reopened the `pb2_a` tab by itself |
+| 810 | outline; the person reads the panel | every node fractional, count kept; x extremes .466 / .534, y .472 / .528; the panel 55 / 124 / 500 | 66 nodes, **every node fractional**, each under one unit away, `verified`; 55.211 / 124.466 / 500, ink box 55.211..375.534 × 125.101..437.528: **half right**, the right and top end in .534 / .528, the left and bottom in .211 / .101; the panel 55 / 124 / 500 in the grid bar and the editor |
+| 811 | the person closes with X, opens `pb2.vfj` | no question | as predicted; `font_note`: another font with the same name, from a different file |
+| 812 | outline | identical to 810 | as predicted: **identical node by node, to full precision** |
+
+**Stage B: another brush** (2026-11-10, the same session and font, `pb2.vfj` open; saved as `pb2b.vfj` next to the other files; no tool wrote anything).
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 813 | the person selects the Brush tool (B) and hovers over its property bar; then Window > Panels; then Window > Panels > Brush | brush fields in the bar, or a panel | the bar picks only the kind: Simple brush, Power brush (editable), Erasing brush, Soft brush. **Window > Panels > Brush** shows an ellipse marked 60° and 50%, a size field 50 and a slider. Window > Panels also lists Stroke (not opened) |
+| 814 | the person: Create Blank `pb2_b`, its empty editor in front | an empty glyph | as predicted: 0 / 0 / 500, no element |
+| 815 | the person: Brush panel size 50 → 80, Enter | the field 80; `pb2_a` unchanged | as predicted: `pb2_a` identical to 812 |
+| 816 | the person: one Power Brush stroke in `pb2_b` | drawn | the panel 41 / 13 / 500 |
+| 817 | outline | `verified`, mostly whole units | as predicted: 55 nodes, 12 fractional (control points), ink box 41..487 × 62..505, one brush element |
+| 818 | the person: File > Save As, FontLab JSON, `pb2b.vfj` | `pb2.vfj` kept | as predicted (9,901 bytes; the older files unchanged) |
+| 819 | `pb2b.vfj` read as text | `pb2_b`'s `strokeBrush` begins with 80, `pb2_a`'s with 50 | as predicted: `"80,50,60,1,1,100,100,100,100,100"` and `"50,50,60,…"`; `pb2_b`'s skeleton in whole units (7 entries). Not predicted: `pb2_a`'s stored outline now has a fraction in every coordinate (132 numbers), the outline rebuilt at the 811 load |
+| 820 | the person closes with X (no question) and opens `pb2b.vfj` with File > Open Fonts…; outlines; the person reads the grid bar and the editor | `pb2_a` as 812; `pb2_b` fractions other than .534 / .528 | as predicted: `pb2_a` identical to 812; `pb2_b` 55 nodes, every node fractional, `verified`, **40.546 / 12.546** / 500, ink box 40.546..487.454 × 61.951..505.049 (each side 0.454 out, top and bottom 0.049 out). The grid bar and the editor: **40 / 12 / 500** |
+| 821 | the person: size 80 → 50 (asked to click empty canvas first if the stroke was selected) | the field 50; `pb2_b` unchanged | **wrong**: FontLab rebuilt `pb2_b`'s stroke with size 50 at once: 60 nodes, ink box **50..478 × 75..492 in whole units**, a few fractional control points, 50 / 22 / 500, `verified`. The stroke's element stays the active one without a selection. Closed with Don't Save at FontLab's question (822a) |
+
+**Stage C: how the panel shows fractions** (2026-11-11, FontLab 8.9.5, listener 0.136 / server 0.58, through Claude Code; a font made with File > New Font, prefix `pb3_`; never saved).
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 822 | the person: File > New Font, Encoding None | one unsaved font | as predicted |
+| 823 | `create_glyph pb3_c` | created | as predicted, layer `Regular`, marked |
+| 824 | `draw_path`: a curve from (100, 0) to (100, 200) with controls at x 49, a line to (300, 200), a curve to (300, 0) with controls at x 351 | `verified`, `nodes_match` | as predicted: 8 nodes, nothing rounded |
+| 825 | outline | ink x 61.75..338.25 | as predicted, `verified`, y 0..200. Not predicted: **advance 0**, so RSB −338.25 |
+| 827a | the person reads the grid bar | 61 / 0; RSB −338 if truncated, −339 if rounded down | **61 / 0 / −339**: rounded down |
+| 826 | `set_glyph_width pb3_c 300`; `get_glyph_sidebearings` | RSB −38.25 | as predicted: 61.75 / −38.25 / 300 |
+| 827b, c | the person reads the grid bar, then the editor | 61 / 300 / −39 | as predicted, in both |
+| 828 | `finish_changes` (3 changes); the person closes with X | FontLab asks | as predicted; Don't Save |
+
+### Server 0.59 check (2026-11-11, FontLab 8.9.5, listener 0.136 / server 0.59, through Claude Code after a full restart of Claude Desktop; a font made with File > New Font, prefix `sb1_`; never saved)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 829 | `fontlab_status` | 0.136 / 0.59 | as predicted, no font open |
+| 830 | `create_glyph sb1_c`; `draw_path` the `pb3_c` shape; `get_glyph_sidebearings`; `finish_changes`; the person closes with X | 61.75 / −338.25 / 0 with the new `note`; FontLab asks | as predicted; Don't Save. The `get_glyph_sidebearings` description loaded in this Claude Code session after one restart still had the 0.58 text (stale tool description) |
 
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 

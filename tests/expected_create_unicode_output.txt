@@ -298,7 +298,7 @@
 9q  listener 0.67    -> ToolError: set_glyph_sidebearings needs listener v0.68 or newer; the running listener is v0.67. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
 9r  /version unreadable -> the call goes ahead: True | posts 1
 9s  write times out  -> OutcomeUnknown: timed out The request may or may not have be | {'changes': 0, 'uncertain': 1, 'reminder_given': True}
-9t  get_glyph_sidebearings -> {'name': 'tri', 'left': 88, 'right': 77, 'advance_width': 665, 'ink_width': 500, 'note': "Left, right and advance width as FontLab's editor panel shows them; ink_width = advance - left - right."} | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+9t  get_glyph_sidebearings -> {'name': 'tri', 'left': 88, 'right': 77, 'advance_width': 665, 'ink_width': 500, 'note': "Left, right and advance width are FontLab's exact values; ink_width = advance - left - right. FontLab's editor panel and font grid bar show sidebearings rounded DOWN to whole units (61.75 shows as 61, -38.25 as -39), so a value with a fraction looks lower on screen."} | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
 9u  read, no layer   -> ToolError: Sidebearings of glyph 'tri' cannot be read: this glyph has no editable layer yet: open it
 9v  read, unreadable -> ToolError: Sidebearings of glyph 'tri' could not be read: RuntimeError: getLSB refused
 9w  read, unknown    -> ToolError: No glyph named 'x' was found.
@@ -310,7 +310,7 @@
 9zc width, legacy reply (empty glyph) -> route: legacy_empty_glyph | display_note absent: True | font_modified: True
 9zd tool surface     -> set_glyph_sidebearings: True | get_glyph_sidebearings: True | NEVER saves in set docstring: True | outline moved explained: True | right defaults to left: True | width tool says advance only: True
 9ze signature        -> (name: str, left: float, right: float | None = None, ctx: __main__.Context | None = None) -> dict[str, typing.Any] | (name: str, ctx: __main__.Context | None = None) -> dict[str, typing.Any]
-9zf MIN_LISTENER_VERSION -> (0, 82) | server 0.57
+9zf MIN_LISTENER_VERSION -> (0, 82) | server 0.59
 
 ==== 10. server 0.20: draw_polygon, layer_created on set_glyph_width, get_glyph_outline modern_check (faked listener replies) ====
 10a draw_polygon     -> {'name': 'fresh', 'drawn': True, 'verified': True, 'coordinates_rounded': [], 'points': 4, 'contours': 1, 'contour_sizes': [4], 'shapes': 1, 'nodes': 4, 'left': 0, 'right': -400, 'advance_width': 0, 'ink_width': 400, 'note': 'Closed contours of straight segments, in one shape. The advance width is NOT changed by drawing: set it with set_glyph_width, or place the outline and the width together with set_glyph_sidebearings.', 'layer_created': 'test_font', 'display_note': 'NOTE', 'font_modified': True, 'agent_instruction': "The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written."}
@@ -487,7 +487,7 @@
 16f instruction keeps the create text and the save reminder: True | True | tail ok True
 16g failed create still raises ToolError: Glyph 'g1' was NOT created: x
 16i a broken reply never raises, adds nothing: {'x': 1}
-16h version / MIN_LISTENER_VERSION: 0.57 (0, 82)
+16h version / MIN_LISTENER_VERSION: 0.59 (0, 82)
 
 ==== 17. server 0.28: stale legacy view answered from the modern layer when the listener (0.88) sends margins_agree false (faked listener replies) ====
 17a stale margins + modern_outline -> source modern layer | verified | legacy_view_was_stale True | stale_legacy_view None | extra sidebearing reads 0
@@ -508,7 +508,7 @@
 17p old listener (no margins_agree): v0.25 behaviour -> unverified | check mismatch | stale_legacy_view True | extra reads 1 | source None
 17q docs                  -> modern answer explained: True | v0.25 text kept: True
 17r no write, no save     -> posts sent: []
-17s version / MIN_LISTENER_VERSION: 0.57 (0, 82)
+17s version / MIN_LISTENER_VERSION: 0.59 (0, 82)
 
 ==== 18. server 0.29: fontlab_sync of listener 0.89 is forwarded, type-checked; the editor-tab advice only when the sync attempt failed (faked listener replies) ====
 18a synced set_glyph_width        : synced_with_fontlab True | fontlab_sync {'attempted': True, 'synced': True, 'verdict': 'synced'} | secret False | failed-sync sentence False | unsynced sentence False | editor advice False
@@ -527,7 +527,7 @@
 18h older listener                  : synced_with_fontlab False | fontlab_sync None | secret False | failed-sync sentence False | unsynced sentence True | editor advice True
 18i synced: no agent_instruction about sync: True | font_modified True
 18j a broken reply never raises  : {'x': 1}
-18k version / MIN_LISTENER_VERSION: 0.57 (0, 82)
+18k version / MIN_LISTENER_VERSION: 0.59 (0, 82)
 
 ==== 19. server 0.30 / 0.31: get_kerning reads selected pairs through POST /kerning/pairs; no upper limit, approval above 250 (faked listener replies) ====
 19a pairs, tidy numbers          : {'mode': 'pairs', 'fonts_open': None, 'matched_by': None, 'family_name': None, 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048, 'table_size': 1370, 'count': 4, 'errors': 0} | instruction True
@@ -698,7 +698,7 @@
 19ck wrapper equals read_kerning (pairs): True
 19cl wrapper equals read_kerning (text) : True | both None -> ToolError: Give exactly one of pairs (a 
 19cl2 wrapper passes the approval flag : refused / 251
-19cm MIN_LISTENER_VERSION unchanged / server version: (0, 82) 0.57
+19cm MIN_LISTENER_VERSION unchanged / server version: (0, 82) 0.59
 19dn two fonts, matched by path   : {'fonts_open': 2, 'matched_by': 'path', 'family_name': 'Arial'} | names the font: True True | say which: True
 19do one font                     : {'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Arial'} | names the font: False False | say which: False
 19dp two fonts, no family name    : {'fonts_open': 2, 'matched_by': 'path', 'family_name': None} | names the font: True False | say which: True
@@ -847,7 +847,7 @@
 25t dx 10 on a square            -> modern layer | verified | y_extent_checked False | box {'box_left': 10, 'lsb': 10, 'box_width': 100, 'ink_width': 100, 'left_ok': True, 'width_ok': True} | reason  | requests ['/glyph/outline?name=A']
 25u GLYPHBRIDGE_MODERN=0        -> ['/glyph/outline?name=grd83a&modern=no'] | F1 note: ["GLYPHBRIDGE_MODERN=0: this outline was read through FontLab'"]
 25v an older listener (no source) -> verified | F1 note: False
-25w version / MIN_LISTENER_VERSION: 0.57 (0, 82)
+25w version / MIN_LISTENER_VERSION: 0.59 (0, 82)
 
 ==== 26. server 0.43: exact quadratic extents; the vertical extent checked against FontLab's ink box (listener 0.121, layer.inkBox()) ====
 26a testglyph3, quadratic (live 525/526) -> verified | y_extent_checked True | bbox {'left': 101.87, 'right': 383, 'bottom': 203.238, 'top': 414} exact True | vs FontLab {'box_bottom': 203.238, 'box_top': 414, 'fontlab_bottom': 203.238, 'fontlab_top': 414, 'y_ok': True} | reason  | y note 
@@ -885,7 +885,7 @@
 26z7 three cubic handles        -> None
 26z8 quad extremes              -> peak [(50.0, 50.0)] | monotonic [] | x only (y linear) [(50.0, 100.0)] | at an end (t=0) []
 26z9 docs                       -> quadratic extents: True | FontLab's ink box: True | old 'quadratic stays unverified' gone: True
-26zz version / MIN_LISTENER_VERSION: 0.57 (0, 82)
+26zz version / MIN_LISTENER_VERSION: 0.59 (0, 82)
 
 ==== 27. server 0.44: set_kerning (faked listener replies) ====
 27a one new pair                 : {'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 1000, 'count': 1, 'set_count': 1, 'table_size_before': 2, 'table_size_after': 3, 'font_modified': True} | changes (1, 0)
@@ -970,7 +970,7 @@
 27zq read refusal: stop added     : Kerning could not be read: 2 fonts are open; close the others.
 27zr read refusal: one stop only  : Kerning could not be read: the table is not reachable.
 27zs read refusal: question mark : Kerning could not be read: was another window brought to the front?
-27zz version / MIN_LISTENER_VERSION: 0.57 (0, 82)
+27zz version / MIN_LISTENER_VERSION: 0.59 (0, 82)
 
 ==== 28. server 0.46: open contours (live 581 / 583) ====
 28a open V (live 581)                -> verified | y_extent_checked True | bbox {'left': 24, 'right': 228, 'bottom': 69, 'top': 482} exact True | vs FontLab {'box_bottom': 69, 'box_top': 482, 'fontlab_bottom': 69, 'fontlab_top': 482, 'y_ok': True} | reason  | y note 
@@ -1015,13 +1015,13 @@
 28n parser, closed flag None       -> None
 28o svg, open / closed            -> M 0 0 L 10 0 | M 0 0 L 10 0 Z
 28p docs                           -> open contours: True | no direction: True
-28z version / MIN_LISTENER_VERSION: 0.57 (0, 82)
+28z version / MIN_LISTENER_VERSION: 0.59 (0, 82)
 
 ==== 29. server 0.47: draw_path with open contours (faked listener replies) ====
 29a open V                     -> {'drawn': True, 'verified': True, 'closed': [False], 'contours': 1, 'nodes': 3} | posts 1
 29b  sent                      -> [{'points': [{'x': 24.0, 'y': 482.0}, {'x': 132.0, 'y': 69.0}, {'x': 228.0, 'y': 462.0}], 'closed': False}]
 29c  note / open note          -> Contours of straight and cubic segments, in one shape; nodes | Contour(s) [0] are OPEN (the listener read closed: false for them, before and after attaching): each runs from its first point to its last, with no closing segment, so it has no fill.
-29d  agent_instruction         -> Tell the person that the glyph has OPEN contours: they have no fill, so they are strokes or construction lines, not filled shapes. Also tell them that what FontLab does with open contours when it generates a font (closes them, drops them or keeps them) has NOT been tested with Glyphbridge, so they should check that before relying on this glyph in an exported font. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
+29d  agent_instruction         -> Tell the person that the glyph has OPEN contours: they have no fill, so they are strokes or construction lines, not filled shapes. Also tell them that in testing (FontLab 8.9.5, File > Export with the TrueType and the OpenType PS profiles, default settings) FontLab dropped open contours from the generated font without a warning: a glyph made only of open contours came out empty. To keep such a shape in a generated font, its contours must be closed or turned into outlines in FontLab first. Other export settings were not tested. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
 29e open arch                  -> {'drawn': True, 'verified': True, 'closed': [False], 'contours': 1, 'nodes': 3} | posts 1
 29f  sent                      -> [{'points': [{'x': 105.0, 'y': 104.0}, {'x': 398.0, 'y': 104.0, 'c1': {'x': 105.0, 'y': 280.0}, 'c2': {'x': 398.0, 'y': 255.0}}], 'closed': False}]
 29g open V and a closed square -> {'drawn': True, 'verified': True, 'closed': [False, True], 'contours': 1, 'nodes': 3} | posts 1
@@ -1050,8 +1050,8 @@
 29zd open, two points, straight -> {'drawn': True, 'verified': True, 'closed': [False], 'contours': 1, 'nodes': 3} | posts 1
 29ze FontLab closes it on attach -> ToolError: Glyph 'od': something was drawn, but the layer does not match the request: layer contour 0: closed reads True, an open contour was requested. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save. | posts 1
 29zf  the change is counted     -> {'changes': 1, 'uncertain': 0, 'reminder_given': True}
-29zg docs                       -> open contours: True | object form: True | listener 0.126: True | export untested: True | signature: (name: str, contours: list[list[dict[str, typing.Any]] | dict[str, typing.Any]], ctx: __main__.Context | None = None) -> dict[str, typing.Any]
-29zz version / MIN_LISTENER_VERSION: 0.57 (0, 82)
+29zg docs                       -> open contours: True | object form: True | listener 0.126: True | export drops them: True | old 'not been tested' gone: True | signature: (name: str, contours: list[list[dict[str, typing.Any]] | dict[str, typing.Any]], ctx: __main__.Context | None = None) -> dict[str, typing.Any]
+29zz version / MIN_LISTENER_VERSION: 0.59 (0, 82)
 
 ==== 30. listener 0.127 / server 0.48: create_glyph gives the new glyph its layer (live 612-619 are the reason; stubs only) ====
 30a one master, layer made -> {'layer_created': 'Regular', 'layer_name_source': 'other glyphs', 'synced_with_fontlab': True} | calls: ['target(g30, create_layer=True)', 'guard(g30, layer_created)']
@@ -1106,7 +1106,7 @@
 31u element list unavailable -> verified | {} | notes: ["FontLab's element transforms could not be read (no list), so none was applied. Whether this glyph contains components is therefore unknown."]
 31v -0 in a description -> scale 100.00% horizontally, 100.00% vertically; offset (0, 30) | scale 100.00% horizontally, 100.00% vertically; offset (40, 0) | scale 200.00% horizontally, 100.00% vertically; offset (-100, 30)
 31w docs -> outline names is_component: True | names source: True | old claim only for legacy: True | draw_polygon corrected: True | still explains layer_created: True
-31z version / MIN_LISTENER_VERSION: 0.57 (0, 82)
+31z version / MIN_LISTENER_VERSION: 0.59 (0, 82)
 
 ==== 32. listener 0.130 / server 0.50: a box per component, an accent inside its base, a composite behind its source (live 633-650 are the reason; stubs only) ====
 32a two components -> [{'ink_box': (50.0, 650.0, 0.0, 700.0), 'source_ink_box': (50.0, 650.0, 0.0, 700.0)}, {'ink_box': (220.0, 480.0, 780.0, 880.0), 'source_ink_box': (70.0, 330.0, 780.0, 880.0)}] | inkBox [(0, ()), (1, ())] | source [('Regular', ()), ('Regular', ())] | forbidden []
@@ -1156,7 +1156,7 @@
 32zpb a plain element carrying boxes gets no verdict -> verified | element_boxes_checked absent | note absent | reason none | in step [True, 'absent'] | step notes [] | instruction none
 32zpc a box with an error beside its numbers -> unverified | element_boxes_checked False | note FontLab's box of element 1 could not be used: partial read | reason the coordinates match FontLab's horizontal margins and its ink box both with and without the element transform, so which reading is right cannot be told | in step [True, 'unknown'] | step notes ["FontLab's box of this element could not be used: partial read"] | instruction none
 32zq docs -> outline names source_in_step: True | element_boxes_checked: True | sidebearings warns: True True
-32zr listener / server versions: 0.136 0.57 | MIN_LISTENER_VERSION: (0, 82)
+32zr listener / server versions: 0.136 0.59 | MIN_LISTENER_VERSION: (0, 82)
 
 ==== 33. server 0.51: fontlab_changed_mark and save_question_note (stubs only) ====
 33a confirmed                    -> {'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}, 'font_modified': True}

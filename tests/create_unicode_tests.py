@@ -1972,7 +1972,8 @@ d29("29ze FontLab closes it on attach", [OPEN_V], reply=_closed_back)
 print("29zf  the change is counted     ->", fview(srv.finish_change_package()))
 _d29 = srv.draw_path.__doc__ or ""
 print("29zg docs                       -> open contours:", "OPEN contours" in _d29, "| object form:", '"closed": false' in _d29, "| listener 0.126:", "listener 0.126" in _d29,
-      "| export untested:", "has not been tested" in _d29, "| signature:", _inspect.signature(srv.draw_path))
+      "| export drops them:", "dropped open contours without a warning" in _d29, "| old 'not been tested' gone:", "has not been tested" not in _d29,
+      "| signature:", _inspect.signature(srv.draw_path))   # v0.58: the export result of 779-791
 print("29zz version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 srv._reset_change_tracking()

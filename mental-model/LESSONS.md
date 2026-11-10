@@ -76,3 +76,11 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 - **Start a timed read only after the person has read the steps and says "go".** In 769 the first timer ran out while the person was still reading, so its reads came before Apply and settled nothing.
 - **Read after each GUI change, not only at the end.** In 771 the scale was lost after two field edits in the small element panel, and which edit dropped it cannot be told.
 - **For an unattended read, ask the listener's route directly.** `--check` also calls `get_current_font`, which can open the `.notdef` dialog and block every request after it; `GET /glyph/outline?name=…` reads only the glyph (769).
+
+## Export and brush session (2026-11-10)
+
+- **Read the file itself to tell saving from loading.** FontLab's reading of a reopened file mixes what was written with what loading does. A read-only standard-library reader of the exported `.ttf` / `.otf` (784, 789) and a `.vfj` saved as text (796) showed where each change happens: open contours are lost at export, brush fractions appear at load.
+- **Name a FontLab menu item only as seen in the version in use.** A step said "File > Open…", which FontLab 8.9.5 does not have: fonts open with File > Open Fonts…, and File > Open is a submenu (811, [RUNBOOK.md](RUNBOOK.md)). Earlier records that said "File > Open" were corrected.
+- **A settings panel can act on the glyph in front.** Setting the Brush panel's size back resized the stroke of the glyph in front at once, though nothing was selected (821). Change such settings only with an empty glyph in front, and re-read after each GUI change.
+- **Pick a negative value to tell truncation from rounding down.** Positive fractions read the same either way; −38.25 showed −39, and the RUNBOOK's "truncated" was wrong (827).
+- **The expected test files have CRLF line endings.** A plain `diff` of a harness's direct output against them shows every line as changed; use `diff --strip-trailing-cr`. The "Connected at" time differs only in a direct run, since `run_all.py` masks it.
