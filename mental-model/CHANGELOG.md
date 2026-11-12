@@ -4,6 +4,46 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.143 (2026-11-11; server unchanged at v0.59)
+
+**`/debug/trynames?stage=info_set`** (NM 879–880, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k).
+- ONE `flPackage.info.F = V` for F = `openTypeNamePreferredFamilyName` or `openTypeNamePreferredSubfamilyName`, with the value checks of `set`; 3 per listener run. Every `trynames` reply now also reads both (an `info` part, in `changed_readings` too). Refused before any call when the package has no usable `info` object.
+- Tests: 3066 → 3078 lines (2299a–l; every state shows the `info` part). Mutation run: 35 of 35 caught in `trynames`, 9 of 9 in `construct_named`, each with a control run. Not yet run live.
+
+## Listener v0.142 (2026-11-11; server unchanged at v0.59)
+
+**`/debug/tryfont?stage=construct_named&family=F&go=yes`** (NM 878).
+- ONE `flPackage()`, then in the same request the names Build Names gives: `tfn` = F, `ffn` = F + " Regular", `psn` = F without spaces + "-Regular", `sgn` = F, each read back. Shares the once-per-run limit of `construct`; the flag is set before the constructor runs. F: 1–58 printable ASCII characters, no edge space.
+- Tests: 3047 → 3066 lines (2298a–q; the unknown-stage message of 726 changed). Mutation run: 9 of 9 caught, a control run matched. Live 878: all four names read back, but the tab and the FONTS panel showed the old names.
+
+## Listener v0.141 (2026-11-11; server unchanged at v0.59)
+
+**`trynames?stage=refresh` takes `which=applied|readed|added`** (NM 874–876): `flItems.notifyChangesApplied('Glyphbridge test', <flPackage>, False)`, `notifyPackageReaded(<flPackage>)`, `notifyPackageAdded(<flPackage>)`, 3 each per run.
+- Tests: 3035 → 3047 lines (2297a–l). Mutation run: 30 of 30 caught, a control run matched. Live 874–876: `applied` turned the font's icon blue; none redrew the FONTS panel.
+
+## Listener v0.140 (2026-11-11; server unchanged at v0.59)
+
+**`trynames?stage=refresh` takes `which=model|properties|changed`** (NM 867–869): `flItems.notifyModelChanged()`, `flItems.notifyPropertiesChanged(<flPackage>)`, `flPackage.changed()`, 3 each per run.
+- Tests: 3019 → 3035 lines (2296a–p). The static scan 2212 of `/debug/trynotify` ended at the next probe after it, which now includes `trynames` and its deliberate `changed()`: it ends where `trynames` begins. The fake package prints as `<TNPkg>`, not with a memory address. Mutation run: 27 of 27 caught, a control run matched. Live 867–869: none redrew the FONTS panel.
+
+## Listener v0.139 (2026-11-11; server unchanged at v0.59)
+
+**`/debug/trynames` gains two gated stages** (NM 864–866, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k).
+- `stage=store&go=yes`: ONE `flPackage.store_font_info(<the package's fgPackage>)`, refused before the call when `store_font_info` is missing or `fgPackage` is not a font object. `stage=legacy_set&field=familyName&value=V&go=yes`: ONE `font.info.familyName = V`, with the value checks of `set` and `read_back_equal` against the legacy field. 3 each per listener run; every name read before and after. An unknown stage now lists all five stages.
+- Tests: `stub_listener_tests.py` 3000 → 3019 lines (2295a–s; the counter dictionary gained two keys; the static scan allows one `store_font_info` lookup and the two setters). Mutation run: 23 of 23 caught, a control run matched. Live 864–866.
+
+## Listener v0.138 (2026-11-11; server unchanged at v0.59)
+
+**`/debug/trynames?stage=refresh` takes `which=content|package|packages`** (NM 862, 863).
+- `package`: ONE `flItems.notifyPackageUpdated(<package fgId>)`; `packages`: ONE `flItems.notifyPackagesUpdated()`, no argument; `content`, the default, as in 0.137. 3 per `which` and listener run, replacing the shared 6; an unknown `which` is refused before anything is called.
+- Tests: 2984 → 3000 lines (2294a–p; the counter dictionary changed shape). Mutation run: 17 of 17 caught, a control run matched. Live 862, 863, 866.
+
+## Listener v0.137 (2026-11-11; server unchanged at v0.59)
+
+**New research probe `/debug/trynames`** (P0.4, a `create_font` that can be given a name; NM 851–861).
+- `stage=state`, read only, no `go`: the package's `psn ffn tfn tsn sgn` and `fileName`, and the legacy `font.info` family, style, Full name and PostScript name. `stage=set&field=F&value=V&go=yes`: ONE assignment of one package name; 1–63 printable ASCII characters, no leading or trailing space, no space in `psn`; 10 per listener run. `stage=refresh&go=yes`: ONE `flItems.notifyPackageContentUpdated(<package fgId>)`, 6 per run. Exactly one font open (the gate of `/debug/trysync`); the counter is raised before the call.
+- Tests: 2951 → 2984 lines (2292a–2293e). The probe's variable is named `notifier`, not `items`, because 2291v counts the product route's own call text. Mutation run: 12 of 12 caught, a control run matched (the first run without one compared unmasked output, [LESSONS.md](LESSONS.md)).
+
 ## Server v0.59 (2026-11-11; listener unchanged at v0.136)
 
 **`get_glyph_sidebearings` no longer claims to show what FontLab's panel shows** (PB2 820, 827, [topics/reading.md](topics/reading.md) §8p).

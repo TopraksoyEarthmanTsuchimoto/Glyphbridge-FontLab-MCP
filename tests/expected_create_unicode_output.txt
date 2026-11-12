@@ -20,7 +20,7 @@
 1u  scan_unicode '66' (ignored)               -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1v  scan_unicode 1114112 (ignored)            -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1h  no font open                       -> (200, {'open': False})
-1i  /version                           -> {'version': '0.136'}
+1i  /version                           -> {'version': '0.143'}
 
 ==== 2. server create_glyph: fields and agent_instruction (faked listener replies) ====
 2a  'B' assigned 66 (matches)             -> {'unicode': 66, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': True}
@@ -1156,7 +1156,7 @@
 32zpb a plain element carrying boxes gets no verdict -> verified | element_boxes_checked absent | note absent | reason none | in step [True, 'absent'] | step notes [] | instruction none
 32zpc a box with an error beside its numbers -> unverified | element_boxes_checked False | note FontLab's box of element 1 could not be used: partial read | reason the coordinates match FontLab's horizontal margins and its ink box both with and without the element transform, so which reading is right cannot be told | in step [True, 'unknown'] | step notes ["FontLab's box of this element could not be used: partial read"] | instruction none
 32zq docs -> outline names source_in_step: True | element_boxes_checked: True | sidebearings warns: True True
-32zr listener / server versions: 0.136 0.59 | MIN_LISTENER_VERSION: (0, 82)
+32zr listener / server versions: 0.143 0.59 | MIN_LISTENER_VERSION: (0, 82)
 
 ==== 33. server 0.51: fontlab_changed_mark and save_question_note (stubs only) ====
 33a confirmed                    -> {'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}, 'font_modified': True}

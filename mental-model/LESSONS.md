@@ -84,3 +84,17 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 - **A settings panel can act on the glyph in front.** Setting the Brush panel's size back resized the stroke of the glyph in front at once, though nothing was selected (821). Change such settings only with an empty glyph in front, and re-read after each GUI change.
 - **Pick a negative value to tell truncation from rounding down.** Positive fractions read the same either way; −38.25 showed −39, and the RUNBOOK's "truncated" was wrong (827).
 - **The expected test files have CRLF line endings.** A plain `diff` of a harness's direct output against them shows every line as changed; use `diff --strip-trailing-cr`. The "Connected at" time differs only in a direct run, since `run_all.py` masks it.
+
+## New-font and naming session (2026-11-11)
+
+- **Read only after the person confirms a dialog has closed.** The first read of 845 came before Font Info's OK took effect and showed the old names; the user noticed, and the read was repeated. From 848 on, each step asked the person to say when the dialog had closed.
+- **A guard test can count call text.** The new probe reused the product route's exact call text `items.notifyPackageContentUpdated(pid)`, and 2291v, which counts it, failed. Name a probe's variables apart from the product's (`notifier`).
+- **A mutation run needs a control run.** The first run of 0.137 compared output in which the "Connected at" time was not masked, so every mutant looked caught; a control without a mutation showed it. Each run since starts with the control.
+- **Question the assumed source of a display before hunting for a trigger.** Nine redraw calls failed (856–869) because the premise was untested; the user's question whether the family name is what the FONTS panel shows led to File > New Font (871) and the real finding: the panel rebuilds on a font added or closed.
+- **A static scan bounded by "the next section" grows when code is inserted.** 2212 scanned up to the next probe and began to include `trynames`, which calls `changed()` on purpose (0.140). Bound a scan by its own section's end.
+- **A fake object printed with its memory address makes output differ between runs.** The fake package printed `<__main__.TNPkg object at 0x…>` in 2296; give it a `__repr__` and run the suite twice to check for determinism.
+
+## Grouping-key session (2026-11-12)
+
+- **A test of "kept or rebuilt" must start with values that differ.** 887 and 888 asked whether the legacy family survives a close and a listener restart while every family name read "Nm Four", so a kept value and one rebuilt from the package looked the same; both are void. 889 wrote a value that differed from every package name, and 890–893 then gave an answer.
+- **Re-read the earlier tests on a subject before calling it settled.** The FONTS panel's grouping key was recorded as "the legacy family" from 883 against 886, in six files, although 323 had grouped two fonts with different legacy families. It was found an hour later, by chance, while evidence was being moved, and corrected. Search the test records for the subject first.

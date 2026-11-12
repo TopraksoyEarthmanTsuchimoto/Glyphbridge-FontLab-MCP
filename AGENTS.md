@@ -32,6 +32,7 @@ Follow [mental-model/HOW-TO-GET-ORGANIZED.md](mental-model/HOW-TO-GET-ORGANIZED.
 - Follow the FontLab API safety rules in [mental-model/FONTLAB-API-RULES.md](mental-model/FONTLAB-API-RULES.md) without exception. Probes are names-only first, then gated (`go=yes`).
 - **Save policy:** no tool ever saves the font, and no tool may be built that does. After a package of changes, call `finish_changes` once and show its bold reminder in chat.
 - Live write tests go on a disposable font, with a new glyph-name prefix each round. The user may restart FontLab without saving at any time, so make every test re-runnable and state its stage.
+- **FontLab that cannot save (Demo mode).** While [CURRENT-STATUS.md](mental-model/CURRENT-STATUS.md) (Environment) says FontLab runs in Demo mode, tell the user before any live research starts whether it strictly needs a File > Save stage. If it does, say that it cannot be completed on this PC and wait for the user's choice. If it does not, say so, and that the research should therefore be completable here ([DECISIONS.md](mental-model/DECISIONS.md), 2026-11-11).
 - **Before editing code:** check `git status` / `git diff` for unexplained changes, and keep a backup.
   - Bump `VERSION` (listener) or `SERVER_VERSION` (server) together with the header line.
   - Compute the new file content completely before writing it.

@@ -25,7 +25,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 |---|---|---|
 | 53 | Auto sync not yet proven for: multi-layer (11), quadratic (43), big glyphs (42) | PARTLY |
 | 57 | No font open: every route answers `open: false` (`CountFonts()`, listener 0.105) | PARTLY: every read route proven, after closing the only font (227) and in a freshly started FontLab (244); writes with no font open: one create refused (227), the rest stub-only (T12) |
-| 63 | Several fonts open: which one the tools address | PARTLY: with two fonts every tool follows the font in front and every reply names it (262–316). Open: two unsaved fonts with the same name (a Font Info rename does not produce it, 322–324); with three fonts, `draw_path`, `get_kerning` (only its refusal, 268) and the reads other than `list_glyphs` and `get_glyph_width` are untested (317–331); a switch during one call ([topics/fonts-and-sync.md](topics/fonts-and-sync.md)) |
+| 63 | Several fonts open: which one the tools address | PARTLY: with two fonts every tool follows the font in front and every reply names it (262–316). Open: two unsaved fonts with the same name (a Font Info rename does not produce it, 322–324; new fonts get a numbered family, through the GUI and `flPackage()` alike, 832–835); with three fonts, `draw_path`, `get_kerning` (only its refusal, 268) and the reads other than `list_glyphs` and `get_glyph_width` are untested (317–331); a switch during one call ([topics/fonts-and-sync.md](topics/fonts-and-sync.md)) |
 | 62 | Modern glyph creation without `font.update()` | TODO, low priority (T6) |
 | 22 | Layer-name derivation when glyphs disagree, or when none has a layer | stub-tested only |
 

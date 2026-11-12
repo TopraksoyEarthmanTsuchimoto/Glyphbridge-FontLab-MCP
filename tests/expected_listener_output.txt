@@ -1,6 +1,6 @@
 [glyphbridge] Connected at HH:MM:SS - first request (GET /health) from a local client.
 /health ('200', {'status': 'ok'})
-/version ('200', {'version': '0.136'})
+/version ('200', {'version': '0.143'})
 /font/current ('200', {'open': True, 'path': 'x', 'glyph_count': 3, 'family_name': 'F', 'style_name': 'R', 'postscript_font_name': '', 'postscript_full_name': '', 'units_per_em': 1000, 'ascender': 800, 'descender': -200, 'cap_height': 700, 'x_height': 500, 'weight_class': 400, 'package_names_unavailable': "the number of open fonts is unknown or not a positive number, so the font's package cannot be matched to it"})
 /font/glyphs ('200', {'open': True, 'count': 3, 'names': ['A', 'empty', 'B']})
 /glyph/width?name=A ('200', {'open': True, 'found': True, 'name': 'A', 'width': 500.0})
@@ -264,7 +264,7 @@ shape_count in outline: 1
 207 bad route       : unknown route 'bogus': use rou
 208 unknown tri glyph: False no glyph named 'trinope'
 209 no font open    : {'open': False}
-210 version         : {'version': '0.136'}
+210 version         : {'version': '0.143'}
 220 legacy lsb refused: True refused: the legacy setters glyph.leftMargin / glyph.rightMa | leftMargin 0.0 | calls []
 221 legacy rsb refused: True | rightMargin -500.0
 222 legacy width still allowed: glyph.width = 600.0 | width 600.0
@@ -369,7 +369,7 @@ shape_count in outline: 1
 339 negative width   : 400 "width" must not be negative
 340 unknown glyph    : {'open': True, 'found': False, 'set': False, 'reason': "no glyph named 'nope'", 'before': None, 'after': None}
 341 no font          : {'open': False}
-342 version          : {'version': '0.136'}
+342 version          : {'version': '0.143'}
 343 state            : 200 {'is_none': True} 0 | findLayer {'is_none': True} | nocreate {'is_none': True} | ref True | calls [('findLayer', 'Master'), ('getLayerByName', 'Master', False)]
 344 create without go: 200 refused: stage=create can change the fon | calls []
 345 findLayerCreate  : 200 w.findLayerCreate('Master') | returned {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | same {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | rebuilt built {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
@@ -386,14 +386,14 @@ shape_count in outline: 1
 356 no name          : 400
 357 unknown glyph    : {'open': True, 'found': False, 'reason': "no glyph named 'nope'", 'font_master': {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}}
 358 no font          : {'open': False}
-359 version          : {'version': '0.136'}
+359 version          : {'version': '0.143'}
 360 font_master      : 200 {'is_none': False, 'type': 'FmLayer', 'public_names': ['id', 'isBodyLayer', 'isMasterLayer', 'mutate', 'name'], 'name': 'test_font', 'id': 7, 'isMasterLayer': True, 'isBodyLayer': False}
 361 master, no glyph : False test_font
 362 create has no section: False
 363 master is None   : {'is_none': True}
 364 master raises    : {'error': 'RuntimeError: no master'}
 365 no master member : {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}
-366 version          : {'version': '0.136'}
+366 version          : {'version': '0.143'}
 400 width, new glyph  : 200 {'set': True, 'route': 'modern', 'layer_created': 'test_font', 'before': 0.0, 'after': 600.0} | calls [('findLayerCreate', 'fresh', 'test_font'), ('advanceWidth', 'fresh', 600.0)]
 401 width again       : True modern | layer_created None | creates 1
 402 names disagree    : True legacy_empty_glyph | the glyphs of this font have different layer names (['Alpha' | creates [] | legacy width 600.0
@@ -430,7 +430,7 @@ shape_count in outline: 1
 434 reader, agree     : 3 | modern_check {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True}
 435 reader, modern=no : False
 436 reader, no modern : 3 | modern_check {'available': True, 'modern_layer': False}
-437 version           : {'version': '0.136'}
+437 version           : {'version': '0.143'}
 440 stage=layer       : 200 1 | getContours {'type': 'list', 'python_sequence': True, 'len': 1} | getShapes {'type': 'list', 'python_sequence': True, 'len': 1} | shapes {'type': 'R73Native', 'python_sequence': False, 'len': 2} | shapesCount 1
 441 stage=contour     : 1 True False 4 {'type': 'list', 'python_sequence': True, 'len': 4}
 442 node via getNodeAt: {'type': 'R73Node', 'x': 400, 'y': 300, 'isOn': True, 'isOff': False, 'isCurve': False, 'smooth': False, 'index': 2} | calls [('getNodeAt', 2)]
@@ -453,7 +453,7 @@ shape_count in outline: 1
 459 no modern layer    : this glyph has no modern active layer, so there is nothing to read
 460 no font            : {'open': False}
 461 read-only          : calls [] | shapes still 1
-462 version           : {'version': '0.136'}
+462 version           : {'version': '0.143'}
 470 modern_outline    : True | nodes 5 of 5 | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0} | check agree False
 471 contour 0         : {'index': 0, 'closed': True, 'clockwise': True, 'nodesCount': 5}
 472 nodes             : [(10.0, 20.0, True), (410.0, 20.0, True), (410.0, 220.0, True), (210.0, 320.0, True), (10.0, 220.0, True)]
@@ -469,7 +469,7 @@ shape_count in outline: 1
 482 count mismatch    : {'available': False, 'error': 'read 5 nodes but the layer reports 6: the outline is not trusted'}
 483 too many nodes    : {'available': False, 'error': 'the layer has 5 nodes, more than the 3 that are read'}
 484 no QTransform     : margins key False | available True
-485 version           : {'version': '0.136'}
+485 version           : {'version': '0.143'}
 490 two contours      : 200 {'drawn': True, 'points': 8, 'contours': 2, 'contour_sizes': [4, 4], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': True}, 'layer_created': 'test_font'} | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 8, 'components': 0}
 491 calls             : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'flContour', 'addShape']
 492 read back         : True | contours 2 [4, 4]
@@ -489,7 +489,7 @@ shape_count in outline: 1
 506 second contour dropped: False | after drawing, the layer reads 1 shape(s), 4 node(s) and 1 contour(s); expected 1, 8 and 2 | changed True | checks {'shapes_ok': True, 'nodes_ok': False, 'contours_ok': False}
 507 getContours unreadable: True | checks {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': None}
 508 not empty         : False | the glyph's layer is not KNOWN to be empty (needs  | calls []
-509 version           : {'version': '0.136'}
+509 version           : {'version': '0.143'}
 510 curve probe        : 200 curve | call node(index 1).convertToCurve(False) | returned True | nodes_added 2 | may_change False
     before             : 4 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '2: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '3: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
     after              : 6 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '2: (268.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '3: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '4: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '5: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
@@ -507,7 +507,7 @@ shape_count in outline: 1
 520 bogus stage        : unknown stage 'bogus' for route=modern: use stage=names or stage=build or stage=attach or stage=refresh
 521 bogus variant      : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
 522 curve without go   : 200 refused: this probe can change the font 
-523 version           : {'version': '0.136'}
+523 version           : {'version': '0.143'}
 524 curve2 normal | may_change False | keys []
     A plan: convertToCurve(False) on node 1; setPoint(1, QPointF(100, 60 | error: None | note: None | final_as_expected: True
       step getNodeAt(1).convertToCurve(False) | returned True | error None | as_expected None | n 6
@@ -592,7 +592,7 @@ shape_count in outline: 1
 537 QPointF missing    : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 538 curve2 without go  : 200 refused: this probe can change the font 
 539 variant=curve still works: 2 1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False
-540 version           : {'version': '0.136'}
+540 version           : {'version': '0.143'}
 541 build (dry run)   : 200 curve3 | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | may_change False | layer shapes/nodes 0 0
     calls             : ['flContour([5 QPointF])', 'contour.closed = True', 'getNodeAt(2).convertToCurve(False)', 'setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))', 'flShape()', 'shape.shapeData', 'shapeData.addContour(contour)']
     notes             : ['detached nodes before attach: 0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 1: (300.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 2: (355.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 3: (400.0, 45.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 4: (400.0, 100.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 5: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 6: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', "after adding the contour, the detached shape reads {'contoursCount': 1, 'hasContours': True, 'isEmpty': False}"]
@@ -617,7 +617,7 @@ shape_count in outline: 1
 557 attach without go : 200 refused: this probe can change the font 
 558 second attach refused: True | layer 1 7
 559 variant=single unchanged: single {'nodesCount': 3, 'closed': True, 'clockwise': False}
-560 version           : {'version': '0.136'}
+560 version           : {'version': '0.143'}
 561 curve3 whole-number handles: None | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | calls ['setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))']
 562 curve3 attach     : True {'shapes': 1, 'nodes': 7} | layer 1 7
 563 curve3, FontLab rounds everything: None | layer 1 7
@@ -684,7 +684,7 @@ shape_count in outline: 1
 573 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 574 curve4 without go : 200 refused: this probe can change the font 
 575 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-576 version           : {'version': '0.136'}
+576 version           : {'version': '0.143'}
 577 curve5, everything works (stub assumptions) | may_change False | error None
      T1 closing segment: convertToCurve(False) on node 0 of a square | {'returned': True, 'handle_indices': [4, 5], 'nodesCount': 6}
      T2a convertToCurve(True) on node 1 of a square | {'returned': True, 'smooth_flags': [False, False, False, True, False, False]}
@@ -740,7 +740,7 @@ shape_count in outline: 1
 586 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 587 curve5 without go : 200 refused: this probe can change the font 
 588 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-589 version           : {'version': '0.136'}
+589 version           : {'version': '0.143'}
 600 one curved segment       : {'drawn': True, 'nodes_match': True, 'points': 4, 'segments_curved': 1, 'contour_sizes': [6], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 601 nodes read back       : [[(0.0, 0.0, 'on', False), (400.0, 0.0, 'on', False), (500.0, 100.0, 'h', False), (500.0, 300.0, 'h', False), (400.0, 400.0, 'on', False), (0.0, 400.0, 'on', False)]] | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 6, 'components': 0} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
 602 calls                 : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'convertToCurve', 'addShape'] | layer_created test_font
@@ -800,7 +800,7 @@ shape_count in outline: 1
 667 second draw refused   : False | the glyph's layer is not KNOWN to be empty (needs 
 668 plain triangle via path : {'drawn': True, 'nodes_match': True, 'points': 3, 'segments_curved': 0, 'contour_sizes': [3], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 669 no convert calls      : 0
-671 version               : {'version': '0.136'}
+671 version               : {'version': '0.143'}
 672 pure helpers          : 3.0 -2.0 0.0 0.0 0.0 -3.0
 700 first draw             : True | layer_created test_font | layer (1, 6, 1) | creates 1
 701 legacy view lags       : True | wrapper activeLayer None
@@ -812,14 +812,14 @@ shape_count in outline: 1
 708 findLayer missing        : False | the glyph may already have a layer (the glyph has no findLayer to ask with), so no layer was created | creates 0 | layer None
 709 glyph without layer, nobody answers yes: True | layer_created test_font | creates 1
 710 width on a glyph with no layer still works: True modern | layer_created test_font | creates 1
-711 version                : {'version': '0.136'}
+711 version                : {'version': '0.143'}
 720 state, nothing open        : 200 {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': None} | constructed False | attached False | calls []
 721 default stage is state     : 200 state
 722 construct without go       : 200 stage=construct constructs ONE native flPackage object (it is not attached to anything). Add &go=yes to run it. | calls []
 723 attach without go          : 200 stage=attach attaches the constructed package to the workspa | calls []
 724 attach before construct    : 200 run stage=construct first (there is no package to attach) | calls []
 725 go must be exactly yes     : 200 stage=construct constructs ONE native fl | calls []
-726 unknown stage              : 200 {'error': 'stage must be "state", "construct" or "attach"'} | calls []
+726 unknown stage              : 200 {'error': 'stage must be one of: state, construct, attach, construct_named'} | calls []
 727 construct                  : 200 TFPackage {'name': '', 'upm': 1000.0, 'mastersCount': 0, 'defaultMaster': '', 'glyphsCount': 0, 'isNull': False, 'path': '', 'fileName': '<error: RuntimeError: no file name>', 'fgPackage': '<TFFgFont>'} | before {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': None} | after {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': False} | calls ['flPackage()']
 728 second construct refused   : 200 a package was already constructed in this listener run (each construct | calls ['flPackage()']
 729 state after construct      : {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': False} | constructed True | attached False
@@ -836,7 +836,7 @@ shape_count in outline: 1
 738 no flPackage class         : 200 the fontlab module has no flPackage class; nothing was constructed | constructed False
 739 forbidden members called   : [] | calls ['flPackage()', 'addPackage']
 740 static scan of the probe   : forbidden call syntax found: [] | real addPackage calls: 1 | scanned chars > 3000: True
-741 version                    : {'version': '0.136'}
+741 version                    : {'version': '0.143'}
 750 first glyph of a new font, polygon    : {'drawn': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
 751 what was read             : ['cp', 'defaultMaster', 'glyphsCount', 'isNull', 'master', 'masters', 'mastersCount', 'packages', 'upm'] | reads 9
 752 first glyph, width               : {'set': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
@@ -884,7 +884,7 @@ shape_count in outline: 1
 797 other glyphs, with source    : ('test_font', None, 'other glyphs') | reads []
 798 forbidden members called, whole run: [] | addShape calls 1
 799 static scan of the fallback  : forbidden call syntax found: [] | scanned chars > 3000: True
-800 version                      : {'version': '0.136'}
+800 version                      : {'version': '0.143'}
 810 state, one font open               : 200 {'stage': 'state', 'state': {'package_isChanged': False, 'workspace_isChanged': False, 'package_glyphsCount': 1}, 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 811 default stage is state           : 200 {'stage': 'state', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 812 package_update without go        : 200 {'error': "stage=package_update calls flPackage.update() ONCE on the font's package. Add &go=yes to run it."} | calls []
@@ -915,7 +915,7 @@ shape_count in outline: 1
 842 the module has no CountFonts     : 200 {'error': 'the fontlab module has no CountFonts, so the number of open fonts is unknown', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 843 forbidden members called    : [] | calls ['flPackage.update()', 'flWorkspace.update()']
 844 static scan of the probe     : forbidden call syntax found: [] | real update calls: 1 | scanned chars > 3000: True
-845 version                      : {'version': '0.136'}
+845 version                      : {'version': '0.143'}
 850 no go                         : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 851 go must be exactly yes           : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 852 unknown how                      : 200 {'error': 'how must be "plain" (createGlyph only) or "legacy_update" (createGlyph, then font.update())'} | names ['.notdef', 'A'] | calls []
@@ -947,7 +947,7 @@ shape_count in outline: 1
 878 forbidden members called     : [] | calls ['createGlyph', 'createGlyph', 'update'] | names ['.notdef', 'A', 'P1', 'P2']
 879 static scan of the probe     : forbidden call syntax found: [] | real createGlyph calls: 1 | real font.update calls: 1 | scanned chars > 2000: True
 880 create_glyph itself unchanged: True | still calls font.update(): True
-881 version                      : {'version': '0.136'}
+881 version                      : {'version': '0.143'}
 890 nothing tracked: update runs       : 200 {'created': True} | calls ['createGlyph', 'font.update'] | layers ['ref'] | tracked []
 891 draw: reply says not synced         : 200 {'drawn': True, 'synced_with_fontlab': False} | calls [] | layers ['fresh', 'ref'] | tracked ['fresh']
 891b durability note present  : True | mentions create_glyph: True
@@ -980,7 +980,7 @@ shape_count in outline: 1
 913 no regression: duplicate name   : 200 {'created': False}
 914 static scan of the guard     : forbidden call syntax found: [] | scanned chars > 3000: True
 915 every legacy update is guarded: [(1, 1, 1), (1, 1, 1), (1, 1, 2), (1, 1, 2)]
-916 version                      : {'version': '0.136'}
+916 version                      : {'version': '0.143'}
 917 sidebearings change remembered: 200 {'set': True, 'changed': True, 'synced_with_fontlab': False} | tracked ['tri']
 918 same values again: not remembered: {'set': True, 'changed': False, 'synced_with_fontlab': None} | tracked []
 920 margins agree                    : 200 node_count 3 | check {'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True} | modern_outline None
@@ -1003,7 +1003,7 @@ shape_count in outline: 1
 936 margins argument not a dict  : {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True}
 937 direct compare, missing key  : {'margins_agree': None, 'margins_note': 'the legacy margins are not numbers, so they could not be compared'}
 938 static scan of the compare   : forbidden call syntax found: [] | getLSB / getRSB reads in the helper: 1 | scanned chars > 1500: True
-939 version                      : {'version': '0.136'}
+939 version                      : {'version': '0.143'}
 940 state, drawn glyph                  : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'components': 0}, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
 940b                              : {'found': True, 'legacy_layers': 0, 'modern': 'present', 'modern_nodes': 4, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'} | registry {'fresh': 'at_risk'} | counters {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}
 941 state, updatedFgGlyphs ids          : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'components': 0}, 'updated_fg_glyphs': {'count': 2, 'ids': [5, 7]}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
@@ -1091,7 +1091,7 @@ shape_count in outline: 1
 981 forbidden members called     : [] | pkg.update / other recorded package calls: []
 982 static scan of the probe     : forbidden call syntax found: [] | real calls: Update 2 UpdateAll 1 fillFgData 1 prepareFontGateData 1 addGlyph 1 flGlyph() 1 | scanned chars > 6000: True
 983 no other tool changed        : True | create_glyph still calls font.update(): True
-984 version                      : {'version': '0.136'}
+984 version                      : {'version': '0.143'}
 990 polygon, Update syncs           : 200 {'drawn': True} | synced_with_fontlab True | fontlab_sync {'attempted': True, 'verdict': 'synced', 'synced': True} | note Glyphbridge asked Font | calls [('Update', 'M88Mod')] | tracked []
 990b                              : unsynced note gone: True | layer kept: True | legacy layers: 1
 991 polygon, Update has no effect     : 200 {'drawn': True} | synced_with_fontlab False | fontlab_sync {'attempted': True, 'verdict': 'at_risk', 'synced': False} | note This change exists onl | calls [('Update', 'M88Mod')] | tracked ['fresh']
@@ -1116,7 +1116,7 @@ shape_count in outline: 1
 1005 calls over all cases        : UpdateAll called: False | forbidden: [] | Update calls: 10 | all Update args are the modern wrapper: True
 1006 static scan of the sync     : forbidden call syntax found: [] | upd(w) calls: 1 | scanned chars > 900: True
 1007 constants                   : shipped default ['True'] | synced note mentions legacy view: True
-1008 version                     : {'version': '0.136'}
+1008 version                     : {'version': '0.143'}
 
 ==== v0.90 /debug/fontdir ====
 1010 dir                     : 200 {'open': True, 'count_fonts': 1, 'stage': 'dir', 'font_type': 'FDFont'} | names ['boom', 'familyName', 'flag', 'kerning', 'lenboom', 'method', 'nolen', 'nothing', 'unitsPerEm'] | doc len None | touched [] | called []
@@ -1726,12 +1726,12 @@ shape_count in outline: 1
 1328 poll: health, shutdown, version : raised None | accepts 2 | left 1 | socket closed True | timer stopped True | listener running False
 1329 replies                       : 200 {"status": "ok"} | 200 {"status": "shutting down"} | (nothing sent) | closed True True
 1330 poll: one request, then none : raised None | accepts 2 | left 0 | socket closed False | timer stopped False | listener running True
-1331 reply                         : 200 {"version": "0.136"}
+1331 reply                         : 200 {"version": "0.143"}
 1332 poll after stop()             : returns quietly
 [glyphbridge] Listener stopped.
 1333 poll: shutdown as 8th request : raised None | accepts 8 | left 0 | socket closed True | timer stopped True | listener running False
 1334 start() prints:
-[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.136
+[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.143
 [glyphbridge] Listener started on http://127.0.0.1:8765 (main-thread polling)
 [glyphbridge] Try: GET /health, GET /version. All routes are listed at the top of glyphbridge_fontlab_mcp_listener.py.
 1334 start() result                : socket set True | timer started True | interval 25 | signal timeout()
@@ -2383,7 +2383,7 @@ shape_count in outline: 1
 1621 forbidden members called    : [] | calls [('createGlyph', 'P1'), ('createGlyph', 'P2'), ('flGlyph', 'P2'), ('Update', ['P2']), ('flGlyph', 'A'), ('set unicode', 'A', 57346), ('Update', ['A'])] | names ['.notdef', 'A', 'P1', 'P2']
 1622 static scan of the probe     : forbidden call syntax found: [] | real calls: createGlyph 1 upd(w) 2 unicode set 1 | scanned chars > 6000: True
 1623 no product route changed    : create_glyph still calls font.update(): True | mentions of debug_try_refresh( (its def and its route): 2 | route wired: True
-1624 version                      : {'version': '0.136'}
+1624 version                      : {'version': '0.143'}
 
 ==== v0.120 F1: modern-only reads, the light sync check, the box probe ====
 1630 outline, modern nodes        : 200 {'source': 'modern', 'node_count': 3, 'contour_count': 1, 'component_count': 0, 'shape_count': 1, 'layer_route': 'body'} | legacy members touched []
@@ -2429,7 +2429,7 @@ shape_count in outline: 1
 1665 static scan light part of _guard_classify  : legacy members named: [] | scanned chars True
 1665 static scan _guard_is_light                : legacy members named: [] | scanned chars True
 1666 shipped switch              : ['True'] | full kinds ('draw_polygon', 'draw_path', 'layer_created') | light kinds ('width', 'sidebearings')
-1667 version                     : {'version': '0.136'}
+1667 version                     : {'version': '0.143'}
 
 ==== v0.121: fontlab_ink_box on the modern-only outline read ====
 1668 ink box, read once           : 200 | source modern | fontlab_ink_box {'type': 'SimpleNamespace', 'left': 192.466, 'right': 464.534, 'top': 0.0, 'bottom': 700.0, 'width': 272.068, 'height': 700.0} | inkBox calls [((), {})] | outline kept True | legacy members touched []
@@ -2949,3 +2949,130 @@ shape_count in outline: 1
 2291u not a list of dicts          : {'called': False, 'reason': "the panel refresh failed (AttributeError: 'int' object has no attribute 'get')"} | notify [] | forbidden []
 2291v the call in the source      : True | switch on: True | the route asks once: True | the mark first: True
 2253 the call in the source        : True | switch on: True
+
+==== v0.137 /debug/trynames ====
+2292a no stage                         : 200 {'error': 'stage must be one of: state, set, refresh, store, legacy_set, info_set'} | calls [] | notify []
+2292b state, one font                  : 200 {'state': {'package': {'psn': 'Unnamed-Regular', 'ffn': 'Unnamed Regular', 'tfn': 'Unnamed', 'tsn': 'Regular', 'sgn': 'Unnamed', 'fileName': 'Unnamed Regular.xfo'}, 'info': {'openTypeNamePreferredFamilyName': 'Unnamed', 'openTypeNamePreferredSubfamilyName': 'Regular'}, 'legacy': {'familyName': 'Unnamed', 'styleName': 'Regular', 'postscriptFullName': 'Unnamed Regular', 'postscriptFontName': 'Unnamed-Regular'}}, 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify []
+2292c state, two fonts: refused        : 200 {'error': 'CountFonts() is 2; the probe runs only when exactly one font is open'} | calls [] | notify []
+2292d state, one font, two packages    : 200 {'error': 'the workspace holds 2 packages, not exactly 1'} | calls [] | notify []
+2292e state, no font open              : 200 {'error': 'CountFonts() is 0; the probe runs only when exactly one font is open'} | calls [] | notify []
+2292f set without go                   : 200 {'error': "stage=set assigns 'Nm Api' to the package's tfn (ONE setter). Add &go=yes to run it."} | calls [] | notify []
+2292g set, unknown field               : 200 {'error': 'field must be one of: psn, ffn, tfn, tsn, sgn'} | calls [] | notify []
+2292h set, empty value                 : 200 {'error': 'value must be 1 to 63 characters; nothing was called'} | calls [] | notify []
+2292i set, 64 characters               : 200 {'error': 'value must be 1 to 63 characters; nothing was called'} | calls [] | notify []
+2292j set, 63 characters               : 200 {'read_back_equal': True} | calls ["set tfn='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'"] | notify []
+2292k set, not ASCII                   : 200 {'error': 'value must hold printable ASCII characters only (32 to 126); nothing was called'} | calls [] | notify []
+2292l set, a control character         : 200 {'error': 'value must hold printable ASCII characters only (32 to 126); nothing was called'} | calls [] | notify []
+2292m set, a leading space             : 200 {'error': 'value must not start or end with a space; nothing was called'} | calls [] | notify []
+2292n set, psn with a space            : 200 {'error': 'a PostScript name (psn) must not contain a space; nothing was called'} | calls [] | notify []
+2292o set tfn                         : 200 {'call': "flPackage.tfn = 'Nm Api'", 'call_error': None, 'read_back_equal': True, 'changed_readings': ["package.tfn: 'Unnamed' -> 'Nm Api'"], 'calls_so_far': {'set': 1, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls ["set tfn='Nm Api'"] | notify []
+2292p before / after               : Unnamed -> Nm Api | legacy family Unnamed | fileName Unnamed Regular.xfo
+2292q set psn without a space          : 200 {'call': "flPackage.psn = 'NmApi-Regular'", 'read_back_equal': True, 'changed_readings': ["package.psn: 'Unnamed-Regular' -> 'NmApi-Regular'"]} | calls ["set psn='NmApi-Regular'"] | notify []
+2292r the setter raises            : 200 RuntimeError: read-only property | read back False | changed [] | calls ["set ffn='Nm Api Regular'"]
+2292s a name that is not text        : 200 {'state': {'package': {'psn': 'Unnamed-Regular', 'ffn': '<callable, not called>', 'tfn': 'Unnamed', 'tsn': 'Regular', 'sgn': '<int>', 'fileName': 'Unnamed Regular.xfo'}, 'info': {'openTypeNamePreferredFamilyName': 'Unnamed', 'openTypeNamePreferredSubfamilyName': 'Regular'}, 'legacy': {'familyName': 'Unnamed', 'styleName': 'Regular', 'postscriptFullName': 'Unnamed Regular', 'postscriptFontName': 'Unnamed-Regular'}}} | calls [] | notify []
+2292t font.info raises               : 200 {'state': {'package': {'psn': 'Unnamed-Regular', 'ffn': 'Unnamed Regular', 'tfn': 'Unnamed', 'tsn': 'Regular', 'sgn': 'Unnamed', 'fileName': 'Unnamed Regular.xfo'}, 'info': {'openTypeNamePreferredFamilyName': 'Unnamed', 'openTypeNamePreferredSubfamilyName': 'Regular'}, 'legacy': '<error: font.info could not be read (RuntimeError: info boom)>'}} | calls [] | notify []
+2292u set: the limit is used up     : 200 {'error': 'set already ran 10 times in this listener run; restart the listener to repeat it', 'calls_so_far': {'set': 10, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify []
+2292v refresh without go             : 200 {'error': 'stage=refresh makes ONE flItems.notifyPackageContentUpdated(<package fgId>) call. Add &go=yes to run it.'} | calls [] | notify []
+2292w refresh                        : 200 {'call': 'flItems.notifyPackageContentUpdated(7)', 'call_error': None, 'changed_readings': [], 'calls_so_far': {'set': 0, 'content': 1, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify [('content', 7)]
+2292x refresh, fgId too large        : 200 {'error': "the package's fgId is 1379668187344, which does not fit a uint (0 to 4294967295): nothing was called"} | calls [] | notify []
+2292y refresh, fgId not a number     : 200 {'error': "the package's fgId is a str, not a plain number: nothing was called"} | calls [] | notify []
+2292z refresh, no flItems            : 200 {'error': 'the fontlab module has no flItems: nothing was called'} | calls [] | notify []
+2293a the refresh raises           : 200 RuntimeError: notify boom | notify [('content', 7)]
+2293b refresh: the limit is used up : 200 {'error': 'content already ran 3 times in this listener run; restart the listener to repeat it', 'calls_so_far': {'set': 0, 'content': 3, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify []
+2293c set refused: nothing counted   : 200 {'error': 'value must not start or end with a space; nothing was called'} | calls [] | notify []
+2293d counters after a refusal     : {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}
+2293e static scan: setattr calls: ['setattr(pkg, field, value)', 'setattr(info, field, value)', 'setattr(pinfo, field, value)'] | calls on pkg: [] | forbidden names: [] | store_font_info fetched once: True | route passes field and value: True | listed in the docstring: True | product refresh text once: True
+2294a which=packages                 : 200 {'which': 'packages', 'call': 'flItems.notifyPackagesUpdated()', 'call_error': None, 'changed_readings': [], 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 1, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify [('packages',)]
+2294b which=package                  : 200 {'which': 'package', 'call': 'flItems.notifyPackageUpdated(7)', 'call_error': None, 'calls_so_far': {'set': 0, 'content': 0, 'package': 1, 'packages': 1, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify [('package', 7)]
+2294c which=content, named           : 200 {'which': 'content', 'call': 'flItems.notifyPackageContentUpdated(7)', 'calls_so_far': {'set': 0, 'content': 1, 'package': 1, 'packages': 1, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify [('content', 7)]
+2294d unknown which                  : 200 {'error': 'which must be one of: content, package, packages, model, properties, changed, applied, readed, added; nothing was called'} | calls [] | notify []
+2294e unknown which, no go           : 200 {'error': 'which must be one of: content, package, packages, model, properties, changed, applied, readed, added; nothing was called'} | calls [] | notify []
+2294f packages without go            : 200 {'error': 'stage=refresh makes ONE flItems.notifyPackagesUpdated() call. Add &go=yes to run it.'} | calls [] | notify []
+2294g package without go             : 200 {'error': 'stage=refresh makes ONE flItems.notifyPackageUpdated(<package fgId>) call. Add &go=yes to run it.'} | calls [] | notify []
+2294h package, fgId too large        : 200 {'error': "the package's fgId is 1379668187344, which does not fit a uint (0 to 4294967295): nothing was called"} | calls [] | notify []
+2294i packages needs no fgId         : 200 {'call': 'flItems.notifyPackagesUpdated()', 'call_error': None} | calls [] | notify [('packages',)]
+2294j packages, no flItems           : 200 {'error': 'the fontlab module has no flItems: nothing was called'} | calls [] | notify []
+2294k packages used up               : 200 {'error': 'packages already ran 3 times in this listener run; restart the listener to repeat it', 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 3, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify []
+2294l package still allowed          : 200 {'call': 'flItems.notifyPackageUpdated(7)', 'calls_so_far': {'set': 0, 'content': 0, 'package': 1, 'packages': 3, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify [('package', 7)]
+2294m package used up                : 200 {'error': 'package already ran 3 times in this listener run; restart the listener to repeat it', 'calls_so_far': {'set': 0, 'content': 0, 'package': 3, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify []
+2294n which ignored for set          : 200 {'call': "flPackage.tsn = 'Bold'", 'read_back_equal': True, 'calls_so_far': {'set': 1, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls ["set tsn='Bold'"] | notify []
+2294o packages raises             : 200 RuntimeError: notify boom | notify [('packages',)] | counted 1
+2294p limits and route            : 3 ['added', 'applied', 'changed', 'content', 'model', 'package', 'packages', 'properties', 'readed'] | route passes which: True
+2295a store without go               : 200 {'error': "stage=store makes ONE flPackage.store_font_info(<the package's fgPackage>) call, whose direction is unknown. Add &go=yes to run it."} | calls [] | notify []
+2295b store                          : 200 {'call': 'flPackage.store_font_info(<TNFg>)', 'call_error': None, 'changed_readings': [], 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 1, 'legacy_set': 0, 'info_set': 0}} | calls ['store_font_info(TNFg)'] | notify []
+2295c store copies legacy -> package  : 200 {'call': 'flPackage.store_font_info(<TNFg>)', 'changed_readings': ["package.tfn: 'Nm Api' -> 'Unnamed'"]} | calls ['store_font_info(TNFg)'] | notify []
+2295d store_font_info missing        : 200 {'error': 'flPackage.store_font_info is missing or not callable: nothing was called'} | calls ['read store_font_info'] | notify []
+2295e fgPackage is None              : 200 {'error': "the package's fgPackage is NoneType, not a font object: nothing was called"} | calls [] | notify []
+2295f fgPackage is text              : 200 {'error': "the package's fgPackage is str, not a font object: nothing was called"} | calls [] | notify []
+2295g fgPackage cannot be read       : 200 {'error': 'fgPackage could not be read (AttributeError: fgPackage): nothing was called'} | calls ['read fgPackage'] | notify []
+2295h store raises                   : 200 {'call': 'flPackage.store_font_info(<TNFg>)', 'call_error': 'RuntimeError: store boom', 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 3, 'legacy_set': 0, 'info_set': 0}} | calls ['store_font_info(TNFg)'] | notify []
+2295i store used up                  : 200 {'error': 'store already ran 3 times in this listener run; restart the listener to repeat it', 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 3, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify []
+2295j legacy_set without go          : 200 {'error': "stage=legacy_set assigns 'Nm Api' to the legacy font.info.familyName (ONE setter). Add &go=yes to run it."} | calls [] | notify []
+2295k legacy_set, psn refused        : 200 {'error': 'field must be one of: familyName'} | calls [] | notify []
+2295l legacy_set, package field      : 200 {'error': 'field must be one of: familyName'} | calls [] | notify []
+2295m legacy_set, a leading space    : 200 {'error': 'value must not start or end with a space; nothing was called'} | calls [] | notify []
+2295n legacy_set                     : 200 {'call': "font.info.familyName = 'Nm Api'", 'call_error': None, 'read_back_equal': True, 'changed_readings': ["legacy.familyName: 'Unnamed' -> 'Nm Api'"], 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 1, 'info_set': 0}} | calls ["legacy familyName='Nm Api'"] | notify []
+2295o legacy setter raises       : 200 RuntimeError: legacy read-only | read back False | calls ["legacy familyName='Nm'"]
+2295p legacy_set, font.info raises   : 200 {'error': 'font.info could not be read (RuntimeError: info boom): nothing was called', 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify []
+2295q legacy_set used up             : 200 {'error': 'legacy_set already ran 3 times in this listener run; restart the listener to repeat it', 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 3, 'info_set': 0}} | calls [] | notify []
+2295r unknown stage                  : 200 {'error': 'stage must be one of: state, set, refresh, store, legacy_set, info_set'} | calls [] | notify []
+2295s static scan: setattr calls: ['setattr(pkg, field, value)', 'setattr(info, field, value)', 'setattr(pinfo, field, value)'] | store called once: True | limits 3 ('familyName',)
+2296a which=model                    : 200 {'which': 'model', 'call': 'flItems.notifyModelChanged()', 'call_error': None, 'changed_readings': [], 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 1, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify [('model',)]
+2296b which=properties               : 200 {'which': 'properties', 'call': 'flItems.notifyPropertiesChanged(<flPackage>)', 'call_error': None, 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 1, 'properties': 1, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify [('properties', <TNPkg>)]
+2296c properties passes the package : ['TNPkg']
+2296d which=changed                  : 200 {'which': 'changed', 'call': 'flPackage.changed()', 'call_error': None, 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 1, 'properties': 1, 'changed': 1, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls ['changed()'] | notify []
+2296e changed needs no flItems       : 200 {'call': 'flPackage.changed()', 'call_error': None} | calls ['changed()'] | notify []
+2296f changed missing                : 200 {'error': 'flPackage.changed is missing or not callable: nothing was called'} | calls ['read changed'] | notify []
+2296g changed raises                 : 200 {'call': 'flPackage.changed()', 'call_error': 'RuntimeError: changed boom'} | calls ['changed()'] | notify []
+2296h model, no flItems              : 200 {'error': 'the fontlab module has no flItems: nothing was called'} | calls [] | notify []
+2296i properties needs no fgId       : 200 {'call': 'flItems.notifyPropertiesChanged(<flPackage>)', 'call_error': None} | calls [] | notify [('properties', <TNPkg>)]
+2296j model without go               : 200 {'error': 'stage=refresh makes ONE flItems.notifyModelChanged() call. Add &go=yes to run it.'} | calls [] | notify []
+2296k properties without go          : 200 {'error': 'stage=refresh makes ONE flItems.notifyPropertiesChanged(<flPackage>) call. Add &go=yes to run it.'} | calls [] | notify []
+2296l changed without go             : 200 {'error': 'stage=refresh makes ONE flPackage.changed() call. Add &go=yes to run it.'} | calls [] | notify []
+2296m model used up                  : 200 {'error': 'model already ran 3 times in this listener run; restart the listener to repeat it', 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 3, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify []
+2296n properties still allowed       : 200 {'call': 'flItems.notifyPropertiesChanged(<flPackage>)', 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 3, 'properties': 1, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify [('properties', <TNPkg>)]
+2296o changed used up                : 200 {'error': 'changed already ran 3 times in this listener run; restart the listener to repeat it'} | calls [] | notify []
+2296p the refresh list           : ['added', 'applied', 'changed', 'content', 'model', 'package', 'packages', 'properties', 'readed']
+2297a which=applied                  : 200 {'which': 'applied', 'call': "flItems.notifyChangesApplied('Glyphbridge test', <flPackage>, False)", 'call_error': None, 'changed_readings': []} | calls [] | notify [('applied', 'Glyphbridge test', <TNPkg>, False)]
+2297b which=readed                   : 200 {'which': 'readed', 'call': 'flItems.notifyPackageReaded(<flPackage>)', 'call_error': None} | calls [] | notify [('readed', <TNPkg>)]
+2297c which=added                    : 200 {'which': 'added', 'call': 'flItems.notifyPackageAdded(<flPackage>)', 'call_error': None, 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 1, 'readed': 1, 'added': 1, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify [('added', <TNPkg>)]
+2297d applied needs no fgId          : 200 {'call': "flItems.notifyChangesApplied('Glyphbridge test', <flPackage>, False)", 'call_error': None} | calls [] | notify [('applied', 'Glyphbridge test', <TNPkg>, False)]
+2297e added, no flItems              : 200 {'error': 'the fontlab module has no flItems: nothing was called'} | calls [] | notify []
+2297f applied without go             : 200 {'error': "stage=refresh makes ONE flItems.notifyChangesApplied('Glyphbridge test', <flPackage>, False) call. Add &go=yes to run it."} | calls [] | notify []
+2297g readed without go              : 200 {'error': 'stage=refresh makes ONE flItems.notifyPackageReaded(<flPackage>) call. Add &go=yes to run it.'} | calls [] | notify []
+2297h added without go               : 200 {'error': 'stage=refresh makes ONE flItems.notifyPackageAdded(<flPackage>) call. Add &go=yes to run it.'} | calls [] | notify []
+2297i added used up                  : 200 {'error': 'added already ran 3 times in this listener run; restart the listener to repeat it'} | calls [] | notify []
+2297j applied still allowed          : 200 {'call': "flItems.notifyChangesApplied('Glyphbridge test', <flPackage>, False)"} | calls [] | notify [('applied', 'Glyphbridge test', <TNPkg>, False)]
+2297k readed raises              : 200 RuntimeError: notify boom | notify [('readed', <TNPkg>)]
+2297l product mark text still once: True | refresh list ['added', 'applied', 'changed', 'content', 'model', 'package', 'packages', 'properties', 'readed']
+2299a info_set without go            : 200 {'error': "stage=info_set assigns 'Nm Three' to the package's info.openTypeNamePreferredFamilyName (ONE setter). Add &go=yes to run it."} | calls [] | notify []
+2299b info_set, a package field      : 200 {'error': 'field must be one of: openTypeNamePreferredFamilyName, openTypeNamePreferredSubfamilyName'} | calls [] | notify []
+2299c info_set, another info field   : 200 {'error': 'field must be one of: openTypeNamePreferredFamilyName, openTypeNamePreferredSubfamilyName'} | calls [] | notify []
+2299d info_set, a trailing space     : 200 {'error': 'value must not start or end with a space; nothing was called'} | calls [] | notify []
+2299e info_set Preferred family     : 200 {'call': "flPackage.info.openTypeNamePreferredFamilyName = 'Nm Three'", 'call_error': None, 'read_back_equal': True, 'changed_readings': ["info.openTypeNamePreferredFamilyName: 'Unnamed' -> 'Nm Three'"]} | calls ["info openTypeNamePreferredFamilyName='Nm Three'"] | notify []
+2299f the info part after          : {'openTypeNamePreferredFamilyName': 'Nm Three', 'openTypeNamePreferredSubfamilyName': 'Regular'} | package tfn Unnamed
+2299g info_set Preferred subfamily   : 200 {'call': "flPackage.info.openTypeNamePreferredSubfamilyName = 'Bold'", 'read_back_equal': True} | calls ["info openTypeNamePreferredSubfamilyName='Bold'"] | notify []
+2299h the info setter raises     : 200 RuntimeError: info read-only | read back False | calls ["info openTypeNamePreferredFamilyName='Nm'"]
+2299i no info object                : 200 {'error': '<error: flPackage.info is NoneType, not an info object>: nothing was called', 'calls_so_far': {'set': 0, 'content': 0, 'package': 0, 'packages': 0, 'model': 0, 'properties': 0, 'changed': 0, 'applied': 0, 'readed': 0, 'added': 0, 'store': 0, 'legacy_set': 0, 'info_set': 0}} | calls [] | notify []
+2299j state, no info object         : 200 {'state': {'package': {'psn': 'Unnamed-Regular', 'ffn': 'Unnamed Regular', 'tfn': 'Unnamed', 'tsn': 'Regular', 'sgn': 'Unnamed', 'fileName': 'Unnamed Regular.xfo'}, 'info': '<error: flPackage.info is str, not an info object>', 'legacy': {'familyName': 'Unnamed', 'styleName': 'Regular', 'postscriptFullName': 'Unnamed Regular', 'postscriptFontName': 'Unnamed-Regular'}}} | calls [] | notify []
+2299k info_set used up              : 200 {'error': 'info_set already ran 3 times in this listener run; restart the listener to repeat it'} | calls [] | notify []
+2299l the info fields             : ('openTypeNamePreferredFamilyName', 'openTypeNamePreferredSubfamilyName') | stages ('state', 'set', 'refresh', 'store', 'legacy_set', 'info_set')
+
+==== v0.142 /debug/tryfont construct_named ====
+2298a without go                       : 200 {'error': "stage=construct_named constructs ONE flPackage and names it 'Nm Three' as Build Names would (four assignments). Add &go=yes to run it."} | made 0 | calls []
+2298b no family                        : 200 {'error': 'family: value must be 1 to 63 characters; nothing was constructed'} | made 0 | calls []
+2298c 59 characters                    : 200 {'error': 'family: family must be at most 58 characters, so that the PostScript name stays within 63; nothing was constructed'} | made 0 | calls []
+2298d 58 characters, no go             : 200 {'error': "stage=construct_named constructs ONE flPackage and names it 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as Build Names would (four assignments). Add &go=yes to run it."} | made 0 | calls []
+2298e a leading space                  : 200 {'error': 'family: value must not start or end with a space; nothing was constructed'} | made 0 | calls []
+2298f not ASCII                        : 200 {'error': 'family: value must hold printable ASCII characters only (32 to 126); nothing was constructed'} | made 0 | calls []
+2298g named                            : 200 {'constructed': True, 'family': 'Nm Three', 'names_before': {'psn': 'Unnamed-Regular', 'ffn': 'Unnamed Regular', 'tfn': 'Unnamed', 'tsn': 'Regular', 'sgn': 'Unnamed'}, 'all_equal': True} | made 1 | calls ["set tfn='Nm Three'", "set ffn='Nm Three Regular'", "set psn='NmThree-Regular'", "set sgn='Nm Three'"]
+2298h assignments                     : [('tfn', 'Nm Three', None, True), ('ffn', 'Nm Three Regular', None, True), ('psn', 'NmThree-Regular', None, True), ('sgn', 'Nm Three', None, True)]
+2298i workspace after                 : 1 1 | reads fileName Unnamed Regular.xfo
+2298j a second construct_named         : 200 {'error': 'a package was already constructed in this listener run (each construction leaves a native reference behind); restart the listener to repeat'} | made 1 | calls ["set tfn='Nm Three'", "set ffn='Nm Three Regular'", "set psn='NmThree-Regular'", "set sgn='Nm Three'"]
+2298k construct after it               : 200 {'error': 'a package was already constructed in this listener run (each construction leaves a native reference behind); restart the listener to repeat'} | made 1 | calls ["set tfn='Nm Three'", "set ffn='Nm Three Regular'", "set psn='NmThree-Regular'", "set sgn='Nm Three'"]
+2298l the constructor raises           : 200 {'error': 'flPackage() raised RuntimeError: ctor boom; nothing was named'} | made 0 | calls []
+2298m no second try after a failure  : True
+2298n the psn setter raises           : 200 {'all_equal': False} | made 1 | calls ["set tfn='Nm Three'", "set ffn='Nm Three Regular'", "set psn='NmThree-Regular'", "set sgn='Nm Three'"]
+2298o per field                        : [('tfn', None, 'Nm Three'), ('ffn', None, 'Nm Three Regular'), ('psn', 'RuntimeError: psn read-only', 'Unnamed-Regular'), ('sgn', None, 'Nm Three')]
+2298p an unknown stage                : 200 {'error': 'stage must be one of: state, construct, attach, construct_named'} | made 0 | calls []
+2298q the built names                 : (('tfn', 'Nm Three'), ('ffn', 'Nm Three Regular'), ('psn', 'NmThree-Regular'), ('sgn', 'Nm Three')) | route passes family: True

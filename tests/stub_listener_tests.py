@@ -6107,7 +6107,7 @@ nt("2210 another call still runs      ", C("package_updated"), keys=("call", "ca
 nt_setup()
 for _i in range(20): call(S)
 nt("2211 state: request 21 refused    ", S)
-_src131 = "\n".join(l for l in src[src.index("# /debug/trynotify (v0.131)"):src.index("# /debug/tryshapebox (v0.129)")].split("\n") if not l.lstrip().startswith("#"))
+_src131 = "\n".join(l for l in src[src.index("# /debug/trynotify (v0.131)"):src.index("# /debug/trynames (v0.137)")].split("\n") if not l.lstrip().startswith("#"))   # v0.140: ends before /debug/trynames, which calls changed() on purpose
 print("2212 static scan of the probe (code lines):", len(_src131) > 3000, "| forbidden call syntax:",
       _re83.findall(r"\.(?:update|save\w*|export\w*|close\w*|release|remove\w*|changed|restoreHistoryState|clearAboveHistory|historyStates|blockUpdate|unblockUpdate)\s*\(", _src131),
       "| subscripts of a native object:", _re83.findall(r"\b(?:pkg|ws|w|items|mod)\[", _src131),
@@ -6408,3 +6408,315 @@ for _m, _v in _mk_mods:
         if hasattr(_m, "flItems"): delattr(_m, "flItems")
     else:
         _m.flItems = _v
+
+# ================= v0.137: /debug/trynames (P0.4 research: write one package name; gated; faked package, font and flItems) =================
+print("\n==== v0.137 /debug/trynames ====")
+_tn_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flWorkspace", "flItems")]
+TN = {"calls": [], "set_raises": False, "notify": [], "notify_raises": False}
+class TNPInfo:
+    """v0.143: a package's info object: the two Preferred names; an assignment is recorded and can raise."""
+    openTypeNamePreferredFamilyName, openTypeNamePreferredSubfamilyName = "Unnamed", "Regular"
+    def __setattr__(s, a, v):
+        TN["calls"].append(f"info {a}={v!r}")
+        if TN.get("info_raises"): raise RuntimeError("info read-only")
+        object.__setattr__(s, a, v)
+class TNPkg:
+    """a font package: the names, fileName, isNull and fgId may be read; every other read and every assignment is recorded."""
+    def __repr__(s): return "<TNPkg>"                  # v0.140: printed when passed to notifyPropertiesChanged; no memory address
+    def __init__(s, **kw):
+        d = {"psn": "Unnamed-Regular", "ffn": "Unnamed Regular", "tfn": "Unnamed", "tsn": "Regular", "sgn": "Unnamed",
+             "fileName": "Unnamed Regular.xfo", "isNull": False, "fgId": 7, "info": TNPInfo()}
+        d.update(kw); object.__setattr__(s, "_d", d)
+    def __getattr__(s, a):
+        d = object.__getattribute__(s, "_d")
+        if a in d: return d[a]
+        TN["calls"].append("read " + a); raise AttributeError(a)
+    def __setattr__(s, a, v):
+        TN["calls"].append(f"set {a}={v!r}")
+        if TN["set_raises"]: raise RuntimeError("read-only property")
+        object.__getattribute__(s, "_d")[a] = v
+class TNInfo:
+    familyName, styleName, postscriptFullName, postscriptFontName = "Unnamed", "Regular", "Unnamed Regular", "Unnamed-Regular"
+    def __setattr__(s, a, v):                       # v0.139: a legacy setter is recorded, and can raise
+        TN["calls"].append(f"legacy {a}={v!r}")
+        if TN.get("legacy_raises"): raise RuntimeError("legacy read-only")
+        object.__setattr__(s, a, v)
+class TNFont:
+    def __init__(s, info_raises=False): s._r, s._info = info_raises, TNInfo()
+    @property
+    def info(s):
+        if s._r: raise RuntimeError("info boom")
+        return s._info
+def _tn_notify(name):
+    def f(*a):
+        TN["notify"].append((name,) + a)
+        if TN["notify_raises"]: raise RuntimeError("notify boom")
+    return staticmethod(f)
+class TNItems:
+    notifyPackageContentUpdated = _tn_notify("content")
+    notifyPackageUpdated = _tn_notify("package")         # v0.138
+    notifyPackagesUpdated = _tn_notify("packages")       # v0.138
+    notifyModelChanged = _tn_notify("model")             # v0.140
+    notifyPropertiesChanged = _tn_notify("properties")   # v0.140
+    notifyChangesApplied = _tn_notify("applied")         # v0.141
+    notifyPackageReaded = _tn_notify("readed")           # v0.141
+    notifyPackageAdded = _tn_notify("added")             # v0.141
+def tn_setup(pkg=None, count=1, npk=1, items=True, font=None):
+    pkg = pkg if pkg is not None else TNPkg()
+    class _WS:
+        @staticmethod
+        def instance():
+            return type("TNWs", (), {"currentPackage": pkg, "packages": lambda s: [pkg] * npk})()
+    for _m in _tf_mods:
+        _m.CountFonts = lambda: count
+        _m.CurrentFont = lambda f=font or TNFont(): f
+        _m.flWorkspace = _WS
+        if items: _m.flItems = TNItems
+        elif hasattr(_m, "flItems"): delattr(_m, "flItems")
+    TN.update(calls=[], set_raises=False, notify=[], notify_raises=False, legacy_raises=False, info_raises=False)
+    return pkg
+def tn(tag, query, keys=("error",), **kw):
+    tn_setup(**kw); c, d = call("/debug/trynames?" + query)
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| calls", TN["calls"], "| notify", TN["notify"])
+    return d
+def tn_reset(): ns["_TRYNAMES"].update(set=0, content=0, package=0, packages=0, model=0, properties=0, changed=0, applied=0, readed=0, added=0,
+                                       store=0, legacy_set=0, info_set=0)
+tn_reset()
+tn("2292a no stage                        ", "")
+tn("2292b state, one font                 ", "stage=state", keys=("state", "calls_so_far"))
+tn("2292c state, two fonts: refused       ", "stage=state", count=2)
+tn("2292d state, one font, two packages   ", "stage=state", npk=2)
+tn("2292e state, no font open             ", "stage=state", count=0)
+tn("2292f set without go                  ", "stage=set&field=tfn&value=Nm%20Api")
+tn("2292g set, unknown field              ", "stage=set&field=fileName&value=x&go=yes")
+tn("2292h set, empty value                ", "stage=set&field=tfn&value=&go=yes")
+tn("2292i set, 64 characters              ", "stage=set&field=tfn&value=" + "a" * 64 + "&go=yes")
+tn("2292j set, 63 characters              ", "stage=set&field=tfn&value=" + "a" * 63 + "&go=yes", keys=("error", "read_back_equal"))
+tn("2292k set, not ASCII                  ", "stage=set&field=tfn&value=Nm%C3%A9&go=yes")
+tn("2292l set, a control character        ", "stage=set&field=tfn&value=Nm%0ATest&go=yes")
+tn("2292m set, a leading space            ", "stage=set&field=tfn&value=%20Nm&go=yes")
+tn("2292n set, psn with a space           ", "stage=set&field=psn&value=Nm%20Api-Regular&go=yes")
+tn_reset()
+_d = tn("2292o set tfn                        ", "stage=set&field=tfn&value=Nm%20Api&go=yes", keys=("call", "call_error", "read_back_equal", "changed_readings", "calls_so_far"))
+print("2292p before / after               :", _d["state_before"]["package"]["tfn"], "->", _d["state_after"]["package"]["tfn"], "| legacy family", _d["state_after"]["legacy"]["familyName"],
+      "| fileName", _d["state_after"]["package"]["fileName"])
+tn("2292q set psn without a space         ", "stage=set&field=psn&value=NmApi-Regular&go=yes", keys=("call", "read_back_equal", "changed_readings"))
+_tnp = TNPkg(); tn_setup(pkg=_tnp); TN["set_raises"] = True; _c, _d = call("/debug/trynames?stage=set&field=ffn&value=Nm%20Api%20Regular&go=yes")
+print("2292r the setter raises            :", _c, _d.get("call_error"), "| read back", _d.get("read_back_equal"), "| changed", _d.get("changed_readings"), "| calls", TN["calls"])
+tn("2292s a name that is not text       ", "stage=state", keys=("state",), pkg=TNPkg(sgn=5, ffn=lambda: TN["calls"].append("ffn()")))
+tn("2292t font.info raises              ", "stage=state", keys=("state",), font=TNFont(info_raises=True))
+tn_reset(); ns["_TRYNAMES"]["set"] = 10
+tn("2292u set: the limit is used up    ", "stage=set&field=tfn&value=Nm&go=yes", keys=("error", "calls_so_far"))
+tn_reset()
+tn("2292v refresh without go            ", "stage=refresh")
+tn("2292w refresh                       ", "stage=refresh&go=yes", keys=("call", "call_error", "changed_readings", "calls_so_far"))
+tn("2292x refresh, fgId too large       ", "stage=refresh&go=yes", pkg=TNPkg(fgId=1379668187344))
+tn("2292y refresh, fgId not a number    ", "stage=refresh&go=yes", pkg=TNPkg(fgId="7"))
+tn("2292z refresh, no flItems           ", "stage=refresh&go=yes", items=False)
+tn_setup(); TN["notify_raises"] = True; _c, _d = call("/debug/trynames?stage=refresh&go=yes")
+print("2293a the refresh raises           :", _c, _d.get("call_error"), "| notify", TN["notify"])
+tn_reset(); ns["_TRYNAMES"]["content"] = 3
+tn("2293b refresh: the limit is used up", "stage=refresh&go=yes", keys=("error", "calls_so_far"))
+tn_reset()
+tn("2293c set refused: nothing counted  ", "stage=set&field=tfn&value=%20x&go=yes", keys=("error",))
+print("2293d counters after a refusal     :", dict(ns["_TRYNAMES"]))
+_tn_src = src[src.index("def debug_try_names("):src.index("# /debug/tryshapebox (v0.129)")]
+_tn_code = "\n".join(l.split("#")[0] for l in _tn_src.splitlines())     # comments dropped; its strings hold no call text
+print("2293e static scan: setattr calls:", _re83.findall(r"setattr\([^)]*\)", _tn_code), "| calls on pkg:", _re83.findall(r"\bpkg\.\w+\(", _tn_code),
+      "| forbidden names:", [n for n in ("collectNames", "title_name", ".update(", ".save(", ".close(", "export") if n in _tn_code],
+      "| store_font_info fetched once:", _tn_code.count('getattr(pkg, "store_font_info", None)') == 1,
+      "| route passes field and value:", 'debug_try_names((query.get("stage")' in src and '(query.get("value") or [""])[0]' in src,
+      "| listed in the docstring:", "/debug/trynames" in src[:src.index('"""', 3)], "| product refresh text once:", src.count("items.notifyPackageContentUpdated(pid)") == 1)
+# v0.138: stage=refresh&which=content|package|packages, 3 per which and listener run (856-861: the first refresh call left the FONTS panel stale)
+tn_reset()
+tn("2294a which=packages                ", "stage=refresh&which=packages&go=yes", keys=("which", "call", "call_error", "changed_readings", "calls_so_far"))
+tn("2294b which=package                 ", "stage=refresh&which=package&go=yes", keys=("which", "call", "call_error", "calls_so_far"))
+tn("2294c which=content, named          ", "stage=refresh&which=content&go=yes", keys=("which", "call", "calls_so_far"))
+tn("2294d unknown which                 ", "stage=refresh&which=all&go=yes")
+tn("2294e unknown which, no go          ", "stage=refresh&which=all")
+tn("2294f packages without go           ", "stage=refresh&which=packages")
+tn("2294g package without go            ", "stage=refresh&which=package")
+tn("2294h package, fgId too large       ", "stage=refresh&which=package&go=yes", pkg=TNPkg(fgId=1379668187344))
+tn("2294i packages needs no fgId        ", "stage=refresh&which=packages&go=yes", keys=("call", "call_error"), pkg=TNPkg(fgId="7"))
+tn("2294j packages, no flItems          ", "stage=refresh&which=packages&go=yes", items=False)
+tn_reset(); ns["_TRYNAMES"]["packages"] = 3
+tn("2294k packages used up              ", "stage=refresh&which=packages&go=yes", keys=("error", "calls_so_far"))
+tn("2294l package still allowed         ", "stage=refresh&which=package&go=yes", keys=("call", "calls_so_far"))
+tn_reset(); ns["_TRYNAMES"]["package"] = 3
+tn("2294m package used up               ", "stage=refresh&which=package&go=yes", keys=("error", "calls_so_far"))
+tn_reset()
+tn("2294n which ignored for set         ", "stage=set&field=tsn&value=Bold&which=all&go=yes", keys=("call", "read_back_equal", "calls_so_far"))
+tn_setup(); TN["notify_raises"] = True; _c, _d = call("/debug/trynames?stage=refresh&which=packages&go=yes")
+print("2294o packages raises             :", _c, _d.get("call_error"), "| notify", TN["notify"], "| counted", ns["_TRYNAMES"]["packages"])
+print("2294p limits and route            :", ns["_TRYNAMES_MAX_REFRESH"], sorted(ns["_TRYNAMES_REFRESH"]), "| route passes which:", '(query.get("which") or ["content"])[0]' in src)
+# v0.139: stage=store (one flPackage.store_font_info(fgPackage)) and stage=legacy_set (one font.info.familyName = V), 3 each (856-863 found no redraw)
+class TNFg: pass
+def _tn_store(copy_family=None, raises=False):
+    def f(fg):
+        TN["calls"].append(f"store_font_info({type(fg).__name__})")
+        if raises: raise RuntimeError("store boom")
+        if copy_family is not None: copy_family()
+    return f
+def tn_pkg_store(**kw):
+    return TNPkg(fgPackage=kw.pop("fg", TNFg()), store_font_info=kw.pop("store", _tn_store()), **kw)
+tn_reset()
+tn("2295a store without go              ", "stage=store", pkg=tn_pkg_store())
+tn("2295b store                         ", "stage=store&go=yes", keys=("call", "call_error", "changed_readings", "calls_so_far"), pkg=tn_pkg_store())
+_tnp = tn_pkg_store(tfn="Nm Api"); _tnp._d["store_font_info"] = _tn_store(copy_family=lambda: _tnp._d.__setitem__("tfn", "Unnamed"))
+tn("2295c store copies legacy -> package ", "stage=store&go=yes", keys=("call", "changed_readings"), pkg=_tnp)
+tn("2295d store_font_info missing       ", "stage=store&go=yes", pkg=TNPkg(fgPackage=TNFg()))
+tn("2295e fgPackage is None             ", "stage=store&go=yes", pkg=tn_pkg_store(fg=None))
+tn("2295f fgPackage is text             ", "stage=store&go=yes", pkg=tn_pkg_store(fg="x"))
+tn("2295g fgPackage cannot be read      ", "stage=store&go=yes", pkg=TNPkg(store_font_info=_tn_store()))
+tn("2295h store raises                  ", "stage=store&go=yes", keys=("call", "call_error", "calls_so_far"), pkg=tn_pkg_store(store=_tn_store(raises=True)))
+tn_reset(); ns["_TRYNAMES"]["store"] = 3
+tn("2295i store used up                 ", "stage=store&go=yes", keys=("error", "calls_so_far"), pkg=tn_pkg_store())
+tn_reset()
+tn("2295j legacy_set without go         ", "stage=legacy_set&field=familyName&value=Nm%20Api")
+tn("2295k legacy_set, psn refused       ", "stage=legacy_set&field=postscriptFontName&value=NmApi-Regular&go=yes")
+tn("2295l legacy_set, package field     ", "stage=legacy_set&field=tfn&value=Nm&go=yes")
+tn("2295m legacy_set, a leading space   ", "stage=legacy_set&field=familyName&value=%20Nm&go=yes")
+tn("2295n legacy_set                    ", "stage=legacy_set&field=familyName&value=Nm%20Api&go=yes", keys=("call", "call_error", "read_back_equal", "changed_readings", "calls_so_far"))
+tn_setup(); TN["legacy_raises"] = True; _c, _d = call("/debug/trynames?stage=legacy_set&field=familyName&value=Nm&go=yes")
+print("2295o legacy setter raises       :", _c, _d.get("call_error"), "| read back", _d.get("read_back_equal"), "| calls", TN["calls"])
+tn_reset()
+tn("2295p legacy_set, font.info raises  ", "stage=legacy_set&field=familyName&value=Nm&go=yes", keys=("error", "calls_so_far"), font=TNFont(info_raises=True))
+tn_reset(); ns["_TRYNAMES"]["legacy_set"] = 3
+tn("2295q legacy_set used up            ", "stage=legacy_set&field=familyName&value=Nm&go=yes", keys=("error", "calls_so_far"))
+tn_reset()
+tn("2295r unknown stage                 ", "stage=build&go=yes")
+_tn_code = "\n".join(l.split("#")[0] for l in src[src.index("def debug_try_names("):src.index("# /debug/tryshapebox (v0.129)")].splitlines())
+print("2295s static scan: setattr calls:", _re83.findall(r"setattr\([^)]*\)", _tn_code), "| store called once:", _tn_code.count("store(fg)") == 1, "| limits", ns["_TRYNAMES_MAX_OTHER"], ns["_TRYNAMES_LEGACY_SET_FIELDS"])
+# v0.140: refresh which=model (notifyModelChanged()), properties (notifyPropertiesChanged(<flPackage>)), changed (flPackage.changed()); none of 856-866 redrew the FONTS panel
+def _tn_changed(raises=False):
+    def f():
+        TN["calls"].append("changed()")
+        if raises: raise RuntimeError("changed boom")
+    return f
+tn_reset()
+tn("2296a which=model                   ", "stage=refresh&which=model&go=yes", keys=("which", "call", "call_error", "changed_readings", "calls_so_far"))
+_d = tn("2296b which=properties              ", "stage=refresh&which=properties&go=yes", keys=("which", "call", "call_error", "calls_so_far"))
+print("2296c properties passes the package :", [type(a[1]).__name__ for a in TN["notify"]])
+tn("2296d which=changed                 ", "stage=refresh&which=changed&go=yes", keys=("which", "call", "call_error", "calls_so_far"), pkg=TNPkg(changed=_tn_changed()))
+tn("2296e changed needs no flItems      ", "stage=refresh&which=changed&go=yes", keys=("call", "call_error"), items=False, pkg=TNPkg(changed=_tn_changed()))
+tn("2296f changed missing               ", "stage=refresh&which=changed&go=yes")
+tn("2296g changed raises                ", "stage=refresh&which=changed&go=yes", keys=("call", "call_error"), pkg=TNPkg(changed=_tn_changed(raises=True)))
+tn("2296h model, no flItems             ", "stage=refresh&which=model&go=yes", items=False)
+tn("2296i properties needs no fgId      ", "stage=refresh&which=properties&go=yes", keys=("call", "call_error"), pkg=TNPkg(fgId="7"))
+tn("2296j model without go              ", "stage=refresh&which=model")
+tn("2296k properties without go         ", "stage=refresh&which=properties")
+tn("2296l changed without go            ", "stage=refresh&which=changed")
+tn_reset(); ns["_TRYNAMES"]["model"] = 3
+tn("2296m model used up                 ", "stage=refresh&which=model&go=yes", keys=("error", "calls_so_far"))
+tn("2296n properties still allowed      ", "stage=refresh&which=properties&go=yes", keys=("call", "calls_so_far"))
+tn_reset(); ns["_TRYNAMES"]["changed"] = 3
+tn("2296o changed used up               ", "stage=refresh&which=changed&go=yes", keys=("error",), pkg=TNPkg(changed=_tn_changed()))
+tn_reset()
+print("2296p the refresh list           :", sorted(ns["_TRYNAMES_REFRESH"]))
+# v0.141: refresh which=applied (notifyChangesApplied(title, <flPackage>, False)), readed, added (871: the panel rebuilds when a font is added)
+tn_reset()
+tn("2297a which=applied                 ", "stage=refresh&which=applied&go=yes", keys=("which", "call", "call_error", "changed_readings"))
+tn("2297b which=readed                  ", "stage=refresh&which=readed&go=yes", keys=("which", "call", "call_error"))
+tn("2297c which=added                   ", "stage=refresh&which=added&go=yes", keys=("which", "call", "call_error", "calls_so_far"))
+tn("2297d applied needs no fgId         ", "stage=refresh&which=applied&go=yes", keys=("call", "call_error"), pkg=TNPkg(fgId="7"))
+tn("2297e added, no flItems             ", "stage=refresh&which=added&go=yes", items=False)
+tn("2297f applied without go            ", "stage=refresh&which=applied")
+tn("2297g readed without go             ", "stage=refresh&which=readed")
+tn("2297h added without go              ", "stage=refresh&which=added")
+tn_reset(); ns["_TRYNAMES"]["added"] = 3
+tn("2297i added used up                 ", "stage=refresh&which=added&go=yes", keys=("error",))
+tn("2297j applied still allowed         ", "stage=refresh&which=applied&go=yes", keys=("call",))
+tn_setup(); TN["notify_raises"] = True; _c, _d = call("/debug/trynames?stage=refresh&which=readed&go=yes")
+print("2297k readed raises              :", _c, _d.get("call_error"), "| notify", TN["notify"])
+print("2297l product mark text still once:", src.count("items.notifyChangesApplied(_MARK_TITLES[how], w, False)") == 1, "| refresh list", sorted(ns["_TRYNAMES_REFRESH"]))
+# v0.143: stage=info_set (ONE flPackage.info.F = V for the Preferred family or subfamily); 879: the panel grouped a renamed font under "Unnamed"
+tn_reset()
+tn("2299a info_set without go           ", "stage=info_set&field=openTypeNamePreferredFamilyName&value=Nm%20Three")
+tn("2299b info_set, a package field     ", "stage=info_set&field=tfn&value=Nm&go=yes")
+tn("2299c info_set, another info field  ", "stage=info_set&field=familyName&value=Nm&go=yes")
+tn("2299d info_set, a trailing space    ", "stage=info_set&field=openTypeNamePreferredFamilyName&value=Nm%20&go=yes")
+_d = tn("2299e info_set Preferred family    ", "stage=info_set&field=openTypeNamePreferredFamilyName&value=Nm%20Three&go=yes",
+        keys=("call", "call_error", "read_back_equal", "changed_readings"))
+print("2299f the info part after          :", _d["state_after"].get("info"), "| package tfn", _d["state_after"]["package"]["tfn"])
+tn("2299g info_set Preferred subfamily  ", "stage=info_set&field=openTypeNamePreferredSubfamilyName&value=Bold&go=yes", keys=("call", "read_back_equal"))
+tn_setup(); TN["info_raises"] = True; _c, _d = call("/debug/trynames?stage=info_set&field=openTypeNamePreferredFamilyName&value=Nm&go=yes")
+print("2299h the info setter raises     :", _c, _d.get("call_error"), "| read back", _d.get("read_back_equal"), "| calls", TN["calls"])
+tn_reset()
+tn("2299i no info object               ", "stage=info_set&field=openTypeNamePreferredFamilyName&value=Nm&go=yes", keys=("error", "calls_so_far"), pkg=TNPkg(info=None))
+tn("2299j state, no info object        ", "stage=state", keys=("state",), pkg=TNPkg(info="x"))
+tn_reset(); ns["_TRYNAMES"]["info_set"] = 3
+tn("2299k info_set used up             ", "stage=info_set&field=openTypeNamePreferredFamilyName&value=Nm&go=yes", keys=("error",))
+tn_reset()
+print("2299l the info fields             :", ns["_TRYNAMES_INFO"], "| stages", ns["_TRYNAMES_STAGES"])
+tn_reset()
+for _m, _a, _v in _tn_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else:
+        setattr(_m, _a, _v)
+
+# ================= v0.142: /debug/tryfont?stage=construct_named (P0.4: name a new font in the same request; faked flPackage / flWorkspace) =================
+print("\n==== v0.142 /debug/tryfont construct_named ====")
+_cn_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flPackage", "flWorkspace")]
+CN = {"made": [], "calls": [], "ctor_raises": False, "set_raises": ()}
+class CNPkg:
+    def __repr__(s): return "<CNPkg>"
+    def __init__(s):
+        if CN["ctor_raises"]: raise RuntimeError("ctor boom")
+        object.__setattr__(s, "_d", {"psn": "Unnamed-Regular", "ffn": "Unnamed Regular", "tfn": "Unnamed", "tsn": "Regular", "sgn": "Unnamed",
+                                     "name": "", "upm": 1000.0, "mastersCount": 1, "defaultMaster": "Regular", "glyphsCount": 1,
+                                     "isNull": False, "path": "", "fileName": "Unnamed Regular.xfo", "fgPackage": None})
+        CN["made"].append(s)
+    def __getattr__(s, a):
+        d = object.__getattribute__(s, "_d")
+        if a in d: return d[a]
+        CN["calls"].append("read " + a); raise AttributeError(a)
+    def __setattr__(s, a, v):
+        CN["calls"].append(f"set {a}={v!r}")
+        if a in CN["set_raises"]: raise RuntimeError(a + " read-only")
+        object.__getattribute__(s, "_d")[a] = v
+class CNWs:
+    def packages(s): return list(CN["made"])
+    @property
+    def currentPackage(s): return CN["made"][-1] if CN["made"] else None
+    def hasPackage(s, p): return p in CN["made"]
+def cn_setup(**kw):
+    CN.update(made=[], calls=[], ctor_raises=False, set_raises=())
+    CN.update(kw)
+    ns["_TRYFONT"].update(package=None, constructed=False, attached=False)
+    for _m in _tf_mods:
+        _m.flPackage = CNPkg
+        _m.CountFonts = lambda: len(CN["made"])
+        _m.CurrentFont = lambda: None
+        _m.flWorkspace = type("CNW", (), {"instance": staticmethod(lambda: CNWs())})
+def cn(tag, query, keys=("error",)):
+    c, d = call("/debug/tryfont?" + query)
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| made", len(CN["made"]), "| calls", CN["calls"])
+    return d
+cn_setup()
+cn("2298a without go                      ", "stage=construct_named&family=Nm%20Three")
+cn("2298b no family                       ", "stage=construct_named&go=yes")
+cn("2298c 59 characters                   ", "stage=construct_named&family=" + "a" * 59 + "&go=yes")
+cn("2298d 58 characters, no go            ", "stage=construct_named&family=" + "a" * 58)
+cn("2298e a leading space                 ", "stage=construct_named&family=%20Nm&go=yes")
+cn("2298f not ASCII                       ", "stage=construct_named&family=Nm%C3%A9&go=yes")
+_d = cn("2298g named                           ", "stage=construct_named&family=Nm%20Three&go=yes", keys=("constructed", "family", "names_before", "all_equal"))
+print("2298h assignments                     :", [(e["field"], e["value"], e.get("call_error"), e["read_back_equal"]) for e in _d["assignments"]])
+print("2298i workspace after                 :", _d["workspace_after"].get("CountFonts"), _d["workspace_after"].get("packages_len"), "| reads fileName", _d["reads"].get("fileName"))
+cn("2298j a second construct_named        ", "stage=construct_named&family=Nm%20Four&go=yes")
+cn("2298k construct after it              ", "stage=construct&go=yes")
+cn_setup(ctor_raises=True)
+cn("2298l the constructor raises          ", "stage=construct_named&family=Nm&go=yes")
+print("2298m no second try after a failure  :", ns["_TRYFONT"]["constructed"])
+cn_setup(set_raises=("psn",))
+_d = cn("2298n the psn setter raises          ", "stage=construct_named&family=Nm%20Three&go=yes", keys=("all_equal",))
+print("2298o per field                        :", [(e["field"], e.get("call_error"), e["read_back"]) for e in _d["assignments"]])
+cn_setup()
+cn("2298p an unknown stage               ", "stage=named&go=yes")
+print("2298q the built names                 :", ns["_tryfont_built_names"]("Nm Three"), "| route passes family:", '(query.get("family") or [""])[0]' in src)
+ns["_TRYFONT"].update(package=None, constructed=False, attached=False)
+for _m, _a, _v in _cn_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else:
+        setattr(_m, _a, _v)

@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.136)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.143)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -130,7 +130,8 @@ Routes (GET unless marked POST):
     /debug/trymetrics     width and sidebearing experiments (glyph names starting with "tri")
     /debug/tryshape       shape-building experiments (pen, modern and curve variants); superseded
                           by /glyph/polygon and /glyph/path
-    /debug/tryfont        a new font through flPackage(), once per listener run
+    /debug/tryfont        a new font through flPackage(), once per listener run; stage=construct_named&family=F (v0.142) names it
+                          in the same request as Build Names would (tfn, ffn, psn, sgn)
     /debug/trysync        flPackage.update() / flWorkspace.update() (both change nothing)
     /debug/trycreate      createGlyph with and without font.update()
     /debug/tryrefresh     F1: createGlyph or a Unicode value, then ONE fontlab.Update on that glyph; never font.update()
@@ -157,6 +158,16 @@ Routes (GET unless marked POST):
                           flags and history positions of the package, workspace and glyph; stage=call makes ONE flItems notification from a
                           fixed list (W), 3 per W and listener run; stage=ids reads the ids and asks findPackageId, 3 per listener run;
                           exactly one font open (v0.131, ids and id_from v0.135)
+    /debug/trynames       stage=state|set|refresh|store|legacy_set[&field=F&value=V][&which=W]: P0.4 research; the five package names (psn ffn tfn tsn sgn),
+                          fileName and the legacy font.info names; stage=set makes ONE assignment pkg.F = V, 10 per listener run; stage=refresh
+                          ONE flItems call, W=content notifyPackageContentUpdated(fgId), package notifyPackageUpdated(fgId) or packages
+                          notifyPackagesUpdated(), 3 per W and run (v0.138), model notifyModelChanged(), properties
+                          notifyPropertiesChanged(<flPackage>), changed flPackage.changed() (v0.140), applied
+                          notifyChangesApplied(title, <flPackage>, False), readed notifyPackageReaded(<flPackage>), added
+                          notifyPackageAdded(<flPackage>) (v0.141); stage=store ONE flPackage.store_font_info(fgPackage) and
+                          stage=legacy_set&field=familyName ONE font.info.familyName = V, 3 each per run (v0.139); stage=info_set
+                          ONE flPackage.info.F = V for the Preferred family or subfamily, 3 per run, and every reply reads both (v0.143);
+                          every stage but state needs go=yes; exactly one font open (v0.137)
     /debug/setcurrent     changes which glyph FontLab displays (no use for the modern API)
 
   Dead ends, kept as history: /debug/contours and /debug/drawpen (the pen protocol returns
@@ -184,7 +195,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.136"
+VERSION = "0.143"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -6507,10 +6518,15 @@ def _fontdir_keys(obj, result, go):
 #   state     read-only
 #   construct go=yes   ONE detached flPackage(); never attached here
 #   attach    go=yes   ONE flWorkspace.instance().addPackage(<that package>)
+#   construct_named&family=F&go=yes   v0.142 (P0.4): the same ONE flPackage(), then in the same request, before FontLab handles
+#             its next event, the names Build Names gives (845, 849): tfn = F, ffn = F + " Regular", psn = F without spaces +
+#             "-Regular", sgn = F, one assignment each, every name read back. It shares the once-per-run limit of construct.
+#             Reason: no call redrew the FONTS panel after a later rename (856-876), but it lists a font as it is when added (871).
 # Not called, ever, by this probe: createNewProject, closePackage, closeProject, saveProject, export*, release, remove.
 # --------------------------------------------------------------------------
 
-_TRYFONT_STAGES = ("state", "construct", "attach")
+_TRYFONT_STAGES = ("state", "construct", "attach", "construct_named")
+_TRYFONT_FAMILY_MAX = 58           # v0.142: psn = family without spaces + "-Regular" stays within 63 characters
 _TRYFONT = {"package": None, "constructed": False, "attached": False}
 _TRYFONT_PKG_READS = ("name", "upm", "mastersCount", "defaultMaster", "glyphsCount", "isNull", "path", "fileName", "fgPackage")
 
@@ -6596,18 +6612,60 @@ def _tryfont_workspace_state(mod, pkg=None):
     return out
 
 
-def debug_try_font(stage, go):
+def _tryfont_built_names(family):
+    """v0.142: the names Font Info's Build Names gives for family + style Regular (845, 849), in the order they are set."""
+    return (("tfn", family), ("ffn", family + " Regular"), ("psn", family.replace(" ", "") + "-Regular"), ("sgn", family))
+
+
+def debug_try_font(stage, go, family=""):
     import sys as _sys
     if stage not in _TRYFONT_STAGES:
-        return {"error": 'stage must be "state", "construct" or "attach"'}
+        return {"error": "stage must be one of: " + ", ".join(_TRYFONT_STAGES)}
     mod = _sys.modules.get("fontlab") or fl
     flags = {"constructed": _TRYFONT["constructed"], "attached": _TRYFONT["attached"]}
     if stage == "state":
         return dict(flags, stage="state", workspace_state=_tryfont_workspace_state(mod, _TRYFONT["package"]))
+    if stage == "construct_named":
+        why = _trynames_value_error("tfn", family)
+        if why is None and len(family) > _TRYFONT_FAMILY_MAX:
+            why = f"family must be at most {_TRYFONT_FAMILY_MAX} characters, so that the PostScript name stays within 63"
+        if why is not None:
+            return {"error": "family: " + why + "; nothing was constructed"}
     if go != "yes":
-        what = ("constructs ONE native flPackage object (it is not attached to anything)" if stage == "construct"
-                else "attaches the constructed package to the workspace (the experiment that may open a new font)")
+        what = {"construct": "constructs ONE native flPackage object (it is not attached to anything)",
+                "construct_named": f"constructs ONE flPackage and names it {family!r} as Build Names would (four assignments)",
+                }.get(stage, "attaches the constructed package to the workspace (the experiment that may open a new font)")
         return {"error": f"stage={stage} {what}. Add &go=yes to run it."}
+    if stage == "construct_named":
+        if _TRYFONT["constructed"]:
+            return dict(flags, error="a package was already constructed in this listener run (each construction leaves a "
+                                     "native reference behind); restart the listener to repeat")
+        cls = getattr(mod, "flPackage", None)
+        if cls is None:
+            return {"error": "the fontlab module has no flPackage class; nothing was constructed"}
+        before = _tryfont_workspace_state(mod)
+        _TRYFONT["constructed"] = True     # set BEFORE the call: whatever happens, there is never a second construction in this run
+        try:
+            pkg = cls()
+        except Exception as exc:
+            return {"error": f"flPackage() raised {type(exc).__name__}: {exc}; nothing was named", "workspace_before": before}
+        _TRYFONT["package"] = pkg
+        names_before = {attr: _trynames_read(pkg, attr) for attr in _TRYNAMES_FIELDS}
+        assignments = []
+        for attr, value in _tryfont_built_names(family):
+            entry = {"field": attr, "value": value}
+            try:
+                setattr(pkg, attr, value)
+            except Exception as exc:
+                entry["call_error"] = f"{type(exc).__name__}: {exc}"
+            entry["read_back"] = _trynames_read(pkg, attr)
+            entry["read_back_equal"] = entry["read_back"] == value
+            assignments.append(entry)
+        return {"stage": "construct_named", "constructed": True, "family": family, "names_before": names_before,
+                "assignments": assignments, "all_equal": all(e["read_back_equal"] for e in assignments),
+                "reads": {attr: _tryfont_read(pkg, attr) for attr in _TRYFONT_PKG_READS},
+                "workspace_before": before, "workspace_after": _tryfont_workspace_state(mod, pkg),
+                "note": "RESEARCH: look at the tab title (Full name) and the FONTS panel (Family name); nothing is saved by Glyphbridge"}
     if stage == "construct":
         if _TRYFONT["constructed"]:
             return dict(flags, error="a package was already constructed in this listener run (each construction leaves a "
@@ -7287,6 +7345,262 @@ def debug_try_notify(stage, which, on, name, go, id_from="object"):
             "return_value": returned, "call_error": call_error, "state_before": before, "state_after": after,
             "changed_readings": _trynotify_changes(before, after), "side_effect_detected": _trynotify_side_effect(before, after),
             "calls_so_far": dict(_TRYNOTIFY), "note": _TRYNOTIFY_NOTE}
+
+
+# --------------------------------------------------------------------------
+# /debug/trynames (v0.137) - RESEARCH for P0.4, a create_font that can be given a name. Can the names FontLab keeps in the font package
+# (psn ffn tfn tsn sgn: the PostScript name, Full name, Family name, Style name and Style group that Font Info shows) be written through
+# the API, and does FontLab's display follow? In Font Info, Build Names set Full name = family + " " + style, PostScript = family without
+# spaces + "-" + style and Style group = family (845, 849, 850), while the legacy font.info kept its old Full and PostScript names.
+# Exactly one font open (the gate of /debug/trysync), so the workspace's current package must be this font.
+#   stage=state                        read only, no go needed: the five package names, fileName and four legacy font.info names
+#   stage=set&field=F&value=V&go=yes   ONE assignment pkg.F = V, F one of psn ffn tfn tsn sgn: the one deliberate setter of this probe;
+#                                      every name is read before and after; at most _TRYNAMES_MAX_SET per listener run
+#   stage=refresh&which=W&go=yes       ONE flItems notification; every name read before and after; at most _TRYNAMES_MAX_REFRESH per W
+#                                      and listener run. W=content (the default): notifyPackageContentUpdated(<package fgId>), the call
+#                                      of the KERNING panel refresh (0.136, live 738-748), which did NOT redraw the FONTS panel (856-857);
+#                                      v0.138: W=package: notifyPackageUpdated(<package fgId>) (its docstring takes flPackage | uint id);
+#                                      W=packages: notifyPackagesUpdated(), no argument. Both seen by name only before 0.138.
+#                                      v0.140, none of the six calls of 856-866 having redrawn the FONTS panel: W=model:
+#                                      flItems.notifyModelChanged(); W=properties: flItems.notifyPropertiesChanged(<the flPackage itself>);
+#                                      W=changed: flPackage.changed(), no flItems. All three seen by name only before 0.140.
+#                                      v0.141, after test 871 showed that the FONTS panel rebuilds its list from the current names
+#                                      when a font is added: W=applied: flItems.notifyChangesApplied('Glyphbridge test', <flPackage>,
+#                                      False); W=readed: flItems.notifyPackageReaded(<flPackage>); W=added: flItems.notifyPackageAdded(
+#                                      <flPackage>), which may list the font twice. Seen by name only before 0.141.
+#   stage=store&go=yes                 v0.139: ONE flPackage.store_font_info(<the package's fgPackage>) (docstring: store_font_info(fg::Package
+#                                      *package)); which way it copies names is unknown, so every name is read before and after
+#   stage=legacy_set&field=familyName&value=V&go=yes   v0.139: ONE assignment font.info.familyName = V (the legacy view), the same
+#                                      value checks as stage=set. Both at most _TRYNAMES_MAX_OTHER per listener run. Reason: no
+#                                      refresh call redrew the FONTS panel after a package write (856-863); it may show the legacy family.
+#   stage=info_set&field=F&value=V&go=yes   v0.143: ONE assignment flPackage.info.F = V, F = openTypeNamePreferredFamilyName or
+#                                      openTypeNamePreferredSubfamilyName, 3 per listener run; every reply also reads both. Reason: after a
+#                                      rebuild the FONTS panel grouped a font whose tfn, ffn, psn and sgn read Nm Three under "Unnamed" (879),
+#                                      and its info.openTypeNamePreferredFamilyName, never written, read Unnamed (878, read only).
+# A counter is raised BEFORE the call under test. V is 1 to 63 printable ASCII characters (32-126) without a leading or trailing space;
+# for psn no space at all. Every read is ONE getattr; a callable is never called. Never called by this probe: collectNames, title_name,
+# update, changed, font.update(), save, close, export, any setter of flPackage.info, any setter of font.info other than stage=legacy_set,
+# and store_font_info outside stage=store.
+# --------------------------------------------------------------------------
+
+_TRYNAMES_STAGES = ("state", "set", "refresh", "store", "legacy_set", "info_set")
+_TRYNAMES_MAX_OTHER = 3            # v0.139: store and legacy_set, each per listener run; v0.143: info_set
+_TRYNAMES_LEGACY_SET_FIELDS = ("familyName",)
+_TRYNAMES_INFO = ("openTypeNamePreferredFamilyName", "openTypeNamePreferredSubfamilyName")   # v0.143: flPackage.info, read and set
+_TRYNAMES_FIELDS = _PACKAGE_NAME_FIELDS
+_TRYNAMES_LEGACY = ("familyName", "styleName", "postscriptFullName", "postscriptFontName")
+_TRYNAMES_MAX_SET = 10
+_TRYNAMES_MAX_REFRESH = 3          # per which (v0.138; 6 for the one refresh call of v0.137)
+_TRYNAMES_REFRESH = {"content": "notifyPackageContentUpdated(<package fgId>)", "package": "notifyPackageUpdated(<package fgId>)",
+                     "packages": "notifyPackagesUpdated()", "model": "notifyModelChanged()",                  # v0.140: model,
+                     "properties": "notifyPropertiesChanged(<flPackage>)", "changed": "flPackage.changed()",   # properties, changed
+                     "applied": "notifyChangesApplied('Glyphbridge test', <flPackage>, False)",               # v0.141: applied,
+                     "readed": "notifyPackageReaded(<flPackage>)", "added": "notifyPackageAdded(<flPackage>)"}  # readed, added
+_TRYNAMES_VALUE_MAX = 63
+_TRYNAMES = {"set": 0, "content": 0, "package": 0, "packages": 0, "model": 0, "properties": 0, "changed": 0, "applied": 0, "readed": 0, "added": 0,
+             "store": 0, "legacy_set": 0, "info_set": 0}
+_TRYNAMES_NOTE = ("RESEARCH: compare with FontLab's own display (the font's tab title shows the Full name, the FONTS panel the Family name, "
+                  "Font Info the five fields); a reading that could not be made is an <error> here, never an empty result; nothing is saved by Glyphbridge")
+
+
+def _trynames_read(obj, attr):
+    """ONE getattr: text without control characters, "<callable, not called>", the type name of anything else, or "<error: why>"."""
+    try:
+        value = getattr(obj, attr)
+    except Exception as exc:
+        return f"<error: {type(exc).__name__}: {exc}>"
+    if isinstance(value, str):
+        return _plain_text(value)
+    if callable(value):
+        return "<callable, not called>"
+    return f"<{type(value).__name__}>"
+
+
+def _trynames_info(pkg):
+    """v0.143: the package's info object (ONE getattr), and its two Preferred names, or "<error: why>"."""
+    try:
+        pinfo = getattr(pkg, "info")
+    except Exception as exc:
+        return None, f"<error: flPackage.info could not be read ({type(exc).__name__}: {exc})>"
+    if pinfo is None or isinstance(pinfo, (str, int, float, bool)) or callable(pinfo):
+        return None, f"<error: flPackage.info is {type(pinfo).__name__}, not an info object>"
+    return pinfo, {attr: _trynames_read(pinfo, attr) for attr in _TRYNAMES_INFO}
+
+
+def _trynames_snapshot(pkg, font):
+    """Read only: the package's five names and fileName, its info's Preferred names (v0.143), and the legacy font.info names."""
+    package = {attr: _trynames_read(pkg, attr) for attr in _TRYNAMES_FIELDS + ("fileName",)}
+    info_names = _trynames_info(pkg)[1]
+    try:
+        info = font.info
+    except Exception as exc:
+        return {"package": package, "info": info_names, "legacy": f"<error: font.info could not be read ({type(exc).__name__}: {exc})>"}
+    return {"package": package, "info": info_names, "legacy": {attr: _trynames_read(info, attr) for attr in _TRYNAMES_LEGACY}}
+
+
+def _trynames_changes(before, after):
+    """One line per reading that differs between the two snapshots."""
+    out = []
+    for part in ("package", "info", "legacy"):
+        b, a = before.get(part), after.get(part)
+        if not isinstance(b, dict) or not isinstance(a, dict):
+            if b != a:
+                out.append(f"{part}: {b!r} -> {a!r}")
+            continue
+        out.extend(f"{part}.{k}: {b.get(k)!r} -> {a.get(k)!r}" for k in b if b.get(k) != a.get(k))
+    return out
+
+
+def _trynames_value_error(field, value):
+    """None, or why the value is refused before anything is called."""
+    if not isinstance(value, str) or not (1 <= len(value) <= _TRYNAMES_VALUE_MAX):
+        return f"value must be 1 to {_TRYNAMES_VALUE_MAX} characters"
+    if any(not (32 <= ord(ch) <= 126) for ch in value):
+        return "value must hold printable ASCII characters only (32 to 126)"
+    if value != value.strip(" "):
+        return "value must not start or end with a space"
+    if field == "psn" and " " in value:
+        return "a PostScript name (psn) must not contain a space"
+    return None
+
+
+def debug_try_names(stage, field, value, go, which="content"):
+    import sys as _sys
+    if stage not in _TRYNAMES_STAGES:
+        return {"error": "stage must be one of: " + ", ".join(_TRYNAMES_STAGES)}
+    if stage in ("set", "legacy_set", "info_set"):
+        allowed = {"set": _TRYNAMES_FIELDS, "legacy_set": _TRYNAMES_LEGACY_SET_FIELDS}.get(stage, _TRYNAMES_INFO)
+        if field not in allowed:
+            return {"error": "field must be one of: " + ", ".join(allowed)}
+        why = _trynames_value_error(field, value)
+        if why is not None:
+            return {"error": why + "; nothing was called"}
+    if stage == "refresh" and which not in _TRYNAMES_REFRESH:
+        return {"error": "which must be one of: " + ", ".join(_TRYNAMES_REFRESH) + "; nothing was called"}
+    if stage != "state" and go != "yes":
+        what = {"set": f"assigns {value!r} to the package's {field} (ONE setter)",
+                "legacy_set": f"assigns {value!r} to the legacy font.info.{field} (ONE setter)",
+                "info_set": f"assigns {value!r} to the package's info.{field} (ONE setter)",
+                "store": "makes ONE flPackage.store_font_info(<the package's fgPackage>) call, whose direction is unknown",
+                }.get(stage, "makes ONE " + ("" if _TRYNAMES_REFRESH[which].startswith("flPackage.") else "flItems.")
+                      + f"{_TRYNAMES_REFRESH[which]} call")
+        return {"error": f"stage={stage} {what}. Add &go=yes to run it."}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"stage": stage, "error": why, "calls_so_far": dict(_TRYNAMES)}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    if stage == "state":
+        return {"stage": stage, "state": _trynames_snapshot(pkg, font), "calls_so_far": dict(_TRYNAMES), "note": _TRYNAMES_NOTE}
+    key = which if stage == "refresh" else stage
+    limit = {"set": _TRYNAMES_MAX_SET, "refresh": _TRYNAMES_MAX_REFRESH}.get(stage, _TRYNAMES_MAX_OTHER)
+    if _TRYNAMES[key] >= limit:
+        return {"stage": stage, "error": f"{key} already ran {limit} times in this listener run; restart the listener to repeat it",
+                "calls_so_far": dict(_TRYNAMES)}
+    if stage == "set":
+        def make_call():
+            setattr(pkg, field, value)
+        text = f"flPackage.{field} = {value!r}"
+    elif stage == "legacy_set":
+        try:
+            info = font.info
+        except Exception as exc:
+            return {"stage": stage, "error": f"font.info could not be read ({type(exc).__name__}: {exc}): nothing was called",
+                    "calls_so_far": dict(_TRYNAMES)}
+        def make_call():
+            setattr(info, field, value)
+        text = f"font.info.{field} = {value!r}"
+    elif stage == "info_set":
+        pinfo, why_not = _trynames_info(pkg)
+        if pinfo is None:
+            return {"stage": stage, "error": why_not + ": nothing was called", "calls_so_far": dict(_TRYNAMES)}
+        def make_call():
+            setattr(pinfo, field, value)
+        text = f"flPackage.info.{field} = {value!r}"
+    elif stage == "store":
+        store = getattr(pkg, "store_font_info", None)
+        if not callable(store):
+            return {"stage": stage, "error": "flPackage.store_font_info is missing or not callable: nothing was called", "calls_so_far": dict(_TRYNAMES)}
+        fg, err = _pkg_get(pkg, "fgPackage")
+        if err is not None:
+            return {"stage": stage, "error": err + ": nothing was called", "calls_so_far": dict(_TRYNAMES)}
+        if fg is None or isinstance(fg, (str, int, float, bool)):
+            return {"stage": stage, "error": f"the package's fgPackage is {type(fg).__name__}, not a font object: nothing was called",
+                    "calls_so_far": dict(_TRYNAMES)}
+        def make_call():
+            store(fg)
+        text = f"flPackage.store_font_info(<{type(fg).__name__}>)"
+    elif which == "changed":
+        changed = getattr(pkg, "changed", None)
+        if not callable(changed):
+            return {"stage": stage, "which": which, "error": "flPackage.changed is missing or not callable: nothing was called", "calls_so_far": dict(_TRYNAMES)}
+        def make_call():
+            changed()
+        text = "flPackage.changed()"
+    else:
+        notifier = getattr(mod, "flItems", None)        # not named "items": a test counts the product route's own call text
+        if notifier is None:
+            return {"stage": stage, "which": which, "error": "the fontlab module has no flItems: nothing was called", "calls_so_far": dict(_TRYNAMES)}
+        if which == "packages":
+            def make_call():
+                notifier.notifyPackagesUpdated()
+            text = "flItems.notifyPackagesUpdated()"
+        elif which == "model":
+            def make_call():
+                notifier.notifyModelChanged()
+            text = "flItems.notifyModelChanged()"
+        elif which == "applied":
+            def make_call():
+                notifier.notifyChangesApplied(_TRYNOTIFY_TITLE, pkg, False)
+            text = f"flItems.notifyChangesApplied({_TRYNOTIFY_TITLE!r}, <flPackage>, False)"
+        elif which == "readed":
+            def make_call():
+                notifier.notifyPackageReaded(pkg)
+            text = "flItems.notifyPackageReaded(<flPackage>)"
+        elif which == "added":
+            def make_call():
+                notifier.notifyPackageAdded(pkg)
+            text = "flItems.notifyPackageAdded(<flPackage>)"
+        elif which == "properties":
+            def make_call():
+                notifier.notifyPropertiesChanged(pkg)
+            text = "flItems.notifyPropertiesChanged(<flPackage>)"
+        else:
+            pid, err = _trynotify_id(pkg, "the package's", "fgId")
+            if err is not None:
+                return {"stage": stage, "which": which, "error": err + ": nothing was called", "calls_so_far": dict(_TRYNAMES)}
+            if which == "package":
+                def make_call():
+                    notifier.notifyPackageUpdated(pid)
+                text = f"flItems.notifyPackageUpdated({pid})"
+            else:
+                def make_call():
+                    notifier.notifyPackageContentUpdated(pid)
+                text = f"flItems.notifyPackageContentUpdated({pid})"
+    _TRYNAMES[key] += 1          # counted BEFORE the first read and the call under test: whatever happens, it is on record
+    before = _trynames_snapshot(pkg, font)
+    call_error = None
+    try:
+        make_call()
+    except Exception as exc:
+        call_error = f"{type(exc).__name__}: {exc}"
+    after = _trynames_snapshot(pkg, font)
+    out = {"stage": stage, "call": text, "call_error": call_error, "state_before": before, "state_after": after,
+           "changed_readings": _trynames_changes(before, after), "calls_so_far": dict(_TRYNAMES), "note": _TRYNAMES_NOTE}
+    if stage == "set":
+        out["field"], out["value"] = field, value
+        out["read_back_equal"] = isinstance(after.get("package"), dict) and after["package"].get(field) == value
+    elif stage == "legacy_set":
+        out["field"], out["value"] = field, value
+        out["read_back_equal"] = isinstance(after.get("legacy"), dict) and after["legacy"].get(field) == value
+    elif stage == "info_set":
+        out["field"], out["value"] = field, value
+        out["read_back_equal"] = isinstance(after.get("info"), dict) and after["info"].get(field) == value
+    elif stage == "refresh":
+        out["which"] = which
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -8696,7 +9010,8 @@ def _route(method, full_path, body=b""):
 
         if path == "/debug/tryfont":
             try:
-                return _build_response(200, debug_try_font((query.get("stage") or ["state"])[0], (query.get("go") or [""])[0]))
+                return _build_response(200, debug_try_font((query.get("stage") or ["state"])[0], (query.get("go") or [""])[0],
+                                                           (query.get("family") or [""])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
@@ -8744,6 +9059,14 @@ def _route(method, full_path, body=b""):
             try:
                 return _build_response(200, debug_try_notify((query.get("stage") or [""])[0], (query.get("which") or [""])[0], (query.get("on") or ["class"])[0],
                                                              (query.get("name") or [""])[0], (query.get("go") or [""])[0], (query.get("id_from") or ["object"])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/trynames":
+            try:
+                return _build_response(200, debug_try_names((query.get("stage") or [""])[0], (query.get("field") or [""])[0],
+                                                            (query.get("value") or [""])[0], (query.get("go") or [""])[0],
+                                                            (query.get("which") or ["content"])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

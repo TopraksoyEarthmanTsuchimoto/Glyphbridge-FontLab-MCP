@@ -10,6 +10,7 @@
 4. **Claude Desktop:** add a `glyphbridge-fontlab` entry under `mcpServers` with `command` = the venv's `python.exe`, `args` = the full path of `glyphbridge_mcp_server.py`, and `cwd` = the repository folder (all absolute paths). Open the file from **Settings > Developer > Edit Config**: the Store (MSIX) build does not read `%APPDATA%\Claude\claude_desktop_config.json`. It reads a file inside its own data folder, and Claude Desktop's `main.log` names that file on startup. Claude Desktop also writes its own preferences into the same file, so add the `mcpServers` key and never replace the file.
 5. **Claude Code:** the repository's [`.mcp.json`](../.mcp.json) starts the same server with repository-relative paths. Claude Code asks once to approve it.
 6. Start the listener (next section), fully restart Claude Desktop, and check: `Invoke-RestMethod "http://127.0.0.1:8765/version"` should give the listener version, `.\venv\Scripts\python.exe glyphbridge_mcp_server.py --check` should print four `[OK]` lines, and `fontlab_status` should report the versions in [CURRENT-STATUS.md](CURRENT-STATUS.md). Stop the listener with `Invoke-RestMethod "http://127.0.0.1:8765/shutdown"`; FontLab keeps running.
+7. **FontLab's licence state:** ask the user whether FontLab on this machine is fully functional or in Demo mode (Demo mode cannot save files), and record it under Environment in [CURRENT-STATUS.md](CURRENT-STATUS.md).
 
 ## Operating rules (from §1)
 
