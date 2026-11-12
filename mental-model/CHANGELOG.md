@@ -4,6 +4,14 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.146 and server v0.60 (2026-11-12)
+
+**`create_font` / `POST /font/create {"family"?}`** (ROADMAP P0.3 / P0.4; design approved 2026-11-12, [DECISIONS.md](DECISIONS.md)).
+- Listener: ONE `flPackage()` per request, with or without other fonts open and with no per-run cap. Success only when `CountFonts()` went up by exactly one and the workspace's current package `isEqual` the new one; otherwise `created: false` with the reason, and nothing is named or marked. With `family`: `tfn`, `ffn`, `psn`, `sgn` as Build Names gives them, each read back; then the legacy `font.info.familyName`, written only when the font in front still reads the new package's own family; then, only when all five read back equal, ONE `flItems.notifyChangesApplied('Glyphbridge create font', <the package>, False)` (switch `_MARK_CHANGED`). Without `family` nothing is written or marked. `notes` holds what the person must be told (unsaved; the tab title and the FONTS panel lag, with the Font Info workaround of 910; with other fonts open, the first glyph (288) and keeping the window in front); the activity log prints one line and each note in the OUTPUT panel.
+- Family check: printable ASCII, no edge space, none of `[](){}<>/%`, and a PostScript name (family without spaces + "-Regular") of at most 63 characters, so at most 55 characters without spaces. This corrects the approved "58 characters", which let the PostScript name reach 66. One check, `_family_name_error`, now serves both this route and the probe `/debug/tryfont?stage=construct_named`, whose own limit of 58 (since v0.142) is gone (the user's approval, the same day).
+- Server: `create_font(family=None)`, needs listener 0.146; the same checks before anything is sent; `person_notes` and an instruction to relay every one; with a name, the offer to explain Font Info's Names page (2026-11-11). A font made but not confirmed is reported and counted as a change; an unknown outcome as an uncertain one.
+- Tests: `stub_listener_tests.py` 3108 → 3206 lines (2302a–2308d; the probe's 2298c and 2298d now test 56 and 55 characters, 2298r and 2298s are new), `create_unicode_tests.py` 1222 → 1266 lines (36a–36z2, end to end through the real listener included); other output changed only in version lines. Mutation run: 19 of 19 caught (13 listener, 6 server). Not yet run live.
+
 ## Listener v0.145 (2026-11-12; server unchanged at v0.59)
 
 **`/debug/tryfont?stage=construct_named&mark=yes`** (NM 912–913, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k).

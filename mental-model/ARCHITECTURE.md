@@ -51,6 +51,7 @@ Every write is reported as successful only after a re-read agrees. Drawings are 
 | Area | Tools | Listener routes | Details |
 |---|---|---|---|
 | status, font | `fontlab_status`, `get_current_font`, `list_glyphs` | `/health`, `/version`, `/font/current`, `/font/glyphs` | [server-and-endpoints](topics/server-and-endpoints.md) |
+| new font | `create_font` (server 0.60) | POST `/font/create` (listener 0.146) | [server-and-endpoints](topics/server-and-endpoints.md), [fonts-and-sync](topics/fonts-and-sync.md) §8k |
 | reading | `get_glyph_outline`, `get_glyph_width`, `get_glyph_sidebearings` | `/glyph/outline`, `/glyph/width`, `/glyph/sidebearings` | [reading](topics/reading.md) |
 | `.notdef` | `check_notdef` (+ automatic checks) | `/font/notdef`, `/font/notdef/warn` | [notdef](topics/notdef.md) |
 | names, Unicode | `create_glyph`, `delete_glyph`, `check_glyph_unicode`, `set_glyph_unicode` | `/glyph/create`, `/glyph/delete`, `/glyph/unicode` | [names-unicode](topics/names-unicode.md) |
@@ -61,7 +62,7 @@ Every write is reported as successful only after a re-read agrees. Drawings are 
 
 **Confirmation and gating:**
 - `delete_glyph` asks a Yes/No question in FontLab (default No).
-- Reversible value writes are not gated.
+- Reversible value writes are not gated, nor is `create_font`, which changes nothing that exists.
 - Probes that construct objects or change UI state need `go=yes`.
 - Environment switches: `GLYPHBRIDGE_PORT`, `GLYPHBRIDGE_MODERN`, `GLYPHBRIDGE_NOTDEF_WARN`.
 

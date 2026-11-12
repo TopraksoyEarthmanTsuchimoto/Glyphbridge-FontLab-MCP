@@ -2524,3 +2524,128 @@ print("35p the no-change text            :", "already set" in srv._KERN_PANEL_NO
 print("35l the docstring                 :", all(t in (srv.set_kerning.__doc__ or "") for t in ("listener 0.136", P35, "another open font and back")))
 print("33n the note claims no icon and no question:", not any(t in srv._SAVE_QUESTION_NOTE.lower() for t in ("blue", "will ask", "asks to save")), "| kerning warning kept:", "closing the font asks no save question" in srv._SET_KERNING_INSTRUCTION if hasattr(srv, "_SET_KERNING_INSTRUCTION") else "asks no save question" in open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read())
 srv._reset_change_tracking()
+
+
+# ==== 36. server 0.60: create_font through POST /font/create (listener 0.146; faked listener replies, then wired to the real listener) ====
+print("\n==== 36. server 0.60: create_font ====")
+_keep36 = (srv._call_listener, srv._call_listener_post)
+F36 = {"version": "0.146", "reply": None, "gets": [], "posts": []}
+def _f36_get(path):
+    F36["gets"].append(path)
+    if path == "/version":
+        v = F36["version"]
+        if isinstance(v, Exception): raise v
+        return {"version": v}
+    raise AssertionError("unexpected GET " + path)
+def _f36_post(path, payload, timeout=0):
+    F36["posts"].append((path, payload))
+    r = F36["reply"]
+    if isinstance(r, Exception): raise r
+    return r
+srv._call_listener, srv._call_listener_post = _f36_get, _f36_post
+def f36(reply=None, version="0.146", **call):
+    F36.update(reply=reply, version=version, gets=[], posts=[])
+    srv._reset_change_tracking()
+    try:
+        return srv.create_new_font(**call)
+    except srv.ToolError as e:
+        return "ToolError: " + str(e)
+def f36chg(): return (srv._CHANGES["package"], srv._CHANGES["package_unsure"])
+_N36 = {"psn": "Unnamed2-Regular", "ffn": "Unnamed2 Regular", "tfn": "Unnamed2", "tsn": "Regular", "sgn": "Unnamed2"}
+_PKG36 = {"upm": 1000.0, "mastersCount": 1, "defaultMaster": "Regular", "glyphsCount": 1, "path": "", "fileName": "Unnamed2 Regular.xfo"}
+def made36(named=None, names_ok=True, legacy_ok=True, mark=None, after=3, notes=("This font is not saved.",)):
+    r = {"created": True, "family_requested": named, "fonts_open_before": after - 1, "fonts_open_after": after, "in_front": True,
+         "names_before": dict(_N36), "package": dict(_PKG36), "notes": list(notes)}
+    if named is None:
+        r["names_after"] = dict(_N36)
+        r["fontlab_changed_mark"] = mark or {"called": False, "reason": "no name was given, so nothing was changed after FontLab made the font"}
+        return r
+    names = {"psn": named.replace(" ", "") + "-Regular", "ffn": named + " Regular", "tfn": named, "tsn": "Regular", "sgn": named}
+    r["assignments"] = [{"field": f, "value": names[f], "read_back": names[f] if names_ok or f != "psn" else "Unnamed2-Regular",
+                         "read_back_equal": names_ok or f != "psn"} for f in ("tfn", "ffn", "psn", "sgn")]
+    if not names_ok: r["assignments"][2]["call_error"] = "RuntimeError: psn read-only"
+    r["names_set"] = names_ok
+    r["legacy_family"] = ({"value": named, "before": "Unnamed2", "written": True, "read_back": named, "read_back_equal": True} if legacy_ok else
+                          {"value": named, "before": "Other", "written": False, "reason": "the font in front reads the legacy family 'Other', not the new font's own 'Unnamed2', so it was not written (it might not be the new font)"})
+    r["legacy_family_set"] = legacy_ok
+    r["names_after"] = names if names_ok else dict(names, psn="Unnamed2-Regular")
+    r["fontlab_changed_mark"] = mark or ({"called": True} if names_ok and legacy_ok else {"called": False, "reason": "not every name was set and read back"})
+    return r
+def row36(label, r):
+    if isinstance(r, str): print(label, ":", r[:500], "| sent", F36["posts"], "| GETs", F36["gets"], "| changes", f36chg()); return
+    print(label, ":", {k: v for k, v in r.items() if k not in ("agent_instruction", "person_notes")}, "| changes", f36chg())
+    print("        sent", F36["posts"], "| notes", r.get("person_notes"))
+    print("        instruction:", r["agent_instruction"])
+
+row36("36a unnamed                       ", f36(made36()))
+row36("36b named, marked                 ", f36(made36("Nm Test"), family="Nm Test"))
+row36("36c named, psn not set            ", f36(made36("Nm Test", names_ok=False), family="Nm Test"))
+row36("36d named, legacy not written     ", f36(made36("Nm Test", legacy_ok=False), family="Nm Test"))
+row36("36e named, the mark raised        ", f36(made36("Nm Test", mark={"called": True, "call_error": "RuntimeError: x"}), family="Nm Test"))
+print("--- refused before anything is sent")
+for _lbl, _fam in (("36f a number                      ", 5), ("36g empty                         ", ""), ("36h spaces only                   ", "   "),
+                   ("36i a leading space               ", " Nm"), ("36j 56 without spaces             ", "a" * 56), ("36k 64 characters                 ", "a " * 31 + "aa"),
+                   ("36l not ASCII                     ", "Nmé"), ("36m a slash and brackets          ", "Nm/(Two)"), ("36n a tab                         ", "Nm\tTwo")):
+    row36(_lbl, f36(made36(), family=_fam))
+row36("36o 55 without spaces is sent     ", f36(made36("a" * 55), family="a" * 55))
+row36("36p an older listener             ", f36(made36(), version="0.145"))
+print("--- not made, or not confirmed")
+row36("36q not made                      ", f36({"created": False, "reason": "flPackage() raised RuntimeError: x", "fonts_open_before": 1, "fonts_open_after": 1}))
+row36("36r made, not in front            ", f36({"created": False, "reason": "the new font is not the font in front; nothing was named or marked", "fonts_open_before": 1,
+                                                 "fonts_open_after": 2, "in_front": False, "names_before": dict(_N36)}, family="Nm"))
+row36("36s count unknown afterwards      ", f36({"created": False, "reason": "the number of open fonts could not be read afterwards (x); nothing was named or marked",
+                                                 "fonts_open_before": 1, "fonts_open_after": None, "in_front": True, "names_before": dict(_N36)}))
+row36("36t no flPackage class            ", f36({"created": False, "reason": "the fontlab module has no flPackage class; no font was made"}))
+row36("36u the outcome is unknown        ", f36(srv.OutcomeUnknown("The FontLab listener did not answer /font/create within 5s.")))
+row36("36v counts that are True          ", f36({"created": False, "reason": "x", "fonts_open_before": True, "fonts_open_after": 2}))
+srv._call_listener, srv._call_listener_post = _keep36
+_d36 = srv.create_font.__doc__ or ""
+print("36w docstring                      :", all(t in _d36 for t in ("person_notes", "Unnamed1", "Build Names", "NEVER saves", "finish_changes ONCE", srv.SAVE_SHORTCUT)), "| SAVE_KEYS replaced:", "SAVE_KEYS" not in _d36)
+print("36x names instruction             :", srv._FONT_NAMES_INSTRUCTION)
+
+print("--- wired to the real listener (stub FontLab with a faked flPackage)")
+class P36:
+    made = []
+    def __init__(s):
+        n = len(P36.made); fam = "Unnamed" + (str(n) if n else "")
+        object.__setattr__(s, "_d", {"psn": fam + "-Regular", "ffn": fam + " Regular", "tfn": fam, "tsn": "Regular", "sgn": fam, "upm": 1000.0, "mastersCount": 1,
+                                     "defaultMaster": "Regular", "glyphsCount": 1, "isNull": False, "path": "", "fileName": fam + " Regular.xfo"})
+        object.__setattr__(s, "_info", types.SimpleNamespace(familyName=fam, styleName="Regular"))
+        P36.made.append(s)
+    def __getattr__(s, a):
+        d = object.__getattribute__(s, "_d")
+        if a in d: return d[a]
+        raise AttributeError(a)
+    def __setattr__(s, a, v): object.__getattribute__(s, "_d")[a] = v
+    def isEqual(s, o): return s is o
+class W36:
+    @staticmethod
+    def instance(): return W36()
+    @property
+    def currentPackage(s): return P36.made[-1] if P36.made else None
+class I36:
+    calls = []
+    @staticmethod
+    def notifyChangesApplied(title, pkg, flag): I36.calls.append((title, type(pkg).__name__, flag))
+_saved36 = {a: getattr(fl, a, None) for a in ("flPackage", "flWorkspace", "flItems", "CountFonts", "CurrentFont")}
+fl.flPackage, fl.flWorkspace, fl.flItems = P36, W36, I36
+fl.CountFonts = lambda: len(P36.made)
+fl.CurrentFont = lambda: types.SimpleNamespace(info=P36.made[-1]._info, path="", glyphs=[]) if P36.made else None
+srv._call_listener, srv._call_listener_post = wire_get, wire_post
+srv._reset_change_tracking()
+r = srv.create_new_font()
+print("36y unnamed, end to end            :", {k: r.get(k) for k in ("created", "full_name", "family_name", "postscript_name", "fonts_open_after", "units_per_em", "masters", "default_master", "glyph_count", "fontlab_changed_mark", "save_question_note")}, "| notes", len(r["person_notes"]), "| changes", f36chg())
+r = srv.create_new_font("Nm Wired")
+print("36z named, end to end              :", {k: r.get(k) for k in ("created", "full_name", "family_name", "postscript_name", "style_group", "fonts_open_after", "names_set", "legacy_family_set", "fontlab_changed_mark", "name_problems")},
+      "| legacy", P36.made[-1]._info.familyName, "| mark", I36.calls, "| notes", len(r["person_notes"]), "| changes", f36chg())
+try:
+    srv.create_new_font("Nm/Two")
+except ToolError as e:
+    print("36z2 refused by the server first   :", str(e)[:120], "| fonts", len(P36.made))
+srv._call_listener, srv._call_listener_post = _keep36
+for _a, _v in _saved36.items():
+    if _v is None:
+        if hasattr(fl, _a): delattr(fl, _a)
+    else:
+        setattr(fl, _a, _v)
+srv._reset_change_tracking()

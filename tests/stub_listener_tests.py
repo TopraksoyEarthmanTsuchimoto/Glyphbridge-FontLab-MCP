@@ -6741,8 +6741,10 @@ def cn(tag, query, keys=("error",)):
 cn_setup()
 cn("2298a without go                      ", "stage=construct_named&family=Nm%20Three")
 cn("2298b no family                       ", "stage=construct_named&go=yes")
-cn("2298c 59 characters                   ", "stage=construct_named&family=" + "a" * 59 + "&go=yes")
-cn("2298d 58 characters, no go            ", "stage=construct_named&family=" + "a" * 58)
+cn("2298c 56 without spaces (psn 64)     ", "stage=construct_named&family=" + "a" * 56 + "&go=yes")
+cn("2298d 55 characters, no go            ", "stage=construct_named&family=" + "a" * 55)
+cn("2298r a forbidden character          ", "stage=construct_named&family=Nm%2FTwo&go=yes")
+cn("2298s 58 characters (psn 66, was let through)", "stage=construct_named&family=" + "a" * 58 + "&go=yes")
 cn("2298e a leading space                 ", "stage=construct_named&family=%20Nm&go=yes")
 cn("2298f not ASCII                       ", "stage=construct_named&family=Nm%C3%A9&go=yes")
 _d = cn("2298g named                           ", "stage=construct_named&family=Nm%20Three&go=yes", keys=("constructed", "family", "names_before", "all_equal"))
@@ -6786,6 +6788,209 @@ print("2301m static scan: mark call once:", _mk_code.count("marker.notifyChanges
       "| route passes mark:", '(query.get("mark") or [""])[0]' in src, "| title text shared:", "_TRYNOTIFY_TITLE" in _mk_code)
 ns["_TRYFONT"].update(package=None, constructed=False, attached=False)
 for _m, _a, _v in _cn_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else:
+        setattr(_m, _a, _v)
+
+
+# ================= v0.146: POST /font/create (P0.3 / P0.4; faked flPackage / flWorkspace / flItems / CurrentFont) =================
+print("\n==== v0.146 POST /font/create ====")
+_fc_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flPackage", "flWorkspace", "flItems")]
+_fc_mark_saved = ns["_MARK_CHANGED"]
+FC = {"open": [], "calls": [], "mode": {}, "counts": []}
+class FCInfo:
+    """The legacy font.info of one font: familyName can be written, raise, or ignore the write."""
+    def __init__(s, fam): s._fam = fam; s.styleName = "Regular"
+    @property
+    def familyName(s): return s._fam
+    @familyName.setter
+    def familyName(s, v):
+        FC["calls"].append(f"legacy familyName={v!r}")
+        if FC["mode"].get("legacy_raises"): raise RuntimeError("legacy boom")
+        if FC["mode"].get("legacy_ignored"): return
+        s._fam = v
+class FCOther:
+    """A font that was already open (saved)."""
+    def __init__(s, fam="Saved"):
+        s._legacy = FCInfo(fam); s.isNull = False; s.path = "C:/fonts/" + fam + ".vfc"
+class FCPkg:
+    def __repr__(s): return "<FCPkg>"
+    def __init__(s):
+        FC["calls"].append("flPackage()")
+        m = FC["mode"]
+        if m.get("ctor_raises"): raise RuntimeError("ctor boom")
+        n = sum(1 for p in FC["open"] if isinstance(p, FCPkg))       # FontLab numbers new fonts: Unnamed, Unnamed1, ...
+        fam = "Unnamed" + (str(n) if n else "")
+        object.__setattr__(s, "_d", {"psn": fam + "-Regular", "ffn": fam + " Regular", "tfn": fam, "tsn": "Regular", "sgn": fam,
+                                     "upm": 1000.0, "mastersCount": 1, "defaultMaster": "Regular", "glyphsCount": 1, "isNull": False,
+                                     "path": "", "fileName": fam + " Regular.xfo"})
+        object.__setattr__(s, "_legacy", FCInfo(m.get("legacy_start", fam)))
+        if m.get("not_registered"): return
+        if m.get("not_in_front"): FC["open"].insert(0, s)
+        else: FC["open"].append(s)
+    def __getattr__(s, a):
+        d = object.__getattribute__(s, "_d")
+        if a in d: return d[a]
+        raise AttributeError(a)
+    def __setattr__(s, a, v):
+        FC["calls"].append(f"set {a}={v!r}")
+        if a in FC["mode"].get("set_raises", ()): raise RuntimeError(a + " read-only")
+        if a in FC["mode"].get("set_ignored", ()): return
+        object.__getattribute__(s, "_d")[a] = v
+    def isEqual(s, other):
+        FC["calls"].append("isEqual")
+        if FC["mode"].get("isequal_raises"): raise RuntimeError("isEqual boom")
+        if "isequal_returns" in FC["mode"]: return FC["mode"]["isequal_returns"]
+        return s is other
+for _n in ("release", "remove", "close", "save", "update", "changed", "addGlyph", "setUpm", "addMaster"):
+    setattr(FCPkg, _n, _tf_spy("flPackage." + _n))
+class FCWs:
+    def packages(s): return list(FC["open"])
+    @property
+    def currentPackage(s):
+        if FC["mode"].get("no_current"): return None
+        return FC["open"][-1] if FC["open"] else None
+for _n in ("addPackage", "closePackage", "saveProject", "exportFont", "release", "remove", "update"):
+    setattr(FCWs, _n, _tf_spy("flWorkspace." + _n))
+class FCFont:
+    def __init__(s, pkg): s.info = pkg._legacy; s.path = pkg.path; s.glyphs = []
+class FCItems:
+    @staticmethod
+    def notifyChangesApplied(title, pkg, flag):
+        FC["calls"].append(f"applied({title!r}, {type(pkg).__name__}, {flag})")
+        if FC["mode"].get("mark_raises"): raise RuntimeError("mark boom")
+def _fc_count():
+    if FC["counts"]:
+        v = FC["counts"].pop(0)
+        if isinstance(v, Exception): raise v
+        return v
+    return len(FC["open"])
+def fc_setup(others=0, counts=(), **mode):
+    FC.update(open=[FCOther("Saved" + str(i)) for i in range(others)], calls=[], mode=dict(mode), counts=list(counts))
+    TF["forbidden"].clear()
+    ns["_MARK_CHANGED"] = True
+    for _m in _tf_mods:
+        _m.flPackage = FCPkg
+        _m.CountFonts = _fc_count
+        _m.CurrentFont = lambda: FCFont(FC["open"][-1]) if FC["open"] else None
+        _m.flWorkspace = type("FCW", (), {"instance": staticmethod(lambda: FCWs())})
+        if mode.get("no_items"):
+            if hasattr(_m, "flItems"): delattr(_m, "flItems")
+        else:
+            _m.flItems = FCItems
+def fc_post(body):
+    raw = body if isinstance(body, bytes) else json.dumps(body).encode()
+    r = ns["_route"]("POST", "/font/create", raw); h, _, b = r.partition(b"\r\n\r\n")
+    hdr = [l for l in h.decode().split("\r\n") if l.startswith("X-Glyphbridge-Font")]
+    return h.split(b"\r\n")[0].decode()[9:12], json.loads(b), hdr
+FC_KEYS = ("created", "reason", "fonts_open_before", "fonts_open_after", "in_front", "names_set", "legacy_family_set", "fontlab_changed_mark", "error")
+def fc(tag, body, keys=FC_KEYS):
+    c, d, hdr = fc_post(body)
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| open", len(FC["open"]), "| calls", FC["calls"], "| forbidden", TF["forbidden"])
+    return d, hdr
+
+print("--- made, verified")
+fc_setup()
+d, hdr = fc("2302a unnamed, no font open        ", {})
+print("2302b names before / after           :", d.get("names_before"), "|", d.get("names_after") == d.get("names_before"))
+print("2302c package                         :", d.get("package"), "| family_requested", d.get("family_requested"), "| header", hdr)
+print("2302d notes                           :", d.get("notes"))
+d, hdr = fc("2302e a second one, same listener run", {"family": None})
+print("2302f it is Unnamed1                  :", (d.get("names_after") or {}).get("ffn"), "| header", hdr)
+fc("2302g a third one                     ", b"")
+fc_setup(others=2)
+d, hdr = fc("2302h named, two other fonts open   ", {"family": "Nm Test"})
+print("2302i assignments                     :", [(e["field"], e["value"], e.get("call_error"), e["read_back_equal"]) for e in d["assignments"]])
+print("2302j legacy family                   :", d.get("legacy_family"))
+print("2302k the mark went to the new package:", FC["calls"][-1], "| header", hdr)
+print("2302l notes                           :")
+for _n in d.get("notes") or []: print("        ", _n)
+fc_setup()
+d, _ = fc("2302m named, nothing else open       ", {"family": "A"})
+print("2302n notes (no other fonts)          :", len(d.get("notes") or []), [n[:40] for n in d.get("notes") or []])
+fc_setup()
+fc("2302o 55 characters without spaces   ", {"family": "a" * 55}, keys=("created", "names_set"))
+fc_setup()
+fc("2302p 62 with spaces, psn 63         ", {"family": "aaaaaaa " * 7 + "aaaaaa"}, keys=("created", "names_set", "error"))
+
+print("--- refused before anything is called")
+fc_setup()
+for _tag, _body in (("2303a bad JSON                       ", b"{bad"), ("2303b a list                         ", [1]),
+                    ("2303c another key                    ", {"family": "Nm", "style": "Bold"}), ("2303d family a number              ", {"family": 5}),
+                    ("2303e family empty                   ", {"family": ""}), ("2303f a leading space               ", {"family": " Nm"}),
+                    ("2303g not ASCII                      ", {"family": "Nm\u00e9"}), ("2303h 56 without spaces             ", {"family": "a" * 56}),
+                    ("2303i 64 characters                  ", {"family": "a " * 31 + "aa"}), ("2303j a slash                      ", {"family": "Nm/Two"}),
+                    ("2303k a percent sign                 ", {"family": "Nm%"}), ("2303l a tab                          ", {"family": "Nm\tTwo"})):
+    fc(_tag, _body, keys=("error",))
+
+print("--- not made, or not confirmed")
+fc_setup(ctor_raises=True); fc("2304a the constructor raises          ", {"family": "Nm"})
+fc_setup(); [setattr(_m, "flPackage", None) or delattr(_m, "flPackage") for _m in _tf_mods]
+fc("2304b no flPackage class              ", {})
+fc_setup(counts=[RuntimeError("count boom")]); fc("2304c CountFonts raises before      ", {})
+fc_setup(counts=[True]); fc("2304d CountFonts returns True       ", {})
+fc_setup(not_registered=True); fc("2304e the count did not go up        ", {"family": "Nm"})
+fc_setup(counts=[0, RuntimeError("count boom")]); fc("2304f CountFonts raises after       ", {"family": "Nm"})
+fc_setup(counts=[1, 3]); fc("2304g the count went up by two       ", {"family": "Nm"})
+fc_setup(others=1, not_in_front=True); fc("2304h made, but not in front        ", {"family": "Nm"})
+fc_setup(isequal_raises=True); fc("2304i isEqual raises                ", {"family": "Nm"})
+fc_setup(isequal_returns=1); fc("2304j isEqual returns 1             ", {"family": "Nm"})
+fc_setup(no_current=True); fc("2304k no current package            ", {"family": "Nm"})
+
+print("--- names that do not all hold")
+fc_setup(set_raises=("psn",)); d, _ = fc("2305a the psn setter raises          ", {"family": "Nm"})
+print("2305b per field                       :", [(e["field"], e.get("call_error"), e["read_back"]) for e in d["assignments"]], "| notes", len(d["notes"]), d["notes"][-1][:60])
+fc_setup(set_ignored=("ffn",)); fc("2305c the ffn write is ignored       ", {"family": "Nm"})
+fc_setup(legacy_raises=True); d, _ = fc("2305d the legacy write raises       ", {"family": "Nm"})
+print("2305e legacy family                   :", d.get("legacy_family"))
+fc_setup(legacy_ignored=True); d, _ = fc("2305f the legacy write is ignored   ", {"family": "Nm"})
+print("2305g legacy family                   :", d.get("legacy_family"))
+fc_setup(legacy_start="Other"); d, _ = fc("2305h the font in front reads another family", {"family": "Nm"})
+print("2305i legacy family                   :", d.get("legacy_family"))
+
+print("--- the changed mark")
+fc_setup(no_items=True); fc("2306a no flItems                     ", {"family": "Nm"})
+fc_setup(mark_raises=True); fc("2306b the mark raises                ", {"family": "Nm"})
+fc_setup(); ns["_MARK_CHANGED"] = False; fc("2306c switched off                  ", {"family": "Nm"})
+fc_setup(); fc("2306d unnamed: never marked           ", {})
+
+print("--- the activity log lines of /font/create")
+_fc_al_saved = {k: ns[k] for k in ("_now_hms", "_clock", "_ACTIVITY_LOG")}
+ns["_now_hms"] = lambda: "12:00:00"; ns["_clock"] = lambda: 1000.0; ns["_ACTIVITY_LOG"] = "normal"
+def fc_al(tag, body, code, reply):
+    print(tag)
+    ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+    raw = json.dumps(body).encode() if isinstance(body, (dict, list)) else (body or b"")
+    ns["_activity_note"]("POST", "/font/create", raw, ns["_build_response"](code, reply), "claude-code")
+    ns["_act_flush"]()
+fc_setup(); _d0 = fc_post({})[1]
+fc_al("2307a unnamed, verified:", {}, 200, _d0)
+fc_setup(others=2); _d1 = fc_post({"family": "Nm Test"})[1]
+fc_al("2307b named, two other fonts open:", {"family": "Nm Test"}, 200, _d1)
+fc_setup(set_raises=("psn",)); _d2 = fc_post({"family": "Nm"})[1]
+fc_al("2307c a name failed:", {"family": "Nm"}, 200, _d2)
+fc_setup(others=1, not_in_front=True); _d3 = fc_post({"family": "Nm"})[1]
+fc_al("2307d made, not in front (no notes):", {"family": "Nm"}, 200, _d3)
+fc_al("2307e refused:", {"family": "Nm/Two"}, 400, {"error": "family: it becomes part of the PostScript name; no font was made"})
+fc_al("2307f failed:", {}, 500, {"error": "RuntimeError: x"})
+fc_al("2307g a note that is too long is cut:", {}, 200, dict(_d0, notes=["x" * 500, 7, " "]))
+for _k, _v in _fc_al_saved.items(): ns[_k] = _v
+
+print("--- static checks")
+_fc_code = "\n".join(l.split("#")[0] for l in src[src.index("# POST /font/create (v0.146"):src.index("# HTTP plumbing")].splitlines())
+_fc_code_nostr = _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _fc_code)
+print("2308a forbidden call syntax           :", _re83.findall(r"(?<!out)\.(?:addPackage|createNewProject|closePackage|closeProject|saveProject|readProject|export\w*|save\w*|release|remove\w*|close\w*|update\w*|changed|generate\w*|delete\w*)\s*\(", _fc_code_nostr),
+      "| scanned chars > 6000:", len(_fc_code) > 6000)
+print("2308b one construction, one mark      :", _fc_code.count("cls()") == 1, _fc_code.count("items.notifyChangesApplied(") == 1, "| no per-run counter:", "_TRYFONT" not in _fc_code)
+print("2308c route registered once, documented:", src.count('if path == "/font/create":') == 1, "POST /font/create" in src[:src.index('"""', 3)],
+      "| in the activity writes:", ns["_ACT_WRITES"].get("/font/create"), "| version", ns["VERSION"])
+_fc_probe = "\n".join(l.split("#")[0] for l in src[src.index("def debug_try_font("):src.index("def debug_try_font(") + 7000].splitlines())
+print("2308d one shared family check        :", "_TRYFONT_FAMILY_MAX" not in ns, "| probe uses it:", "why = _family_name_error(family)" in _fc_probe,
+      "| route uses it:", "why = _family_name_error(family)" in _fc_code, "| psn limit", ns["_CREATE_FONT_PSN_MAX"], "| forbidden", ns["_CREATE_FONT_PSN_FORBIDDEN"])
+
+ns["_MARK_CHANGED"] = _fc_mark_saved
+for _m, _a, _v in _fc_saved:
     if _v is None:
         if hasattr(_m, _a): delattr(_m, _a)
     else:

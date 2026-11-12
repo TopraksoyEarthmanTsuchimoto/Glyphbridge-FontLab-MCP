@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.145)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.146)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -61,6 +61,9 @@ Routes (GET unless marked POST):
     /font/notdef                read-only .notdef check: missing / empty / has_outline / unknown
     POST /font/notdef/warn      re-checks, then shows ONE information dialog per font and listener run,
                                 only when .notdef is missing or empty; {"force": true} shows it again
+    POST /font/create           {"family"?} (v0.146): ONE new font through flPackage(), also with other fonts open; with a family,
+                                the four names Build Names gives and the legacy family, each read back, then ONE changed mark on
+                                the new package; "notes" says what FontLab will not show (also printed in the OUTPUT panel)
     /shutdown, POST /shutdown   stops the listener; FontLab keeps running
 
   Reading glyphs
@@ -197,7 +200,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.145"
+VERSION = "0.146"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -6523,6 +6526,7 @@ def _fontdir_keys(obj, result, go):
 #   construct_named&family=F&go=yes   v0.142 (P0.4): the same ONE flPackage(), then in the same request, before FontLab handles
 #             its next event, the names Build Names gives (845, 849): tfn = F, ffn = F + " Regular", psn = F without spaces +
 #             "-Regular", sgn = F, one assignment each, every name read back. It shares the once-per-run limit of construct.
+#             v0.146: F is checked as /font/create checks it (_family_name_error): psn at most 63 characters, none of [](){}<>/%.
 #             Reason: no call redrew the FONTS panel after a later rename (856-876), but it lists a font as it is when added (871).
 #   construct_named&family=F&mark=yes&go=yes   v0.145: after the four names read back equal, ONE flItems.notifyChangesApplied(
 #             'Glyphbridge test', <the package just made>, False) on that package object (not a "current package"), in the same request.
@@ -6533,7 +6537,6 @@ def _fontdir_keys(obj, result, go):
 # --------------------------------------------------------------------------
 
 _TRYFONT_STAGES = ("state", "construct", "attach", "construct_named")
-_TRYFONT_FAMILY_MAX = 58           # v0.142: psn = family without spaces + "-Regular" stays within 63 characters
 _TRYFONT = {"package": None, "constructed": False, "attached": False}
 _TRYFONT_PKG_READS = ("name", "upm", "mastersCount", "defaultMaster", "glyphsCount", "isNull", "path", "fileName", "fgPackage")
 
@@ -6650,9 +6653,7 @@ def debug_try_font(stage, go, family="", mark=""):
     if stage == "state":
         return dict(flags, stage="state", workspace_state=_tryfont_workspace_state(mod, _TRYFONT["package"]))
     if stage == "construct_named":
-        why = _trynames_value_error("tfn", family)
-        if why is None and len(family) > _TRYFONT_FAMILY_MAX:
-            why = f"family must be at most {_TRYFONT_FAMILY_MAX} characters, so that the PostScript name stays within 63"
+        why = _family_name_error(family)      # v0.146: the check of /font/create (the old 58-character limit let psn reach 66)
         if why is not None:
             return {"error": "family: " + why + "; nothing was constructed"}
     if go != "yes":
@@ -8737,6 +8738,216 @@ def _trymodern_create(mod, pkg, font, name):
 
 
 # --------------------------------------------------------------------------
+# POST /font/create (v0.146, ROADMAP P0.3 / P0.4): a new font, as File > New Font makes one. ONE flPackage() per request, also
+# with other fonts open and more than once per listener run (the user's decisions of 2026-11-12; the native reference each
+# construction leaves belongs to FontLab, and 834 / 835 made two fonts in one FontLab session). flPackage() registers the font
+# and brings it to the front by itself, numbering its family as FontLab does (Unnamed, Unnamed1, ...; NF 831-835).
+# Without a family nothing else is called. With one, only after the new font is confirmed in front: the four names Font Info's
+# Build Names gives (tfn, ffn, psn, sgn; 845, 849), each read back; the legacy font.info.familyName (the server names a font
+# from it, and the FONTS panel gave the font its own line only with it, 885), written only when the font in front still reads
+# the new package's own family; then, only when all five read back equal, ONE flItems.notifyChangesApplied(title, <the
+# package>, False) on the package just made, so FontLab asks to save on close (912-914). "notes" holds what FontLab cannot
+# be made to show (the tab title and the FONTS panel lag, 896-914; the workaround of 910), printed in the OUTPUT panel too.
+# Never called here: addPackage, save, close, export, release, remove, font.update().
+# --------------------------------------------------------------------------
+_CREATE_FONT_PSN_MAX = 63            # psn = family without spaces + "-Regular" must stay within 63 characters (PostScript's limit;
+                                     # /debug/tryfont's old limit of 58 for the whole family let it reach 66)
+_CREATE_FONT_PSN_FORBIDDEN = "[](){}<>/%"   # characters a PostScript name may not hold; refused in a family, which becomes part of it
+
+
+def _family_name_error(family):
+    """None, or why a family name is refused before anything is called. Shared by /font/create and /debug/tryfont construct_named
+    (v0.146): the checks of _trynames_value_error, a PostScript name (Build Names, style Regular) of at most 63 characters, and none
+    of the characters a PostScript name may not hold."""
+    why = _trynames_value_error("tfn", family)
+    if why is not None:
+        return why
+    psn = _tryfont_built_names(family)[2][1]
+    if len(psn) > _CREATE_FONT_PSN_MAX:
+        return (f"the PostScript name it gives, {psn!r}, has {len(psn)} characters; at most {_CREATE_FONT_PSN_MAX} are allowed, "
+                f"so the family may have at most {_CREATE_FONT_PSN_MAX - len('-Regular')} characters without its spaces")
+    if any(ch in _CREATE_FONT_PSN_FORBIDDEN for ch in family):
+        return f"it becomes part of the PostScript name, which may not hold any of {_CREATE_FONT_PSN_FORBIDDEN}"
+    return None
+_CREATE_FONT_MARK_TITLE = "Glyphbridge create font"
+_CREATE_FONT_PKG_READS = ("upm", "mastersCount", "defaultMaster", "glyphsCount", "path", "fileName")
+
+
+def _create_font_count(mod):
+    """(CountFonts() as a plain int, None) or (None, reason). Never raises."""
+    counter = getattr(mod, "CountFonts", None)
+    if not callable(counter):
+        return None, "the fontlab module has no CountFonts"
+    try:
+        count = counter()
+    except Exception as exc:
+        return None, f"CountFonts() failed ({type(exc).__name__}: {exc})"
+    if type(count) is not int:
+        return None, f"CountFonts() returned {type(count).__name__}, not a plain number"
+    return count, None
+
+
+def _create_font_in_front(mod, pkg):
+    """(True | False, None) or (None, reason): whether the workspace's current package is the package just made (ONE isEqual,
+    proven in 736). Never raises."""
+    try:
+        ws = mod.flWorkspace.instance()
+    except Exception as exc:
+        return None, f"the workspace could not be reached ({type(exc).__name__}: {exc})"
+    current, err = _pkg_get(ws, "currentPackage")
+    if err is not None:
+        return None, err
+    if current is None:
+        return None, "the workspace has no current package"
+    is_null, err = _pkg_get(current, "isNull")
+    if err is not None:
+        return None, err
+    if is_null is not False:
+        return None, "the current package is null or its state is unknown"
+    try:
+        same = pkg.isEqual(current)
+    except Exception as exc:
+        return None, f"isEqual failed ({type(exc).__name__}: {exc})"
+    if type(same) is not bool:
+        return None, f"isEqual returned {type(same).__name__}, not true or false"
+    return same, None
+
+
+def _create_font_legacy_family(family, own_family):
+    """The legacy family write of a named font: written only when the font in front still reads own_family (the new package's
+    family before the names were written), so that it can only be the new font. Never raises."""
+    out = {"value": family}
+    try:
+        font = fl.CurrentFont()
+        info = font.info
+        before = info.familyName
+    except Exception as exc:
+        out.update(written=False, reason=f"the legacy font.info could not be read ({type(exc).__name__}: {exc})")
+        return out
+    out["before"] = _plain_text(before) if isinstance(before, str) else f"<{type(before).__name__}>"
+    if not isinstance(before, str) or before != own_family:
+        out.update(written=False, reason=f"the font in front reads the legacy family {out['before']!r}, not the new font's own "
+                                         f"{own_family!r}, so it was not written (it might not be the new font)")
+        return out
+    out["written"] = True
+    try:
+        info.familyName = family
+    except Exception as exc:
+        out["call_error"] = f"{type(exc).__name__}: {exc}"
+    try:
+        back = info.familyName
+        out["read_back"] = _plain_text(back) if isinstance(back, str) else f"<{type(back).__name__}>"
+    except Exception as exc:
+        out["read_back"] = f"<error: {type(exc).__name__}: {exc}>"
+    out["read_back_equal"] = out["read_back"] == family
+    return out
+
+
+def _create_font_mark(mod, pkg):
+    """ONE flItems.notifyChangesApplied(title, <the package just made>, False), or why not. Never raises."""
+    if not _MARK_CHANGED:
+        return {"called": False, "reason": "the changed mark is switched off in the listener"}
+    items = getattr(mod, "flItems", None)
+    if items is None:
+        return {"called": False, "reason": "the fontlab module has no flItems"}
+    mark = {"called": True}
+    try:
+        items.notifyChangesApplied(_CREATE_FONT_MARK_TITLE, pkg, False)
+    except Exception as exc:
+        mark["call_error"] = f"{type(exc).__name__}: {exc}"
+    return mark
+
+
+def _create_font_notes(out, family):
+    """What the person must be told: plain sentences, built only from this reply; also printed in the OUTPUT panel."""
+    notes = ["This font is not saved. Glyphbridge never saves: save it from FontLab's File menu if you want to keep it."]
+    before = out.get("names_before") if isinstance(out.get("names_before"), dict) else {}
+    own_full, own_family = before.get("ffn"), before.get("tfn")
+    if family is None:
+        notes.append("It has no changes yet, so FontLab may close it without asking to save; once it is changed, FontLab normally asks.")
+    else:
+        wanted = family + " Regular"
+        if isinstance(own_full, str) and own_full:
+            notes.append(f"FontLab's tab still reads \"{own_full}\": it updates the tab only when the Full name is changed in Font Info. "
+                         f"To show \"{wanted}\", open Font Info, type any other Full name and press OK, then type \"{wanted}\" and press OK.")
+        if isinstance(own_family, str) and own_family:
+            notes.append(f"The FONTS panel may keep showing \"{own_family}\" until a font is closed, and sometimes even after that.")
+        if out.get("names_set") is not True or out.get("legacy_family_set") is not True:
+            notes.append("Not every name could be set, so the font was not marked as changed: FontLab may close it without asking to save.")
+    after = out.get("fonts_open_after")
+    if type(after) is int and after > 1:
+        notes.append(f"{after} fonts are open. Before a tool can draw into this font's first glyph, open that glyph once by double-clicking "
+                     "it in the Font window.")
+        notes.append("Keep this font's window in front while an agent works on it: Glyphbridge cannot always tell two unsaved fonts apart.")
+    return notes
+
+
+def create_font(family=None):
+    """POST /font/create: ONE new font, named as Build Names would when family is given. See the comment above."""
+    import sys as _sys
+    mod = _sys.modules.get("fontlab") or fl
+    if family is not None:
+        why = _family_name_error(family)
+        if why is not None:
+            return {"bad_request": "family: " + why + "; no font was made"}
+    cls = getattr(mod, "flPackage", None)
+    if cls is None:
+        return {"created": False, "reason": "the fontlab module has no flPackage class; no font was made"}
+    before, err = _create_font_count(mod)
+    if err is not None:
+        return {"created": False, "reason": f"the number of open fonts could not be read ({err}); no font was made"}
+    out = {"created": False, "family_requested": family, "fonts_open_before": before}
+    try:
+        pkg = cls()
+    except Exception as exc:
+        out["reason"] = f"flPackage() raised {type(exc).__name__}: {exc}"
+        out["fonts_open_after"] = _create_font_count(mod)[0]
+        return out
+    after, err = _create_font_count(mod)
+    out["fonts_open_after"] = after
+    out["names_before"] = {attr: _trynames_read(pkg, attr) for attr in _PACKAGE_NAME_FIELDS}
+    in_front, why_front = _create_font_in_front(mod, pkg)
+    out["in_front"] = in_front if why_front is None else "unknown"
+    if err is not None or after != before + 1:
+        out["reason"] = (f"the number of open fonts could not be read afterwards ({err})" if err is not None
+                         else f"the number of open fonts went from {before} to {after}, not up by one")
+    elif in_front is not True:
+        out["reason"] = ("the new font is not the font in front" if in_front is False
+                         else f"whether the new font is in front could not be checked ({why_front})")
+    if "reason" in out:
+        out["reason"] += "; nothing was named or marked"
+        out["package"] = {attr: _tryfont_read(pkg, attr) for attr in _CREATE_FONT_PKG_READS}
+        return out
+    out["created"] = True
+    if family is not None:
+        assignments = []
+        for attr, value in _tryfont_built_names(family):
+            entry = {"field": attr, "value": value}
+            try:
+                setattr(pkg, attr, value)
+            except Exception as exc:
+                entry["call_error"] = f"{type(exc).__name__}: {exc}"
+            entry["read_back"] = _trynames_read(pkg, attr)
+            entry["read_back_equal"] = entry["read_back"] == value
+            assignments.append(entry)
+        out["assignments"] = assignments
+        out["names_set"] = all(e["read_back_equal"] for e in assignments)
+        legacy = _create_font_legacy_family(family, out["names_before"].get("tfn"))
+        out["legacy_family"] = legacy
+        out["legacy_family_set"] = legacy.get("read_back_equal") is True
+        if out["names_set"] and out["legacy_family_set"]:
+            out["fontlab_changed_mark"] = _create_font_mark(mod, pkg)
+        else:
+            out["fontlab_changed_mark"] = {"called": False, "reason": "not every name was set and read back"}
+    else:
+        out["fontlab_changed_mark"] = {"called": False, "reason": "no name was given, so nothing was changed after FontLab made the font"}
+    out["names_after"] = {attr: _trynames_read(pkg, attr) for attr in _PACKAGE_NAME_FIELDS}
+    out["package"] = {attr: _tryfont_read(pkg, attr) for attr in _CREATE_FONT_PKG_READS}
+    out["notes"] = _create_font_notes(out, family)
+    return out
+
+
+# --------------------------------------------------------------------------
 # HTTP plumbing (stdlib only; no background thread - see module docstring)
 # --------------------------------------------------------------------------
 
@@ -9271,6 +9482,25 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": str(exc)})
 
+        if path == "/font/create":       # v0.146
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            if not isinstance(payload, dict) or set(payload) - {"family"}:
+                return _build_response(400, {"error": 'the body must be a JSON object with an optional "family" (a string) and nothing else'})
+            family = payload.get("family")
+            if family is not None and not isinstance(family, str):
+                return _build_response(400, {"error": '"family" must be a string, or left out for FontLab\'s own name'})
+            try:
+                result = create_font(family)
+                if "bad_request" in result:
+                    return _build_response(400, {"error": result["bad_request"]})
+                _open_font()             # the reply names the font in front, the new one when it was made
+                return _build_response(200, result)
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
         if path == "/glyph/create":
             try:
                 payload = json.loads(body.decode("utf-8")) if body else {}
@@ -9494,7 +9724,7 @@ _ACT = {"kind": None, "shown": 0, "more": 0, "reads": {}, "no_font": {}, "kern_p
 
 _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/width": "width",
                "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/glyph/polygon": "draw",
-               "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning"}
+               "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning", "/font/create": "create font"}
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
               "/font/current": "font info", "/font/notdef": ".notdef check", "/font/notdef/warn": ".notdef check",
@@ -9605,6 +9835,8 @@ def _act_describe_write(path, payload, code, reply):
     kind = _ACT_WRITES[path]
     if kind == "kerning":
         return _act_describe_kerning(payload, code, reply)
+    if kind == "create font":
+        return _act_describe_font(payload, code, reply)
     name = payload.get("name") if isinstance(payload, dict) else None
     head = f"{kind} {_act_text(name.strip())}" if isinstance(name, str) and name.strip() else (kind if kind == ".notdef" else f"{kind} ?")
     if code != 200 or not isinstance(reply, dict):
@@ -9694,6 +9926,43 @@ def _act_describe_kerning(payload, code, reply):
     return f"NOT DONE {head}: {len(done)} set{where}", False
 
 
+_ACTIVITY_NOTE_MAX = 400     # v0.146: longest note line of /font/create (its notes are whole sentences for the person)
+
+
+def _act_describe_font(payload, code, reply):
+    """(line, collapsible) for one /font/create request (v0.146). The notes are printed after it by _activity_note."""
+    family = payload.get("family") if isinstance(payload, dict) else None
+    head = f"create font {_act_text(family)}" if isinstance(family, str) and family else "create font (FontLab's own name)"
+    if code != 200 or not isinstance(reply, dict):
+        error = reply.get("error") if isinstance(reply, dict) else None
+        return f"{'REFUSED' if code == 400 else 'FAILED'} {head}: {_act_text(error or f'HTTP {code}')}", False
+    before, after = reply.get("fonts_open_before"), reply.get("fonts_open_after")
+    if reply.get("created") is True:
+        names = reply.get("names_after") if isinstance(reply.get("names_after"), dict) else {}
+        parts = [f"fonts {_act_num(before)} -> {_act_num(after)}", "unsaved"]
+        if isinstance(family, str) and family:
+            parts.append("names set" if reply.get("names_set") is True and reply.get("legacy_family_set") is True else "names NOT all set")
+        mark = reply.get("fontlab_changed_mark")
+        if isinstance(mark, dict) and mark.get("called") is True and not mark.get("call_error"):
+            parts.append("marked as changed")
+        return f"{head}: made \"{_act_text(names.get('ffn'))}\" (verified, {', '.join(parts)})", False
+    made = ("; a font WAS made" if type(before) is int and type(after) is int and after > before else "")
+    return f"NOT DONE {head}: {_act_text(reply.get('reason') or 'not confirmed')}{made}", False
+
+
+def _act_font_notes(reply):
+    """The /font/create notes as lines for the OUTPUT panel (v0.146)."""
+    notes = reply.get("notes") if isinstance(reply, dict) and reply.get("created") is True else None
+    if not isinstance(notes, list):
+        return []
+    lines = []
+    for note in notes:
+        if isinstance(note, str) and note.strip():
+            text = " ".join(note.split())
+            lines.append("  note: " + (text if len(text) <= _ACTIVITY_NOTE_MAX else text[:_ACTIVITY_NOTE_MAX - 3] + "..."))
+    return lines
+
+
 def _activity_note(method, raw_path, body, response, client=None, launcher=None):
     """Log one served request (called by _handle with the reply about to be sent and the raw X-Glyphbridge-Client
     and X-Glyphbridge-Launcher headers). Never raises."""
@@ -9721,9 +9990,13 @@ def _activity_note(method, raw_path, body, response, client=None, launcher=None)
                 payload = json.loads(body.decode("utf-8")) if body else {}
             except Exception:
                 payload = None
-            line, collapsible = _act_describe_write(path, payload, code, reply())
+            answer = reply()
+            line, collapsible = _act_describe_write(path, payload, code, answer)
             if line:
                 _act_change(_ACT_WRITES[path], line, collapsible)
+                if path == "/font/create" and code == 200:      # v0.146: what the person must know, in FontLab too
+                    for note_line in _act_font_notes(answer):
+                        _act_print(note_line)
                 return
         elif method == "GET" and path.startswith("/debug/") and "yes" in query.get("go", []):
             answer = reply()

@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.59)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.60)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.59"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.60"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -817,6 +817,104 @@ def create_new_glyph(name: str) -> dict:
                         "until it has one: FontLab crashed on such glyphs in testing, which loses unsaved work.")
     result["agent_instruction"] = instruction
     _add_guard_fields(result, data)
+    _mark_modified(result, True)
+    return result
+
+
+_FONT_PSN_MAX = 63               # v0.60: the PostScript name (family without spaces + "-Regular") stays within 63 characters
+_FONT_PSN_FORBIDDEN = "[](){}<>/%"   # characters a PostScript name may not hold (the listener refuses them too)
+_FONT_NAMES_INSTRUCTION = (
+    "Font names came up: ask the person whether they want the fields of Font Info's Names page explained, and explain them only if "
+    "they say yes. What is known: Build Names sets Full name = family + ' ' + style, PostScript name = family without spaces + '-' + "
+    "style, and Style group = family; this tool set them so for the style Regular. Do not guess about the other fields.")
+
+
+def _check_font_family(family: Any) -> None:
+    """Refuse a family name the listener would refuse, before anything is sent."""
+    if not isinstance(family, str):
+        raise ToolError("family must be text, or left out to let FontLab name the font. No font was made.")
+    if not family.strip():
+        raise ToolError("family must not be empty: leave it out to let FontLab name the font (Unnamed, Unnamed1, ...), as File > "
+                        "New Font does. No font was made.")
+    problems = []
+    if family != family.strip(" "):
+        problems.append("it must not start or end with a space")
+    psn = family.replace(" ", "") + "-Regular"
+    if len(psn) > _FONT_PSN_MAX:
+        problems.append(f"the PostScript name it gives, {psn!r}, has {len(psn)} characters; at most {_FONT_PSN_MAX} are allowed, so the "
+                        f"family may have at most {_FONT_PSN_MAX - len('-Regular')} characters without its spaces")
+    if len(family) > _FONT_PSN_MAX:
+        problems.append(f"it has {len(family)} characters; at most {_FONT_PSN_MAX} are allowed")
+    if any(not (32 <= ord(ch) <= 126) for ch in family):
+        problems.append("it may hold printable ASCII characters only (no accented letters, no tabs)")
+    if any(ch in _FONT_PSN_FORBIDDEN for ch in family):
+        problems.append(f"it becomes part of the PostScript name, which may not hold any of {_FONT_PSN_FORBIDDEN}")
+    if problems:
+        raise ToolError(f"family {family!a} was not sent to FontLab: " + "; ".join(problems) + ". No font was made.")
+
+
+def create_new_font(family: Any = None) -> dict:
+    if family is not None:
+        _check_font_family(family)
+    _require_listener((0, 146), "create_font")
+    data = _write_post("/font/create", {} if family is None else {"family": family})
+    before, after = data.get("fonts_open_before"), data.get("fonts_open_after")
+    if data.get("created") is not True:
+        reason = data.get("reason") or "unknown reason"
+        made = type(before) is int and type(after) is int and after > before
+        if made:
+            _note_change()
+            raise ToolError(f"A new font WAS made in FontLab, but it was not confirmed: {reason}. Tell the person: a new, unsaved font "
+                            f"may be open that they did not see coming; look at FontLab's FONTS panel. {_CHANGED_BY_ERROR_NOTE}")
+        if "names_before" in data and type(after) is not int:
+            _note_change(sure=False)
+            raise ToolError(f"It is not known whether a new font was made: {reason}. Ask the person to look at FontLab's FONTS panel. "
+                            f"{_UNSURE_NOTE}")
+        if "no font was made" in reason:
+            raise ToolError(reason[:1].upper() + reason[1:] + ".")
+        raise ToolError(f"No font was made: {reason}.")
+    names = data.get("names_after") if isinstance(data.get("names_after"), dict) else {}
+    pkg = data.get("package") if isinstance(data.get("package"), dict) else {}
+    result = {
+        "created": True,
+        "saved": False,
+        "full_name": names.get("ffn"),
+        "family_name": names.get("tfn"),
+        "style_name": names.get("tsn"),
+        "postscript_name": names.get("psn"),
+        "style_group": names.get("sgn"),
+        "named_by": "FontLab, as File > New Font" if family is None else "Glyphbridge, as Font Info's Build Names would",
+        "fonts_open_before": before,
+        "fonts_open_after": after,
+        "units_per_em": _tidy_number(pkg.get("upm")),
+        "masters": pkg.get("mastersCount"),
+        "default_master": pkg.get("defaultMaster"),
+        "glyph_count": pkg.get("glyphsCount"),
+    }
+    instruction = ("A new, unsaved font was made in FontLab and is now the font in front. Tell the person every item of person_notes, "
+                   "in your own words but leaving none out (FontLab's OUTPUT panel shows them too).")
+    if family is not None:
+        result["family_requested"] = family
+        result["names_set"] = data.get("names_set") is True
+        result["legacy_family_set"] = data.get("legacy_family_set") is True
+        problems = [f"{e.get('field')}: wanted {e.get('value')!r}, read back {e.get('read_back')!r}"
+                    + (f" ({e['call_error']})" if e.get("call_error") else "")
+                    for e in data.get("assignments") or [] if isinstance(e, dict) and e.get("read_back_equal") is not True]
+        legacy = data.get("legacy_family") if isinstance(data.get("legacy_family"), dict) else {}
+        if legacy.get("read_back_equal") is not True:
+            problems.append("legacy family: " + (legacy.get("reason") or legacy.get("call_error")
+                                                 or f"wanted {family!r}, read back {legacy.get('read_back')!r}"))
+        if problems:
+            result["name_problems"] = problems
+            instruction += (" Not every name was set (name_problems): tell the person which, and that Glyphbridge's later replies may "
+                            "name the font by FontLab's own name.")
+        instruction += " " + _FONT_NAMES_INSTRUCTION
+    mark = data.get("fontlab_changed_mark")
+    if isinstance(mark, dict):
+        result["fontlab_changed_mark"] = mark
+    notes = data.get("notes")
+    result["person_notes"] = [n for n in notes if isinstance(n, str) and n.strip()] if isinstance(notes, list) else []
+    result["agent_instruction"] = instruction
     _mark_modified(result, True)
     return result
 
@@ -3236,6 +3334,29 @@ def create_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     _note_client(ctx)
     return _with_font(create_new_glyph, name)
+
+
+@_tool()
+def create_font(family: str | None = None, ctx: Context | None = None) -> dict[str, Any]:
+    """Make a new, empty, UNSAVED font in FontLab 8, like File > New Font. It works whether or not other fonts are open, and the
+    new font becomes the font in front, so the next tools work on it.
+
+    Without 'family' FontLab names the font itself, as File > New Font does: Unnamed, then Unnamed1, Unnamed2, ... (style
+    Regular, 1000 units per em, one master, one empty .notdef). With 'family' (printable ASCII, no leading or trailing space, none of
+    [](){}<>/%, at most 55 characters without its spaces) the font is named as Font Info's Build Names would name it, style Regular: Family name = family, Full name =
+    family + " Regular", PostScript name = family without spaces + "-Regular", Style group = family. Each name is read back.
+
+    What FontLab will NOT show, and other things the person must know, come back in 'person_notes' (they are also printed in
+    FontLab's OUTPUT panel). Tell the person every one of them: FontLab's tab keeps the creation name until the Full name is
+    changed in Font Info (the notes give the two-step workaround); the FONTS panel may lag; with other fonts open, the new
+    font's first glyph must be opened once in FontLab before a tool can draw into it.
+
+    Success is reported only when FontLab's number of open fonts went up by one and the new font is the one in front.
+    Like every Glyphbridge tool this NEVER saves: the font exists in FontLab's memory only, and the person saves it (File menu
+    or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
+    """
+    _note_client(ctx)
+    return _with_font(create_new_font, family)
 
 
 @_tool()
