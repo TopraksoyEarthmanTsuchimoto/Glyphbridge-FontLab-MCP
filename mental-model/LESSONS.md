@@ -98,3 +98,10 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 
 - **A test of "kept or rebuilt" must start with values that differ.** 887 and 888 asked whether the legacy family survives a close and a listener restart while every family name read "Nm Four", so a kept value and one rebuilt from the package looked the same; both are void. 889 wrote a value that differed from every package name, and 890–893 then gave an answer.
 - **Re-read the earlier tests on a subject before calling it settled.** The FONTS panel's grouping key was recorded as "the legacy family" from 883 against 886, in six files, although 323 had grouped two fonts with different legacy families. It was found an hour later, by chance, while evidence was being moved, and corrected. Search the test records for the subject first.
+
+## Tab-title and save-question session (2026-11-12, tests 894–914)
+
+- **A rule fitted after the runs is a hypothesis.** Three models of the FONTS panel were fitted to the earlier runs and dropped in a row (any name matches; Full name or legacy family; one add behind), each refuted by the next prediction made beforehand. The survivor (a close or a Font Info edit refreshes the panel) has two counter-cases (896, 914) and is recorded as a hypothesis.
+- **A test sequence can use up its own limit.** The first stub cases for `trynames?stage=title` ran into the 3-per-run counter, so the later cases never reached their code, and the pass line alone hid it. Read the new output lines, and reset the counters between cases.
+- **A probe that needs exactly one font cannot test several fonts.** Which font a mark lands on with other fonts open could only be asked after a small build (0.145, `construct_named&mark=yes`); decide early whether a question is about one font or several.
+- **When the person goes one step ahead, record it as its own row.** The extra Font Info round in 907 was kept as 907b and confirmed 902 from the other side; say what it showed before continuing.

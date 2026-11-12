@@ -4,6 +4,18 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.145 (2026-11-12; server unchanged at v0.59)
+
+**`/debug/tryfont?stage=construct_named&mark=yes`** (NM 912–913, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k).
+- After the four names read back equal, ONE `flItems.notifyChangesApplied('Glyphbridge test', <the package just made>, False)` on that package object, in the same request; `mark` is off by default and refused when neither empty nor `yes`. No mark when a name assignment failed, none without `flItems`; a mark error is reported in `mark.error` and the construct stays counted. Reason: 912 and 913 showed that this mark brings FontLab's save question back for a font named through the API, with one font open; with several open, which font it lands on is untested.
+- Tests: 3095 → 3108 lines (2301a–m). Mutation run: 10 of 10 caught in the new switch, with a clean control run. Run live (914, one run): beside two other fonts only the new font was marked and asked to save.
+
+## Listener v0.144 (2026-11-12; server unchanged at v0.59)
+
+**`/debug/trynames?stage=title`** (NM 902–904, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k).
+- ONE `flPackage.title_name(True|False)` (`full=yes|no`, default yes), gated by `go=yes`, 3 per listener run, one font open; the reply holds the returned text and `elidedName` before and after. `stage=state` also reads `elidedName` (`elided_name`). Reason: a Full name typed in Font Info changed the tab's title (902) and API writes never did.
+- Tests: 3078 → 3095 lines (2300a–q; `title` joins the stage lists and the counters). Mutation run: 10 of 10 caught in the new stage, with a clean control run. Run live (905, 908; three calls, one run each).
+
 ## Listener v0.143 (2026-11-11; server unchanged at v0.59)
 
 **`/debug/trynames?stage=info_set`** (NM 879–880, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k).

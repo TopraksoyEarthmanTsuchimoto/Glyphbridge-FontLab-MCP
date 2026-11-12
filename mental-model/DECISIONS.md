@@ -2,6 +2,10 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-12: CURRENT-STATUS budget raised to 2,200
+
+- **The word budget of [CURRENT-STATUS.md](CURRENT-STATUS.md) is 2,200 (was 2,000); the reference totals in [MARKDOWN-MAP.md](MARKDOWN-MAP.md) are now 11,500 and 11,000.** *Reason:* the user's choice; the file stood at 1,918 words with live research under way. Finished items still move to the archive.
+
 ## 2026-11-12: watch points hold the open question only
 
 - **An entry in [WATCH-POINTS.md](WATCH-POINTS.md) holds what is open and what would settle it; the evidence lives in the topic file it links to. The budget stays 2,200.** *Reason:* the user's choice over a seventh raise: the file had grown by collecting the story of each run. Nothing is cut; evidence moves, word for word where the topic file lacks it.

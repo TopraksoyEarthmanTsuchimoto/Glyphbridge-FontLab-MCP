@@ -11,14 +11,14 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [README.md](README.md) | introduction for outside developers | 700 |
 | [PROJECT.md](PROJECT.md) | goals, scope, non-goals, design rule | 850 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | processes, APIs, verification model, tools, layout | 1,600 |
-| [CURRENT-STATUS.md](CURRENT-STATUS.md) | where the project stands and what comes next | 2,000 |
+| [CURRENT-STATUS.md](CURRENT-STATUS.md) | where the project stands and what comes next | 2,200 |
 | [DECISIONS.md](DECISIONS.md) | active decisions with dates and reasons | 2,200 (active part) |
 | [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 900 |
 | [CHECKLIST.md](CHECKLIST.md) | open scenarios | 1,400 |
 
 Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, has a budget of 500, and [WATCH-POINTS.md](WATCH-POINTS.md) a budget of 2,200 (2026-11-03, raised from 750 to 950 and then to 1,250 the same day, [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md); 2026-11-04, raised to 1,500, the same archive; 2026-11-09, raised to 1,800, the same archive, and then to 2,200, [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md)). [WHAT-WORKS.md](WHAT-WORKS.md) has a budget of 1,700 (2026-11-09, 1,500, [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md); 2026-11-10, raised to 1,700, the same archive).
 
-**Reference totals:** 11,300 words including the root README, and 10,800 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. On 2026-11-01, CLAUDE.md (200) was added, CHECKLIST.md was raised from 1,000 to 1,300 and CURRENT-STATUS.md from 800 to 1,250. On 2026-11-03, CURRENT-STATUS.md was raised to 1,350 and DECISIONS.md from 1,200 to 1,350, then to 1,450 and 1,700 (those entries are in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md)). On 2026-11-04, CURRENT-STATUS.md was raised to 1,600 and then 1,800, DECISIONS.md to 1,900 and then 2,000, and CHECKLIST.md to 1,400 ([archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md)). On 2026-11-09, CURRENT-STATUS.md was raised to 2,000 and DECISIONS.md to 2,200 ([archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md)).
+**Reference totals:** 11,500 words including the root README, and 11,000 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. On 2026-11-01, CLAUDE.md (200) was added, CHECKLIST.md was raised from 1,000 to 1,300 and CURRENT-STATUS.md from 800 to 1,250. On 2026-11-03, CURRENT-STATUS.md was raised to 1,350 and DECISIONS.md from 1,200 to 1,350, then to 1,450 and 1,700 (those entries are in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md)). On 2026-11-04, CURRENT-STATUS.md was raised to 1,600 and then 1,800, DECISIONS.md to 1,900 and then 2,000, and CHECKLIST.md to 1,400 ([archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md)). On 2026-11-09, CURRENT-STATUS.md was raised to 2,000 and DECISIONS.md to 2,200 ([archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md)). On 2026-11-12, CURRENT-STATUS.md was raised to 2,200 ([DECISIONS.md](DECISIONS.md)).
 
 ## Linked files (read when the task needs them; no budget unless noted)
 

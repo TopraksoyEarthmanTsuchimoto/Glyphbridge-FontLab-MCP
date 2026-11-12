@@ -6425,7 +6425,7 @@ class TNPkg:
     def __repr__(s): return "<TNPkg>"                  # v0.140: printed when passed to notifyPropertiesChanged; no memory address
     def __init__(s, **kw):
         d = {"psn": "Unnamed-Regular", "ffn": "Unnamed Regular", "tfn": "Unnamed", "tsn": "Regular", "sgn": "Unnamed",
-             "fileName": "Unnamed Regular.xfo", "isNull": False, "fgId": 7, "info": TNPInfo()}
+             "fileName": "Unnamed Regular.xfo", "isNull": False, "fgId": 7, "info": TNPInfo(), "elidedName": "Unnamed Regular"}   # v0.144: elidedName
         d.update(kw); object.__setattr__(s, "_d", d)
     def __getattr__(s, a):
         d = object.__getattribute__(s, "_d")
@@ -6480,7 +6480,7 @@ def tn(tag, query, keys=("error",), **kw):
     print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| calls", TN["calls"], "| notify", TN["notify"])
     return d
 def tn_reset(): ns["_TRYNAMES"].update(set=0, content=0, package=0, packages=0, model=0, properties=0, changed=0, applied=0, readed=0, added=0,
-                                       store=0, legacy_set=0, info_set=0)
+                                       store=0, legacy_set=0, info_set=0, title=0)
 tn_reset()
 tn("2292a no stage                        ", "")
 tn("2292b state, one font                 ", "stage=state", keys=("state", "calls_so_far"))
@@ -6523,7 +6523,7 @@ print("2293d counters after a refusal     :", dict(ns["_TRYNAMES"]))
 _tn_src = src[src.index("def debug_try_names("):src.index("# /debug/tryshapebox (v0.129)")]
 _tn_code = "\n".join(l.split("#")[0] for l in _tn_src.splitlines())     # comments dropped; its strings hold no call text
 print("2293e static scan: setattr calls:", _re83.findall(r"setattr\([^)]*\)", _tn_code), "| calls on pkg:", _re83.findall(r"\bpkg\.\w+\(", _tn_code),
-      "| forbidden names:", [n for n in ("collectNames", "title_name", ".update(", ".save(", ".close(", "export") if n in _tn_code],
+      "| forbidden names:", [n for n in ("collectNames", ".update(", ".save(", ".close(", "export") if n in _tn_code],    # v0.144: title_name is called once, in stage=title (2300)
       "| store_font_info fetched once:", _tn_code.count('getattr(pkg, "store_font_info", None)') == 1,
       "| route passes field and value:", 'debug_try_names((query.get("stage")' in src and '(query.get("value") or [""])[0]' in src,
       "| listed in the docstring:", "/debug/trynames" in src[:src.index('"""', 3)], "| product refresh text once:", src.count("items.notifyPackageContentUpdated(pid)") == 1)
@@ -6649,6 +6649,41 @@ tn("2299k info_set used up             ", "stage=info_set&field=openTypeNamePref
 tn_reset()
 print("2299l the info fields             :", ns["_TRYNAMES_INFO"], "| stages", ns["_TRYNAMES_STAGES"])
 tn_reset()
+# v0.144: stage=title (ONE flPackage.title_name(True|False), 3 per run) and elidedName in stage=state; 902: a Full name typed in Font Info changed the tab's title, API writes never did
+def _tn_title(ret="Unnamed Regular", raises=False):
+    def f(full):
+        TN["calls"].append(f"title_name({full})")
+        if raises: raise RuntimeError("title boom")
+        return ret
+    return f
+_tn_tk = ("call", "call_error", "returned", "full", "elided_name_before", "elided_name_after", "calls_so_far")
+tn("2300a title without go              ", "stage=title", pkg=TNPkg(title_name=_tn_title()))
+tn("2300b title, full not yes or no     ", "stage=title&full=maybe&go=yes", pkg=TNPkg(title_name=_tn_title()))
+tn("2300c title                         ", "stage=title&go=yes", keys=_tn_tk, pkg=TNPkg(title_name=_tn_title()))
+tn("2300d title, full=no                ", "stage=title&full=no&go=yes", keys=("call", "returned", "full"), pkg=TNPkg(title_name=_tn_title("Unnamed")))
+tn("2300e title returns a number        ", "stage=title&go=yes", keys=("returned", "call_error"), pkg=TNPkg(title_name=_tn_title(5)))
+tn_reset()
+tn("2300f title returns control chars   ", "stage=title&go=yes", keys=("returned",), pkg=TNPkg(title_name=_tn_title("Nm\nTitle")))
+tn("2300g title returns nothing         ", "stage=title&go=yes", keys=("returned", "call_error"), pkg=TNPkg(title_name=_tn_title(None)))
+tn("2300h title raises                  ", "stage=title&go=yes", keys=("call_error", "returned", "calls_so_far"), pkg=TNPkg(title_name=_tn_title(raises=True)))
+tn_reset()
+tn("2300i title_name missing            ", "stage=title&go=yes")
+tn("2300j title, two fonts: refused     ", "stage=title&go=yes", count=2, pkg=TNPkg(title_name=_tn_title()))
+tn_reset(); ns["_TRYNAMES"]["title"] = 3
+tn("2300k title used up                 ", "stage=title&go=yes", keys=("error", "calls_so_far"), pkg=TNPkg(title_name=_tn_title()))
+tn_reset()
+tn("2300l state reads elidedName        ", "stage=state", keys=("elided_name", "calls_so_far"))
+_tnp = TNPkg(); _tnp._d.pop("elidedName")
+tn("2300m state, elidedName unreadable  ", "stage=state", keys=("elided_name",), pkg=_tnp)
+tn("2300n changed_readings unchanged    ", "stage=title&go=yes", keys=("changed_readings",), pkg=TNPkg(title_name=_tn_title()))
+tn_reset()
+tn("2300o a refused title counts nothing", "stage=title&full=x&go=yes", keys=("error",), pkg=TNPkg(title_name=_tn_title()))
+print("2300p counters after a refusal     :", dict(ns["_TRYNAMES"]))
+_tn_code = "\n".join(l.split("#")[0] for l in src[src.index("def debug_try_names("):src.index("# /debug/tryshapebox (v0.129)")].splitlines())
+print("2300q static scan: title_name fetched once:", _tn_code.count('getattr(pkg, "title_name", None)') == 1, "| called once:", _tn_code.count("title_name(full") == 1,
+      "| elidedName read by getattr only:", _tn_code.count('_trynames_read(pkg, "elidedName")') == 3, "| route passes full:", '(query.get("full") or ["yes"])[0]' in src,
+      "| limit", ns["_TRYNAMES_MAX_OTHER"], "| stages", ns["_TRYNAMES_STAGES"])
+tn_reset()
 for _m, _a, _v in _tn_saved:
     if _v is None:
         if hasattr(_m, _a): delattr(_m, _a)
@@ -6657,8 +6692,8 @@ for _m, _a, _v in _tn_saved:
 
 # ================= v0.142: /debug/tryfont?stage=construct_named (P0.4: name a new font in the same request; faked flPackage / flWorkspace) =================
 print("\n==== v0.142 /debug/tryfont construct_named ====")
-_cn_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flPackage", "flWorkspace")]
-CN = {"made": [], "calls": [], "ctor_raises": False, "set_raises": ()}
+_cn_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flPackage", "flWorkspace", "flItems")]   # v0.145: flItems
+CN = {"made": [], "calls": [], "ctor_raises": False, "set_raises": (), "no_items": False, "mark_raises": False}
 class CNPkg:
     def __repr__(s): return "<CNPkg>"
     def __init__(s):
@@ -6680,8 +6715,14 @@ class CNWs:
     @property
     def currentPackage(s): return CN["made"][-1] if CN["made"] else None
     def hasPackage(s, p): return p in CN["made"]
+class CNItems:
+    """v0.145: the mark call is recorded with the type of what it was given, and can raise."""
+    @staticmethod
+    def notifyChangesApplied(title, pkg, flag):
+        CN["calls"].append(f"applied({title!r}, {type(pkg).__name__}, {flag})")
+        if CN["mark_raises"]: raise RuntimeError("mark boom")
 def cn_setup(**kw):
-    CN.update(made=[], calls=[], ctor_raises=False, set_raises=())
+    CN.update(made=[], calls=[], ctor_raises=False, set_raises=(), no_items=False, mark_raises=False)
     CN.update(kw)
     ns["_TRYFONT"].update(package=None, constructed=False, attached=False)
     for _m in _tf_mods:
@@ -6689,6 +6730,10 @@ def cn_setup(**kw):
         _m.CountFonts = lambda: len(CN["made"])
         _m.CurrentFont = lambda: None
         _m.flWorkspace = type("CNW", (), {"instance": staticmethod(lambda: CNWs())})
+        if CN["no_items"]:
+            if hasattr(_m, "flItems"): delattr(_m, "flItems")
+        else:
+            _m.flItems = CNItems
 def cn(tag, query, keys=("error",)):
     c, d = call("/debug/tryfont?" + query)
     print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| made", len(CN["made"]), "| calls", CN["calls"])
@@ -6714,6 +6759,31 @@ print("2298o per field                        :", [(e["field"], e.get("call_erro
 cn_setup()
 cn("2298p an unknown stage               ", "stage=named&go=yes")
 print("2298q the built names                 :", ns["_tryfont_built_names"]("Nm Three"), "| route passes family:", '(query.get("family") or [""])[0]' in src)
+# v0.145: construct_named&mark=yes (ONE flItems.notifyChangesApplied on the package just made); 912, 913 ran with one font open only
+cn_setup()
+cn("2301a mark, without go                 ", "stage=construct_named&family=Nm%20Five&mark=yes")
+cn("2301b mark=maybe                       ", "stage=construct_named&family=Nm%20Five&mark=maybe&go=yes")
+cn("2301c mark off by default              ", "stage=construct_named&family=Nm%20Five&go=yes", keys=("constructed", "all_equal", "mark"))
+cn_setup()
+_d = cn("2301d mark=yes                        ", "stage=construct_named&family=Nm%20Five&mark=yes&go=yes", keys=("constructed", "all_equal", "mark"))
+print("2301e the mark call                    :", _d["mark"].get("call"), "| the package it got is the one made:", CN["calls"][-1].split(", ")[1] == "CNPkg", "| made", len(CN["made"]))
+cn("2301f a second construct_named refused  ", "stage=construct_named&family=Nm%20Six&mark=yes&go=yes")
+cn_setup(set_raises=("psn",))
+cn("2301g a name fails: no mark             ", "stage=construct_named&family=Nm%20Five&mark=yes&go=yes", keys=("all_equal", "mark"))
+cn_setup(no_items=True)
+cn("2301h no flItems: no mark               ", "stage=construct_named&family=Nm%20Five&mark=yes&go=yes", keys=("all_equal", "mark"))
+cn_setup(mark_raises=True)
+cn("2301i the mark raises                   ", "stage=construct_named&family=Nm%20Five&mark=yes&go=yes", keys=("constructed", "all_equal", "mark"))
+print("2301j no second try after a mark error:", ns["_TRYFONT"]["constructed"])
+cn_setup(ctor_raises=True)
+cn("2301k the constructor raises, mark=yes  ", "stage=construct_named&family=Nm&mark=yes&go=yes")
+cn_setup()
+cn("2301l mark ignored for construct        ", "stage=construct&mark=yes&go=yes", keys=("constructed",))
+_mk_code = "\n".join(l.split("#")[0] for l in src[src.index("def _tryfont_mark("):src.index("def debug_try_font(")].splitlines())
+_df_code = "\n".join(l.split("#")[0] for l in src[src.index("def debug_try_font("):src.index("def debug_try_font(") + 7000].splitlines())   # the function is about 6000 characters
+print("2301m static scan: mark call once:", _mk_code.count("marker.notifyChangesApplied(") == 1, "| helper called once, only when mark is yes:",
+      _df_code.count("_tryfont_mark(mod, pkg, all_equal)") == 1 and 'if mark == "yes" else None' in _df_code,
+      "| route passes mark:", '(query.get("mark") or [""])[0]' in src, "| title text shared:", "_TRYNOTIFY_TITLE" in _mk_code)
 ns["_TRYFONT"].update(package=None, constructed=False, attached=False)
 for _m, _a, _v in _cn_saved:
     if _v is None:
