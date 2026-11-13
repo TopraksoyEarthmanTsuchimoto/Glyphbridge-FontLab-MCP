@@ -1,6 +1,6 @@
 # Glyphbridge tests
 
-Standard library only. FontLab and the MCP SDK are **stubbed**, so these run anywhere (including a Claude sandbox). Last verified 2026-11-04 at listener v0.121 / server v0.43 on Windows 11, Python 3.15.2 (repository venv): all four harnesses PASS at 2443 + 58 + 90 + 888 lines. A plain run on an earlier Windows machine once showed one FAIL in `create_unicode_tests.py` that was purely a non-UTF-8 console code page turning a printed `é` into a replacement character; `run_all.py` now starts the harnesses with UTF-8 output (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`), which removed it. If a diff ever shows `�` in the "now" lines, it is this encoding problem: do NOT use `--update`.
+Standard library only. FontLab and the MCP SDK are **stubbed**, so these run anywhere (including a Claude sandbox). The current versions and the expected line counts of the four harnesses are in [CURRENT-STATUS.md](../mental-model/CURRENT-STATUS.md). A plain run on an earlier Windows machine once showed one FAIL in `create_unicode_tests.py` that was purely a non-UTF-8 console code page turning a printed `é` into a replacement character; `run_all.py` now starts the harnesses with UTF-8 output (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`), which removed it. If a diff ever shows `�` in the "now" lines, it is this encoding problem: do NOT use `--update`.
 
     python tests\run_all.py            # check; exit code 0 = everything as expected
     python tests\run_all.py --update   # after REVIEWING a legitimate change, re-save the expected output

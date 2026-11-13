@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.146)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.147)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -200,7 +200,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.146"
+VERSION = "0.147"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -8747,7 +8747,8 @@ def _trymodern_create(mod, pkg, font, name):
 # from it, and the FONTS panel gave the font its own line only with it, 885), written only when the font in front still reads
 # the new package's own family; then, only when all five read back equal, ONE flItems.notifyChangesApplied(title, <the
 # package>, False) on the package just made, so FontLab asks to save on close (912-914). "notes" holds what FontLab cannot
-# be made to show (the tab title and the FONTS panel lag, 896-914; the workaround of 910), printed in the OUTPUT panel too.
+# be made to show (the tab title and the FONTS panel lag, 896-914; since v0.147 one plain note, no workaround), printed in the
+# OUTPUT panel too.
 # Never called here: addPackage, save, close, export, release, remove, font.update().
 # --------------------------------------------------------------------------
 _CREATE_FONT_PSN_MAX = 63            # psn = family without spaces + "-Regular" must stay within 63 characters (PostScript's limit;
@@ -8860,18 +8861,19 @@ def _create_font_mark(mod, pkg):
 
 def _create_font_notes(out, family):
     """What the person must be told: plain sentences, built only from this reply; also printed in the OUTPUT panel."""
-    notes = ["This font is not saved. Glyphbridge never saves: save it from FontLab's File menu if you want to keep it."]
+    notes = ["This font is not saved: save it from FontLab's File menu if you want to keep it."]     # v0.147: shorter
     before = out.get("names_before") if isinstance(out.get("names_before"), dict) else {}
     own_full, own_family = before.get("ffn"), before.get("tfn")
     if family is None:
         notes.append("It has no changes yet, so FontLab may close it without asking to save; once it is changed, FontLab normally asks.")
     else:
-        wanted = family + " Regular"
-        if isinstance(own_full, str) and own_full:
-            notes.append(f"FontLab's tab still reads \"{own_full}\": it updates the tab only when the Full name is changed in Font Info. "
-                         f"To show \"{wanted}\", open Font Info, type any other Full name and press OK, then type \"{wanted}\" and press OK.")
-        if isinstance(own_family, str) and own_family:
-            notes.append(f"The FONTS panel may keep showing \"{own_family}\" until a font is closed, and sometimes even after that.")
+        # v0.147: one plain note, no Font Info chores (921, 922: no single step with unchanged values refreshes the display).
+        # "should" on save and reopen: not yet tested (FontLab in Demo mode), ROADMAP P0.3.
+        temp = own_family if isinstance(own_family, str) and own_family else own_full
+        if isinstance(temp, str) and temp:
+            notes.append(f"Right now FontLab may still show the temporary name \"{temp}\" in this font's tab and in the FONTS panel. "
+                         "This is only a display delay: Font Info shows the font's actual names. "
+                         "Saving and reopening the font should update FontLab's display.")
         if out.get("names_set") is not True or out.get("legacy_family_set") is not True:
             notes.append("Not every name could be set, so the font was not marked as changed: FontLab may close it without asking to save.")
     after = out.get("fonts_open_after")

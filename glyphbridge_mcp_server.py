@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.60)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.61)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.60"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.61"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -827,6 +827,9 @@ _FONT_NAMES_INSTRUCTION = (
     "Font names came up: ask the person whether they want the fields of Font Info's Names page explained, and explain them only if "
     "they say yes. What is known: Build Names sets Full name = family + ' ' + style, PostScript name = family without spaces + '-' + "
     "style, and Style group = family; this tool set them so for the style Regular. Do not guess about the other fields.")
+_OUTPUT_PANEL_INSTRUCTION = (   # v0.61: a person who never opens the OUTPUT panel misses its notes
+    "If you have not yet done so in this conversation, also tell the person that FontLab's OUTPUT panel lists every change "
+    "Glyphbridge makes, with its warnings, and is worth keeping open.")
 
 
 def _check_font_family(family: Any) -> None:
@@ -892,7 +895,7 @@ def create_new_font(family: Any = None) -> dict:
         "glyph_count": pkg.get("glyphsCount"),
     }
     instruction = ("A new, unsaved font was made in FontLab and is now the font in front. Tell the person every item of person_notes, "
-                   "in your own words but leaving none out (FontLab's OUTPUT panel shows them too).")
+                   "in your own words but leaving none out (FontLab's OUTPUT panel shows them too). " + _OUTPUT_PANEL_INSTRUCTION)
     if family is not None:
         result["family_requested"] = family
         result["names_set"] = data.get("names_set") is True
@@ -3347,9 +3350,10 @@ def create_font(family: str | None = None, ctx: Context | None = None) -> dict[s
     family + " Regular", PostScript name = family without spaces + "-Regular", Style group = family. Each name is read back.
 
     What FontLab will NOT show, and other things the person must know, come back in 'person_notes' (they are also printed in
-    FontLab's OUTPUT panel). Tell the person every one of them: FontLab's tab keeps the creation name until the Full name is
-    changed in Font Info (the notes give the two-step workaround); the FONTS panel may lag; with other fonts open, the new
-    font's first glyph must be opened once in FontLab before a tool can draw into it.
+    FontLab's OUTPUT panel). Tell the person every one of them: FontLab's tab and FONTS panel may keep the temporary name for
+    a while (a display delay; Font Info shows the real names); with other fonts open, the new font's first glyph must be
+    opened once in FontLab before a tool can draw into it. If you have not yet done so in this conversation, also tell the
+    person that FontLab's OUTPUT panel lists every change Glyphbridge makes, with its warnings, and is worth keeping open.
 
     Success is reported only when FontLab's number of open fonts went up by one and the new font is the one in front.
     Like every Glyphbridge tool this NEVER saves: the font exists in FontLab's memory only, and the person saves it (File menu

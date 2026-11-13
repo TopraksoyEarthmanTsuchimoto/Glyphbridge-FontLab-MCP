@@ -45,7 +45,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 4 | Back To PS Curves round trip | TODO |
 | 5 | The "To Line" route itself (straight polygons already read back) | PARTLY |
 | 16 | Other empty glyphs (e.g. `space`): zero layers like `.notdef`? | OPEN |
-| 18 | `.notdef` remainders: explicit `check_notdef` through Claude, a drawn `.notdef`, the `missing` dialog, waits of 90–120 s and over 120 s | PARTLY |
+| 18 | `.notdef` remainders: explicit `check_notdef` through Claude, a drawn `.notdef`, the `missing` dialog, waits of 90–120 s and over 120 s | PARTLY; a drawn `.notdef`: `draw_path`, 3 contours, layer created, verified (926, one run) |
 | 20 | `create_glyph('uni00e8')` shows the lowercase-hex warning in its v0.17 wording | TODO (T10) |
 
 ## Writing gaps

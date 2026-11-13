@@ -2,16 +2,17 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-13: notes for the person (listener 0.147 / server 0.61)
+
+- **No GUI-repaint chores for the person.** Where FontLab's display lags behind an API write, the person gets one plain sentence (what they see, that it is only a display delay, where the real value shows), never a sequence of dialog steps to force a repaint. *Reason:* the user's UX rule; 921 and 922 found no single step.
+- **The agent points the person to FontLab's OUTPUT panel once per conversation.** *Reason:* the user's choice; a person who never opens it misses its warnings.
+
 ## 2026-11-12: the create-font tool (listener 0.146 / server 0.60)
 
 - **`create_font` works whether or not other fonts are open, and may make more than one font per listener run;** the once-per-run limit stays on the probe. *Reason:* the user's choice; 834 and 835 made two fonts in one FontLab session, and the native reference belongs to FontLab, not to the listener.
 - **A named font also gets the legacy `font.info.familyName`,** written only when the font in front reads the new font's own family. *Reason:* the user's choice (option A): the server names a font from it, and the FONTS panel gave the font its own line only with it (885). Risk: it reverted once (872).
 - **A family name gives a PostScript name of at most 63 characters and holds none of `[](){}<>/%`; one check serves `create_font` and the `/debug/tryfont` probe.** *Reason:* the user's approval; the approved "58 characters" let the PostScript name reach 66, and PostScript names may not hold those characters.
 - **What can be improved goes to [ROADMAP.md](ROADMAP.md) (P0.5c, P0.9, P0.10); what cannot is told to the person, in the agent's reply and in FontLab's OUTPUT panel.** *Reason:* the user's rule.
-
-## 2026-11-12: CURRENT-STATUS budget raised to 2,200
-
-- **The word budget of [CURRENT-STATUS.md](CURRENT-STATUS.md) is 2,200 (was 2,000); the reference totals in [MARKDOWN-MAP.md](MARKDOWN-MAP.md) are now 11,500 and 11,000.** *Reason:* the user's choice; the file stood at 1,918 words with live research under way. Finished items still move to the archive.
 
 ## 2026-11-12: watch points hold the open question only
 
@@ -21,8 +22,7 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 - **A font made through Glyphbridge should match one made with File > New Font as closely as FontLab allows, and making one while other fonts are open must become reliable** (the create-font tool, [ROADMAP.md](ROADMAP.md) P0.3). Where the API result differs from the GUI's, the difference is recorded and the person is told. *Reason:* the user's requirement, so that what an agent does resembles what the person would do by hand; part of goal 5 in [PROJECT.md](PROJECT.md). The names already match (NF 831–835).
 - **The Font window's encoding: agent-made fonts need no step (they open with None); setting the box of a GUI-made font through the API is won't-fix for now.** The only route found is the Font window's Qt widget, kept as a candidate in P0.3. *Reason:* File > New Font ignores the "Default: Encoding" preference (840), and driving FontLab's widgets is fragile across versions, for the gain of a few clicks ([topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k, E1).
-- **Names: when the person has given no name, the new font gets FontLab's own (`Unnamed`, `Unnamed1`, …, as with File > New Font); when the person asks for a name, the tool sets it as Font Info would. Whenever font names come up, the agent asks whether the person wants the fields of Font Info's Names page explained, and explains them on request.** *Reason:* the user's requirements (2026-11-11); Font Info opens on that page, which confuses new users. Setting names through the API is researched in NM 841–914 and built in listener 0.146 / server 0.60 ([ROADMAP.md](ROADMAP.md) P0.4).
-- **The unnamed and the named route ship together, in one build after the naming research ([ROADMAP.md](ROADMAP.md) P0.4).** *Reason:* the user's choice (2026-11-11).
+- **Names: when the person has given no name, the new font gets FontLab's own (`Unnamed`, `Unnamed1`, …, as with File > New Font); when the person asks for a name, the tool sets it as Font Info would. Whenever font names come up, the agent asks whether the person wants the fields of Font Info's Names page explained, and explains them on request.** *Reason:* the user's requirements (2026-11-11); Font Info opens on that page, which confuses new users.
 
 ## 2026-11-11: research on a PC where FontLab cannot save
 

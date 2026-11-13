@@ -4,6 +4,13 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.147 and server v0.61 (2026-11-13)
+
+**Plainer `create_font` notes and a pointer to the OUTPUT panel** (the user's wording, 2026-11-13; CF 915–922, [DECISIONS.md](DECISIONS.md)).
+- Listener: the unsaved note drops "Glyphbridge never saves". For a named font the tab note (with its two-edit Font Info workaround) and the FONTS-panel note ("sometimes even after that") become one: the temporary name may still show in the tab and the FONTS panel, it is only a display delay, Font Info shows the actual names, and saving and reopening should update the display. The temporary name is the creation family, else the creation Full name. "Should": not yet tested, FontLab runs in Demo mode ([ROADMAP.md](ROADMAP.md) P0.3).
+- Server: the `create_font` instruction and description ask the agent to tell the person once per conversation that FontLab's OUTPUT panel lists every change with its warnings and is worth keeping open; the description drops the two-step workaround.
+- Tests: `stub_listener_tests.py` 3206 → 3203 lines (one note fewer in 2302m, 2306, 2307), `create_unicode_tests.py` 1266 lines (the instruction texts, note counts 5 → 4); text-only change, no new guard path, so no mutation run. Run live 2026-11-13 (923–925): the reply, the instruction and the OUTPUT panel as intended.
+
 ## Listener v0.146 and server v0.60 (2026-11-12)
 
 **`create_font` / `POST /font/create {"family"?}`** (ROADMAP P0.3 / P0.4; design approved 2026-11-12, [DECISIONS.md](DECISIONS.md)).
