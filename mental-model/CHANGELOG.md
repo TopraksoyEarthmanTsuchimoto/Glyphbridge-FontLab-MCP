@@ -4,6 +4,30 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.152 (2026-11-14; server unchanged at v0.62)
+
+**`/debug/tryedit&refresh=R`** (P2.2 research, step B2): after a confirmed edit, ONE member of the fixed table `_TRYEDIT_REFRESH` (`contour.update` with `movenode` only, `shape.update`, `shapedata.update`, `layer.update`, `glyph.update`, `layer.changed`, `shape.changed`, `layer.resetinkbox`), called once before `_guard_mark`; the sidebearings before and after it against those the edited nodes give (straight contours only), `refresh_changed_outline` as a side effect. Unknown values and `resetMetrics*` are refused; no refresh after a failed edit. Tests: `stub_listener_tests.py` 3318 → 3364 lines (2321–2331); `create_unicode_tests.py` version lines only. Mutation run: 6 of 6 caught. Run live 989–1000.
+
+## Listener v0.151 (2026-11-14; server unchanged at v0.62)
+
+**`/debug/tryedit`** (P2.2 research, step 2; the editing goal of 2026-11-14, [DECISIONS.md](DECISIONS.md)): ONE edit of a plain drawn glyph per call, `go=yes`, names starting with `edp`, exactly one font open, 8 per listener run counted before the glyph is read. Stages: `movenode` (`node.x`, `node.y`), `addcontour` (a fixed square through `shape.shapeData.addContour`), `removecontour` (`shape.shapeData.removeContour`), `replace` (a fixed triangle through `layer.replaceShape`). A plain glyph: one shape, `isComponent` and `isComposite` False, no components; contours only through `layer.getContours()`, nodes through `getNodeAt`. The reply has the outline before and after, `expected_after`, `mismatches`, `smooth_changed`, the glyph count before and after, `side_effect_detected` and `edited`; a change goes through `_guard_mark` and is marked as "Glyphbridge edit" (new in `_MARK_TITLES`). Never called: `font.update()`, save, `smartMove`, `smartSetXY`, `moveBy`, `decomposite`, `ejectTo`, `shapeBuilder`, `activateBuilder`. Tests: `stub_listener_tests.py` 3262 → 3318 lines (2311–2320: refusals, the four stages, sync and mark, the plain-glyph gate, failure modes, the call cap, spies and a static scan); `create_unicode_tests.py` version lines only. Mutation run: 6 of 6 caught. Not yet run live.
+
+## Listener v0.150 and server v0.62 (2026-11-13)
+
+**The first glyph of a new font with other fonts open** (ROADMAP P0.9; design approved 2026-11-13, [DECISIONS.md](DECISIONS.md)).
+- Listener: `_package_layer_name(font, w)` takes the master name from the glyph's own package, `w.package`, with any number of fonts open. It refuses unless `CountFonts()` is a plain whole number of at least 1, the current package and the glyph's package are not null, both `fgId` values are plain numbers and equal, and the old checks hold (one master, `defaultMaster` = `master` = the one name in `masters`, glyph count and units per em). The number of workspace packages is no longer read. `_derive_layer_name` passes the wrapper on; without one the master name is not used.
+- Listener: `create_font`'s front check compares the `fgId` of the new and the current package instead of `isEqual` (930, 931); the "double-click the first glyph" note is gone.
+- Server: the `create_font` description drops the same sentence.
+- Tests: `stub_listener_tests.py` 3252 → 3262 lines (gate cases 760–799b: new refusals 765–767i, accepted 760–760c, direct calls 796 and 796b, the scan 799b; 2304i–j now an unreadable and a bool `fgId`); `create_unicode_tests.py` 1266 lines (version lines and one note fewer in 36z). Mutation run: 11 of 11 caught. Run live 932–936.
+
+## Listener v0.149 (2026-11-13; server unchanged at v0.61)
+
+**`/debug/trypackage?stage=cached&go=yes`** (P0.9 research): the wrappers already in the listener's cache, at most 20, none built; each checked against its key (`fgGlyphId`) and `isValid` first, then ONE read of its package, that package's `isNull`, `fgId`, `glyphsCount`, and ONE `isEqual` against the current package; the run counter of the glyph stage. Tests: 3236 → 3252 lines (2310a–o). Mutation run: 12 of 12 caught. Run live 930, 931.
+
+## Listener v0.148 (2026-11-13; server unchanged at v0.61)
+
+**`/debug/trypackage?name=X&go=yes`** (P0.9 research, read only, any number of fonts open): ONE read of `flGlyph.package` of a glyph of the font in front, that package's reads, ONE `isEqual` against the current package, the font in front's glyph count, units per em and path for comparison, `CountFonts()` and the package count before and after; 20 per listener run. Tests: 3203 → 3236 lines (2309a–ae). Mutation run: 6 of 6 caught. Run live 928, 929.
+
 ## Listener v0.147 and server v0.61 (2026-11-13)
 
 **Plainer `create_font` notes and a pointer to the OUTPUT panel** (the user's wording, 2026-11-13; CF 915–922, [DECISIONS.md](DECISIONS.md)).

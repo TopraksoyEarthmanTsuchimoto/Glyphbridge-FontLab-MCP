@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.147)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.152)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -156,6 +156,10 @@ Routes (GET unless marked POST):
                           10 per listener run (v0.107, K11)
     /debug/tryopen        stage=detached|draw&name=ocp...&kind=line|curve: ONE open contour (never closed), detached or drawn into an
                           empty glyph and read back; 6 per listener run (v0.125, P2.1 research)
+    /debug/tryedit        stage=movenode|addcontour|removecontour|replace&name=edp...[&contour=C&node=N&dx=DX&dy=DY][&refresh=R]: ONE edit
+                          of a plain drawn glyph (one shape, no component, no Power Brush), outline before and after; refresh=R calls one
+                          member of a fixed list after the edit, sidebearings before and after it (v0.152); exactly one font open,
+                          8 per listener run (v0.151, P2.2 research)
     /debug/tryshapebox    stage=shapebox|dependencies&name=X: read only; ONE shape.inkBox() per element, or ONE
                           flGlyph.isUnbindedDependecies(); exactly one font open; 12 per stage and listener run (v0.129, P1.1 research)
     /debug/trynotify      stage=state|call|ids&name=X[&which=W][&on=class|instance][&id_from=object|fg]: S1 and KERNING panel research; the changed
@@ -173,7 +177,10 @@ Routes (GET unless marked POST):
                           ONE flPackage.info.F = V for the Preferred family or subfamily, 3 per run, and every reply reads both (v0.143);
                           stage=title[&full=yes|no] ONE flPackage.title_name(True|False), 3 per run, and stage=state also reads elidedName
                           (v0.144); every stage but state needs go=yes; exactly one font open (v0.137)
-    /debug/setcurrent     changes which glyph FontLab displays (no use for the modern API)
+    /debug/trypackage     name=X&go=yes: P0.9 research, read only, any number of fonts open; ONE read of flGlyph.package of a glyph of the
+                          font in front, its reads, and ONE isEqual against the workspace's current package; 20 per listener run (v0.148);
+                          stage=cached&go=yes: the same for the wrappers already cached (at most 20, none built), any font (v0.149)
+    /debug/setcurrent    changes which glyph FontLab displays (no use for the modern API)
 
   Dead ends, kept as history: /debug/contours and /debug/drawpen (the pen protocol returns
   nothing), /debug/box, /debug/shapecount. /debug/layeritem is DISABLED: layer[N] subscript access
@@ -200,7 +207,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.147"
+VERSION = "0.152"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -498,7 +505,7 @@ _MARK_CHANGED = True    # v0.132: tell FontLab that a verified, synced tool writ
 _REFRESH_KERNING_PANEL = True    # v0.136: ask FontLab to refresh its KERNING panel after a kerning write that changed an entry (live 738, 741-743); False switches it off
 _MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge width", "sidebearings": "Glyphbridge sidebearings",
                 "draw_polygon": "Glyphbridge polygon", "draw_path": "Glyphbridge path", "unicode": "Glyphbridge Unicode", "delete": "Glyphbridge delete",
-                "kerning": "Glyphbridge kerning"}
+                "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit"}
 _MARK_DELETE_MAX_TRIES = 20    # v0.133: how many surviving glyphs a delete's mark may try before it says none could be notified; v0.134: also a kerning write's mark
 _SYNCED_NOTE = ("Glyphbridge asked FontLab to sync this glyph right after the change and FontLab's legacy view now matches the modern layer, so the "
                 "change is durable against the display refresh of create_glyph, delete_glyph, set_glyph_unicode and the legacy width route. "
@@ -1170,12 +1177,26 @@ def _pkg_get(obj, attr):
         return None, f"{attr} could not be read ({type(exc).__name__}: {exc})"
 
 
-def _package_layer_name(font):
+def _package_fg_id(pkg, label):
+    """(fgId, None) or (None, reason): the package's fgId as a plain whole number (not a bool). ONE read."""
+    value, err = _pkg_get(pkg, "fgId")
+    if err is not None:
+        return None, f"{label}'s fgId could not be read ({err})"
+    if type(value) is not int:
+        return None, f"{label}'s fgId is a {type(value).__name__}, not a plain number"
+    return value, None
+
+
+def _package_layer_name(font, w=None):
     """(master name, None) or (None, reason). READ ONLY. The layer name of a font whose glyphs have no layer yet (a new font) is the
-    name of its single master. Used only when exactly one font is open, so that flWorkspace.currentPackage must be this font; every
-    check below must pass, otherwise nothing is guessed."""
+    name of its single master. v0.150 (ROADMAP P0.9): the package is the glyph's OWN, read from its modern wrapper (w.package), so any
+    number of fonts may be open. 930 and 931 showed w.package naming the glyph's own font (fgId 8 with the font of fgId 5 in front),
+    and flPackage.isEqual true for two different packages: isEqual is not used. The glyph comes from the font in front, so its
+    package's fgId must equal the current package's; every check below must pass, otherwise nothing is guessed."""
     import sys as _sys
     mod = _sys.modules.get("fontlab") or fl
+    if w is None:
+        return None, "no modern glyph was given, so the glyph's own package could not be read"
     count_fonts = getattr(mod, "CountFonts", None)
     if count_fonts is None:
         return None, "the fontlab module has no CountFonts, so the number of open fonts is unknown"
@@ -1185,25 +1206,41 @@ def _package_layer_name(font):
         return None, f"CountFonts() failed ({type(exc).__name__}: {exc})"
     if type(count) is not int:
         return None, "CountFonts() did not return a whole number"
-    if count != 1:
-        return None, f"{count} fonts are open, so the package that belongs to this font cannot be told apart from the others yet"
+    if count < 1:
+        return None, f"CountFonts() is {count}, so no font is open"
     try:
         ws = mod.flWorkspace.instance()
-        npk = len(ws.packages())
     except Exception as exc:
-        return None, f"the workspace's packages could not be counted ({type(exc).__name__}: {exc})"
-    if npk != 1:
-        return None, f"the workspace holds {npk} packages, not exactly 1"
-    pkg, err = _pkg_get(ws, "currentPackage")
+        return None, f"the workspace could not be reached ({type(exc).__name__}: {exc})"
+    current, err = _pkg_get(ws, "currentPackage")
     if err is not None:
         return None, err
-    if pkg is None:
+    if current is None:
         return None, "the workspace has no current package"
-    is_null, err = _pkg_get(pkg, "isNull")
+    is_null, err = _pkg_get(current, "isNull")
     if err is not None:
         return None, err
     if is_null is not False:
         return None, "the current package is null or its state is unknown"
+    pkg, err = _pkg_get(w, "package")
+    if err is not None:
+        return None, f"the glyph's own package could not be read ({err})"
+    if pkg is None:
+        return None, "the glyph names no package of its own"
+    is_null, err = _pkg_get(pkg, "isNull")
+    if err is not None:
+        return None, err
+    if is_null is not False:
+        return None, "the glyph's package is null or its state is unknown"
+    own_id, err = _package_fg_id(pkg, "the glyph's package")
+    if err is not None:
+        return None, err
+    current_id, err = _package_fg_id(current, "the current package")
+    if err is not None:
+        return None, err
+    if own_id != current_id:
+        return None, (f"the glyph's package (fgId {own_id}) is not the current package (fgId {current_id}), so the font in front and "
+                      "the glyph may not belong together")
     masters_count, err = _pkg_get(pkg, "mastersCount")
     if err is not None:
         return None, err
@@ -1242,15 +1279,15 @@ def _package_layer_name(font):
     return default_master, None
 
 
-def _derive_layer_name(font, skip_name, with_source=False):
+def _derive_layer_name(font, skip_name, with_source=False, w=None):
     """(layer name, None) or (None, reason); with_source=True gives (name, None, source) or (None, reason, None). The name comes from the
     OTHER glyphs of the font that already have a modern layer (source 'other glyphs'). Only when none has one (a new font) the
-    name of the font's single master is used (source 'package master'), after every check of _package_layer_name. A disagreement
-    between glyphs, or an unreadable glyph list, is never overridden."""
+    name of the font's single master is used (source 'package master'), after every check of _package_layer_name on the package of
+    w, the glyph's modern wrapper (v0.150). A disagreement between glyphs, or an unreadable glyph list, is never overridden."""
     name, why = _derive_layer_name_from_glyphs(font, skip_name)
     source = "other glyphs" if name is not None else None
     if name is None and isinstance(why, str) and why.startswith(_LAYER_NO_OTHER_GLYPH):
-        pname, pwhy = _package_layer_name(font)
+        pname, pwhy = _package_layer_name(font, w)
         if pname is not None:
             name, why, source = pname, None, "package master"
         else:
@@ -1265,7 +1302,7 @@ _EXISTING_LAYER_PREFIXES = (_EXISTING_LAYER_MAYBE, _EXISTING_LAYER_FOUND)
 
 def _ensure_modern_layer(font, glyph, w, name):
     """Create the missing modern layer of a positively empty glyph. Returns ({"layer", "layer_name"}, None) or (None, reason)."""
-    lname, why, lsource = _derive_layer_name(font, name, True)
+    lname, why, lsource = _derive_layer_name(font, name, True, w)
     if lname is None:
         return None, why
     # v0.82: ask WITHOUT creating anything. findLayerCreate on an existing layer hands back an empty one (live v0.81: the drawn outline
@@ -1875,6 +1912,359 @@ def draw_path(name, contours, rounded=None, closed_flags=None):
         elif nodes_match is None:
             why += f" (the outline could not be read back: {modern.get('error')})"
         result["reason"] = why
+    return result
+
+
+# --------------------------------------------------------------------------
+# /debug/tryedit (v0.151) - RESEARCH for P2.2 (editing an existing outline, required by the user on 2026-11-14): ONE edit of a drawn
+# glyph per call, read back from the modern layer before and after. Every stage needs go=yes and the one-font gate of /debug/trysync;
+# glyph names starting with "edp" only; at most _TRYEDIT_MAX calls per listener run, counted BEFORE anything is read or touched. The
+# glyph must be PLAIN: exactly one shape in layer.shapes (a real list) that reads isComponent False and isComposite False (a Power Brush
+# shape reads isComposite True, F1), no components. Contours only through layer.getContours() (a real list), nodes only through
+# getNodeAt(i) after a range check on nodesCount.
+#   stage=movenode&contour=C&node=N&dx=DX&dy=DY  node.x = x + dx, then node.y = y + dy (whole numbers, |dx|, |dy| <= 200, not both 0)
+#   stage=addcontour             a fixed closed square (600, 600) (650, 600) (650, 650) (600, 650), built and checked DETACHED as
+#                                draw_path builds, then shape.shapeData.addContour(contour) into the glyph's existing shape
+#   stage=removecontour&contour=C   shape.shapeData.removeContour(<contour C of layer.getContours()>)
+#   stage=replace                a fixed closed triangle (100, 0) (300, 0) (200, 300) in a new flShape (built and checked detached),
+#                                then layer.replaceShape(old_shape, new_shape)
+# The reply has the outline before and after, the expected outline, mismatches, the glyph count before and after, and
+# side_effect_detected. A change goes through _guard_mark (Update(<flGlyph>), the sync check, the changed mark), as every write does.
+# v0.152 (step B2, live 968-983: the modern sidebearings lagged after an edit until a GUI event): &refresh=R, one name of
+# _TRYEDIT_REFRESH, calls that ONE member once, right after a confirmed edit and before _guard_mark; the sidebearings are read before and
+# after it and compared with the ones the edited nodes give (straight contours only), and the outline is compared before and after it
+# (refresh_changed_outline). The member is looked up only from that fixed table; resetMetrics* is never in it.
+# Never called by this probe: font.update(), save, removeGlyph, smartMove, smartSetXY, moveBy, decomposite, ejectTo, shapeBuilder,
+# activateBuilder, resetMetricsLeft / Right / Width; no subscript or iteration of a native object.
+# --------------------------------------------------------------------------
+
+_TRYEDIT_MAX = 8
+_TRYEDIT = {"calls": 0}
+_TRYEDIT_STAGES = ("movenode", "addcontour", "removecontour", "replace")
+_TRYEDIT_DELTA_MAX = 200
+_TRYEDIT_INDEX_MAX = 5000
+_TRYEDIT_CALLS = {"movenode": "node.x = x + dx, then node.y = y + dy", "addcontour": "shape.shapeData.addContour(contour)",
+                  "removecontour": "shape.shapeData.removeContour(contour)", "replace": "layer.replaceShape(old_shape, new_shape)"}
+_TRYEDIT_NOTE = ("RESEARCH: compare with get_glyph_outline and with FontLab's own view of the glyph; nothing is saved by Glyphbridge; "
+                 "quit FontLab WITHOUT saving afterwards, or delete the edp glyphs")
+_TRYEDIT_REFRESH = {"contour.update": ("contour", "update"), "shape.update": ("shape", "update"), "shapedata.update": ("shapedata", "update"),
+                    "layer.update": ("layer", "update"), "glyph.update": ("glyph", "update"), "layer.changed": ("layer", "changed"),
+                    "shape.changed": ("shape", "changed"), "layer.resetinkbox": ("layer", "resetInkBox")}
+_TRYEDIT_MARGIN_TOLERANCE = 0.05
+
+
+def _tryedit_point(x, y):
+    return {"x": x, "y": y, "c1": None, "c2": None, "smooth": False}
+
+
+_TRYEDIT_SQUARE = [_tryedit_point(600, 600), _tryedit_point(650, 600), _tryedit_point(650, 650), _tryedit_point(600, 650)]
+_TRYEDIT_TRIANGLE = [_tryedit_point(100, 0), _tryedit_point(300, 0), _tryedit_point(200, 300)]
+
+
+def _tryedit_int(raw, label, lo, hi):
+    """(int, None) or (None, sentence) for one query value."""
+    import re as _re
+    if raw is None or not str(raw).strip():
+        return None, f"{label} is required for this stage"
+    s = str(raw).strip()
+    if not _re.fullmatch(r"-?[0-9]{1,6}", s):
+        return None, f"{label} must be a whole number"
+    v = int(s)
+    if not lo <= v <= hi:
+        return None, f"{label} must be between {lo} and {hi}"
+    return v, None
+
+
+def _tryedit_snapshot(name):
+    """{"contours": [{"closed", "nodes": [{x, y, kind, smooth}]}], "margins"} of the modern layer, or {"error"}. Never raises."""
+    modern = _read_modern_outline(name)
+    if modern.get("available") is not True:
+        return {"error": modern.get("error") or "the outline could not be read"}
+    out = []
+    for c in modern.get("contours") or []:
+        out.append({"closed": c.get("closed"), "nodes": [{"x": n.get("x"), "y": n.get("y"), "kind": "On" if n.get("isOn") else (
+            "Curve" if n.get("isCurve") else "Off"), "smooth": n.get("smooth")} for n in (c.get("nodes") or [])]})
+    snap = {"contours": out}
+    if modern.get("margins") is not None:
+        snap["margins"] = modern["margins"]
+    return snap
+
+
+def _tryedit_new_contour(pts):
+    """The snapshot form of a closed contour built from `pts` (straight segments, no smooth node)."""
+    return {"closed": True, "nodes": [{"x": p["x"], "y": p["y"], "kind": "On", "smooth": False} for p in pts]}
+
+
+def _tryedit_compare(got, want):
+    """(mismatches, smooth_changed): sentences for every difference in contour count, closed flags, node count, position and kind;
+    smooth flags apart, as [contour, node] pairs."""
+    bad, smooth = [], []
+    if len(got) != len(want):
+        return [f"the layer reads {len(got)} contour(s), {len(want)} expected"], smooth
+    for ci, (g, e) in enumerate(zip(got, want)):
+        if g.get("closed") is not e.get("closed"):
+            bad.append(f"contour {ci}: closed reads {g.get('closed')!r}, expected {e.get('closed')!r}")
+        gn, en = g.get("nodes") or [], e.get("nodes") or []
+        if len(gn) != len(en):
+            bad.append(f"contour {ci}: {len(gn)} nodes read, {len(en)} expected")
+            continue
+        for ni, (a, b) in enumerate(zip(gn, en)):
+            if abs(a["x"] - b["x"]) > 0.001 or abs(a["y"] - b["y"]) > 0.001:
+                bad.append(f"contour {ci} node {ni}: position ({a['x']}, {a['y']}) instead of ({b['x']}, {b['y']})")
+            if a.get("kind") != b.get("kind"):
+                bad.append(f"contour {ci} node {ni}: kind {a.get('kind')} instead of {b.get('kind')}")
+            if bool(a.get("smooth")) != bool(b.get("smooth")):
+                smooth.append([ci, ni])
+    return bad, smooth
+
+
+def _tryedit_glyph_count(font):
+    """len(font.glyphs) (a real list, as delete_glyph reads it) or an "<error: ...>" string."""
+    n, err = _tl_call(lambda: len(font.glyphs))
+    return n if err is None else f"<error: {err}>"
+
+
+def _tryedit_build(mod, qp, pts, label):
+    """(contour, None) or (None, sentence): ONE closed contour built and checked DETACHED, as draw_path builds it."""
+    expected, on_index = _path_layout(pts)
+    try:
+        contour = _path_build_contour(mod, qp, pts, expected, on_index, closed=True)
+    except Exception as exc:
+        return None, f"the {label} could not be built detached ({exc})"
+    rows, err = _path_read_nodes(contour)
+    if rows is None:
+        return None, f"the detached {label} could not be read back ({err})"
+    closed, _e = _tl_call(lambda: contour.closed)
+    bad = _path_mismatches(rows, expected, f"detached {label}")
+    if closed is not True:
+        bad.append(f"detached {label}: closed reads {closed!r}")
+    if bad:
+        return None, "the detached " + label + " does not match: " + " | ".join(bad[:6])
+    return contour, None
+
+
+def _tryedit_expected_margins(want, advance):
+    """({"lsb", "rsb", "advance"}, None) that the expected outline gives, or (None, reason). Straight contours only: their extent is the
+    box of their nodes; a curve's is not."""
+    nodes = [n for c in want for n in c.get("nodes") or []]
+    if not nodes:
+        return None, "the outline is empty"
+    if any(n.get("kind") != "On" for n in nodes):
+        return None, "the outline has curves, so its extent is not the box of its nodes"
+    xs = [n["x"] for n in nodes]
+    return {"lsb": min(xs), "rsb": advance - max(xs), "advance": advance}, None
+
+
+def _tryedit_margins_current(m, exp):
+    return all(abs(m[k] - exp[k]) <= _TRYEDIT_MARGIN_TOLERANCE for k in ("lsb", "rsb", "advance"))
+
+
+def _tryedit_refresh(refresh, w, tr, layer, shape, contour, name, want):
+    """v0.152: ONE call of the member _TRYEDIT_REFRESH names, with the sidebearings before and after it. Never raises; the outline read
+    just before the call is returned under "_mid" for the caller's comparison."""
+    out = {"refresh": refresh}
+    def margins():
+        if tr is None:
+            return None, "no QTransform for the margin getters"
+        return _modern_margins_read(w, tr)
+    m0, err0 = margins()
+    out["margins_before_refresh"] = m0 if m0 is not None else {"error": err0}
+    out["_mid"] = _tryedit_snapshot(name)
+    label, member = _TRYEDIT_REFRESH[refresh]
+    obj, err = {"contour": (contour, None), "shape": (shape, None), "layer": (layer, None), "glyph": (w, None)}.get(label, (None, None))
+    if label == "shapedata":
+        obj, err = _tl_call(lambda: shape.shapeData)
+    if err is not None or obj is None:
+        out["refresh_error"] = f"there is no {label} to call {member}() on ({err or 'None'})"
+    else:
+        fn, err = _tl_call(lambda: getattr(obj, member))
+        if err is not None or not callable(fn):
+            out["refresh_error"] = f"{label}.{member} is not callable ({err or type(fn).__name__})"
+        else:
+            out["refresh_call"] = f"{label}.{member}()"
+            ret, err = _tl_call(fn)
+            if err is not None:
+                out["refresh_error"] = err
+            else:
+                out["refresh_returned"] = ret if (ret is None or isinstance(ret, (bool, int, float, str))) else type(ret).__name__
+    m1, err1 = margins()
+    out["margins_after_refresh"] = m1 if m1 is not None else {"error": err1}
+    exp, why = _tryedit_expected_margins(want, m0["advance"]) if m0 is not None else (None, "the margins could not be read")
+    out["margins_expected"] = exp if exp is not None else {"error": why}
+    if exp is not None:
+        out["margins_current_before_refresh"] = _tryedit_margins_current(m0, exp)
+        out["margins_current_after_refresh"] = _tryedit_margins_current(m1, exp) if m1 is not None else "unknown"
+    return out
+
+
+def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, refresh=None):
+    import sys as _sys
+    if stage not in _TRYEDIT_STAGES:
+        return {"error": 'stage must be "movenode", "addcontour", "removecontour" or "replace"'}
+    if (not isinstance(name, str) or not (4 <= len(name) <= 40) or not name.startswith("edp")
+            or any(ch not in _TRYCREATE_NAME_CHARS for ch in name)):
+        return {"error": 'name must start with "edp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'}
+    args = {}
+    if stage in ("movenode", "removecontour"):
+        v, err = _tryedit_int(contour, "contour", 0, _TRYEDIT_INDEX_MAX)
+        if err is not None:
+            return {"error": err}
+        args["contour"] = v
+    if stage == "movenode":
+        for label, raw, lo, hi in (("node", node, 0, _TRYEDIT_INDEX_MAX), ("dx", dx, -_TRYEDIT_DELTA_MAX, _TRYEDIT_DELTA_MAX),
+                                   ("dy", dy, -_TRYEDIT_DELTA_MAX, _TRYEDIT_DELTA_MAX)):
+            v, err = _tryedit_int(raw, label, lo, hi)
+            if err is not None:
+                return {"error": err}
+            args[label] = v
+        if args["dx"] == 0 and args["dy"] == 0:
+            return {"error": "dx and dy are both 0: nothing would change"}
+    refresh = str(refresh).strip() if refresh is not None and str(refresh).strip() else None
+    if refresh is not None:
+        if refresh not in _TRYEDIT_REFRESH:
+            return {"error": "refresh must be one of: " + ", ".join(_TRYEDIT_REFRESH)}
+        if refresh == "contour.update" and stage != "movenode":
+            return {"error": "refresh=contour.update needs stage=movenode (the edited contour)"}
+        args["refresh"] = refresh
+    if go != "yes":
+        what = {"movenode": "moves one node of the glyph by (dx, dy)", "addcontour": "adds a fixed square contour to the glyph's shape",
+                "removecontour": "removes one contour from the glyph's shape", "replace": "replaces the glyph's shape with a fixed triangle"}[stage]
+        return {"error": f"stage={stage} {what}. Add &go=yes to run it."}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"stage": stage, "error": why, "calls_so_far": _TRYEDIT["calls"], "max_calls": _TRYEDIT_MAX}
+    if _TRYEDIT["calls"] >= _TRYEDIT_MAX:
+        return {"stage": stage, "error": f"the probe already ran {_TRYEDIT_MAX} times in this listener run; restart the listener to repeat it",
+                "calls_so_far": _TRYEDIT["calls"], "max_calls": _TRYEDIT_MAX}
+    qp = getattr(QtCore, "QPointF", None)
+    if stage in ("addcontour", "replace") and (qp is None or getattr(mod, "flContour", None) is None or getattr(mod, "flShape", None) is None):
+        return {"stage": stage, "error": "QtCore.QPointF, fontlab.flContour or fontlab.flShape is missing: nothing was touched",
+                "calls_so_far": _TRYEDIT["calls"], "max_calls": _TRYEDIT_MAX}
+    _TRYEDIT["calls"] += 1     # counted BEFORE the glyph is read or touched: whatever happens, it is on record
+    base = dict({"stage": stage, "name": name, "call": _TRYEDIT_CALLS[stage], "calls_so_far": _TRYEDIT["calls"], "max_calls": _TRYEDIT_MAX,
+                 "note": _TRYEDIT_NOTE}, **args)
+    ctx, refusal = _modern_edit_target(name)
+    if ctx is None:
+        return dict(base, error="the glyph cannot be edited: " + str(refusal.get("reason") or refusal), refusal=_public_refusal(refusal))
+    w, font = ctx["w"], ctx["font"]
+    state, layer = _tryshape_modern_state(w)
+    base["state_before"] = state
+    if layer is None:
+        return dict(base, error="the glyph has no modern active layer: nothing was touched")
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list:
+        return dict(base, error=f"layer.shapes is not a plain list ({err or type(shapes).__name__}): nothing was touched")
+    if len(shapes) != 1:
+        return dict(base, error=f"the glyph has {len(shapes)} shapes; the probe edits a glyph with exactly one: nothing was touched")
+    shape = shapes[0]
+    for attr in ("isComponent", "isComposite"):
+        v, err = _tl_call(lambda a=attr: _call0(shape, a))
+        if err is not None or v is not False:
+            return dict(base, error=(f"the shape's {attr} reads {v!r}{' (' + err + ')' if err else ''}: only a plain shape is edited, never a "
+                                     "component or a Power Brush or other composite shape: nothing was touched"))
+    if state.get("components") != 0:
+        return dict(base, error=f"the layer reads {state.get('components')!r} components: nothing was touched")
+    before = _tryedit_snapshot(name)
+    if "error" in before:
+        return dict(base, error=f"the outline could not be read before the edit ({before['error']}): nothing was touched")
+    base["before"] = before
+    base["glyph_count_before"] = _tryedit_glyph_count(font)
+    contours, err = _tl_call(lambda: layer.getContours())
+    if err is not None or type(contours) not in (list, tuple):
+        return dict(base, error=f"layer.getContours() is not a plain list ({err or type(contours).__name__}): nothing was touched")
+    if len(contours) != len(before["contours"]):
+        return dict(base, error="layer.getContours() disagrees with the outline just read: nothing was touched")
+    want = [dict(c, nodes=[dict(n) for n in c["nodes"]]) for c in before["contours"]]
+    step, touched = "reading the target", False
+    cur_shape, edited_contour = shape, None
+    try:
+        if stage == "movenode":
+            ci, ni = args["contour"], args["node"]
+            if ci >= len(contours):
+                return dict(base, error=f"contour {ci} does not exist (the glyph has {len(contours)}): nothing was touched")
+            target = contours[ci]
+            edited_contour = target
+            count, err = _tl_call(lambda: _call0(target, "nodesCount"))
+            if err is not None or not isinstance(count, int) or isinstance(count, bool):
+                return dict(base, error=f"nodesCount of contour {ci} is not readable ({err or count!r}): nothing was touched")
+            if ni >= count:
+                return dict(base, error=f"node {ni} does not exist (contour {ci} has {count}): nothing was touched")
+            nd, err = _tl_call(lambda: target.getNodeAt(ni))
+            if err is not None or nd is None:
+                return dict(base, error=f"getNodeAt({ni}) failed ({err or 'returned None'}): nothing was touched")
+            x0, y0 = _rm_plain(_call0(nd, "x")), _rm_plain(_call0(nd, "y"))
+            if any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in (x0, y0)):
+                return dict(base, error="the node's x / y are not numbers: nothing was touched")
+            want[ci]["nodes"][ni]["x"] = x0 + args["dx"]
+            want[ci]["nodes"][ni]["y"] = y0 + args["dy"]
+            step, touched = "node.x = x + dx", True
+            nd.x = float(x0 + args["dx"])
+            step = "node.y = y + dy"
+            nd.y = float(y0 + args["dy"])
+        elif stage == "removecontour":
+            ci = args["contour"]
+            if ci >= len(contours):
+                return dict(base, error=f"contour {ci} does not exist (the glyph has {len(contours)}): nothing was touched")
+            want.pop(ci)
+            step = "shape.shapeData"
+            sd = shape.shapeData
+            step, touched = "shape.shapeData.removeContour(contour)", True
+            sd.removeContour(contours[ci])
+        else:
+            pts = _TRYEDIT_SQUARE if stage == "addcontour" else _TRYEDIT_TRIANGLE
+            label = "square" if stage == "addcontour" else "triangle"
+            built, why = _tryedit_build(mod, qp, pts, label)
+            if built is None:
+                return dict(base, error=why + ": nothing was touched")
+            if stage == "addcontour":
+                want.append(_tryedit_new_contour(pts))
+                step = "shape.shapeData"
+                sd = shape.shapeData
+                step, touched = "shape.shapeData.addContour(contour)", True
+                sd.addContour(built)
+            else:
+                want = [_tryedit_new_contour(pts)]
+                step = "flShape()"
+                new_shape = mod.flShape()
+                step = "new_shape.shapeData.addContour(contour)"
+                new_shape.shapeData.addContour(built)
+                step, touched = "layer.replaceShape(old_shape, new_shape)", True
+                layer.replaceShape(shape, new_shape)
+                cur_shape = new_shape
+    except Exception as exc:
+        base["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
+    refresh_info = None
+    if refresh is not None and touched and "error" not in base:
+        refresh_info = _tryedit_refresh(refresh, w, ctx["tr"], layer, cur_shape, edited_contour, name, want)
+    result = dict(base, expected_after=want)
+    if refresh is not None and refresh_info is None:
+        result["refresh_error"] = "not called: the edit was not made or failed"
+    if touched:
+        result["display_refreshed"] = _repaint_viewport()
+    after_state, _l = _tryshape_modern_state(w)
+    result["state_after"] = after_state
+    after = _tryedit_snapshot(name)
+    result["after"] = after
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    if "error" in after:
+        result["changed"] = "unknown"
+        result["mismatches"] = [f"the outline could not be read after the edit ({after['error']})"]
+        result["smooth_changed"] = []
+    else:
+        result["changed"] = after["contours"] != before["contours"]
+        result["mismatches"], result["smooth_changed"] = _tryedit_compare(after["contours"], want)
+    if refresh_info is not None:
+        mid = refresh_info.pop("_mid")
+        for k, v in refresh_info.items():
+            result[k] = v
+        result["refresh_changed_outline"] = ("unknown" if ("error" in mid or "error" in after) else mid["contours"] != after["contours"])
+    result["side_effect_detected"] = bool(result["smooth_changed"] or result["glyph_count_after"] != result["glyph_count_before"]
+                                          or after_state.get("shapes") != 1 or after_state.get("components") != 0
+                                          or result.get("refresh_changed_outline") is True)
+    result["edited"] = bool("error" not in result and not result["mismatches"] and not result["side_effect_detected"])
+    if result["changed"] is not False:
+        _guard_mark(font, name, "tryedit", result, no_mark=None if result["edited"] else "the edit was not confirmed")
     return result
 
 
@@ -8738,6 +9128,222 @@ def _trymodern_create(mod, pkg, font, name):
 
 
 # --------------------------------------------------------------------------
+# /debug/trypackage (v0.148) - RESEARCH for ROADMAP P0.9, read only: the first glyph of a new font cannot be drawn while other fonts
+# are open, because _package_layer_name trusts the workspace's current package only when exactly one font is open (288, 691a).
+# Names-only test 927 found flGlyph.package ("flObject"). Does the wrapper of a glyph of the font in front name ITS OWN package?
+#   GET /debug/trypackage?name=X&go=yes   with any number of fonts open. The wrapper is taken as the write tools take it (_modern_wrapper).
+# ONE read of w.package, then only if it is an object that is not null: the reads below, and ONE isEqual against the workspace's current
+# package (isEqual proven in 736). The font in front's glyph count, unitsPerEm and path are read for comparison, and CountFonts() and the
+# number of packages before and after. Never called: fgPackage (legacy), any write, update, notify, save or close. 20 per listener run.
+#   GET /debug/trypackage?stage=cached&go=yes   (v0.149) 928 and 929 cannot tell "w.package is the glyph's own package" from "w.package is
+# whatever package is current": both glyphs were in the font in front. This stage takes the wrappers ALREADY in the listener's cache (none is
+# built; two unsaved fonts share the cache key "" so it keeps both), at most 20, in key order. Each must still agree with its cache key
+# (fgGlyphId) and read isValid True; only then: ONE read of its package, that package's isNull, fgId and glyphsCount, and ONE isEqual against
+# the current package. The same run counter as the glyph stage.
+# --------------------------------------------------------------------------
+
+_TRYPACKAGE = {"runs": 0}
+_TRYPACKAGE_MAX = 20
+_TRYPACKAGE_CACHED_MAX = 20
+_TRYPACKAGE_STAGES = ("glyph", "cached")
+_TRYPACKAGE_READS = ("fgId", "path", "mastersCount", "defaultMaster", "master", "glyphsCount", "upm")
+_TRYPACKAGE_CURRENT_READS = ("fgId", "path", "glyphsCount", "upm")
+_TRYPACKAGE_NOTE = ("RESEARCH, read only: nothing was written. 'same_as_current' is FontLab's own isEqual between the glyph's package and the "
+                    "workspace's current package; compare 'glyph_package' with 'font_in_front' as well. Nothing is saved by Glyphbridge")
+
+
+def _trypackage_count(mod):
+    """CountFonts() and the number of workspace packages, each read once; a failure is reported as text."""
+    out = {}
+    try:
+        out["CountFonts"] = _tryfont_plain(mod.CountFonts())
+    except Exception as exc:
+        out["CountFonts"] = f"<error: {type(exc).__name__}: {exc}>"
+    try:
+        out["packages"] = len(mod.flWorkspace.instance().packages())
+    except Exception as exc:
+        out["packages"] = f"<error: {type(exc).__name__}: {exc}>"
+    return out
+
+
+def _trypackage_masters(pkg):
+    """The package's masters as a list of names when every entry is text; otherwise a type name or an error. ONE read."""
+    value, err = _pkg_get(pkg, "masters")
+    if err is not None:
+        return f"<error: {err}>"
+    if type(value) in (list, tuple) and all(isinstance(m, str) for m in value):
+        return [_plain_text(m) for m in value][:20]
+    return _tryfont_plain(value)
+
+
+def _trypackage_object(obj):
+    """(reads, null): the type, isNull and, only for an object that is not null, the fixed reads. null is True, False or None (unknown)."""
+    out = {"type": type(obj).__name__}
+    null, err = _pkg_get(obj, "isNull")
+    out["isNull"] = f"<error: {err}>" if err is not None else _tryfont_plain(null)
+    if err is not None or type(null) is not bool:
+        return out, None
+    return out, null
+
+
+def _trypackage_front(font):
+    """The font in front, read for comparison: its glyph count, unitsPerEm and path (the path stays in this reply only)."""
+    out = {}
+    try:
+        out["glyphs"] = len(font.glyphs)
+    except Exception as exc:
+        out["glyphs"] = f"<error: {type(exc).__name__}: {exc}>"
+    try:
+        out["unitsPerEm"] = _tryfont_plain(font.info.unitsPerEm)
+    except Exception as exc:
+        out["unitsPerEm"] = f"<error: {type(exc).__name__}: {exc}>"
+    try:
+        out["path"] = _tryfont_plain(font.path)
+    except Exception as exc:
+        out["path"] = f"<error: {type(exc).__name__}: {exc}>"
+    return out
+
+
+def _trypackage_matches(gp, front):
+    """True or False for each comparison both sides of which are plain values; None when one side is not."""
+    def same(a, b, num):
+        if num:
+            a, b = _num(a), _num(b)
+            return None if a is None or b is None else abs(a - b) <= 1e-6
+        return a == b if isinstance(a, str) and isinstance(b, str) else None
+    return {"glyphs": same(gp.get("glyphsCount"), front.get("glyphs"), True),
+            "upm": same(gp.get("upm"), front.get("unitsPerEm"), True),
+            "path": same(gp.get("path"), front.get("path"), False)}
+
+
+def _trypackage_current(mod):
+    """(reads, package, null) of the workspace's current package: its type, isNull and, when not null, the fixed reads."""
+    try:
+        cp, err = _pkg_get(mod.flWorkspace.instance(), "currentPackage")
+    except Exception as exc:
+        cp, err = None, f"the workspace could not be reached ({type(exc).__name__}: {exc})"
+    if err is not None or cp is None:
+        return ({"error": err} if err is not None else None), None, None
+    reads, null = _trypackage_object(cp)
+    if null is False:
+        for attr in _TRYPACKAGE_CURRENT_READS:
+            reads[attr] = _trynotify_read(cp, attr)
+    return reads, cp, null
+
+
+def _trypackage_cached_entry(lid, w, cp, cp_null):
+    """v0.149: one cached wrapper. Its name, then its fgGlyphId against the cache key and isValid; only when both agree: ONE read of its
+    package, that package's isNull, fgId and glyphsCount, and ONE isEqual against the current package. Never raises."""
+    e = {"key": lid if type(lid) is int else _tryfont_plain(lid)}
+    try:
+        e["name"] = _plain_text(str(w.name))[:40]
+    except Exception as exc:
+        e["name"] = f"<error: {type(exc).__name__}: {exc}>"
+    try:
+        gid = int(_call0(w, "fgGlyphId"))
+    except Exception as exc:
+        e["skipped"] = f"its fgGlyphId could not be read ({type(exc).__name__}: {exc})"
+        return e
+    if gid != lid:
+        e["skipped"] = f"its fgGlyphId {gid} differs from its cache key"
+        return e
+    valid, err = _pkg_get(w, "isValid")
+    if err is not None or valid is not True:
+        e["skipped"] = f"isValid is not true ({err if err is not None else _tryfont_plain(valid)!r})"
+        return e
+    gp, err = _pkg_get(w, "package")
+    if err is not None or gp is None:
+        e["package"] = {"error": err} if err is not None else None
+        e["same_as_current"] = None
+        return e
+    e["package"], null = _trypackage_object(gp)
+    if null is False:
+        for attr in ("fgId", "glyphsCount"):
+            e["package"][attr] = _trynotify_read(gp, attr)
+    if null is False and cp_null is False:
+        try:
+            same = gp.isEqual(cp)
+            e["same_as_current"] = same if type(same) is bool else f"<{type(same).__name__}>"
+        except Exception as exc:
+            e["same_as_current"] = f"<error: isEqual failed: {type(exc).__name__}: {exc}>"
+    else:
+        e["same_as_current"] = None
+    return e
+
+
+def _trypackage_finish(out, mod, before):
+    after = _trypackage_count(mod)
+    out["fonts_after"] = after
+    out["side_effect_detected"] = (None if any(not isinstance(v, int) for v in list(before.values()) + list(after.values()))
+                                   else before != after)
+    out["runs_so_far"] = _TRYPACKAGE["runs"]
+    out["note"] = _TRYPACKAGE_NOTE
+    return out
+
+
+def debug_try_package(name, go, stage="glyph"):
+    import sys as _sys
+    if stage not in _TRYPACKAGE_STAGES:
+        return {"error": 'stage must be "glyph" or "cached"'}
+    if stage == "glyph" and (not isinstance(name, str) or not (1 <= len(name) <= 40) or any(ch not in _TRYCREATE_NAME_CHARS for ch in name)):
+        return {"error": "name must be 1 to 40 characters from A-Z a-z 0-9 . _ -"}
+    if stage == "cached" and name:
+        return {"error": "stage=cached takes no name: it reads the wrappers already in the listener's cache"}
+    if go != "yes":
+        return {"error": "reads flGlyph.package and calls isEqual on it, which have not been called live before. Add &go=yes to run it."}
+    if _TRYPACKAGE["runs"] >= _TRYPACKAGE_MAX:
+        return {"error": f"the probe already ran {_TRYPACKAGE_MAX} times in this listener run; restart the listener to repeat it",
+                "runs_so_far": _TRYPACKAGE["runs"]}
+    mod = _sys.modules.get("fontlab") or fl
+    font = _open_font()
+    if font is None:
+        return {"open": False}
+    if stage == "cached":
+        entries = sorted(list(_MODERN_CACHE.items()), key=lambda kv: kv[0] if type(kv[0]) is int else -1)
+        _TRYPACKAGE["runs"] += 1     # counted BEFORE the first read under test
+        before = _trypackage_count(mod)
+        out = {"stage": "cached", "fonts_before": before, "font_in_front": _trypackage_front(font),
+               "cache_key_is_empty_path": _MODERN_CACHE_FONT[0] == "", "cached_wrappers": len(entries),
+               "cut": len(entries) > _TRYPACKAGE_CACHED_MAX}
+        out["current_package"], cp, cp_null = _trypackage_current(mod)
+        out["wrappers"] = [_trypackage_cached_entry(lid, w, cp, cp_null) for lid, w in entries[:_TRYPACKAGE_CACHED_MAX]]
+        return _trypackage_finish(out, mod, before)
+    glyph = _find_glyph(font, name)
+    if glyph is None:
+        return {"name": name, "error": f"no glyph named {name!r} in the font in front; nothing was read", "runs_so_far": _TRYPACKAGE["runs"]}
+    try:
+        w, how = _modern_wrapper(glyph, font)
+    except Exception as exc:
+        return {"name": name, "error": f"the modern glyph could not be reached ({exc}); nothing was read", "runs_so_far": _TRYPACKAGE["runs"]}
+    _TRYPACKAGE["runs"] += 1     # counted BEFORE the first read under test: whatever happens, it is on record
+    before = _trypackage_count(mod)
+    out = {"name": name, "wrapper": how, "fonts_before": before, "font_in_front": _trypackage_front(font)}
+    gp, err = _pkg_get(w, "package")
+    if err is not None or gp is None:
+        out["glyph_package"] = {"error": err} if err is not None else None
+        gp_null = None
+    else:
+        out["glyph_package"], gp_null = _trypackage_object(gp)
+        if gp_null is False:
+            for attr in _TRYPACKAGE_READS:
+                out["glyph_package"][attr] = _trynotify_read(gp, attr)
+            out["glyph_package"]["masters"] = _trypackage_masters(gp)
+    out["current_package"], cp, cp_null = _trypackage_current(mod)
+    if gp_null is False and cp_null is False:
+        try:
+            same = gp.isEqual(cp)
+            out["same_as_current"] = same if type(same) is bool else f"<{type(same).__name__}>"
+        except Exception as exc:
+            out["same_as_current"] = f"<error: isEqual failed: {type(exc).__name__}: {exc}>"
+    else:
+        out["same_as_current"] = None
+        out["same_reason"] = "isEqual was not called: the glyph's package or the current package is missing, null or of unknown state"
+    if gp_null is False:
+        out["glyph_package_matches_front"] = _trypackage_matches(out["glyph_package"], out["font_in_front"])
+    return _trypackage_finish(out, mod, before)
+
+
+# --------------------------------------------------------------------------
 # POST /font/create (v0.146, ROADMAP P0.3 / P0.4): a new font, as File > New Font makes one. ONE flPackage() per request, also
 # with other fonts open and more than once per listener run (the user's decisions of 2026-11-12; the native reference each
 # construction leaves belongs to FontLab, and 834 / 835 made two fonts in one FontLab session). flPackage() registers the font
@@ -8789,8 +9395,9 @@ def _create_font_count(mod):
 
 
 def _create_font_in_front(mod, pkg):
-    """(True | False, None) or (None, reason): whether the workspace's current package is the package just made (ONE isEqual,
-    proven in 736). Never raises."""
+    """(True | False, None) or (None, reason): whether the workspace's current package is the package just made. v0.150: their
+    fgId values are compared (one read each); isEqual is not used, because it returned true for two different packages (930, 931).
+    Never raises."""
     try:
         ws = mod.flWorkspace.instance()
     except Exception as exc:
@@ -8805,13 +9412,13 @@ def _create_font_in_front(mod, pkg):
         return None, err
     if is_null is not False:
         return None, "the current package is null or its state is unknown"
-    try:
-        same = pkg.isEqual(current)
-    except Exception as exc:
-        return None, f"isEqual failed ({type(exc).__name__}: {exc})"
-    if type(same) is not bool:
-        return None, f"isEqual returned {type(same).__name__}, not true or false"
-    return same, None
+    new_id, err = _package_fg_id(pkg, "the new package")
+    if err is not None:
+        return None, err
+    current_id, err = _package_fg_id(current, "the current package")
+    if err is not None:
+        return None, err
+    return new_id == current_id, None
 
 
 def _create_font_legacy_family(family, own_family):
@@ -8877,9 +9484,7 @@ def _create_font_notes(out, family):
         if out.get("names_set") is not True or out.get("legacy_family_set") is not True:
             notes.append("Not every name could be set, so the font was not marked as changed: FontLab may close it without asking to save.")
     after = out.get("fonts_open_after")
-    if type(after) is int and after > 1:
-        notes.append(f"{after} fonts are open. Before a tool can draw into this font's first glyph, open that glyph once by double-clicking "
-                     "it in the Font window.")
+    if type(after) is int and after > 1:     # v0.150: no double-click note any more (P0.9: the first glyph's layer comes from its own package)
         notes.append("Keep this font's window in front while an agent works on it: Glyphbridge cannot always tell two unsaved fonts apart.")
     return notes
 
@@ -9321,10 +9926,26 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
+        if path == "/debug/tryedit":
+            try:
+                return _build_response(200, debug_try_edit((query.get("stage") or [""])[0], (query.get("name") or [""])[0], (query.get("go") or [""])[0],
+                                                           (query.get("contour") or [None])[0], (query.get("node") or [None])[0],
+                                                           (query.get("dx") or [None])[0], (query.get("dy") or [None])[0],
+                                                           (query.get("refresh") or [None])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
         if path == "/debug/trynotify":
             try:
                 return _build_response(200, debug_try_notify((query.get("stage") or [""])[0], (query.get("which") or [""])[0], (query.get("on") or ["class"])[0],
                                                              (query.get("name") or [""])[0], (query.get("go") or [""])[0], (query.get("id_from") or ["object"])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/trypackage":
+            try:
+                return _build_response(200, debug_try_package((query.get("name") or [""])[0], (query.get("go") or [""])[0],
+                                                              (query.get("stage") or ["glyph"])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

@@ -1,6 +1,6 @@
 # Watch points
 
-What was seen in FontLab, in the tools or in agent behaviour and is **not yet explained or settled**. A proven fact belongs in its topic file, an open scenario in [CHECKLIST.md](CHECKLIST.md), a known limit in [ROADMAP.md](ROADMAP.md). Word budget: 2,200 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
+What was seen in FontLab, in the tools or in agent behaviour and is **not yet explained or settled**. A proven fact belongs in its topic file, an open scenario in [CHECKLIST.md](CHECKLIST.md), a known limit in [ROADMAP.md](ROADMAP.md). Word budget: 2,500 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
 
 ## How an entry lives
 
@@ -37,6 +37,9 @@ What was seen in FontLab, in the tools or in agent behaviour and is **not yet ex
 - **The grid selection after a mark** (2026-11-12, 913; again 918). After the package-level mark the `.notdef` cell lost its highlight and the counter read 0/1 instead of 1/1, on a font made by `flPackage()`; in 918 the marked `create_font` font read 0/1 and the unmarked one 1/1 (919), but marked fonts read 1/1 in 921 and 924, so the mark alone does not explain it. Open: does the mark do it, or focus? Settled by the same font, the mark, then a screenshot with the focus kept off the grid, and a control without the mark.
 - **The legacy family reverted** (2026-11-11, NM 865, 872; 889–893). `font.info.familyName`, written and read back (865), read "Unnamed" again by 872, after another font was closed and the listener restarted; on the next such font it stayed as written through restarts and closes (890–893, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k). Open: what rewrote it; left from the run of 872 are four refresh calls (866–869) and Font Info closed with OK and no edit (870). Settled by a read after each of them.
 - **Two "no font" states** (2026-11-11, 852). With no font open, `CurrentFont()` returned FontLab's placeholder font at the start of the FontLab run, and nothing later in the same run, after fonts had been opened and closed. The tools decide by `CountFonts()`, so neither affects them. Settled by reading both states in one run with a known history.
+- **What `flPackage.isEqual` compares** (2026-11-13, PK 930, 931). It returned true for two different packages (`fgId` 5 and 8), also after their glyph counts differed, and has never been seen false; the product no longer uses it ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md)). Open: is it ever false, or does it compare something all packages share? Settles: one call against a saved font, or one with another upm, through `/debug/trypackage?stage=cached`.
+- **A later delete flattens a Power Brush glyph** (2026-11-14, DL 937–953). The fact is in [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8l. Open: what arms the glyph. Candidates: a second `font.update()` after a tool read, the glyph's tab no longer active, a new brush drawn in another glyph. Settles: DL2, one variable per round, each from a fresh FontLab start.
+- **Sidebearings lag after an API edit** (2026-11-14, ED2 968–983, B2 990–1000). The fact is in [topics/geometry.md](topics/geometry.md) "Editing existing outlines": `flLayer.update()` or `resetInkBox()` refreshes them. Open: why the remove refreshed them without either (977). Settles: a remove with the sidebearings read before `Update`.
 
 ## Agents and clients
 

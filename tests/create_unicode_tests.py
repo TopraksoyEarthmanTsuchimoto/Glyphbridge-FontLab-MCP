@@ -2609,7 +2609,8 @@ class P36:
     def __init__(s):
         n = len(P36.made); fam = "Unnamed" + (str(n) if n else "")
         object.__setattr__(s, "_d", {"psn": fam + "-Regular", "ffn": fam + " Regular", "tfn": fam, "tsn": "Regular", "sgn": fam, "upm": 1000.0, "mastersCount": 1,
-                                     "defaultMaster": "Regular", "glyphsCount": 1, "isNull": False, "path": "", "fileName": fam + " Regular.xfo"})
+                                     "defaultMaster": "Regular", "glyphsCount": 1, "isNull": False, "path": "", "fileName": fam + " Regular.xfo",
+                                     "fgId": n + 1})     # v0.150: create_font compares fgId, not isEqual
         object.__setattr__(s, "_info", types.SimpleNamespace(familyName=fam, styleName="Regular"))
         P36.made.append(s)
     def __getattr__(s, a):

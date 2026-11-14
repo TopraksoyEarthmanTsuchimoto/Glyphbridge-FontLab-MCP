@@ -8,7 +8,7 @@
 
 **CLOSED (do not repeat):** v8 list (sidebearings and width on a curved glyph; O with counter vs the GUI; diagonal-node circle; S-like blob; smooth gate at 0.33 / 2.73 degrees, zero-length handle on a smooth node, c1 = c2, line-to-handle smooth node, negative x; refusals create no layer; 180- and 990-node draws; `fontlab_status` version reporting). v10: the stale legacy view (fixed at the source by `Update(flGlyph)` and by the 0.88 fallback); the guard live (139a / 139b, 142: a drawing survives a create, and a synced glyph survives a later `font.update()`); first glyph of a new font (layer `Regular` from the package master); margin comparison on a scaled and on a skewed glyph (143); `fillFgData` is useless; sidebearings and width are carried by the sync (141, 142). Evidence only from stubs: the layer guard's own refusal path (8h); the failed-sync path of 0.89.
 
-**Test numbers in use** (moved from [CURRENT-STATUS.md](CURRENT-STATUS.md) on 2026-11-03; the next free number is kept there): 155 to 520 (K-series, P0.8 research and checks, 189–190 the v0.101 check and the activity log, 225–229 the checks of 0.105 / 0.106, 158 and 230–235 K11, 236–242 the sender tests, 243 K12(b), 244 K13, 245–246 K14, 247–252 K16, 253–255 T2, 256–258 T3, 145a–g (reserved for T4), 259 and 260 T4, 261–290 T5, 291–302 N1, 303–308 the checks of 0.114 / 0.40 / 0.41 ([CHANGELOG.md](CHANGELOG.md)), 309–316 T5 (read tools), 317–321 T5 (three fonts), 322–324 T5 (a Font Info rename), 325–331 T5 (writes with three fonts), 332–496 F1, 497–520 V120 (the checks of 0.120 / 0.42), 521–533 INK (`inkBox()` research), 534–541 V121 (the checks of 0.121 / 0.43), 542–564 KW (kerning writes, below), 565–577 SK (`set_kerning` live checks, below), 578 E1 (the Font window's encoding, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k), 579–585 OC (open contours, [topics/reading.md](topics/reading.md) §8e), 586–594 OD (drawing open contours, [topics/geometry.md](topics/geometry.md) §8g), 595–603 OT (`draw_path` with open contours, the same section), 604–605 CP (the component API by name, [topics/reading.md](topics/reading.md)), 606–626 CP (components live, the Add Component crash and its fix, the labels, below), 627–656 CP (components, continued), 657–728 S (the changed icon, the save question, save and reopen, marking kerning writes), 729–754 KP (the KERNING panel, below), 755–764 OS (open contours through a save and reopen, below), 765–771 RT (rotated components, below), 772–778 T9 (save and reopen of a font made by `flPackage()`, below), 779–791 EX (open contours on export, below), 792–799 PB (Power Brush fractions at load, below), 800–801 the server 0.58 check (after the PB series), 802–828 PB2 (`.vfc` against `.vfj`, another brush, how the panel shows fractions, below), 829–830 the server 0.59 check (below), 831–835 NF (how new fonts are named, below), 836–840 EN (the Font window's encoding through the API, below), 841–914 NM (writing a font's names, below), 915–922 CF (`create_font` live and a display-refresh step, below), 923–925 the checks of 0.147 / 0.61 (below), 926 a design run (below); details in [LIVE-TESTS.md](LIVE-TESTS.md) and [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4).
+**Test numbers in use** (moved from [CURRENT-STATUS.md](CURRENT-STATUS.md) on 2026-11-03; the next free number is kept there): 155 to 520 (K-series, P0.8 research and checks, 189–190 the v0.101 check and the activity log, 225–229 the checks of 0.105 / 0.106, 158 and 230–235 K11, 236–242 the sender tests, 243 K12(b), 244 K13, 245–246 K14, 247–252 K16, 253–255 T2, 256–258 T3, 145a–g (reserved for T4), 259 and 260 T4, 261–290 T5, 291–302 N1, 303–308 the checks of 0.114 / 0.40 / 0.41 ([CHANGELOG.md](CHANGELOG.md)), 309–316 T5 (read tools), 317–321 T5 (three fonts), 322–324 T5 (a Font Info rename), 325–331 T5 (writes with three fonts), 332–496 F1, 497–520 V120 (the checks of 0.120 / 0.42), 521–533 INK (`inkBox()` research), 534–541 V121 (the checks of 0.121 / 0.43), 542–564 KW (kerning writes, below), 565–577 SK (`set_kerning` live checks, below), 578 E1 (the Font window's encoding, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k), 579–585 OC (open contours, [topics/reading.md](topics/reading.md) §8e), 586–594 OD (drawing open contours, [topics/geometry.md](topics/geometry.md) §8g), 595–603 OT (`draw_path` with open contours, the same section), 604–605 CP (the component API by name, [topics/reading.md](topics/reading.md)), 606–626 CP (components live, the Add Component crash and its fix, the labels, below), 627–656 CP (components, continued), 657–728 S (the changed icon, the save question, save and reopen, marking kerning writes), 729–754 KP (the KERNING panel, below), 755–764 OS (open contours through a save and reopen, below), 765–771 RT (rotated components, below), 772–778 T9 (save and reopen of a font made by `flPackage()`, below), 779–791 EX (open contours on export, below), 792–799 PB (Power Brush fractions at load, below), 800–801 the server 0.58 check (after the PB series), 802–828 PB2 (`.vfc` against `.vfj`, another brush, how the panel shows fractions, below), 829–830 the server 0.59 check (below), 831–835 NF (how new fonts are named, below), 836–840 EN (the Font window's encoding through the API, below), 841–914 NM (writing a font's names, below), 915–922 CF (`create_font` live and a display-refresh step, below), 923–925 the checks of 0.147 / 0.61 (below), 926 a design run (below), 927–936 PK (a new font's first glyph with other fonts open, P0.9, below), 937–953 DL (`delete_glyph` after a read or write of a Power Brush glyph, below), 954–963 ED (the editing API by name, [topics/geometry.md](topics/geometry.md)), 964–983 ED2 (the edit probe live, below), 984–988 B1 (refresh calls by name, below), 989–1000 B2 (a refresh call after an edit, below); details in [LIVE-TESTS.md](LIVE-TESTS.md) and [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4).
 
 ### K-series: reading kerning (current priority, decision of the user of 2026-10-27; before the T-series)
 
@@ -532,6 +532,82 @@ No tool wrote anything (the change counter stayed at 2). Both files were saved f
 | 924 | `create_font` `family=GBtest924`, no font open; the person reads OUTPUT | fonts 0 → 1, marked; two notes (short unsaved note, one display note naming "Unnamed"); the instruction holds the OUTPUT panel sentence | as predicted, in the reply and in OUTPUT; the grid read 1/1 with the mark |
 | 925 | the person closes GBtest924 | FontLab asks in the live Full name; Don't Save | as predicted: "Save changes to "GBtest924 Regular" before closing?" |
 | 926 | use, not a planned test (one run, no prediction): `create_font` unnamed; six glyphs drawn, deleted after six Yes clicks and recreated; `draw_path` into 12 glyphs (up to 4 contours, counters, cubic arcs) and into `.notdef` (3 contours); sidebearings | every write verified | all verified; `.notdef` got its layer from `draw_path` (`layer_created`); the delete that left only `.notdef` was unmarked (`save_question_note`, as known); `C.crack` re-read `verified` with FontLab's ink box |
+
+### PK series: the package of a glyph, and a new font's first glyph with other fonts open (2026-11-13, FontLab 8.9.5 in Demo mode, listener 0.147–0.150 / server 0.61–0.62, through Claude Code; new unsaved fonts only, no File > Save stage, nothing saved; ROADMAP P0.9; results in [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 927 | listener 0.147, one new font; names only: `/debug/classdir` of `fgFont`, `fgGlyph`, `flGlyph` | a member naming a package or `fgId` | `fgFont` and `fgGlyph` are not names of the `fontlab` module; `flGlyph` has `package` ("flObject") and `fgPackage` ("fgFont") |
+| 928 | listener 0.148, the same font alone; `/debug/trypackage?name=.notdef&go=yes` | an `flPackage`, not null, `isEqual` the current one, one master `Regular`, counts match, no side effect | as predicted; `fgId` 5 |
+| 929 | a second font (File > New Font) in front, its `.notdef` | as 928, `fgId` not 5 | as predicted; `fgId` 8, `wrapper: built` |
+| 930 | listener 0.149; 930a the second font's `.notdef` (`fgId` 8); the first font brought to the front; 930b its `.notdef` (`fgId` 5); 930c `stage=cached` | the cached wrapper of the second font: `fgId` 8, `isEqual` **false** | `fgId` 8 as predicted; **wrong: `isEqual` true** for packages of `fgId` 5 and 8. Both wrappers passed the key and `isValid` checks; no side effect |
+| 931 | `create_glyph pk931a` in the first font (2 fonts open), then `stage=cached` | `isEqual` false once the glyph counts differ | `layer_note`, no layer, unmarked (as 691a); **`isEqual` still true** for `fgId` 5 (2 glyphs) against 8 (1 glyph): it does not compare contents |
+| 932 | listener 0.150 / server 0.62 after a restart (one font, "Unnamed"); `create_font` | created, in front through `fgId`, no double-click note | as predicted: "Unnamed1 Regular", 2 fonts, three notes |
+| 933 | `create_glyph pk933a` in Unnamed1 | `layer_created` `Regular`, `package master`, marked | as predicted; synced |
+| 934 | `draw_path` into `pk933a` | `verified` | as predicted; `nodes_match`, synced, marked |
+| 935 | "Unnamed" brought to the front (how it was made is not known); `create_glyph pk935a` | as 933 | as predicted |
+| 936 | both fonts closed with Don't Save; `create_font`, then `create_glyph pk936a` with one font open | unchanged from 620 | as predicted |
+
+### DL series: `delete_glyph` after a read or write of a Power Brush glyph (2026-11-14, FontLab 8.9.5 in Demo mode, listener 0.150 / server 0.62, through Claude Code; one new unsaved font, one master, prefix `dl1_`; no File > Save stage, nothing saved; results in [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8l)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 937 | `create_glyph` `dl1_xa`, `dl1_xb`, `dl1_xc`, before any brush glyph exists | created, layers, synced | as predicted |
+| 938 | the person: Create Blank `dl1_a`, one Power Brush stroke, default brush (50), tab open; outline | `verified`, equal to the panel | as predicted: 46 nodes, 10 with fractions, 78 / 127 / 500, brush element |
+| 939 | `delete_glyph dl1_xa`, Yes | deleted, marked | as predicted; `via_glyph` `dl1_xb` |
+| 940 | outline `dl1_a` | identical to 938 | as predicted |
+| 941 | the Elements panel of `dl1_a` | brush element | as predicted |
+| 942 | `dl1_a`'s tab found closed; the person: Create Blank `dl1_b`, one stroke, tab open; outline | `verified` | as predicted: 59 nodes, 12 with fractions, 103 / 55 / 500 |
+| 943 | `set_glyph_width dl1_b 510` | modern, synced | as predicted |
+| 944 | `delete_glyph dl1_xb`, Yes | deleted | as predicted; `via_glyph` `dl1_xc` |
+| 945 | outline `dl1_b` | identical nodes, 103 / 65 / 510 | as predicted |
+| 946 | the Elements panel of `dl1_b` | brush element | as predicted |
+| 947 | the person: Create Blank `dl1_c`, one stroke, its tab active, `dl1_b`'s tab still open behind it; outline | `verified` | as predicted: 73 nodes, 18 with fractions, 119 / 117 / 500 |
+| 948 | `set_glyph_sidebearings dl1_c` 129 / 117 | verified, synced | as predicted; offset (10, 0) on the element |
+| 949 | `delete_glyph dl1_xc`, Yes | deleted | as predicted; `via_glyph` `dl1_a` |
+| 950 | outline `dl1_c` | identical, moved by 10 | as predicted; brush element kept |
+| 951 | outline `dl1_a` | identical to 940 | **wrong: flattened**: 46 nodes, all whole units, `is_composite` false |
+| 952 | outline `dl1_b` | identical to 945 | **wrong: flattened** the same way; 103 / 65 / 510 kept |
+| 953 | the person closed all tabs, then opened `dl1_b`; its Elements panel | brush element | **wrong:** a plain contour, "59/21"; 951 and 952 had read the flattening before any tab was touched |
+
+### ED series: the editing API by name (2026-11-14, FontLab 8.9.5 in Demo mode, listener 0.150, through Claude Code; `/debug/classdir`, names and docstrings only; the open font unchanged)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 954–958 | `classdir` of `flLayer`, `flShape`, `flShapeData`, `flContour`, `flNode` | members for node, contour and shape edits | as predicted; lists in the topic file |
+| 959–963 | `members=` 12 candidates per class | docstrings with signatures | as predicted, 60 docstrings |
+
+### ED2 series: `/debug/tryedit` live (2026-11-14, FontLab 8.9.5 in Demo mode, listener 0.151 / server 0.62, through Claude Code; a font made by `create_font` with no other font open, one master, prefix `edp1_`; no File > Save stage, nothing saved; results in [topics/geometry.md](topics/geometry.md) "Editing existing outlines")
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 964–966 | `create_font`; `create_glyph edp1_a`; `draw_path`, squares (100–500) and (200–400) | verified | as predicted |
+| 967 | `movenode` contour 0 node 2 (500, 500) by (+50, −50) | (550, 450), nothing else changed, synced, marked | as predicted |
+| 968 | `get_glyph_outline edp1_a` | `verified` | **wrong:** `unverified`; the sidebearings read 100 / −500 (should be −550); `inkBox()` current |
+| 969 | the person opened `edp1_a` | the moved corner; 100 / −550 | as predicted, in the grid bar and the editor panel |
+| 970 | `get_glyph_sidebearings edp1_a` | — | 100 / −550: caught up |
+| 971–973 | `edp1_b`, one square; `addcontour` | the square (600–650) last, synced, marked | as predicted |
+| 974 | outline | sidebearings stale, as 968 | as predicted: −500 (should be −650); `inkBox()` top 650, current |
+| 975–976 | `edp1_c`, two squares; `removecontour` 0 | the inner square alone | as predicted |
+| 977 | outline | sidebearings stale | **wrong:** 200 / −400, current, `verified` |
+| 978–979 | `edp1_d`, one square; `replace` | the triangle (100, 0), (300, 0), (200, 300), synced, marked | as predicted |
+| 980 | outline | not predicted | stale: −500 (should be −300); `inkBox()` current |
+| 981 | the person single-clicked `edp1_d` in the grid | — | the grid bar showed 100 / 0 / −300 |
+| 982–983 | `get_glyph_sidebearings` `edp1_d`, `edp1_b` (never clicked) | — | 100 / −300 and 100 / −650: both caught up |
+
+### B1 series: refresh calls by name (2026-11-14, listener 0.151, `/debug/classdir`, names and docstrings only; nothing called)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 984–988 | `members=` of `flLayer`, `flShape`, `flShapeData`, `flContour`, `flGlyph`: `update`, `changed`, `resetInkBox` and the like | docstrings | bare signatures only (`update()`, `changed()`, `resetInkBox()`); `resetMetricsLeft/Right/Width()` left out of B2 |
+
+### B2 series: one refresh call after an edit (2026-11-14, FontLab 8.9.5 in Demo mode, listener 0.152 / server 0.62, through Claude Code; the ED2 font, one font open; prefix `edp2_`; no File > Save stage, nothing saved)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 989 | `create_glyph` and `draw_path` `edp2_a`–`edp2_h`, one square (100–500) each | verified | as predicted |
+| 990–997 | `movenode` contour 0 node 2 by (+50, −50), `refresh=` one member each: `contour.update`, `shape.update`, `shapedata.update`, **`layer.update`**, `glyph.update`, `layer.changed`, `shape.changed`, **`layer.resetinkbox`** | stale before the refresh (RSB −500, expected −550); after it: open | stale before in all 8; current after only `layer.update` (993) and `layer.resetinkbox` (997); every edit exact, no node moved by a refresh, no error, synced, marked |
+| 998–1000 | sidebearings of `edp2_d`, `edp2_h`, and `edp2_a` (control) | 100 / −550, 100 / −550, 100 / −500 | as predicted: the refresh acts on its own layer only |
 
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 

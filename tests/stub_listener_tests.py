@@ -2050,7 +2050,11 @@ def _p84_spy(label):
         P84["forbidden"].append(label); raise RuntimeError("FORBIDDEN CALL: " + label)
     return f
 class Pkg84:
-    def isNull(s): return _p84_get("isNull")
+    """v0.150: two roles. "gp" is the glyph's own package (w.package): isNull, fgId (key gp_fgId) and the master reads.
+    "cp" is the workspace's current package: only cp_isNull and cp_fgId are read from it."""
+    def __init__(s, role="gp"): s.role = role
+    def isNull(s): return _p84_get("isNull" if s.role == "gp" else "cp_isNull")
+    fgId = property(lambda s: _p84_get(s.role + "_fgId"))
     mastersCount = property(lambda s: _p84_get("mastersCount"))
     defaultMaster = property(lambda s: _p84_get("defaultMaster"))
     master = property(lambda s: _p84_get("master"))
@@ -2066,7 +2070,11 @@ class Ws84(SbWsX):
         v = _p84_get("packages"); return [0] * v
     @property
     def currentPackage(s):
-        v = _p84_get("cp"); return None if v is None else Pkg84()
+        v = _p84_get("cp"); return None if v is None else Pkg84("cp")
+def _p72_package(s):                                   # v0.150: the glyph's own package, only inside the v0.84 gate tests
+    if not P72["mode"].get("pkg84"): raise AttributeError("package")
+    v = _p84_get("gp"); return None if v is None else Pkg84("gp")
+P72Mod.package = property(_p72_package)
 for _n in ("addPackage", "createNewProject", "closePackage", "closeProject", "saveProject", "exportFont", "exportTo", "readProject", "release", "remove"):
     setattr(Ws84, _n, _p84_spy("flWorkspace." + _n))
 class TfFont(TsFont):
@@ -2078,8 +2086,9 @@ class TfFont(TsFont):
 def p84_fakes(**over):
     P84["reads"].clear(); P84["forbidden"].clear()
     P84["cfg"] = dict(count=1, packages=1, cp="pkg", isNull=False, mastersCount=1, defaultMaster="Regular", master="Regular", masters=["Regular"],
-                      glyphsCount=None, upm=1000.0, font_upm=1000.0)
+                      glyphsCount=None, upm=1000.0, font_upm=1000.0, gp="pkg", gp_fgId=5, cp_fgId=5, cp_isNull=False)
     P84["cfg"].update(over)
+    P72["mode"]["pkg84"] = True
     def _count():
         v = P84["cfg"]["count"]
         if isinstance(v, Exception): raise v
@@ -2107,10 +2116,14 @@ p84_setup(); c, d = p72_post("/glyph/polygon", {"name": "fresh", "points": TRI4}
 P72["mode"]["inactive"] = ("fresh",); c2, d2 = p72_post("/glyph/polygon", {"name": "fresh", "points": TRI4})
 print("758 second draw: guard unchanged  :", d2["drawn"], "|", d2["reason"][:58], "| creates", creates84())
 GATES84 = [
-    ("760 two fonts open               ", dict(count=2)), ("761 no font counted              ", dict(count=0)),
+    ("761 no font counted              ", dict(count=0)),
     ("762 CountFonts raises            ", dict(count=RuntimeError("count boom"))), ("763 CountFonts returns True       ", dict(count=True)),
-    ("764 CountFonts returns '1'       ", dict(count="1")), ("765 two packages                 ", dict(packages=2)),
-    ("766 packages() raises            ", dict(packages=RuntimeError("pk boom"))), ("767 no current package           ", dict(cp=None)),
+    ("764 CountFonts returns '1'       ", dict(count="1")), ("765 v0.150 the glyph names no package", dict(gp=None)),
+    ("766 v0.150 w.package raises      ", dict(gp=RuntimeError("pk boom"))), ("767 no current package           ", dict(cp=None)),
+    ("767b v0.150 current package null ", dict(cp_isNull=True)), ("767c v0.150 current isNull raises ", dict(cp_isNull=RuntimeError("cnull boom"))),
+    ("767d v0.150 fgIds differ (5 / 8) ", dict(cp_fgId=8)), ("767e v0.150 glyph fgId is text    ", dict(gp_fgId="5")),
+    ("767f v0.150 glyph fgId is a bool  ", dict(gp_fgId=True, cp_fgId=True)), ("767g v0.150 glyph fgId raises     ", dict(gp_fgId=RuntimeError("fg boom"))),
+    ("767h v0.150 current fgId raises   ", dict(cp_fgId=RuntimeError("cfg boom"))), ("767i v0.150 current fgId is None  ", dict(cp_fgId=None)),
     ("768 currentPackage raises        ", dict(cp=RuntimeError("cp boom"))), ("769 package is null              ", dict(isNull=True)),
     ("770 isNull not a bool            ", dict(isNull="no")), ("771 isNull raises                ", dict(isNull=RuntimeError("null boom"))),
     ("772 two masters                  ", dict(mastersCount=2)), ("773 zero masters                 ", dict(mastersCount=0)),
@@ -2126,15 +2139,22 @@ for tag, over in GATES84:
     p84_setup(**over); c, d = p72_post("/glyph/polygon", {"name": "fresh", "points": TRI4}); r84(tag, d, keys=("drawn", "layer_created"))
 for tag, over in (("790 masters is a tuple: accepted   ", dict(masters=("Regular",))), ("791 masters not a plain list: skipped", dict(masters=object())),
                   ("792 masters unreadable: skipped    ", dict(masters=RuntimeError("masters boom"))), ("793 glyphsCount as float 1.0     ", dict(glyphsCount=1.0)),
-                  ("794 other master name 'Light'      ", dict(defaultMaster="Light", master="Light", masters=["Light"]))):
+                  ("794 other master name 'Light'      ", dict(defaultMaster="Light", master="Light", masters=["Light"])),
+                  ("760 v0.150 two fonts open: accepted ", dict(count=2, packages=2)), ("760b v0.150 three fonts open: accepted", dict(count=3, packages=3)),
+                  ("760c v0.150 packages() not read    ", dict(packages=RuntimeError("pk boom")))):
     p84_setup(**over); c, d = p72_post("/glyph/polygon", {"name": "fresh", "points": TRI4}); r84(tag, d, keys=("drawn", "layer_created", "layer_name_source"))
 p84_setup(); _fm.CountFonts = None; del _fm.CountFonts
 c, d = p72_post("/glyph/polygon", {"name": "fresh", "points": TRI4}); r84("795 the module has no CountFonts      ", d, keys=("drawn", "layer_created"))
-p84_setup(); print("796 default signature unchanged  :", ns["_derive_layer_name"](TfFont(), "fresh"), "| with source:", ns["_derive_layer_name"](TfFont(), "fresh", True))
+p84_setup(); print("796 v0.150 no wrapper: no master name:", ns["_derive_layer_name"](TfFont(), "fresh")[1][-80:], "| with a wrapper:", ns["_derive_layer_name"](TfFont(), "fresh", True, P72Mod(TS["fresh"], None)))
+p84_setup(count=0); print("796b v0.150 direct call, CountFonts() 0:", ns["_package_layer_name"](TfFont(), P72Mod(TS["fresh"], None)), "| reads", P84["reads"])
 p84_setup(refs=(("ref", "test_font"),)); print("797 other glyphs, with source    :", ns["_derive_layer_name"](TfFont(), "fresh", True), "| reads", P84["reads"])
 p84_setup(); c, d = p72_post("/glyph/polygon", {"name": "fresh", "points": TRI4}); print("798 forbidden members called, whole run:", P84["forbidden"], "| addShape calls", P72["calls"].count("addShape"))
 _src84 = src[src.index("def _pkg_get("):src.index('_EXISTING_LAYER_MAYBE = "the glyph may already have a layer"')]
 print("799 static scan of the fallback  : forbidden call syntax found:", _re83.findall(r"\.(?:addPackage|createNewProject|closePackage|closeProject|saveProject|readProject|export\w*|save\w*|release|remove|close|resetPackage|setUpm|addMaster|addGlyph|setMaster|renameMaster|findLayerCreate)\s*\(", _src84), "| scanned chars > 3000:", len(_src84) > 3000)
+_src150 = "\n".join(l.split("#")[0] for l in src.splitlines())
+_body150 = lambda fn: _src150[_src150.index("def " + fn + "("):_src150.index("\ndef ", _src150.index("def " + fn + "(") + 5)]
+print("799b v0.150 no isEqual in the product: layer name", ".isEqual(" in _body150("_package_layer_name"), "| create_font", ".isEqual(" in _body150("_create_font_in_front"),
+      "| calls in the whole listener:", _src150.count(".isEqual("), "(4: research probes only, trynotify 1 call + 1 docstring, trypackage 2) | w.package read:", '_pkg_get(w, "package")' in _body150("_package_layer_name"))
 c, d = call("/version"); print("800 version                      :", d)
 
 
@@ -6813,7 +6833,7 @@ class FCInfo:
 class FCOther:
     """A font that was already open (saved)."""
     def __init__(s, fam="Saved"):
-        s._legacy = FCInfo(fam); s.isNull = False; s.path = "C:/fonts/" + fam + ".vfc"
+        s._legacy = FCInfo(fam); s.isNull = False; s.path = "C:/fonts/" + fam + ".vfc"; s.fgId = 100 + len(FC["open"])     # v0.150: fgId identifies a package
 class FCPkg:
     def __repr__(s): return "<FCPkg>"
     def __init__(s):
@@ -6824,13 +6844,14 @@ class FCPkg:
         fam = "Unnamed" + (str(n) if n else "")
         object.__setattr__(s, "_d", {"psn": fam + "-Regular", "ffn": fam + " Regular", "tfn": fam, "tsn": "Regular", "sgn": fam,
                                      "upm": 1000.0, "mastersCount": 1, "defaultMaster": "Regular", "glyphsCount": 1, "isNull": False,
-                                     "path": "", "fileName": fam + " Regular.xfo"})
+                                     "path": "", "fileName": fam + " Regular.xfo", "fgId": m.get("fgid", 7)})
         object.__setattr__(s, "_legacy", FCInfo(m.get("legacy_start", fam)))
         if m.get("not_registered"): return
         if m.get("not_in_front"): FC["open"].insert(0, s)
         else: FC["open"].append(s)
     def __getattr__(s, a):
         d = object.__getattribute__(s, "_d")
+        if a in d and isinstance(d[a], Exception): raise d[a]
         if a in d: return d[a]
         raise AttributeError(a)
     def __setattr__(s, a, v):
@@ -6934,8 +6955,8 @@ fc_setup(not_registered=True); fc("2304e the count did not go up        ", {"fam
 fc_setup(counts=[0, RuntimeError("count boom")]); fc("2304f CountFonts raises after       ", {"family": "Nm"})
 fc_setup(counts=[1, 3]); fc("2304g the count went up by two       ", {"family": "Nm"})
 fc_setup(others=1, not_in_front=True); fc("2304h made, but not in front        ", {"family": "Nm"})
-fc_setup(isequal_raises=True); fc("2304i isEqual raises                ", {"family": "Nm"})
-fc_setup(isequal_returns=1); fc("2304j isEqual returns 1             ", {"family": "Nm"})
+fc_setup(fgid=RuntimeError("fgId boom")); fc("2304i v0.150 fgId cannot be read      ", {"family": "Nm"})
+fc_setup(fgid=True); fc("2304j v0.150 fgId is a bool          ", {"family": "Nm"})
 fc_setup(no_current=True); fc("2304k no current package            ", {"family": "Nm"})
 
 print("--- names that do not all hold")
@@ -6991,6 +7012,401 @@ print("2308d one shared family check        :", "_TRYFONT_FAMILY_MAX" not in ns,
 
 ns["_MARK_CHANGED"] = _fc_mark_saved
 for _m, _a, _v in _fc_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else:
+        setattr(_m, _a, _v)
+
+# ================= v0.148: /debug/trypackage (P0.9 research, read only: does a glyph's wrapper name its own package?) =================
+print("\n==== v0.148 /debug/trypackage ====")
+# Spy fakes: any member the probe should not touch lands in TP["forbidden"]; TP["calls"] holds every isEqual.
+TP = {"calls": [], "forbidden": [], "mode": {}, "count": 1, "npk": 1, "cur": None, "wrap": None, "font": None}
+class TPSpy:
+    def __getattr__(s, a):
+        TP["forbidden"].append(a); raise AttributeError(a)
+class TPPkg(TPSpy):
+    def __init__(s, **kw):
+        s.__dict__.update(isNull=False, fgId=1, path="", mastersCount=1, defaultMaster="Regular", master="Regular", masters=["Regular"],
+                          glyphsCount=1, upm=1000); s.__dict__.update(kw)
+    def isEqual(s, other):
+        TP["calls"].append(("isEqual", type(other).__name__))
+        m = TP["mode"]
+        if m.get("equal_raises"): raise RuntimeError("equal boom")
+        if m.get("equal_adds_font"): TP["count"] += 1
+        if m.get("equal_native"): return object()
+        return other is s
+class TPWs(TPSpy):
+    def packages(s): return [object()] * TP["npk"]
+    currentPackage = property(lambda s: TP["cur"])
+class TPGlyph(TPSpy): pass
+class TPInfo(TPSpy): unitsPerEm = 1000; familyName = "Unnamed1"; styleName = "Regular"     # the family and style go to the font headers
+class TPFont(TPSpy):
+    def __init__(s, glyphs=1, path=""): s.__dict__.update(glyphs=["g"] * glyphs, path=path, info=TPInfo())
+def _tp_count():
+    v = TP["count"]
+    if isinstance(v, Exception): raise v
+    return v
+TPWsCls = type("flWorkspace", (), {"instance": staticmethod(lambda: TPWs())})
+_tp_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "flWorkspace", "CurrentFont")]
+_tp_ns = {k: ns[k] for k in ("_find_glyph", "_modern_wrapper")}
+def tp_setup(mode=None, count=1, npk=1, glyph_pkg="same", cur_kw=None, glyph_pkg_kw=None, font_kw=None):
+    """glyph_pkg: "same" (the current package), "other" (another package), "none", "raises", "method" (a zero-argument callable)."""
+    cur = TPPkg(**(cur_kw or {}))
+    other = TPPkg(**dict({"glyphsCount": 5, "path": "C:/fonts/Other.vfc"}, **(glyph_pkg_kw or {})))
+    w = TPGlyph()
+    if glyph_pkg == "same":
+        if glyph_pkg_kw: cur.__dict__.update(glyph_pkg_kw)
+        w.__dict__["package"] = cur
+    elif glyph_pkg == "other": w.__dict__["package"] = other
+    elif glyph_pkg == "none": w.__dict__["package"] = None
+    elif glyph_pkg == "method": w.__dict__["package"] = lambda: cur
+    elif glyph_pkg == "raises": w.__dict__["package"] = lambda: (_ for _ in ()).throw(RuntimeError("package boom"))
+    TP.update(calls=[], forbidden=[], mode=mode or {}, count=count, npk=npk, cur=cur, wrap=w, font=TPFont(**(font_kw or {})))
+    def mw(g, f):
+        if TP["mode"].get("wrap_raises"): raise RuntimeError("wrap boom")
+        return TP["wrap"], "built"
+    ns["_find_glyph"] = lambda f, n: "G" if n in ("tpg", ".notdef") else None
+    ns["_modern_wrapper"] = mw
+    for _m in _tf_mods:
+        _m.CountFonts = _tp_count; _m.flWorkspace = TPWsCls; _m.CurrentFont = lambda: TP["font"]
+    ns["_TRYPACKAGE"]["runs"] = 0
+TK = ("error", "open", "wrapper", "glyph_package", "current_package", "same_as_current", "same_reason", "glyph_package_matches_front",
+      "font_in_front", "fonts_before", "fonts_after", "side_effect_detected", "runs_so_far")
+def tp(tag, path, keys=TK):
+    c, d = call(path)
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| isEqual", TP["calls"], "| forbidden", TP["forbidden"])
+    return d
+P = "/debug/trypackage?name=tpg&go=yes"
+tp_setup()
+tp("2309a without go                  ", "/debug/trypackage?name=tpg")
+tp("2309b go must be exactly yes      ", "/debug/trypackage?name=tpg&go=Yes")
+tp("2309c no name                     ", "/debug/trypackage?go=yes")
+tp("2309d a name with a space         ", "/debug/trypackage?name=t%20pg&go=yes")
+tp("2309e a name of 41 characters     ", "/debug/trypackage?go=yes&name=" + "a" * 41)
+tp_setup(count=0); tp("2309f no font open                ", P)
+tp_setup(); tp("2309g a glyph that does not exist  ", "/debug/trypackage?name=nope&go=yes")
+tp_setup(mode={"wrap_raises": 1}); tp("2309h the wrapper raises           ", P)
+tp_setup(); d = tp("2309i one font, its own package    ", P); print("2309j  note                     :", d["note"])
+tp_setup(); tp("2309k .notdef is a valid name      ", "/debug/trypackage?name=.notdef&go=yes", keys=("same_as_current", "runs_so_far"))
+tp_setup(count=2, npk=2); tp("2309l two fonts, its own package   ", P)
+tp_setup(count=2, npk=2, glyph_pkg="other"); tp("2309m two fonts, another package   ", P)
+tp_setup(count=2, npk=2, cur_kw={"path": "C:/fonts/A.vfc"}, font_kw={"path": "C:/fonts/A.vfc"}); tp("2309n a saved font, paths agree    ", P, keys=("same_as_current", "glyph_package_matches_front"))
+tp_setup(glyph_pkg="method"); tp("2309o package is a method, called once", P, keys=("same_as_current", "glyph_package"))
+tp_setup(glyph_pkg="raises"); tp("2309p package cannot be read       ", P)
+tp_setup(glyph_pkg="none"); tp("2309q package is None             ", P)
+tp_setup(glyph_pkg_kw={"isNull": True}); tp("2309r the glyph's package is null  ", P)
+tp_setup(glyph_pkg_kw={"isNull": lambda: (_ for _ in ()).throw(RuntimeError("null boom"))}); tp("2309s isNull cannot be read        ", P)
+tp_setup(glyph_pkg_kw={"isNull": 0}); tp("2309t isNull is not a bool        ", P, keys=("glyph_package", "same_as_current", "same_reason"))
+tp_setup(glyph_pkg="other", glyph_pkg_kw={}, cur_kw={"isNull": True}); tp("2309u the current package is null  ", P, keys=("current_package", "same_as_current", "same_reason"))
+tp_setup(mode={"equal_raises": 1}); tp("2309v isEqual raises              ", P, keys=("same_as_current",))
+tp_setup(mode={"equal_native": 1}); tp("2309w isEqual returns an object    ", P, keys=("same_as_current",))
+tp_setup(glyph_pkg_kw={"masters": [object()]}); tp("2309x masters are not text        ", P, keys=("glyph_package",))
+tp_setup(glyph_pkg_kw={"mastersCount": lambda: (_ for _ in ()).throw(RuntimeError("count boom")), "upm": "x"}); tp("2309y a read fails, upm not a number", P, keys=("glyph_package", "glyph_package_matches_front"))
+tp_setup(mode={"equal_adds_font": 1}); tp("2309z a font appears during the probe", P, keys=("fonts_before", "fonts_after", "side_effect_detected"))
+tp_setup(count=RuntimeError("count boom")); tp("2309aa CountFonts raises           ", P)
+tp_setup()
+for _i in range(20): call(P)
+tp("2309ab request 21 refused          ", P, keys=("error", "runs_so_far")); print("2309ac  isEqual calls in 21 requests:", len(TP["calls"]))
+_tp_code = "\n".join(l.split("#")[0] for l in src[src.index("# /debug/trypackage (v0.148)"):src.index("# POST /font/create (v0.146")].splitlines())
+_tp_code_nostr = _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _tp_code)
+print("2309ad static scan of the probe   : forbidden call syntax:",
+      _re83.findall(r"\.(?:update\w*|save\w*|export\w*|close\w*|release|remove\w*|changed|notify\w*|set\w*|add\w*|find\w*|activate\w*|title_name|store\w*)\s*\(", _tp_code_nostr),
+      "| fgPackage:", "fgPackage" in _tp_code_nostr, "| subscripts of a native object:", _re83.findall(r"\b(?:gp|cp|w|mod|font)\[", _tp_code_nostr),
+      "| one isEqual per stage:", _tp_code_nostr.count(".isEqual(") == 2, "| counter before the first read:", all(_tpf.index('_TRYPACKAGE["runs"] += 1') < _tpf.index("_trypackage_current(mod)") and _tpf.rindex('_TRYPACKAGE["runs"] += 1') < _tpf.index('_pkg_get(w, "package")')
+                                               for _tpf in [_tp_code[_tp_code.index("def debug_try_package("):]]),
+      "| scanned chars > 4000:", len(_tp_code) > 4000)
+print("2309ae route documented, registered once:", "/debug/trypackage     name=X&go=yes" in src[:src.index('"""', 3)], src.count('path == "/debug/trypackage"') == 1, "| version", ns["VERSION"])
+# v0.149: stage=cached reads the wrappers ALREADY in the listener's cache (none is built), each checked against its key and isValid first
+print("--- v0.149 stage=cached")
+_tp_cache_saved = (dict(ns["_MODERN_CACHE"]), list(ns["_MODERN_CACHE_FONT"]))
+class TPWrap(TPSpy):
+    def __init__(s, name, gid, pkg, valid=True): s.__dict__.update(name=name, fgGlyphId=gid, package=pkg, isValid=valid)
+def tp_cache(*wraps, key=""):
+    ns["_MODERN_CACHE"].clear()
+    for lid, w in wraps: ns["_MODERN_CACHE"][lid] = w
+    ns["_MODERN_CACHE_FONT"][0] = key
+CK = ("error", "open", "stage", "cache_key_is_empty_path", "cached_wrappers", "cut", "current_package", "wrappers", "side_effect_detected", "runs_so_far")
+PC = "/debug/trypackage?stage=cached&go=yes"
+tp_setup(); tp("2310a cached without go           ", "/debug/trypackage?stage=cached", keys=CK)
+tp_setup(); tp("2310b cached with a name          ", "/debug/trypackage?stage=cached&name=tpg&go=yes", keys=CK)
+tp_setup(); tp("2310c an unknown stage            ", "/debug/trypackage?stage=all&go=yes", keys=CK)
+tp_setup(count=0); tp_cache(); tp("2310d no font open                ", PC, keys=CK)
+tp_setup(); tp_cache(); tp("2310e an empty cache              ", PC, keys=CK)
+tp_setup(count=2, npk=2); _tp_other = TPPkg(fgId=8, glyphsCount=1)
+tp_cache((11, TPWrap(".notdef", 11, TP["cur"])), (14, TPWrap(".notdef", 14, _tp_other)))
+tp("2310f two fonts: own and other package", PC, keys=CK)
+tp_setup(count=2, npk=2); tp_cache((11, TPWrap(".notdef", 11, TP["cur"])), (14, TPWrap(".notdef", 14, TP["cur"])))
+tp("2310g both report the current one ", PC, keys=("wrappers",))
+tp_setup(); tp_cache((11, TPWrap("a", 12, TP["cur"])), (13, TPWrap("b", 13, TP["cur"], valid=False)),
+                     (15, TPWrap("c", lambda: (_ for _ in ()).throw(RuntimeError("id boom")), TP["cur"])),
+                     (16, TPWrap("d", 16, TP["cur"], valid=lambda: (_ for _ in ()).throw(RuntimeError("valid boom")))))
+tp("2310h key, isValid and id checks skip", PC, keys=("wrappers",))
+tp_setup(); _tp_bad = TPWrap("e", 17, None); _tp_bad.__dict__["package"] = lambda: (_ for _ in ()).throw(RuntimeError("package boom"))
+tp_cache((17, _tp_bad), (18, TPWrap("f", 18, None)), (19, TPWrap("g", 19, TPPkg(isNull=True))))
+tp("2310i package unreadable, None, null", PC, keys=("wrappers",))
+tp_setup(cur_kw={"isNull": True}); tp_cache((11, TPWrap(".notdef", 11, TPPkg())))
+tp("2310j the current package is null ", PC, keys=("current_package", "wrappers"))
+tp_setup(mode={"equal_raises": 1}); tp_cache((11, TPWrap(".notdef", 11, TP["cur"])))
+tp("2310k isEqual raises              ", PC, keys=("wrappers",))
+tp_setup(); tp_cache(*[(i, TPWrap("n%d" % i, i, TP["cur"])) for i in range(25, 0, -1)], key="C:/fonts/A.vfc")
+_d = tp("2310l 25 cached: 20 read, in key order", PC, keys=("cache_key_is_empty_path", "cached_wrappers", "cut"))
+print("2310m  keys read:", [e["key"] for e in _d["wrappers"]], "| isEqual calls:", len(TP["calls"]))
+tp_setup(); tp_cache((11, TPWrap(".notdef", 11, TP["cur"])))
+for _i in range(20): call(P)
+tp("2310n cached shares the run counter: request 21 refused", PC, keys=("error", "runs_so_far"))
+print("2310o no wrapper built by stage=cached:", "_modern_wrapper" not in src[src.index('    if stage == "cached":\n        entries'):src.index("    glyph = _find_glyph(font, name)", src.index('    if stage == "cached":\n        entries'))])
+ns["_MODERN_CACHE"].clear(); ns["_MODERN_CACHE"].update(_tp_cache_saved[0]); ns["_MODERN_CACHE_FONT"][:] = _tp_cache_saved[1]
+for _k, _v in _tp_ns.items(): ns[_k] = _v
+for _m, _a, _v in _tp_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else:
+        setattr(_m, _a, _v)
+
+# ================= v0.151: /debug/tryedit (gated research probe for P2.2: ONE edit of a plain drawn glyph per call) =================
+print("\n==== v0.151 /debug/tryedit ====")
+# The /glyph/path fakes of v0.81 (P72Mod, P81Node rows) plus the one-font gate of /debug/tryopen. TE fakes are spies: a member they do
+# not define, a subscript or an iteration lands in TE["forbidden"]. TELayer holds real shapes; its counts are computed, not stored.
+TE = {"forbidden": [], "calls": [], "mode": {}, "updates": [], "marks": [], "broken": False}
+def _te_forbid(label):
+    TE["forbidden"].append(label); raise RuntimeError("FORBIDDEN: " + label)
+class TESpy:
+    def __getattr__(s, a):
+        if a.startswith("__"): raise AttributeError(a)
+        _te_forbid(type(s).__name__ + "." + a)
+    def __getitem__(s, i): _te_forbid(type(s).__name__ + "[]")
+    def __iter__(s): _te_forbid(type(s).__name__ + " iterated")
+class TENode(P81Node, TESpy):
+    @property
+    def x(s): return s._r["x"]
+    @x.setter
+    def x(s, v):
+        TE["calls"].append(("x", v))
+        if TE["mode"].get("set_raises"): raise RuntimeError("x boom")
+        if TE["mode"].get("move_ignored"): return
+        s._r["x"] = float(v)
+        if TE["mode"].get("move_smooth"): s._r["smooth"] = True
+    @property
+    def y(s): return s._r["y"]
+    @y.setter
+    def y(s, v): TE["calls"].append(("y", v)); s._r["y"] = float(v)
+class TEContour(P81Contour, TESpy):
+    def getNodeAt(s, i):
+        if TE["mode"].get("node_raises"): raise RuntimeError("getNodeAt boom")
+        return TENode(s, s.rows[i])
+class TEShapeData(TESpy):
+    def __init__(s, shape): s._shape = shape
+    def addContour(s, c):
+        TE["calls"].append("addContour")
+        if TE["mode"].get("add_raises"): raise RuntimeError("addContour boom")
+        if TE["mode"].get("break_on_edit"): TE["broken"] = True
+        if TE["mode"].get("add_first") and s._shape._contours: s._shape._contours.insert(0, c)
+        else: s._shape._contours.append(c)
+        if TE["mode"].get("glyph_added"): TS["edpnew"] = TsGlyph("edpnew", [])
+    def removeContour(s, c):
+        TE["calls"].append("removeContour")
+        if TE["mode"].get("remove_noop"): return
+        s._shape._contours = [k for k in s._shape._contours if k is not c]
+class TEShape(TESpy):
+    def __init__(s, contours=None, composite=False, component=False):
+        s._contours = list(contours or []); s._composite = composite; s._component = component; s.shapeData = TEShapeData(s)
+    def isComposite(s):
+        if TE["mode"].get("composite_raises"): raise RuntimeError("isComposite boom")
+        return s._composite
+    def isComponent(s): return s._component
+class TELayer(TESpy):
+    def __init__(s, name, shapes): s.name = name; s._shapes = list(shapes)
+    @property
+    def shapes(s): return tuple(s._shapes) if TE["mode"].get("shapes_tuple") else list(s._shapes)
+    def getContours(s):
+        if TE["broken"]: raise RuntimeError("getContours boom")
+        return [c for sh in s._shapes for c in sh._contours]
+    def shapesCount(s): return len(s._shapes)
+    def nodesCount(s): return sum(c.nodesCount() for c in s.getContours())
+    def componentsCount(s): return TE["mode"].get("components", 0)
+    def replaceShape(s, old, new):
+        TE["calls"].append("replaceShape")
+        if TE["mode"].get("replace_raises"): raise RuntimeError("replaceShape boom")
+        s._shapes = [new if k is old else k for k in s._shapes]
+class TEItems:
+    @staticmethod
+    def notifyChangesApplied(title, obj, flag): TE["marks"].append((title, type(obj).__name__, flag))
+def _te_update(*a): TE["updates"].append(tuple(type(x).__name__ for x in a))
+TE_SQ = [(0, 0), (400, 0), (400, 300), (0, 300)]
+TE_TRI = [(50, 50), (150, 50), (100, 150)]
+def te_contour(pts):
+    c = TEContour([P72Pt(x, y) for x, y in pts]); c._closed = True; return c
+_te_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "flWorkspace", "Update", "flItems")]
+def te_setup(mode=None, count=1, packages=1, reset_calls=True):
+    p81_setup()
+    TE.update(forbidden=[], calls=[], mode=dict(mode or {}), updates=[], marks=[], broken=False)
+    _fm.flContour = TEContour; _fm.flShape = TEShape
+    for g in ("edpa", "edpb", "edpbrush", "edpcomp", "edptwo", "edpnone"): TS[g] = TsGlyph(g, [TsLayer(1, 4)])
+    P72["layers"]["edpa"] = TELayer("test_font", [TEShape([te_contour(TE_SQ), te_contour(TE_TRI)])])
+    P72["layers"]["edpb"] = TELayer("test_font", [TEShape([te_contour(TE_SQ)])])
+    P72["layers"]["edpbrush"] = TELayer("test_font", [TEShape([te_contour(TE_SQ)], composite=True)])
+    P72["layers"]["edpcomp"] = TELayer("test_font", [TEShape([te_contour(TE_SQ)], component=True)])
+    P72["layers"]["edptwo"] = TELayer("test_font", [TEShape([te_contour(TE_SQ)]), TEShape([te_contour(TE_TRI)])])
+    P72["layers"]["edpnone"] = TELayer("test_font", [])
+    TO.update(count=count, packages=packages, closed_sets=[], vp=[])
+    for _m in _tf_mods:
+        _m.CountFonts = _to_count; _m.flWorkspace = TOWsCls; _m.Update = _te_update; _m.flItems = TEItems
+    if reset_calls: ns["_TRYEDIT"]["calls"] = 0
+TE_ALL_FORBIDDEN = []
+def te_outline(d, key):
+    snap = d.get(key) or {}
+    if "error" in snap: return snap
+    return [("closed" if c["closed"] else "open", [(n["x"], n["y"], n["kind"][0], n["smooth"]) for n in c["nodes"]]) for c in snap.get("contours", [])]
+def te(tag, path, keys=("error", "calls_so_far")):
+    c, d = call(path)
+    TE_ALL_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| edit calls", TE["calls"], "| Update", TE["updates"], "| marks", TE["marks"])
+    return d
+EK = ("edited", "changed", "mismatches", "smooth_changed", "side_effect_detected", "glyph_count_before", "glyph_count_after", "error", "calls_so_far")
+QE = "/debug/tryedit?"
+MV = QE + "stage=movenode&name=edpa&contour=0&node=2&dx=10&dy=-20"
+te_setup()
+te("2311a movenode without go          ", MV)
+te("2311b go must be exactly yes       ", MV + "&go=maybe")
+te("2311c unknown stage                ", QE + "stage=movecontour&name=edpa&go=yes")
+te("2311d name without the edp prefix  ", QE + "stage=replace&name=fresh&go=yes")
+te("2311e name with a space            ", QE + "stage=replace&name=edp%20a&go=yes")
+te("2311f name 'edp' alone             ", QE + "stage=replace&name=edp&go=yes")
+te("2311g movenode without contour     ", QE + "stage=movenode&name=edpa&node=2&dx=10&dy=0&go=yes")
+te("2311h node is not a number         ", QE + "stage=movenode&name=edpa&contour=0&node=two&dx=10&dy=0&go=yes")
+te("2311i dx 201                       ", QE + "stage=movenode&name=edpa&contour=0&node=2&dx=201&dy=0&go=yes")
+te("2311j dx and dy both 0             ", QE + "stage=movenode&name=edpa&contour=0&node=2&dx=0&dy=0&go=yes")
+te("2311k removecontour without contour", QE + "stage=removecontour&name=edpa&go=yes")
+te("2311l a negative contour           ", QE + "stage=removecontour&name=edpa&contour=-1&go=yes")
+for tag, over in (("2311m two fonts open               ", dict(count=2)), ("2311n two packages                ", dict(packages=2)),
+                  ("2311o CountFonts raises           ", dict(count=RuntimeError("count boom"))), ("2311p no font open                ", dict(count=0))):
+    te_setup(**over); te(tag, MV + "&go=yes")
+te_setup()
+d = te("2312 movenode                     ", MV + "&go=yes", keys=EK)
+print("2312a  before                   :", te_outline(d, "before"))
+print("2312b  after                    :", te_outline(d, "after"))
+print("2312c  call, args, sync, mark   :", d.get("call"), {k: d.get(k) for k in ("contour", "node", "dx", "dy")}, "| synced", d.get("synced_with_fontlab"),
+      "| fontlab_sync", (d.get("fontlab_sync") or {}).get("verdict"), "| changed mark", d.get("fontlab_changed_mark"), "| repainted", d.get("display_refreshed"), TO["vp"])
+te_setup(); P72["widths"]["edpb"] = 500.0
+d = te("2312d movenode, the legacy view agrees", QE + "stage=movenode&name=edpb&contour=0&node=1&dx=5&dy=5&go=yes", keys=("edited", "synced_with_fontlab", "fontlab_changed_mark"))
+te_setup()
+d = te("2313 addcontour                  ", QE + "stage=addcontour&name=edpb&go=yes", keys=EK)
+print("2313a  after                    :", te_outline(d, "after"), "| flContour built:", P72["calls"].count("flContour"))
+te_setup()
+d = te("2314 removecontour 1              ", QE + "stage=removecontour&name=edpa&contour=1&go=yes", keys=EK)
+print("2314a  after                    :", te_outline(d, "after"))
+te_setup()
+d = te("2315 replace                      ", QE + "stage=replace&name=edpa&go=yes", keys=EK)
+print("2315a  after                    :", te_outline(d, "after"), "| shapes after", d.get("state_after", {}).get("shapes"))
+te_setup()
+te("2316a a Power Brush shape          ", QE + "stage=replace&name=edpbrush&go=yes")
+te("2316b a component                  ", QE + "stage=replace&name=edpcomp&go=yes")
+te("2316c two shapes                   ", QE + "stage=replace&name=edptwo&go=yes")
+te("2316d no shape                     ", QE + "stage=addcontour&name=edpnone&go=yes")
+te("2316e a glyph that does not exist  ", QE + "stage=replace&name=edpzz&go=yes")
+te("2316f contour 2 of 2               ", QE + "stage=removecontour&name=edpa&contour=2&go=yes")
+te("2316g node 4 of 4                  ", QE + "stage=movenode&name=edpa&contour=0&node=4&dx=1&dy=0&go=yes")
+te_setup(mode={"composite_raises": 1}); te("2316i isComposite raises         ", QE + "stage=replace&name=edpa&go=yes")
+te_setup(mode={"components": 1}); te("2316j the layer counts a component", QE + "stage=replace&name=edpa&go=yes")
+te_setup(mode={"shapes_tuple": 1}); te("2316k layer.shapes is a tuple      ", QE + "stage=replace&name=edpa&go=yes")
+te_setup(mode={"node_raises": 1}); te("2316l getNodeAt raises           ", MV + "&go=yes", keys=EK)
+te_setup(mode={"set_raises": 1}); te("2317a node.x raises              ", MV + "&go=yes", keys=EK)
+te_setup(mode={"move_ignored": 1}); te("2317b node.x is ignored          ", MV + "&go=yes", keys=EK)
+te_setup(mode={"move_smooth": 1}); d = te("2317c moving sets smooth         ", MV + "&go=yes", keys=EK); print("2317d  mark reason              :", d.get("fontlab_changed_mark"))
+te_setup(mode={"add_first": 1}); te("2317e the contour lands first     ", QE + "stage=addcontour&name=edpa&go=yes", keys=EK)
+te_setup(mode={"add_raises": 1}); te("2317f addContour raises          ", QE + "stage=addcontour&name=edpa&go=yes", keys=EK)
+te_setup(mode={"remove_noop": 1}); te("2317g removeContour does nothing ", QE + "stage=removecontour&name=edpa&contour=0&go=yes", keys=EK)
+te_setup(mode={"replace_raises": 1}); te("2317h replaceShape raises        ", QE + "stage=replace&name=edpa&go=yes", keys=EK)
+te_setup(mode={"glyph_added": 1}); te("2317i a glyph appears            ", QE + "stage=addcontour&name=edpb&go=yes", keys=EK)
+te_setup(mode={"break_on_edit": 1}); d = te("2317j unreadable after the edit   ", QE + "stage=addcontour&name=edpb&go=yes", keys=EK); print("2317k  after                    :", d.get("after"))
+te_setup()
+for _i in range(8): call(MV + "&go=yes")
+te("2318 the limit: call 9 is refused ", MV + "&go=yes")
+_src151 = "\n".join(l for l in src[src.index("# /debug/tryedit (v0.151)"):src.index("# /debug/tryopen (v0.125)")].split("\n") if not l.lstrip().startswith("#"))
+print("2319 spies over all cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
+print("2319a static scan of the probe (code lines):", len(_src151) > 6000, "| forbidden call syntax:",
+      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|clearContours|smartMove|smartSetXY|moveBy|decomposite|ejectTo|activateBuilder)\s*\(|shapeBuilder|font\.update", _src151),
+      "| counter raised before the glyph is read:", _src151.index('_TRYEDIT["calls"] += 1') < _src151.index("_modern_edit_target(name)"))
+print("2319b route documented: ", "/debug/tryedit        stage=movenode|addcontour|removecontour|replace" in src, "| mark title:", ns["_MARK_TITLES"].get("tryedit"),
+      "| dispatched:", 'if path == "/debug/tryedit":' in src)
+te_setup()
+print("2320 draw_path still refuses a drawn glyph:", p72_post("/glyph/path", {"name": "edpb", "contours": [RRECT]})[1].get("reason", "")[:90].rstrip())
+
+# ---- v0.152: &refresh=R. The fake sidebearings stay stale after an edit (as live 968, 974, 980) until the ONE member named in
+# TE["mode"]["refresh_works"] is called; every refresh member logs into TE["refresh"].
+print("\n==== v0.152 /debug/tryedit refresh ====")
+def _te_refresh(label, obj):
+    TE.setdefault("refresh", []).append(label if not isinstance(obj, TEShape) else (label, len(obj._contours)))
+    m = TE["mode"]
+    if m.get("refresh_raises"): raise RuntimeError("refresh boom")
+    if m.get("refresh_moves"):
+        for lay in P72["layers"].values():
+            if isinstance(lay, TELayer) and lay._shapes and lay._shapes[0]._contours: lay._shapes[0]._contours[0].rows[0]["x"] += 1.0; break
+    if m.get("refresh_works") == label:
+        for gname in list(TE.get("metrics", {})): te_recompute(gname)
+    return m.get("refresh_returns")
+TEContour.update = lambda s: _te_refresh("contour.update", s)
+TEShape.update = lambda s: _te_refresh("shape.update", s)
+TEShape.changed = lambda s: _te_refresh("shape.changed", s)
+TEShapeData.update = lambda s: _te_refresh("shapedata.update", s)
+TELayer.update = lambda s: _te_refresh("layer.update", s)
+TELayer.changed = lambda s: _te_refresh("layer.changed", s)
+TELayer.resetInkBox = lambda s: _te_refresh("layer.resetinkbox", s)
+_te_p72_saved = {a: P72Mod.__dict__.get(a) for a in ("getLSB", "getRSB", "update")}
+def te_recompute(gname):
+    lay = P72["layers"].get(gname)
+    xs = [r["x"] for c in (lay.getContours() if lay is not None else []) for r in c.rows]
+    adv = P72.get("widths", {}).get(gname, 0.0)
+    TE["metrics"][gname] = (min(xs), adv - max(xs)) if xs else (0.0, 0.0)
+def te2_setup(mode=None):
+    te_setup(mode=mode); TE["refresh"] = []; TE["metrics"] = {}
+    P72Mod.getLSB = lambda s, tr: TE["metrics"].get(s.name, (0.0, 0.0))[0]
+    P72Mod.getRSB = lambda s, tr: TE["metrics"].get(s.name, (0.0, 0.0))[1]
+    P72Mod.update = lambda s: _te_refresh("glyph.update", s)
+    for g in ("edpa", "edpb"): te_recompute(g)
+RK = ("refresh", "refresh_call", "refresh_returned", "refresh_error", "margins_before_refresh", "margins_after_refresh", "margins_expected",
+      "margins_current_before_refresh", "margins_current_after_refresh", "refresh_changed_outline", "edited", "side_effect_detected", "error")
+def te2(tag, path, keys=RK):
+    d = te(tag, path, keys=keys)
+    print("      refresh log:", TE["refresh"])
+    return d
+te2_setup()
+te2("2321a an unknown refresh            ", MV + "&refresh=font.update&go=yes", keys=("error", "calls_so_far"))
+te2("2321b resetMetricsLeft is not listed", MV + "&refresh=layer.resetmetricsleft&go=yes", keys=("error", "calls_so_far"))
+te2("2321c contour.update needs movenode ", QE + "stage=addcontour&name=edpb&refresh=contour.update&go=yes", keys=("error", "calls_so_far"))
+te2("2321d refresh without go            ", MV + "&refresh=layer.update", keys=("error", "calls_so_far"))
+te2("2321e an empty refresh = none       ", MV + "&refresh=&go=yes", keys=("edited", "refresh", "refresh_error", "margins_before_refresh"))
+for r in ("contour.update", "shape.update", "shapedata.update", "layer.update", "glyph.update", "layer.changed", "shape.changed", "layer.resetinkbox"):
+    te2_setup(mode={"refresh_works": r})
+    te2("2322 refresh=%-18s works" % r, MV + "&refresh=" + r + "&go=yes")
+te2_setup(mode={"refresh_works": "layer.update"})
+te2("2323 shape.update, which does not refresh", MV + "&refresh=shape.update&go=yes")
+te2_setup(mode={"refresh_works": "shape.update", "refresh_returns": True})
+te2("2324 a refresh returning True       ", MV + "&refresh=shape.update&go=yes", keys=("refresh_returned", "margins_current_after_refresh"))
+te2_setup(mode={"refresh_raises": 1})
+te2("2325 a refresh that raises          ", MV + "&refresh=layer.update&go=yes")
+te2_setup(mode={"refresh_moves": 1})
+te2("2326 a refresh that moves a node    ", MV + "&refresh=layer.update&go=yes", keys=("refresh_changed_outline", "edited", "side_effect_detected", "mismatches"))
+te2_setup(mode={"set_raises": 1})
+te2("2327 the edit failed: no refresh    ", MV + "&refresh=layer.update&go=yes", keys=("refresh", "refresh_error", "edited", "error"))
+te2_setup(mode={"refresh_works": "shape.update"})
+te2("2328 replace: the NEW shape updated ", QE + "stage=replace&name=edpa&refresh=shape.update&go=yes")
+te2_setup(mode={"refresh_works": "layer.update"})
+P72["layers"]["edpb"].getContours()[0].rows[1]["on"] = False
+te2("2329 a curve: no expected margins   ", QE + "stage=addcontour&name=edpb&refresh=layer.update&go=yes", keys=("margins_expected", "margins_current_after_refresh", "edited"))
+te2_setup(mode={"refresh_works": "layer.update"}); ns["_trymetrics_transform"], _te_tm = (lambda: (None, "no QTransform here")), ns["_trymetrics_transform"]
+te2("2330 no QTransform: margins unknown ", MV + "&refresh=layer.update&go=yes", keys=("margins_before_refresh", "margins_after_refresh", "margins_expected", "refresh_call", "edited"))
+ns["_trymetrics_transform"] = _te_tm
+print("2331 spies over the refresh cases:", TE_ALL_FORBIDDEN, "| refresh table:", ns["_TRYEDIT_REFRESH"])
+_src152 = "\n".join(l for l in src[src.index("# /debug/tryedit (v0.151)"):src.index("# /debug/tryopen (v0.125)")].split("\n") if not l.lstrip().startswith("#"))
+print("2331a static scan: forbidden call syntax:", _re83.findall(r"\.(?:update|save\w*|removeGlyph|smartMove|moveBy|decomposite|ejectTo|activateBuilder|resetMetrics\w*)\s*\(|resetMetrics|font\.update", _src152),
+      "| getattr calls:", _re83.findall(r"getattr\([^)]*\)", _src152), "| route documented:", "[&refresh=R]: ONE edit" in src)
+for _a, _v in _te_p72_saved.items():
+    if _v is None:
+        if _a in P72Mod.__dict__: delattr(P72Mod, _a)
+    else:
+        setattr(P72Mod, _a, _v)
+for _m, _a, _v in _te_saved:
     if _v is None:
         if hasattr(_m, _a): delattr(_m, _a)
     else:

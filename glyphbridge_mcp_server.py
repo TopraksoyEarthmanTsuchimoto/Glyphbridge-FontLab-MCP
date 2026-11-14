@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.61)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.62)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.61"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.62"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -3351,8 +3351,7 @@ def create_font(family: str | None = None, ctx: Context | None = None) -> dict[s
 
     What FontLab will NOT show, and other things the person must know, come back in 'person_notes' (they are also printed in
     FontLab's OUTPUT panel). Tell the person every one of them: FontLab's tab and FONTS panel may keep the temporary name for
-    a while (a display delay; Font Info shows the real names); with other fonts open, the new font's first glyph must be
-    opened once in FontLab before a tool can draw into it. If you have not yet done so in this conversation, also tell the
+    a while (a display delay; Font Info shows the real names). If you have not yet done so in this conversation, also tell the
     person that FontLab's OUTPUT panel lists every change Glyphbridge makes, with its warnings, and is worth keeping open.
 
     Success is reported only when FontLab's number of open fonts went up by one and the new font is the one in front.

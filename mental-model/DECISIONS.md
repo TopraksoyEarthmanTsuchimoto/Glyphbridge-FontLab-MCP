@@ -2,6 +2,30 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-14: the DECISIONS.md budget
+
+- **The word budget of this file's active part is 2,500 (was 2,200); the reference totals in [MARKDOWN-MAP.md](MARKDOWN-MAP.md) are now 12,350 and 11,850.** Nothing was archived for it. *Reason:* the user's choice, with the file at 2,157 words.
+
+## 2026-11-14: the PROJECT.md and MARKDOWN-MAP.md budgets
+
+- **The word budget of [PROJECT.md](PROJECT.md) is 1,000 (was 850) and that of [MARKDOWN-MAP.md](MARKDOWN-MAP.md) is 1,000 (was 900); the reference totals in MARKDOWN-MAP.md are now 12,050 and 11,550.** Nothing was trimmed or moved for it. *Reason:* the user's choice, with the files at 819 and 868 words.
+
+## 2026-11-14: the WATCH-POINTS.md budget
+
+- **The word budget of [WATCH-POINTS.md](WATCH-POINTS.md) is 2,500 (was 2,200).** Nothing was trimmed or moved for it; the rule of 2026-11-12 (an entry holds the open question only) stays. *Reason:* the user's choice, with the file at 2,154 words.
+
+## 2026-11-14: editing existing glyphs
+
+- **AI agents must be able to edit an existing glyph through Glyphbridge: move nodes, add a contour to an existing shape, redraw an outline in place; in the end, every kind of glyph manipulation.** Every edit is verified by a re-read, and the layer guard's refusal is lifted only by a tool built for that edit. *Reason:* the user's requirement; today an agent must delete a glyph and draw it again.
+
+## 2026-11-13: the CURRENT-STATUS.md budget
+
+- **The word budget of [CURRENT-STATUS.md](CURRENT-STATUS.md) is 2,500 (was 2,200); the reference totals in [MARKDOWN-MAP.md](MARKDOWN-MAP.md) are now 11,800 and 11,300.** Nothing was trimmed or moved for it. *Reason:* the user's choice, with the file at 2,158 words.
+
+## 2026-11-13: a package is told apart by its fgId (listener 0.150 / server 0.62)
+
+- **The first glyph of a new font takes its layer name from the glyph's own package (`flGlyph.package`), with any number of fonts open, only when that package's `fgId` equals the current package's. No product code uses `flPackage.isEqual`; `create_font` compares `fgId` as well.** *Reason:* `w.package` named the glyph's own font, and `isEqual` called two different packages equal (930, 931); the user approved the design as proposed.
+
 ## 2026-11-13: notes for the person (listener 0.147 / server 0.61)
 
 - **No GUI-repaint chores for the person.** Where FontLab's display lags behind an API write, the person gets one plain sentence (what they see, that it is only a display delay, where the real value shows), never a sequence of dialog steps to force a repaint. *Reason:* the user's UX rule; 921 and 922 found no single step.
@@ -16,13 +40,14 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 ## 2026-11-12: watch points hold the open question only
 
-- **An entry in [WATCH-POINTS.md](WATCH-POINTS.md) holds what is open and what would settle it; the evidence lives in the topic file it links to. The budget stays 2,200.** *Reason:* the user's choice over a seventh raise: the file had grown by collecting the story of each run. Nothing is cut; evidence moves, word for word where the topic file lacks it.
+- **An entry in [WATCH-POINTS.md](WATCH-POINTS.md) holds what is open and what would settle it; the evidence lives in the topic file it links to. The budget stays 2,200** (raised to 2,500 on 2026-11-14, above). *Reason:* the user's choice over a seventh raise: the file had grown by collecting the story of each run. Nothing is cut; evidence moves, word for word where the topic file lacks it.
 
 ## 2026-11-11: new fonts made by an agent
 
-- **A font made through Glyphbridge should match one made with File > New Font as closely as FontLab allows, and making one while other fonts are open must become reliable** (the create-font tool, [ROADMAP.md](ROADMAP.md) P0.3). Where the API result differs from the GUI's, the difference is recorded and the person is told. *Reason:* the user's requirement, so that what an agent does resembles what the person would do by hand; part of goal 5 in [PROJECT.md](PROJECT.md). The names already match (NF 831–835).
-- **The Font window's encoding: agent-made fonts need no step (they open with None); setting the box of a GUI-made font through the API is won't-fix for now.** The only route found is the Font window's Qt widget, kept as a candidate in P0.3. *Reason:* File > New Font ignores the "Default: Encoding" preference (840), and driving FontLab's widgets is fragile across versions, for the gain of a few clicks ([topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k, E1).
-- **Names: when the person has given no name, the new font gets FontLab's own (`Unnamed`, `Unnamed1`, …, as with File > New Font); when the person asks for a name, the tool sets it as Font Info would. Whenever font names come up, the agent asks whether the person wants the fields of Font Info's Names page explained, and explains them on request.** *Reason:* the user's requirements (2026-11-11); Font Info opens on that page, which confuses new users.
+Condensed on 2026-11-13; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md).
+- **An agent-made font matches one made with File > New Font as closely as FontLab allows, also with other fonts open; a difference is recorded and the person is told.** Carried out by `create_font` (0.146–0.150). *Reason:* the user's requirement (goal 5, [PROJECT.md](PROJECT.md)).
+- **The Font window's encoding of a GUI-made font: won't-fix for now** (agent-made fonts open with None). *Reason:* only FontLab's Qt widget can set it, fragile across versions ([topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8k, E1).
+- **Names: with no name given, FontLab's own (`Unnamed`, `Unnamed1`, …); a name asked for is set as Font Info would set it. Whenever font names come up, the agent offers to explain the fields of Font Info's Names page.** *Reason:* the user's requirements; that page confuses new users.
 
 ## 2026-11-11: research on a PC where FontLab cannot save
 
@@ -30,11 +55,10 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 ## 2026-11-09 to 2026-11-10: tool writes, FontLab's save question and the KERNING panel (S1; listener 0.132–0.136 / server 0.51–0.57)
 
-Condensed on 2026-11-11 from six entries; their full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md).
-- **Goals: FontLab offers its save question for every tool change, as for a GUI change, and a kerning pair written by a tool shows in the KERNING panel at once** ([PROJECT.md](PROJECT.md), goals 7 and 8). *Reason:* closing lost tool work silently (S1); a designer could take a valid pair for missing, or kern it again.
-- **After a verified write the listener makes one `flItems.notifyChangesApplied` call:** for a synced glyph write on that glyph (0.132); for a delete on the first surviving glyph that is not `.notdef` and has a modern layer (0.133); for a kerning write that changed an entry on a glyph of a changed pair, left side first (0.134). At most 20 glyphs are tried and `via_glyph` names the one used; a request that changed nothing makes no call. After such a kerning write it also makes one `notifyPackageContentUpdated(<package fgId>)` (0.136). Nothing is ever saved. *Reason:* each call brought FontLab's question or panel back where a control did not (657–667, 684–688, 713–721, 738–743). The user approved each design as proposed.
-- **Replies say what was done (`fontlab_changed_mark`, `fontlab_panel_refresh`), never what FontLab shows; `save_question_note` depends only on whether the mark call was made without an error.** *Reason:* no reading follows FontLab's icon or panel (659, 668).
-- **Switches** `_MARK_CHANGED` and `_REFRESH_KERNING_PANEL`; `_ICON_MAY_LAG_KERNING = False` since server 0.57, after five runs in a row blue at once (748–753). Where the icon is not reliably immediate after another kind of tool write, the agent tells the person, once per package; the kerning check is repeated on each new FontLab version ([RUNBOOK.md](RUNBOOK.md) §13, 3g).
+Condensed on 2026-11-11 from six entries and again on 2026-11-13; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). How the calls work: [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §2.
+- **FontLab offers its save question for every tool change, and a tool-written kerning pair shows in the KERNING panel at once** ([PROJECT.md](PROJECT.md), goals 7 and 8). After a verified write the listener makes one FontLab notification; nothing is ever saved. *Reason:* closing lost tool work silently (S1).
+- **Replies say what was done, never what FontLab shows.** *Reason:* no reading follows FontLab's icon or panel (659, 668).
+- **Switches** `_MARK_CHANGED`, `_REFRESH_KERNING_PANEL`, `_ICON_MAY_LAG_KERNING` (false since server 0.57). Where the icon may lag after another kind of write, the agent tells the person once per package; the kerning check is repeated on each new FontLab version ([RUNBOOK.md](RUNBOOK.md) §13, 3g).
 
 ## 2026-11-09: components against their source (listener 0.130 / server 0.50)
 
