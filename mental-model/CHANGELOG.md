@@ -4,6 +4,28 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Server v0.65 (2026-11-15; listener unchanged at v0.154)
+
+**`move_nodes` notes after MN 1016–1024** (the user's approval of 2026-11-15).
+- No `display_note` in a `move_nodes` reply: the listener's shared note gives repaint steps ([DECISIONS.md](DECISIONS.md), 2026-11-13); `person_note` covers the lag.
+- `undo_note` in every reply whose outline changed (a verified move, and a re-read that differs with `changed: true`): FontLab's Edit > Undo lists the move but did not move the nodes back (1023); `agent_instruction` ends with "Tell the person undo_note once per conversation." The tool description says the same.
+- Tests: `create_unicode_tests.py` 1308 → 1314 lines (37zm1–37zm6) and 13 version lines. Mutation run: 3 of 3 caught. Run live 1025.
+
+## Listener v0.154 and server v0.64 (2026-11-15)
+
+**`move_nodes` verification after the live run** (MN 1001–1015; the user's approval of 2026-11-15, [DECISIONS.md](DECISIONS.md)).
+- Listener: no `layer.resetInkBox()` call (no proven effect: 1003–1006); `margins` are FontLab's values as read. Message coordinates print `0`, not `-0` (1002).
+- Server: `verified` = the re-read nodes match; `left`, `right`, `ink_width` computed from the re-read nodes (exact curve extents) and FontLab's advance width (`sidebearings_source`); FontLab's own values in `fontlab_sidebearings` with `fontlab_sidebearings_current`; when they lag, `person_note` (one plain sentence) and an `agent_instruction` to say it once. `sidebearings_current`, `extent_check`, `verification_note` and `ink_box_refresh` are gone.
+- Tests: `stub_listener_tests.py` 3439 lines (refresh cases renamed, 2334f the `-0` fix), `create_unicode_tests.py` 1306 → 1308 (part 37 rewritten, 37c2, 37k2). Mutation run: 13 of 13 caught. Not yet run live.
+
+## Listener v0.153 and server v0.63 (2026-11-15)
+
+**`move_nodes`, the first edit of an existing outline** (P2.2; design approved by the user on 2026-11-15, [DECISIONS.md](DECISIONS.md)).
+- Listener: POST `/glyph/move` `{"name", "moves": [{"contour", "node", "from": {x, y}, "to": {x, y}}]}`, 1–200 moves, no node twice, `to` rounded by rule B (`coordinates_rounded`), `to` = `from` refused. The glyph needs ONE plain shape (`isComponent` and `isComposite` False), no components and an identity shape transform. Every check runs before the first node is touched: index, `from` within 0.001, and a smooth on-curve node newly off its line (draw_path's 2-degree rule; one already off before does not count). Then `node.x` / `node.y`, ONE `layer.resetInkBox()`, the re-read compared node by node (position, kind, smooth flag), and `_guard_mark` (kind `move_nodes`, full guard check, mark title "Glyphbridge move nodes"); the font is marked whenever the outline changed, confirmed or not; nothing is restored. The OUTPUT panel logs `move <glyph>: N nodes`.
+- Server: tool `move_nodes(name, moves)` (20 tools), checks everything before sending, needs listener 0.153. Success: `moved`, `nodes_match`, `verified` only when the re-read outline's extent (exact curve extents) equals FontLab's left sidebearing and ink width (`sidebearings_current`, `extent_check`). A re-read that differs returns `moved: false` with `mismatches`, `before`, `after` and an instruction to move back only with the person's agreement; a refusal that changed nothing is a ToolError.
+- Not in the approved design, added for safety: the identity-transform refusal (a stored node position must be the drawn one, 638), and the route name `/glyph/move` (GET `/glyph/nodes` is an older debug read).
+- Tests: `stub_listener_tests.py` 3364 → 3439 lines (2332–2338), `create_unicode_tests.py` 1266 → 1306 (part 37, tool counts). Mutation run: 12 of 12 caught. Run live 1001–1002: the sidebearings were not current (see v0.154).
+
 ## Listener v0.152 (2026-11-14; server unchanged at v0.62)
 
 **`/debug/tryedit&refresh=R`** (P2.2 research, step B2): after a confirmed edit, ONE member of the fixed table `_TRYEDIT_REFRESH` (`contour.update` with `movenode` only, `shape.update`, `shapedata.update`, `layer.update`, `glyph.update`, `layer.changed`, `shape.changed`, `layer.resetinkbox`), called once before `_guard_mark`; the sidebearings before and after it against those the edited nodes give (straight contours only), `refresh_changed_outline` as a side effect. Unknown values and `resetMetrics*` are refused; no refresh after a failed edit. Tests: `stub_listener_tests.py` 3318 → 3364 lines (2321–2331); `create_unicode_tests.py` version lines only. Mutation run: 6 of 6 caught. Run live 989–1000.

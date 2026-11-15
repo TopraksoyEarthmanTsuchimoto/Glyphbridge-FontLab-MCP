@@ -2,6 +2,22 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-15: move_nodes tells the person that Undo does not take a move back (server 0.65)
+
+- **No `display_note` in a `move_nodes` reply; `undo_note` wherever the outline changed, told once per conversation.** *Reason:* `display_note` gave repaint steps, against the decision of 2026-11-13; Edit > Undo lists a tool move but left the nodes moved (1023). The user approved the change.
+
+## 2026-11-15: move_nodes is confirmed by its re-read nodes (listener 0.154 / server 0.64)
+
+- **`verified` means the re-read nodes match; the sidebearings are computed from them and FontLab's advance width; FontLab's own values are shown apart, with one plain note for the person when they lag. No refresh call.** *Reason:* FontLab's sidebearings and ink box lag after an API node move and nothing tried refreshes them (MN 1001–1015); the user approved the change.
+
+## 2026-11-15: move_nodes, the first edit tool (listener 0.153 / server 0.63)
+
+- **Each move gives `from` and `to`; a `from` that differs from the node refuses the whole call.** *Reason:* a stale read becomes a refusal, not a wrong edit.
+- ~~`flLayer.resetInkBox()` refreshes the sidebearings after the moves~~ superseded the same day, below.
+- **No automatic restore when the re-read differs;** the font is marked whenever its outline changed. *Reason:* a restore is an untested second write; the person decides.
+- **One plain shape only, for now.** *Reason:* only that was probed; each shape may carry its own transform.
+- *Reason for all:* the user's answers, one question at a time.
+
 ## 2026-11-14: the DECISIONS.md budget
 
 - **The word budget of this file's active part is 2,500 (was 2,200); the reference totals in [MARKDOWN-MAP.md](MARKDOWN-MAP.md) are now 12,350 and 11,850.** Nothing was archived for it. *Reason:* the user's choice, with the file at 2,157 words.

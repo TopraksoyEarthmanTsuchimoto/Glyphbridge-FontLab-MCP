@@ -609,6 +609,52 @@ No tool wrote anything (the change counter stayed at 2). Both files were saved f
 | 990–997 | `movenode` contour 0 node 2 by (+50, −50), `refresh=` one member each: `contour.update`, `shape.update`, `shapedata.update`, **`layer.update`**, `glyph.update`, `layer.changed`, `shape.changed`, **`layer.resetinkbox`** | stale before the refresh (RSB −500, expected −550); after it: open | stale before in all 8; current after only `layer.update` (993) and `layer.resetinkbox` (997); every edit exact, no node moved by a refresh, no error, synced, marked |
 | 998–1000 | sidebearings of `edp2_d`, `edp2_h`, and `edp2_a` (control) | 100 / −550, 100 / −550, 100 / −500 | as predicted: the refresh acts on its own layer only |
 
+**Not reproduced on 2026-11-15** (MN 1003–1006): neither `layer.update` nor `layer.resetinkbox` refreshed the sidebearings; 993 and 997 are no longer counted as facts.
+
+### MN series: `move_nodes` live (2026-11-15, FontLab 8.9.5 in Demo mode, listener 0.153 / server 0.63, through Claude Code; `create_font` without a family, one font open, `Unnamed`; nothing clicked in FontLab unless said)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| setup | `create_glyph mna1`, `draw_path` square (100,0)–(300,200), `set_glyph_width` 400, `get_glyph_outline` | verified, 100 / 100 | as predicted |
+| 1001 | `move_nodes mna1` node 1 (300,0) → (350,0) | verified, right 50 | **wrong:** nodes exact, synced, marked, but FontLab's right read 100 (stale), so `verified: false`; `get_glyph_sidebearings` afterwards: still 100 |
+| 1002 | the same call again | refused, nothing moved | as predicted; the message printed `(350, -0)` (fixed in 0.154) |
+| 1003 | probe `edpm1` (same square, width 400): `movenode` node 1 by (+50, 0), `refresh=layer.resetinkbox` | stale before, current after (997) | **wrong:** right 100 before and after (expected 50) |
+| 1004 | probe `edpm2`: by (+50, −50), `resetinkbox` | as 1003 if y does not matter | stale before and after |
+| 1005 | probe `edpm3`: by (+50, 0), `refresh=layer.update` | current after (993) | **wrong:** stale before and after |
+| 1006 | probe `edpm4`, width never set (advance 0): by (+50, 0), `resetinkbox` | current after, if the width mattered | stale: −300 before and after (expected −350) |
+| 1007 | sidebearings of `mna1`, `edpm1`, `edpm4` | — | `mna1` and `edpm1` current (right 50), `edpm4` still −300 minutes later: time alone does not refresh |
+| 1008–1010 | on another glyph `edpm5`: `create_glyph`, `draw_path`, `set_glyph_width` 400; `edpm4` read after each | −350 if that write refreshes | −300 each time |
+| 1011 | `get_glyph_outline edpm4`, then the raw `inkBox()` | — | still stale; `inkBox()` right 300 while the node is at 350: the ink box lags too (ED2 968–980 checked it vertically only) |
+| 1012 | the person clicked FontLab's title bar | −350 if a focus event refreshes | −300, `inkBox()` right 300 |
+| 1013 | the person single-clicked `edpm5` in the grid | −350 (as 982–983) | −300: not reproduced; in 981 the clicked glyph was itself an edited one |
+| 1014 | `inkBox()` and sidebearings of all five moved glyphs | — | `mna1`, `edpm1` current; `edpm2`–`edpm4` stale; what refreshed the first two is not isolated |
+| 1015 | the person restarted the listener (empty wrapper cache); `edpm2`–`edpm4` read through new `flGlyph` wrappers | current, if the cached wrapper were the cause | stale: the cache is not the cause |
+
+Consequence: listener 0.154 / server 0.64 confirm a move by the re-read nodes and compute the sidebearings from them ([CHANGELOG.md](CHANGELOG.md)).
+
+### MN round 2: `move_nodes` of 0.154 / 0.64 live (2026-11-15, FontLab 8.9.5 in Demo mode, through Claude Code; `create_font` without a family, one font open, `Unnamed`; prefix `mnb`; every glyph a tool-drawn outline with width set; no File > Save stage, nothing saved)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| setup | `fontlab_status` | 0.154 / 0.64 | as predicted, no font open (the restart had been done) |
+| 1016 | `mnb1` square (100,0)–(300,200), width 400: node 1 (300,0) → (350,0) | `verified`, computed right 50, FontLab's 100, `fontlab_sidebearings_current` false, `person_note` | as predicted |
+| 1017 | `mnb2` (same square): node 2 (300,200) → (350,250) and node 3 (100,200) → (100,250) in one call | `verified`, 100 / 50, ink width 250 | as predicted; FontLab's 100 / 100 |
+| 1018 | `mnb3`, the tool's bulging square (cubic, nodes 0–5), width 600: control point node 2 (500,100) → (550,100) | `verified`, right ≈ 105.32 (cubic extent ≈ 494.68) | as predicted: right 105.3305, extent 494.6695, equal to a separate computation; FontLab's right 125 |
+| 1019 | `mnb4`, the tool's circle (four smooth nodes), width 400: smooth node 0 (400,200) → (420,200) alone | refused, nothing moved | as predicted; the message names the node and its position after the move |
+| 1020 | the same node with its handles, nodes 1 and 11, all by +20 in x | `verified`, right −20, ink width 420 | as predicted |
+| 1021a | `create_glyph mnb5`; the person opened it and added `mnb1` with Glyph > Add Component…; `get_glyph_outline mnb5` | `verified` | **wrong:** `unverified`, `source_in_step` false: the component showed `mnb1`'s moved nodes (x to 350), compared with FontLab's still stale box of `mnb1` (x to 300); its `agent_instruction` asked to tell the person the glyph was out of step (a false alarm) |
+| 1021 | `move_nodes mnb5` node 1 (350,0) → (360,0) | refused (component), nothing moved | as predicted ("isComponent reads True") |
+| 1021b | `get_glyph_outline mnb1`, then `mnb5` again | — | `mnb1` `verified`, FontLab's right now 50 (caught up); `mnb5` `verified`, `source_in_step` true |
+| 1021c | `get_glyph_sidebearings mnb2` (never clicked or used) | — | 100 / 100, still stale (true right 50): only the component's source caught up; whether Add Component or the read in 1021a refreshed it is not isolated |
+| 1022a | `mnb6` square, width 400; the person drew a rectangle with the Rectangle tool beside it | a second shape | **one shape with two contours** (the Elements panel's two rows are contours); FontLab's right 36. The two-shapes refusal stays untested |
+| 1022 | `mnb6` contour 1 node 1 (364,246) → (380,246) | accepted (one plain shape), `verified`, right 20, FontLab's 36 | as predicted; the person's screenshot: the outline repainted at once, the fill and the bar (36) did not |
+| 1023 | the person chose Edit > Undo once, `mnb6` in front | the GUI rectangle undone, the move not on the undo list | **wrong:** the nodes read back unchanged (380 still), but FontLab's sidebearings, fill and bar caught up (right 20, `verified`); the Edit menu then read "Undo Add Rectangle" and "Redo Glyphbridge Move Nodes": the undo entry comes from the mark (`notifyChangesApplied` with the title "Glyphbridge move nodes", shown title-cased), and undoing it did not move the node back. A second Undo was skipped: it would undo the GUI rectangle only |
+| 1024 | the person closed the font with the X at the left of its title | the save question; Cancel | as predicted; not isolated, since the GUI rectangle is a change of its own |
+
+| 1025 | server 0.65 after a full Claude Desktop restart (`fontlab_status` 0.154 / 0.65; the client still showed the 0.64 tool description): in the same font, `mnc1` square, width 400, node 1 (300,0) → (350,0) | `verified`, `undo_note`, no `display_note`, the instruction ending with "Tell the person undo_note once per conversation." | as predicted; the lag note came first, right 50 against FontLab's 100 |
+
+`finish_changes`: 22 changes, the writes of this round (1 font, 6 creates, 5 drawings, 5 widths, 5 moves), one reminder; `fontlab_status` at the start had shown 3 from an earlier session.
+
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 
 | Id | Test | Stage / how | Expected | Status |

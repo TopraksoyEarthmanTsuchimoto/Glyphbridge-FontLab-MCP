@@ -7401,6 +7401,132 @@ print("2331 spies over the refresh cases:", TE_ALL_FORBIDDEN, "| refresh table:"
 _src152 = "\n".join(l for l in src[src.index("# /debug/tryedit (v0.151)"):src.index("# /debug/tryopen (v0.125)")].split("\n") if not l.lstrip().startswith("#"))
 print("2331a static scan: forbidden call syntax:", _re83.findall(r"\.(?:update|save\w*|removeGlyph|smartMove|moveBy|decomposite|ejectTo|activateBuilder|resetMetrics\w*)\s*\(|resetMetrics|font\.update", _src152),
       "| getattr calls:", _re83.findall(r"getattr\([^)]*\)", _src152), "| route documented:", "[&refresh=R]: ONE edit" in src)
+
+# ================= v0.153: POST /glyph/move (move_nodes, the first product edit of an existing outline, P2.2) =================
+# The /debug/tryedit fakes above (TE spies, te2_setup: the sidebearings stay stale until the refresh named in "refresh_works" runs).
+# The shape's transform is a plain fake whose six values come from TE["mode"]["tx"]; "tx_raises" makes reading it fail.
+print("\n==== v0.153 POST /glyph/move (move_nodes) ====")
+class MvTr:
+    def __init__(s, vals): s._v = vals
+    def m11(s): return s._v.get("m11", 1.0)
+    def m12(s): return s._v.get("m12", 0.0)
+    def m21(s): return s._v.get("m21", 0.0)
+    def m22(s): return s._v.get("m22", 1.0)
+    def dx(s): return s._v.get("dx", 0.0)
+    def dy(s): return s._v.get("dy", 0.0)
+def _mv_transform(s):
+    if TE["mode"].get("tx_raises"): raise RuntimeError("transform boom")
+    return MvTr(TE["mode"].get("tx", {}))
+TEShape.transform = property(_mv_transform)
+MVK = ("moved", "nodes_match", "changed", "mismatches", "reason", "coordinates_rounded", "ink_box_refresh", "margins", "synced_with_fontlab", "fontlab_changed_mark")
+def mv_setup(mode=None):
+    te2_setup(mode=dict({"refresh_works": "layer.resetinkbox"}, **(mode or {})))
+    P72["widths"]["edpb"] = 500.0; P72["widths"]["edpa"] = 500.0; P72["widths"]["edps"] = 500.0
+    for g in ("edpb", "edpa"): te_recompute(g)
+def mv(tag, payload, keys=MVK):
+    c, d = sbpost("/glyph/move", payload)
+    TE_ALL_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| edit calls", TE["calls"], "| Update", TE["updates"], "| marks", TE["marks"], "| refresh", TE.get("refresh"))
+    return d
+def M(c, n, f, t): return {"contour": c, "node": n, "from": {"x": f[0], "y": f[1]}, "to": {"x": t[0], "y": t[1]}}
+B1 = M(0, 1, (400, 0), (450, 0))
+mv_setup()
+for tag, body in (("2332a name missing                ", {"moves": [B1]}), ("2332b moves not a list            ", {"name": "edpb", "moves": B1}),
+                  ("2332c no moves                     ", {"name": "edpb", "moves": []}), ("2332d 201 moves                    ", {"name": "edpb", "moves": [B1] * 201}),
+                  ("2332e a move without to            ", {"name": "edpb", "moves": [{"contour": 0, "node": 1, "from": {"x": 400, "y": 0}}]}),
+                  ("2332f a move with an extra key     ", {"name": "edpb", "moves": [dict(B1, dx=5)]}),
+                  ("2332g contour is a bool            ", {"name": "edpb", "moves": [dict(B1, contour=True)]}),
+                  ("2332h node -1                      ", {"name": "edpb", "moves": [dict(B1, node=-1)]}),
+                  ("2332i node 5001                    ", {"name": "edpb", "moves": [dict(B1, node=5001)]}),
+                  ("2332j contour 1.0                  ", {"name": "edpb", "moves": [dict(B1, contour=1.0)]}),
+                  ("2332k from is a list               ", {"name": "edpb", "moves": [dict(B1, **{"from": [400, 0]})]}),
+                  ("2332l to has an extra key          ", {"name": "edpb", "moves": [dict(B1, to={"x": 1, "y": 2, "z": 3})]}),
+                  ("2332m to.x is text                 ", {"name": "edpb", "moves": [dict(B1, to={"x": "450", "y": 0})]}),
+                  ("2332n to.y 20001                   ", {"name": "edpb", "moves": [dict(B1, to={"x": 450, "y": 20001})]}),
+                  ("2332o the same node twice          ", {"name": "edpb", "moves": [B1, M(0, 1, (400, 0), (460, 0))]}),
+                  ("2332p to equals from after rounding", {"name": "edpb", "moves": [M(0, 1, (400, 0), (400.4, -0.5))]})):
+    mv(tag, body, keys=("error",))
+c, d = ns["_route"]("POST", "/glyph/move", b"{not json").partition(b"\r\n\r\n")[0][9:12], None
+print("2332q not JSON                     :", c.decode())
+mv_setup()
+d = mv("2333 one straight move            ", {"name": "edpb", "moves": [B1]})
+print("2333a  after, margins, ink width   :", te_outline({"after": {"contours": d.get("after")}}, "after"), d.get("margins"), d.get("ink_width"), "| repainted", d.get("display_refreshed"))
+print("2333b  no before / expected on success:", "before" not in d, "expected_after" not in d, "| guard kind", ns["_guard_state"](ns["_open_font"]())["glyphs"].get("edpb"))
+mv_setup(mode={"refresh_works": None})
+d = mv("2333c v0.154 no refresh: margins as read", {"name": "edpb", "moves": [B1]}, keys=("moved", "margins", "ink_box_refresh"))
+mv_setup()
+d = mv("2333d rule B on to                ", {"name": "edpb", "moves": [M(0, 1, (400, 0), (450.5, -0.4))]})
+mv_setup()
+d = mv("2333e two moves in two contours   ", {"name": "edpa", "moves": [M(0, 2, (400, 300), (420, 310)), M(1, 0, (50, 50), (40, 40))]}, keys=MVK + ("moves_requested",))
+print("2333f  after                       :", te_outline({"after": {"contours": d.get("after")}}, "after"))
+mv_setup()
+for tag, body in (("2334a a stale from refuses all    ", {"name": "edpb", "moves": [B1, M(0, 2, (400, 301), (450, 300))]}),
+                  ("2334b contour 1 of 1              ", {"name": "edpb", "moves": [M(1, 0, (0, 0), (5, 5))]}),
+                  ("2334c node 4 of 4                 ", {"name": "edpb", "moves": [M(0, 4, (0, 0), (5, 5))]}),
+                  ("2334d from off by 0.002           ", {"name": "edpb", "moves": [M(0, 1, (400.002, 0), (450, 0))]}),
+                  ("2334e from off by 0.0005: accepted", {"name": "edpb", "moves": [M(0, 1, (400.0005, 0), (450, 0))]})):
+    mv_setup(); mv(tag, body)
+mv_setup(); P72["layers"]["edpb"].getContours()[0].rows[1]["y"] = -0.0
+mv("2334f v0.154 a -0.0 prints as 0      ", {"name": "edpb", "moves": [M(0, 1, (401, 0), (450, 0))]}, keys=("moved", "reason"))
+mv_setup()
+for tag, g in (("2335a a Power Brush shape        ", "edpbrush"), ("2335b a component              ", "edpcomp"), ("2335c two shapes                ", "edptwo"),
+               ("2335d no shape                   ", "edpnone"), ("2335e a glyph that does not exist", "edpzz")):
+    mv(tag, {"name": g, "moves": [M(0, 0, (0, 0), (5, 5))]}, keys=("moved", "reason", "shapes", "found"))
+for tag, mode in (("2335f isComposite raises         ", {"composite_raises": 1}), ("2335g the layer counts a component", {"components": 1}),
+                  ("2335h layer.shapes is a tuple     ", {"shapes_tuple": 1}), ("2335i an element offset (dx 10)   ", {"tx": {"dx": 10.0}}),
+                  ("2335j a scale (m11 2)             ", {"tx": {"m11": 2.0}}), ("2335k the transform raises        ", {"tx_raises": 1}),
+                  ("2335l a transform value is text   ", {"tx": {"dy": "0"}}), ("2335m getNodeAt raises           ", {"node_raises": 1})):
+    mv_setup(mode=mode); mv(tag, {"name": "edpb", "moves": [B1]}, keys=("moved", "reason"))
+mv_setup(); _fm_cf = _fm.CurrentFont; _fm.CurrentFont = lambda: None
+mv("2335n no font open               ", {"name": "edpb", "moves": [B1]}, keys=("open", "moved"))
+_fm.CurrentFont = _fm_cf
+# smooth nodes: contour On (0,0) | On smooth (200,0) | Curve (300,0) | Curve (400,100) | On (400,200) | On (0,200)
+def mv_smooth(extra_smooth=()):
+    mv_setup()
+    rows = [P81Row(x=0.0, y=0.0, on=True, smooth=False), P81Row(x=200.0, y=0.0, on=True, smooth=True), P81Row(x=300.0, y=0.0, on=False, smooth=False),
+            P81Row(x=400.0, y=100.0, on=False, smooth=False), P81Row(x=400.0, y=200.0, on=True, smooth=False), P81Row(x=0.0, y=200.0, on=True, smooth=False)]
+    for k in extra_smooth: rows[k]["smooth"] = True
+    ct = te_contour([(0, 0)]); ct.rows = rows
+    P72["layers"]["edps"] = TELayer("test_font", [TEShape([ct])]); TS["edps"] = TsGlyph("edps", [TsLayer(1, 6)])
+mv_smooth(); mv("2336a the smooth node alone, off its line", {"name": "edps", "moves": [M(0, 1, (200, 0), (200, 50))]}, keys=("moved", "reason", "problems"))
+mv_smooth(); mv("2336b a handle, off the line        ", {"name": "edps", "moves": [M(0, 2, (300, 0), (300, 50))]}, keys=("moved", "reason"))
+mv_smooth(); d = mv("2336c along its own line: accepted ", {"name": "edps", "moves": [M(0, 1, (200, 0), (250, 0))]}, keys=("moved", "nodes_match"))
+mv_smooth(); d = mv("2336d with both neighbours       ", {"name": "edps", "moves": [M(0, 0, (0, 0), (0, 50)), M(0, 1, (200, 0), (200, 50)), M(0, 2, (300, 0), (300, 50))]}, keys=("moved", "nodes_match"))
+print("2336e  after                       :", te_outline({"after": {"contours": d.get("after")}}, "after"))
+mv_smooth(extra_smooth=(4,)); mv("2336f a smooth node already off its line", {"name": "edps", "moves": [M(0, 5, (0, 200), (0, 250))]}, keys=("moved", "nodes_match"))
+mv_smooth(extra_smooth=(4,)); mv("2336g ... moved itself, still off ", {"name": "edps", "moves": [M(0, 4, (400, 200), (410, 200))]}, keys=("moved", "nodes_match"))
+mv_smooth(); mv("2336h a smooth node made bad by its neighbour", {"name": "edps", "moves": [M(0, 0, (0, 0), (0, 50))]}, keys=("moved", "reason"))
+for tag, mode, body in (("2337a node.x raises              ", {"set_raises": 1}, [B1]),
+                        ("2337b node.x is ignored          ", {"move_ignored": 1}, [M(0, 1, (400, 0), (450, 10))]),
+                        ("2337c moving sets smooth         ", {"move_smooth": 1}, [B1]),
+                        ("2337d v0.154 resetInkBox never called", {"refresh_raises": 1}, [B1]),
+                        ("2337e v0.154 no refresh: node 0 stays", {"refresh_moves": 1}, [M(0, 2, (400, 300), (420, 300))])):
+    mv_setup(mode=mode); d = mv(tag, {"name": "edpa" if "refresh moves" in tag else "edpb", "moves": body})
+    if not d.get("moved"):
+        print("       before / expected / after  :", te_outline({"x": {"contours": d.get("before")}}, "x"), "|", te_outline({"x": {"contours": d.get("expected_after")}}, "x"), "|", te_outline({"x": {"contours": d.get("after")}}, "x"))
+mv_setup(); _te_rk = TELayer.__dict__["resetInkBox"]; del TELayer.resetInkBox
+d = mv("2337f v0.154 a layer without resetInkBox", {"name": "edpb", "moves": [B1]}, keys=("moved", "ink_box_refresh"))
+TELayer.resetInkBox = _te_rk
+TE_ALL_FORBIDDEN[:] = [f for f in TE_ALL_FORBIDDEN if f != "TELayer.resetInkBox"]     # expected in 2337f only: that case removed the member
+mv_setup(); TS["edpb"] = TsGlyph("edpb", [TsLayer(1, 3)])
+mv("2337g the legacy view lags: not synced", {"name": "edpb", "moves": [B1]}, keys=("moved", "synced_with_fontlab", "fontlab_changed_mark"))
+_srcmv = "\n".join(l for l in src[src.index("# POST /glyph/move (v0.153)"):src.index("# /debug/tryedit (v0.151)")].split("\n") if not l.lstrip().startswith("#"))
+print("2338 spies over the move cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
+print("2338a static scan of move_nodes: forbidden call syntax:",
+      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|clearContours|smartMove|smartSetXY|moveBy|decomposite|ejectTo|activateBuilder|resetMetrics\w*|applyTransform|replaceShape|addContour|removeContour)\s*\(|shapeBuilder|font\.update|getattr\(|resetInkBox", _srcmv),
+      "| every check before the first node.x:", max(_srcmv.index(s) for s in ("problems.append", "_move_shape_identity(shape)", "_move_smooth_bad(", "getNodeAt(ni)")) < _srcmv.index("nd.x = float(tx)"))
+print("2338b route documented:", "POST /glyph/move" in src, "| dispatched:", 'if path == "/glyph/move":' in src, "| mark title:", ns["_MARK_TITLES"].get("move_nodes"),
+      "| guard kind full:", "move_nodes" in ns["_GUARD_FULL_KINDS"], "| activity kind:", ns["_ACT_WRITES"].get("/glyph/move"))
+_ok_reply = {"open": True, "moved": True, "nodes_match": True, "synced_with_fontlab": True}
+for tag, code, reply in (("2338c log, moved           ", 200, _ok_reply), ("2338d log, moved, not synced", 200, dict(_ok_reply, synced_with_fontlab=False)),
+                         ("2338e log, refused         ", 200, {"open": True, "moved": False, "changed": False, "reason": "the request does not match the glyph"}),
+                         ("2338f log, changed, not confirmed", 200, {"open": True, "moved": False, "changed": True, "reason": "the re-read outline does not match the request"}),
+                         ("2338g log, outcome unknown ", 200, {"open": True, "moved": False, "changed": "unknown", "reason": "x"}),
+                         ("2338h log, HTTP 400        ", 400, {"error": "move 0: to equals from"}), ("2338i log, no font open   ", 200, {"open": False})):
+    print(tag, ":", ns["_act_describe_write"]("/glyph/move", {"name": "edpb", "moves": [B1, B1]}, code, reply))
+print("2338j log, one node        :", ns["_act_describe_write"]("/glyph/move", {"name": "edpb", "moves": [B1]}, 200, _ok_reply))
+for _a in ("transform",):
+    if _a in TEShape.__dict__: delattr(TEShape, _a)
 for _a, _v in _te_p72_saved.items():
     if _v is None:
         if _a in P72Mod.__dict__: delattr(P72Mod, _a)

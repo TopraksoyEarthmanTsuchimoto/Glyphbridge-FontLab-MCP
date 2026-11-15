@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.62)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.65)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.62"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.65"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1647,6 +1647,189 @@ _OPEN_CONTOUR_INSTRUCTION = ("Tell the person that the glyph has OPEN contours: 
                              "contours must be closed or turned into outlines in FontLab first. Other export settings were not tested.")
 
 _UNI_NAME =re.compile(r"uni([0-9A-F]{4})")        # uniXXXX: exactly one codepoint, UPPERCASE hex
+# ---- move_nodes (v0.63, listener 0.153): the first edit of an existing outline (P2.2; design approved by the user on 2026-11-15) ----
+_MOVE_MAX = 200
+_MOVE_INDEX_MAX = 5000
+_MOVE_FROM_TOLERANCE = 0.001
+_MOVE_UNCONFIRMED_INSTRUCTION = (
+    "The re-read outline does NOT match the request, so the move is not confirmed, and the glyph may now be partly moved (see mismatches, "
+    "before and after). Tell the person what happened. Do NOT move anything back on your own: only if the person agrees, call move_nodes "
+    "again with the positions in 'after' as from and the ones in 'before' as to, and check that reply too.")
+_MOVE_FONTLAB_LAG_NOTE = (
+    "FontLab's own sidebearing numbers for this glyph may still show the old values for a while; the outline itself is moved, and the "
+    "values given here are computed from its nodes.")
+_MOVE_FONTLAB_LAG_INSTRUCTION = (
+    "FontLab's own sidebearings and ink box for this glyph have not caught up with the move yet (fontlab_sidebearings_current is false; "
+    "after an API node move they lag in FontLab 8.9.5, and no call was found that refreshes them). left, right and ink_width are computed "
+    "from the re-read nodes. Tell the person person_note once, in plain words; give no steps to refresh FontLab's display.")
+# v0.65 (live 1023): the mark puts the move on FontLab's undo list, but choosing Edit > Undo left the nodes moved.
+_MOVE_UNDO_NOTE = (
+    "FontLab's Edit > Undo lists this change as \"Glyphbridge Move Nodes\", but in testing choosing it did not move the nodes back. "
+    "To take a move back, ask for the nodes to be moved back to where they were.")
+_MOVE_UNDO_INSTRUCTION = "Tell the person undo_note once per conversation."
+
+
+def _add_undo_note(result: dict) -> None:
+    """v0.65: undo_note on a move_nodes reply whose outline changed, and one sentence at the end of its agent_instruction."""
+    result["undo_note"] = _MOVE_UNDO_NOTE
+    text = result.get("agent_instruction")
+    result["agent_instruction"] = (text + " " + _MOVE_UNDO_INSTRUCTION) if isinstance(text, str) and text else _MOVE_UNDO_INSTRUCTION
+
+
+def _rule_b(value: float) -> float:
+    """Rule B, as the listener rounds: the nearest whole unit, a half always rounds up."""
+    import math as _math
+    return float(_math.floor(value + 0.5))
+
+
+def _check_moves(moves: Any) -> list:
+    """The moves as clean dicts {contour, node, from: {x, y}, to: {x, y}}, or a ToolError before anything is sent."""
+    if not isinstance(moves, (list, tuple)) or not (1 <= len(moves) <= _MOVE_MAX):
+        raise ToolError(f"moves must be a list of 1 to {_MOVE_MAX} moves.")
+    clean, seen = [], set()
+    for i, mv in enumerate(moves):
+        if not isinstance(mv, dict) or set(mv) != {"contour", "node", "from", "to"}:
+            raise ToolError(f'move {i} must be an object with exactly "contour", "node", "from" and "to".')
+        for key in ("contour", "node"):
+            v = mv[key]
+            if isinstance(v, bool) or not isinstance(v, int) or not (0 <= v <= _MOVE_INDEX_MAX):
+                raise ToolError(f"move {i}: {key} must be a whole number from 0 to {_MOVE_INDEX_MAX} (the numbering of get_glyph_outline).")
+        frm = _check_path_xy(mv["from"], f"move {i} from")
+        to = _check_path_xy(mv["to"], f"move {i} to")
+        where = (mv["contour"], mv["node"])
+        if where in seen:
+            raise ToolError(f"move {i}: contour {where[0]} node {where[1]} appears twice; give each node once.")
+        seen.add(where)
+        if (abs(_rule_b(to["x"]) - frm["x"]) <= _MOVE_FROM_TOLERANCE and abs(_rule_b(to["y"]) - frm["y"]) <= _MOVE_FROM_TOLERANCE):
+            raise ToolError(f"move {i}: to equals from (after rounding to whole units), so nothing would move.")
+        clean.append({"contour": mv["contour"], "node": mv["node"], "from": frm, "to": to})
+    return clean
+
+
+def _moved_extent(contours: Any) -> tuple:
+    """((left, right), None) of the re-read outline, exact curve extents included, or (None, reason)."""
+    if not isinstance(contours, list):
+        return None, "the outline after the move is not in the reply"
+    xs = []
+    for ci, c in enumerate(contours):
+        nodes = c.get("nodes") if isinstance(c, dict) else None
+        if not isinstance(nodes, list):
+            return None, f"contour {ci} is not readable in the reply"
+        xs.extend(n["x"] for n in nodes if n.get("kind") == "On")
+        if any(n.get("kind") != "On" for n in nodes):
+            parsed = _contour_pieces([{"x": n["x"], "y": n["y"], "on": n.get("kind") == "On", "curve": n.get("kind") == "Curve"} for n in nodes],
+                                     c.get("closed"))
+            if parsed is None:
+                return None, f"contour {ci}: its curve segments could not be told apart, so its extent was not computed"
+            for pc in parsed[1]:
+                if pc[0] == "C":
+                    xs.extend(p[0] for p in _cubic_extremes(pc[1], pc[2], pc[3], pc[4]))
+                elif pc[0] == "Q":
+                    xs.extend(p[0] for p in [pc[1], pc[3]] + _quad_extremes(pc[1], pc[2], pc[3]))
+    if not xs:
+        return None, "the outline has no on-curve node"
+    return (min(xs), max(xs)), None
+
+
+def _margin_number(margins: Any, key: str) -> Any:
+    v = margins.get(key) if isinstance(margins, dict) else None
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _move_view(contours: Any) -> Any:
+    """The listener's snapshot contours in the form get_glyph_outline uses (index, closed, node_list), or None."""
+    if not isinstance(contours, list):
+        return None
+    out = []
+    for ci, c in enumerate(contours):
+        nodes = c.get("nodes") if isinstance(c, dict) else None
+        if not isinstance(nodes, list):
+            return None
+        out.append({"index": ci, "closed": c.get("closed"),
+                    "node_list": [{"x": _tidy_number(n.get("x")), "y": _tidy_number(n.get("y")), "kind": n.get("kind"),
+                                   "smooth": bool(n.get("smooth"))} for n in nodes if isinstance(n, dict)]})
+    return out
+
+
+def write_glyph_moves(name: str, moves: Any) -> dict:
+    clean = name.strip() if isinstance(name, str) else ""
+    if not clean:
+        raise ToolError("Glyph name must not be empty.")
+    checked = _check_moves(moves)
+    _require_listener((0, 153), "move_nodes")
+
+    data = _write_post("/glyph/move", {"name": clean, "moves": checked})
+
+    if not data.get("open"):
+        raise ToolError(NO_FONT)
+    if data.get("found") is False:
+        raise ToolError(f"No glyph named '{clean}' was found.")
+    changed = data.get("changed")
+    rounded = _rounded_list(data.get("coordinates_rounded"))
+    done = [{"contour": m["contour"], "node": m["node"], "from": {k: _tidy_number(v) for k, v in m["from"].items()},
+             "to": {k: _tidy_number(_rule_b(v)) for k, v in m["to"].items()}} for m in checked]
+    if not data.get("moved"):
+        reason = data.get("reason") or "unknown reason"
+        if changed is not True and changed != "unknown":
+            raise ToolError(f"Glyph '{clean}': nothing was moved: {reason}")
+        result = {"name": clean, "moved": False, "verified": False, "nodes_match": False, "changed": changed, "reason": reason,
+                  "moves": done, "coordinates_rounded": rounded,
+                  "mismatches": [m for m in data.get("mismatches") or [] if isinstance(m, str)][:20],
+                  "before": _move_view(data.get("before")), "after": _move_view(data.get("after")),
+                  "agent_instruction": _MOVE_UNCONFIRMED_INSTRUCTION}
+        _add_rounding_note(result)
+        _add_guard_fields(result, data)
+        if changed is True:
+            _mark_modified(result, True)
+            _add_undo_note(result)
+        else:
+            _note_change(sure=False)
+            result["font_modified"] = "unknown"
+            result["agent_instruction"] += " " + _SAVE_INSTRUCTION
+        return result
+
+    # v0.64 (live 1001-1015): FontLab's own sidebearings and ink box lag after an API node move and no call refreshes them, so the
+    # re-read nodes are the confirmation and the sidebearings are computed from them; FontLab's values are shown beside them.
+    margins = data.get("margins")
+    lsb, rsb, adv = (_margin_number(margins, k) for k in ("lsb", "rsb", "advance"))
+    box, why = _moved_extent(data.get("after"))
+    result = {
+        "name": clean,
+        "moved": True,
+        "verified": data.get("nodes_match") is True,
+        "nodes_match": data.get("nodes_match") is True,
+        "moves": done,
+        "coordinates_rounded": rounded,
+        "left": None, "right": None, "advance_width": _tidy_number(adv), "ink_width": None,
+        "sidebearings_source": "computed from the re-read nodes (exact curve extents) and FontLab's advance width",
+        "fontlab_sidebearings": {"left": _tidy_number(lsb), "right": _tidy_number(rsb), "advance_width": _tidy_number(adv)},
+        "fontlab_sidebearings_current": "unknown",
+        "note": ("Every node of the re-read layer is where the request put it, and every other node, node kind and smooth flag is unchanged. "
+                 "An on-curve node moved alone did NOT take its control points along. The advance width is unchanged; the left and right "
+                 "sidebearings follow the outline."),
+    }
+    if box is None:
+        result["sidebearings_note"] = f"The sidebearings could not be computed: {why}."
+    else:
+        tol = 0.01 if all(n.get("kind") == "On" for c in data["after"] for n in c["nodes"]) else _CURVE_BOX_TOLERANCE
+        result["left"] = _tidy_number(round(box[0], 4))
+        result["ink_width"] = _tidy_number(round(box[1] - box[0], 4))
+        if adv is not None:
+            result["right"] = _tidy_number(round(adv - box[1], 4))
+        if lsb is not None and rsb is not None and adv is not None:
+            current = abs(lsb - box[0]) < tol and abs((adv - rsb) - box[1]) < tol
+            result["fontlab_sidebearings_current"] = current
+            if not current:
+                result["person_note"] = _MOVE_FONTLAB_LAG_NOTE
+                result["agent_instruction"] = _MOVE_FONTLAB_LAG_INSTRUCTION
+    # v0.65: the listener's display_note is not forwarded: it gives repaint steps (DECISIONS 2026-11-13); person_note covers the lag.
+    _add_rounding_note(result)
+    _add_guard_fields(result, data)
+    _mark_modified(result, True)
+    _add_undo_note(result)
+    return result
+
+
 _U_NAME = re.compile(r"u([0-9A-F]{4,6})")          # uXXXX .. uXXXXXX
 _UNI_SEQUENCE = re.compile(r"uni(?:[0-9A-F]{4})+")  # uni00410042: valid, but a SEQUENCE (ligature), not one codepoint
 
@@ -3569,6 +3752,49 @@ def draw_path(name: str, contours: list[list[dict[str, Any]] | dict[str, Any]], 
     """
     _note_client(ctx)
     return _with_font(write_glyph_path, name, contours)
+
+
+@_tool()
+def move_nodes(name: str, moves: list[dict[str, Any]], ctx: Context | None = None) -> dict[str, Any]:
+    """Move existing nodes of one glyph in the font currently open in FontLab 8: on-curve points and curve control points alike.
+
+    Read the glyph with get_glyph_outline FIRST: its contours[].index and the position of a node in node_list are the numbers used
+    here (control points are nodes too, so they count). `moves` is a list of 1 to 200 moves, each
+    {"contour": C, "node": N, "from": {"x": number, "y": number}, "to": {"x": number, "y": number}}:
+      - "from" is where the node is NOW, exactly as get_glyph_outline reported it. If any node is somewhere else (the person may have
+        edited the glyph since your last read), the whole call is refused and NOTHING moves: read the glyph again and retry.
+      - "to" is its new position, in font units, y up. Each node may appear only once per call.
+    Example: move the second node of contour 0 from (300, 0) to (350, 0):
+    [{"contour": 0, "node": 1, "from": {"x": 300, "y": 0}, "to": {"x": 350, "y": 0}}]
+
+    IMPORTANT: moving an on-curve node does NOT take its control points along (FontLab's mouse does, this tool does not). To move a
+    curve point together with its handles, give the handles their own moves in the same call. A move that would leave a smooth node's
+    two neighbours off one straight line through it (more than 2 degrees) is refused and nothing moves; move its handles in the same call.
+
+    Only a glyph with exactly ONE plain shape is supported for now: a glyph with several shapes, a component, a Power Brush or other
+    composite shape, or an element transform (position, scale, rotation set with FontLab's Element tool) is refused and nothing moves.
+
+    Every check is made before the first node moves. Afterwards every node of the glyph is read back: success (moved: true,
+    verified: true, nodes_match: true) means each moved node is at "to" and every other node, node kind and smooth flag is unchanged.
+    The advance width is not changed. left, right and ink_width are COMPUTED from the re-read nodes (exact curve extents included)
+    and FontLab's advance width: after a node move FontLab's own sidebearings and ink box lag for a while (seen live), so they are
+    reported apart in fontlab_sidebearings with fontlab_sidebearings_current. When they lag, tell the person person_note once.
+
+    RULE B (whole units): every "to" coordinate is rounded to the nearest whole unit (a half rounds up); the reply lists each changed one
+    in coordinates_rounded. "from" is compared as given.
+
+    If the re-read does NOT match (moved: false with mismatches, before and after), the glyph may be partly moved. Nothing is restored
+    automatically: tell the person, and move nodes back only with their agreement.
+
+    FontLab's Edit > Undo does not take a move back (seen live once); moving the nodes back with move_nodes does. When the outline
+    changed, the reply's undo_note says so in plain words: tell the person once per conversation.
+
+    Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
+    (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
+    Needs listener 0.153.
+    """
+    _note_client(ctx)
+    return _with_font(write_glyph_moves, name, moves)
 
 
 @_tool()

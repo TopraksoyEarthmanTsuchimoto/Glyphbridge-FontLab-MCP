@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.152)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.154)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -95,6 +95,9 @@ Routes (GET unless marked POST):
     POST /glyph/path            {"name", "contours"}: contours with cubic curves (c1 / c2, smooth) into an
                                 empty glyph; whole units; verified node by node; a contour given as
                                 {"points": [...], "closed": false} is drawn OPEN (v0.126)
+    POST /glyph/move            {"name", "moves": [{"contour", "node", "from": {x, y}, "to": {x, y}}]} (v0.153):
+                                moves existing nodes of a glyph with ONE plain shape; every "from" must
+                                match first; whole units; verified node by node
 
   Kerning (never the whole table)
     POST /kerning/set           {"pairs": [[left, right, value], ...]} (v0.124): glyph : glyph pairs into the current
@@ -207,7 +210,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.152"
+VERSION = "0.154"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -505,7 +508,7 @@ _MARK_CHANGED = True    # v0.132: tell FontLab that a verified, synced tool writ
 _REFRESH_KERNING_PANEL = True    # v0.136: ask FontLab to refresh its KERNING panel after a kerning write that changed an entry (live 738, 741-743); False switches it off
 _MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge width", "sidebearings": "Glyphbridge sidebearings",
                 "draw_polygon": "Glyphbridge polygon", "draw_path": "Glyphbridge path", "unicode": "Glyphbridge Unicode", "delete": "Glyphbridge delete",
-                "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit"}
+                "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit", "move_nodes": "Glyphbridge move nodes"}
 _MARK_DELETE_MAX_TRIES = 20    # v0.133: how many surviving glyphs a delete's mark may try before it says none could be notified; v0.134: also a kerning write's mark
 _SYNCED_NOTE = ("Glyphbridge asked FontLab to sync this glyph right after the change and FontLab's legacy view now matches the modern layer, so the "
                 "change is durable against the display refresh of create_glyph, delete_glyph, set_glyph_unicode and the legacy width route. "
@@ -728,7 +731,7 @@ def _guard_mark(font, name, how, result, no_mark=None):
     _record_changed_mark(font, name, how, result, no_mark)
 
 
-_GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created")
+_GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created", "move_nodes")   # v0.153: move_nodes keeps the node count, so the full check cannot see a lost move
 _GUARD_LIGHT_KINDS = ("width", "sidebearings")
 
 
@@ -1912,6 +1915,240 @@ def draw_path(name, contours, rounded=None, closed_flags=None):
         elif nodes_match is None:
             why += f" (the outline could not be read back: {modern.get('error')})"
         result["reason"] = why
+    return result
+
+
+# --------------------------------------------------------------------------
+# POST /glyph/move (v0.153) - move_nodes, the first edit of an EXISTING outline (P2.2, required by the user on 2026-11-14; research
+# ED2 964-983 and B2 989-1000 with /debug/tryedit; design approved by the user on 2026-11-15). Each move names contour C and node N
+# in the numbering of get_glyph_outline's modern-layer reply (layer.getContours(), getNodeAt; control points are nodes too), the
+# position the node must have NOW ("from") and its new one ("to", rule B, applied by the route). The glyph must hold exactly ONE
+# plain shape (isComponent False, isComposite False: no Power Brush, F1), no components, and that shape's transform must read the
+# identity, so a stored node position is the position FontLab draws. EVERY check runs before the first node is touched: a "from"
+# that differs from the node refuses the whole call, and so does a move that leaves a smooth on-curve node's two neighbours off one
+# straight line (draw_path's 2-degree check; a smooth node that was already off it before the call does not count).
+# Then node.x = to.x, node.y = to.y for every move (967), the re-read compared node by node with the expected outline (every other
+# node, every kind and every smooth flag unchanged), and _guard_mark: Update(<flGlyph>), the sync check, the changed mark. By the
+# user's decision the font is marked whenever the outline changed, confirmed or not, and nothing is restored automatically.
+# v0.154: no refresh call any more. FontLab's own metrics (getLSB / getRSB and layer.inkBox()) lag after an API node move, and neither
+# layer.resetInkBox() nor layer.update() brought them up to date in live 1003-1006 (993 and 997 did not reproduce); the "margins" in
+# the reply are FontLab's values as read, and the server computes the sidebearings from the re-read nodes.
+# Never called here: font.update(), save, moveBy, smartMove, smartSetXY, resetMetrics*, decomposite, ejectTo, shapeBuilder;
+# no subscript or iteration of a native object.
+# --------------------------------------------------------------------------
+
+_MOVE_MAX = 200                 # moves per call
+_MOVE_INDEX_MAX = 5000          # highest contour or node index accepted by the route
+_MOVE_FROM_TOLERANCE = 0.001    # font units: "from" against the node's current position
+_MOVE_IDENTITY = {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": 0.0, "dy": 0.0}
+
+
+def _mv_text(v):
+    """A coordinate for a message: -0.0 prints as 0 (v0.154; live 1002 printed (350, -0))."""
+    return f"{float(v) + 0.0:g}"
+
+
+def _move_snapshot(name):
+    """{"contours": [{"closed", "nodes": [{x, y, kind, smooth}]}], "margins"?} of the modern layer, or {"error"}. Never raises."""
+    modern = _read_modern_outline(name)
+    if modern.get("available") is not True:
+        return {"error": modern.get("error") or "the outline could not be read"}
+    out = []
+    for c in modern.get("contours") or []:
+        out.append({"closed": c.get("closed"), "nodes": [{"x": n.get("x"), "y": n.get("y"), "kind": "On" if n.get("isOn") else (
+            "Curve" if n.get("isCurve") else "Off"), "smooth": n.get("smooth")} for n in (c.get("nodes") or [])]})
+    return {"contours": out}
+
+
+def _move_shape_identity(shape):
+    """None when the shape's transform reads the identity, otherwise the reason the glyph is refused. Never raises."""
+    tr, err = _tl_call(lambda: shape.transform)
+    if err is not None or tr is None:
+        return f"the shape's transform could not be read ({err or 'None'}): nothing was moved"
+    found = {}
+    for key in _MOVE_IDENTITY:
+        v, err = _tl_call(lambda k=key: _call0(tr, k))
+        v = _rm_plain(v)
+        if err is not None or isinstance(v, bool) or not isinstance(v, (int, float)):
+            return f"the shape's transform could not be read ({key}: {err or repr(v)}): nothing was moved"
+        found[key] = float(v)
+    if any(abs(found[k] - want) > 1e-9 for k, want in _MOVE_IDENTITY.items()):
+        return ("the glyph's shape carries an element transform (" + ", ".join(f"{k} {_mv_text(found[k])}" for k in _MOVE_IDENTITY) + "), so its stored "
+                "node positions are not the positions FontLab draws; move_nodes does not support such a glyph yet: nothing was moved")
+    return None
+
+
+def _move_smooth_bad(nodes, closed):
+    """The indices of the smooth on-curve nodes whose two neighbours do NOT lie on one straight line through them (draw_path's rule,
+    _PATH_SMOOTH_TOLERANCE_DEG), a neighbour on top of the node included; the ends of an open contour count as bad when smooth."""
+    import math as _math
+    bad = set()
+    n = len(nodes)
+    limit = _math.sin(_math.radians(_PATH_SMOOTH_TOLERANCE_DEG))
+    for k, nd in enumerate(nodes):
+        if not (nd.get("kind") == "On" and nd.get("smooth")):
+            continue
+        if n < 3 or (closed is not True and k in (0, n - 1)):
+            bad.add(k)
+            continue
+        a, b = nodes[(k - 1) % n], nodes[(k + 1) % n]
+        ax, ay = a["x"] - nd["x"], a["y"] - nd["y"]
+        bx, by = b["x"] - nd["x"], b["y"] - nd["y"]
+        la, lb = _math.hypot(ax, ay), _math.hypot(bx, by)
+        if la == 0 or lb == 0:
+            bad.add(k)
+            continue
+        if (ax * bx + ay * by) / (la * lb) >= 0 or abs((ax * by - ay * bx) / (la * lb)) > limit:
+            bad.add(k)
+    return bad
+
+
+def _move_compare(got, want):
+    """Sentences for every difference between two snapshots: contour count, closed flags, node count, position, kind and smooth flag."""
+    if len(got) != len(want):
+        return [f"the layer reads {len(got)} contour(s), {len(want)} expected"]
+    bad = []
+    for ci, (g, e) in enumerate(zip(got, want)):
+        if g.get("closed") is not e.get("closed"):
+            bad.append(f"contour {ci}: closed reads {g.get('closed')!r}, expected {e.get('closed')!r}")
+        gn, en = g.get("nodes") or [], e.get("nodes") or []
+        if len(gn) != len(en):
+            bad.append(f"contour {ci}: {len(gn)} nodes read, {len(en)} expected")
+            continue
+        for ni, (a, b) in enumerate(zip(gn, en)):
+            if abs(a["x"] - b["x"]) > 0.001 or abs(a["y"] - b["y"]) > 0.001:
+                bad.append(f"contour {ci} node {ni}: position ({a['x']}, {a['y']}) instead of ({b['x']}, {b['y']})")
+            if a.get("kind") != b.get("kind"):
+                bad.append(f"contour {ci} node {ni}: kind {a.get('kind')} instead of {b.get('kind')}")
+            if bool(a.get("smooth")) != bool(b.get("smooth")):
+                bad.append(f"contour {ci} node {ni}: smooth reads {a.get('smooth')!r}, was {b.get('smooth')!r}")
+    return bad
+
+
+def move_nodes(name, moves, rounded=None):
+    """Move existing nodes of ONE plain glyph. `moves`: dicts {contour, node, from: (x, y), to: (x, y)} with whole-number "to" (rule B
+    was applied by the route), no node twice. Every check runs before anything is touched; see the section comment. Never saves."""
+    base = {"open": True, "name": name, "moved": False, "route": "modern", "moves_requested": len(moves),
+            "coordinates_rounded": list(rounded) if rounded else []}
+    ctx, refusal = _modern_edit_target(name)
+    if ctx is None:
+        out = _public_refusal(refusal)
+        out.pop("set", None)
+        out["moved"] = False
+        return out
+    w, font = ctx["w"], ctx["font"]
+    state, layer = _tryshape_modern_state(w)
+    base["state_before"] = state
+    if layer is None:
+        return dict(base, reason="the glyph has no modern active layer: nothing was moved")
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list:
+        return dict(base, reason=f"layer.shapes is not a plain list ({err or type(shapes).__name__}): nothing was moved")
+    if len(shapes) != 1:
+        return dict(base, shapes=len(shapes), reason=(f"the glyph has {len(shapes)} shapes; move_nodes edits a glyph with exactly one plain "
+                                                       "shape (several shapes are not supported yet): nothing was moved"))
+    shape = shapes[0]
+    for attr in ("isComponent", "isComposite"):
+        v, err = _tl_call(lambda a=attr: _call0(shape, a))
+        if err is not None or v is not False:
+            return dict(base, reason=(f"the shape's {attr} reads {v!r}{' (' + err + ')' if err else ''}: only a plain shape is edited, never a "
+                                      "component or a Power Brush or other composite shape: nothing was moved"))
+    if state.get("components") != 0:
+        return dict(base, reason=f"the layer reads {state.get('components')!r} components: nothing was moved")
+    why = _move_shape_identity(shape)
+    if why is not None:
+        return dict(base, reason=why)
+    before = _move_snapshot(name)
+    if "error" in before:
+        return dict(base, reason=f"the outline could not be read before the move ({before['error']}): nothing was moved")
+    contours, err = _tl_call(lambda: layer.getContours())
+    if err is not None or type(contours) not in (list, tuple):
+        return dict(base, reason=f"layer.getContours() is not a plain list ({err or type(contours).__name__}): nothing was moved")
+    if len(contours) != len(before["contours"]):
+        return dict(base, reason="layer.getContours() disagrees with the outline just read: nothing was moved")
+    want = [dict(c, nodes=[dict(n) for n in c["nodes"]]) for c in before["contours"]]
+    problems = []
+    for i, mv in enumerate(moves):
+        ci, ni = mv["contour"], mv["node"]
+        if ci >= len(before["contours"]):
+            problems.append(f"move {i}: contour {ci} does not exist (the glyph has {len(before['contours'])})")
+            continue
+        nodes = before["contours"][ci]["nodes"]
+        if ni >= len(nodes):
+            problems.append(f"move {i}: node {ni} does not exist (contour {ci} has {len(nodes)})")
+            continue
+        cur = nodes[ni]
+        fx, fy = mv["from"]
+        if abs(cur["x"] - fx) > _MOVE_FROM_TOLERANCE or abs(cur["y"] - fy) > _MOVE_FROM_TOLERANCE:
+            problems.append(f"move {i}: contour {ci} node {ni} is at ({_mv_text(cur['x'])}, {_mv_text(cur['y'])}), not at the given from ({_mv_text(fx)}, {_mv_text(fy)})")
+            continue
+        want[ci]["nodes"][ni]["x"], want[ci]["nodes"][ni]["y"] = float(mv["to"][0]), float(mv["to"][1])
+    if problems:
+        return dict(base, problems=problems[:20], reason="the request does not match the glyph as it is now, nothing was moved: " + " | ".join(problems[:6]))
+    for ci in sorted({mv["contour"] for mv in moves}):
+        old_bad = _move_smooth_bad(before["contours"][ci]["nodes"], before["contours"][ci]["closed"])
+        for k in sorted(_move_smooth_bad(want[ci]["nodes"], want[ci]["closed"]) - old_bad):
+            nd = want[ci]["nodes"][k]
+            problems.append(f"contour {ci} node {k}, a smooth node (at ({_mv_text(nd['x'])}, {_mv_text(nd['y'])}) after the moves), would have its two neighbours "
+                            f"off one straight line through it (more than {_PATH_SMOOTH_TOLERANCE_DEG:g} degrees): move the node and its "
+                            "neighbours together in the same call")
+    if problems:
+        return dict(base, problems=problems[:20], reason="the moves would break a smooth node, nothing was moved: " + " | ".join(problems[:6]))
+    natives = []
+    for i, mv in enumerate(moves):
+        ci, ni = mv["contour"], mv["node"]
+        target = contours[ci]
+        count, err = _tl_call(lambda: _call0(target, "nodesCount"))
+        if err is not None or not isinstance(count, int) or isinstance(count, bool) or count != len(before["contours"][ci]["nodes"]):
+            return dict(base, reason=f"move {i}: nodesCount of contour {ci} reads {count!r}{' (' + err + ')' if err else ''}, not the count just read: nothing was moved")
+        nd, err = _tl_call(lambda: target.getNodeAt(ni))
+        if err is not None or nd is None:
+            return dict(base, reason=f"move {i}: getNodeAt({ni}) failed ({err or 'returned None'}): nothing was moved")
+        x0, ex = _tl_call(lambda: _rm_plain(_call0(nd, "x")))
+        y0, ey = _tl_call(lambda: _rm_plain(_call0(nd, "y")))
+        if ex is not None or ey is not None or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in (x0, y0)) or (
+                abs(x0 - mv["from"][0]) > _MOVE_FROM_TOLERANCE or abs(y0 - mv["from"][1]) > _MOVE_FROM_TOLERANCE):
+            return dict(base, reason=f"move {i}: the node object reads ({x0!r}, {y0!r}), not the given from: nothing was moved")
+        natives.append((i, nd, mv["to"]))
+    touched, step = False, "the first move"
+    try:
+        for i, nd, (tx, ty) in natives:
+            step, touched = f"move {i}: node.x = {_mv_text(tx)}", True
+            nd.x = float(tx)
+            step = f"move {i}: node.y = {_mv_text(ty)}"
+            nd.y = float(ty)
+    except Exception as exc:
+        base["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
+    result = dict(base)
+    if touched:
+        result["display_refreshed"] = _repaint_viewport()
+        result["display_note"] = _DISPLAY_NOTE
+    after_state, _l = _tryshape_modern_state(w)
+    result["state_after"] = after_state
+    after = _move_snapshot(name)
+    if "error" in after:
+        result["changed"] = "unknown" if touched else False
+        result["mismatches"] = [f"the outline could not be read after the move ({after['error']})"]
+    else:
+        result["after"] = after["contours"]
+        result["changed"] = after["contours"] != before["contours"]
+        result["mismatches"] = _move_compare(after["contours"], want)
+        if after_state.get("shapes") != 1:
+            result["mismatches"].append(f"the layer reads {after_state.get('shapes')!r} shapes after the move, 1 expected")
+    result["nodes_match"] = not result["mismatches"] and "error" not in result
+    result["moved"] = bool(result["nodes_match"])
+    if not result["moved"]:
+        result["before"] = before["contours"]
+        result["expected_after"] = want
+        why = result.get("error") or "the re-read outline does not match the request"
+        result["reason"] = why + (": " + " | ".join(result["mismatches"][:6]) if result["mismatches"] else "")
+    if result["changed"] is not False:
+        _guard_mark(font, name, "move_nodes", result, no_mark=None)
+    if ctx["tr"] is not None:
+        m, _err = _modern_margins_read(w, ctx["tr"])
+        if m is not None:
+            result["margins"] = m
+            result["ink_width"] = m["advance"] - m["lsb"] - m["rsb"]
     return result
 
 
@@ -10270,6 +10507,53 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": str(exc)})
 
+        if path == "/glyph/move":            # v0.153: move_nodes
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            name = payload.get("name") if isinstance(payload, dict) else None
+            moves = payload.get("moves") if isinstance(payload, dict) else None
+            if not isinstance(name, str) or not name.strip():
+                return _build_response(400, {"error": '"name" must be a non-empty string'})
+            if not isinstance(moves, list) or not (1 <= len(moves) <= _MOVE_MAX):
+                return _build_response(400, {"error": f'"moves" must be a list of 1 to {_MOVE_MAX} moves'})
+
+            def _mv_num(v):
+                return not (isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or abs(v) > 20000)
+
+            def _mv_index(v):
+                return isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= _MOVE_INDEX_MAX
+
+            clean_moves, rounded, seen = [], [], set()
+            for i, mv in enumerate(moves):
+                if not isinstance(mv, dict) or set(mv) != {"contour", "node", "from", "to"}:
+                    return _build_response(400, {"error": f'move {i}: a move is an object with exactly "contour", "node", "from" and "to"'})
+                if not _mv_index(mv["contour"]) or not _mv_index(mv["node"]):
+                    return _build_response(400, {"error": f"move {i}: contour and node must be whole numbers from 0 to {_MOVE_INDEX_MAX}"})
+                pair = {}
+                for key in ("from", "to"):
+                    xy = mv[key]
+                    if not isinstance(xy, dict) or set(xy) != {"x", "y"} or not _mv_num(xy["x"]) or not _mv_num(xy["y"]):
+                        return _build_response(400, {"error": f"move {i}: {key} must be an {{x, y}} object with numbers between -20000 and 20000"})
+                    pair[key] = (float(xy["x"]), float(xy["y"]))
+                if (mv["contour"], mv["node"]) in seen:
+                    return _build_response(400, {"error": f"move {i}: contour {mv['contour']} node {mv['node']} is moved twice in this request"})
+                seen.add((mv["contour"], mv["node"]))
+                to = []
+                for j, field in enumerate(("x", "y")):
+                    used = _round_half_up(pair["to"][j])
+                    if used != pair["to"][j]:
+                        rounded.append({"move": i, "field": "to." + field, "requested": pair["to"][j], "used": used})
+                    to.append(used)
+                if abs(to[0] - pair["from"][0]) <= _MOVE_FROM_TOLERANCE and abs(to[1] - pair["from"][1]) <= _MOVE_FROM_TOLERANCE:
+                    return _build_response(400, {"error": f"move {i}: to equals from (after rounding to whole units): nothing would move"})
+                clean_moves.append({"contour": mv["contour"], "node": mv["node"], "from": pair["from"], "to": (to[0], to[1])})
+            try:
+                return _build_response(200, move_nodes(name.strip(), clean_moves, rounded))
+            except Exception as exc:
+                return _build_response(500, {"error": str(exc)})
+
         if path == "/glyph/sidebearings":
             try:
                 payload = json.loads(body.decode("utf-8")) if body else {}
@@ -10347,7 +10631,8 @@ _ACT = {"kind": None, "shown": 0, "more": 0, "reads": {}, "no_font": {}, "kern_p
 
 _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/width": "width",
                "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/glyph/polygon": "draw",
-               "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning", "/font/create": "create font"}
+               "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning", "/font/create": "create font",
+               "/glyph/move": "move"}
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
               "/font/current": "font info", "/font/notdef": ".notdef check", "/font/notdef/warn": ".notdef check",
@@ -10504,6 +10789,13 @@ def _act_describe_write(path, payload, code, reply):
         if reply.get("set") is True:
             return f"{head}: {_act_codepoint(reply.get('before'))} -> {_act_codepoint(reply.get('after'))} (verified)", True
         return f"NOT DONE {head}: {why}", False
+    if kind == "move":            # v0.153: the count from the request, success from the reply
+        moves = payload.get("moves") if isinstance(payload, dict) else None
+        size = f"{len(moves)} node{'' if len(moves) == 1 else 's'}" if isinstance(moves, list) else "size unreadable"
+        if reply.get("moved") is True:
+            return f"{head}: {size} (verified, nodes match{sync})", not unsynced
+        changed = "; the glyph DID change" if reply.get("changed") not in (False, None) else ""
+        return f"NOT DONE {head}: {why}{changed}", False
     # draw (/glyph/polygon or /glyph/path): sizes from the request, success from the reply
     payload = payload if isinstance(payload, dict) else {}
     lists = payload.get("contours") if payload.get("contours") is not None else [payload.get("points")]

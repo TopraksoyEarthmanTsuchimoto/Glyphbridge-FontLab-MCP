@@ -55,8 +55,8 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 28 | Draw an open contour | PARTLY: `draw_path` with `"closed": false` (listener 0.126 / server 0.47) draws open straight and cubic contours, alone or with closed ones, `verified` (586–603); unchanged after a save and reopen (755–764); FontLab's export drops them silently (779–791). Open: quadratic, other export settings ([topics/geometry.md](topics/geometry.md) §8g) |
 | 82 | `create_glyph` in a font with components, then Add Component on the new glyph | PARTLY: FontLab crashes on a glyph with no layer (612–618); fixed for one master in 0.127 / 0.48 (620, 767: two runs); `layer_note` seen live (691a); open: multi-master ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §9) |
 | 83 | Edit a component's source: do the glyphs using it follow? | PARTLY: GUI edits yes (639, 643, 652, 655); `set_glyph_sidebearings` one of five (638, 638b, 640, 648, 653); a missed glyph reads `unverified` since 0.130 / 0.50 (651, 653; [topics/reading.md](topics/reading.md)); placing a component by tool: not built |
-| 30 | Several separate shapes in one glyph | TODO (P2.2) |
-| 31 | Draw into, or edit, an existing outline | not supported; decide the behaviour first (P2.2) |
+| 30 | Several separate shapes in one glyph | TODO (P2.2); `move_nodes` refuses them (stub only); FontLab's Rectangle tool made a second contour, not a shape (1022a) |
+| 31 | Draw into, or edit, an existing outline | PARTLY: `move_nodes` (0.154 / 0.64) moves nodes and control points `verified`, refuses a lone smooth node and a component (1016–1022); Edit > Undo does not revert it (1023). Open: adding, removing and redrawing contours, Power Brush glyphs, several shapes ([topics/geometry.md](topics/geometry.md)) |
 | 43 | `draw_path` in a quadratic font | TODO, low (T8) |
 | 44 | `set_glyph_width` with an existing but inactive layer | TODO (T10), stub-tested |
 | 19 | A write that times out while a dialog is open: applied after OK? | TODO (T10) |

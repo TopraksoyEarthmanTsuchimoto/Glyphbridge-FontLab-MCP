@@ -2650,3 +2650,90 @@ for _a, _v in _saved36.items():
     else:
         setattr(fl, _a, _v)
 srv._reset_change_tracking()
+
+# ==== 37. server 0.63: move_nodes through POST /glyph/move (listener 0.153; faked listener replies) ====
+print("\n==== 37. server 0.63: move_nodes (faked listener replies) ====")
+def MV37(c, n, f, t): return {"contour": c, "node": n, "from": {"x": f[0], "y": f[1]}, "to": {"x": t[0], "y": t[1]}}
+def on37(x, y, smooth=False): return {"x": float(x), "y": float(y), "kind": "On", "smooth": smooth}
+def cv37(x, y): return {"x": float(x), "y": float(y), "kind": "Curve", "smooth": False}
+SQ37 = [{"closed": True, "nodes": [on37(0, 0), on37(450, 0), on37(400, 300), on37(0, 300)]}]
+CRV37 = [{"closed": True, "nodes": [on37(0, 0), on37(400, 0), cv37(500, 100), cv37(500, 300), on37(400, 400), on37(0, 400)]}]
+OK37 = {"open": True, "name": "mna1", "moved": True, "route": "modern", "moves_requested": 1, "coordinates_rounded": [], "nodes_match": True,
+        "changed": True, "mismatches": [], "after": SQ37, "margins": {"lsb": 0.0, "rsb": 50.0, "advance": 500.0}, "ink_width": 450.0,
+        "ink_box_refresh": {"called": True}, "display_refreshed": True, "display_note": "NOTE", "synced_with_fontlab": True,
+        "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}}
+B37 = [MV37(0, 1, (400, 0), (450, 0))]
+def mv37(label, reply, moves=B37, version="0.153", name="mna1", keys=("moved", "verified", "nodes_match", "left", "right", "advance_width", "ink_width", "fontlab_sidebearings", "fontlab_sidebearings_current", "person_note", "sidebearings_note", "font_modified")):
+    s9_reset(); S9["version"] = version; S9["post"]["/glyph/move"] = reply; n = len(S9["posts"])
+    r = s9_try(lambda: srv.write_glyph_moves(name, moves))
+    shown = {k: r[k] for k in keys if k in r} if isinstance(r, dict) else r
+    print(label, "->", shown, "| posts", len(S9["posts"]) - n, "|", fview(srv.finish_change_package()))
+    return r
+r = mv37("37a one straight move            ", dict(OK37))
+print("37b  moves, note, sent            ->", r["moves"], "|", r["note"][:60], "| sent", S9["posts"][-1] if S9["posts"] else None)
+r37a = r
+r = mv37("37c v0.64 FontLab lags: computed",  dict(OK37, margins={"lsb": 0.0, "rsb": 100.0, "advance": 500.0}, ink_width=400.0))
+print("37c2 the instruction                ->", r.get("agent_instruction", "")[:120], "| save instruction kept:", "finish_changes" in r.get("agent_instruction", ""), "| 37a, current: no note, no instruction of its own:", "person_note" not in r37a and not r37a["agent_instruction"].startswith("FontLab's own"))
+mv37("37d sidebearings unreadable      ", {k: v for k, v in OK37.items() if k not in ("margins", "ink_width")})
+mv37("37e a curve, exact extent 475    ", dict(OK37, after=CRV37, margins={"lsb": 0.0, "rsb": 125.0, "advance": 600.0}, ink_width=475.0))
+mv37("37f a curve, FontLab still stale  ", dict(OK37, after=CRV37, margins={"lsb": 0.0, "rsb": 100.0, "advance": 600.0}, ink_width=500.0))
+mv37("37g a curve run of one handle    ", dict(OK37, after=[{"closed": True, "nodes": [on37(0, 0), cv37(200, 100), on37(400, 0), on37(200, 300)]}]))
+mv37("37h a quadratic segment          ", dict(OK37, after=[{"closed": True, "nodes": [on37(0, 0), {"x": 200.0, "y": -100.0, "kind": "Off", "smooth": False}, on37(400, 0), on37(200, 300)]}],
+                                              margins={"lsb": 0.0, "rsb": 100.0, "advance": 500.0}, ink_width=400.0))
+r = mv37("37i rule B reported              ", dict(OK37, coordinates_rounded=[{"move": 0, "field": "to.x", "requested": 450.5, "used": 451.0}]), moves=[MV37(0, 1, (400, 0), (450.5, 0))],
+         keys=("moved", "coordinates_rounded", "rounding_note"))
+print("37j  the move lists the rounded to ->", r["moves"])
+r = mv37("37k v0.64 a 0.153 reply's ink_box_refresh is not forwarded", dict(OK37, ink_box_refresh={"called": True, "call_error": "RuntimeError: x"}, margins={"lsb": 0.0, "rsb": 100.0, "advance": 500.0}),
+         keys=("moved", "verified", "ink_box_refresh"))
+mv37("37k2 v0.64 moved without nodes_match: not verified", {k: v for k, v in OK37.items() if k != "nodes_match"}, keys=("moved", "verified", "nodes_match"))
+mv37("37l refused, nothing changed     ", {"open": True, "name": "mna1", "moved": False, "changed": False, "reason": "the request does not match the glyph as it is now, nothing was moved: move 0: contour 0 node 1 is at (400, 0), not at the given from (401, 0)"})
+mv37("37m refused, no changed key      ", {"open": True, "name": "mna1", "moved": False, "reason": "the glyph has 2 shapes; move_nodes edits a glyph with exactly one plain shape (several shapes are not supported yet): nothing was moved"})
+r = mv37("37n moved, re-read differs       ", {"open": True, "name": "mna1", "moved": False, "changed": True, "nodes_match": False,
+                                               "mismatches": ["contour 0 node 1: position (400.0, 10.0) instead of (450.0, 10.0)"],
+                                               "reason": "the re-read outline does not match the request: contour 0 node 1: position (400.0, 10.0) instead of (450.0, 10.0)",
+                                               "before": [{"closed": True, "nodes": [on37(0, 0), on37(400, 0), on37(400, 300)]}],
+                                               "after": [{"closed": True, "nodes": [on37(0, 0), on37(400, 10), on37(400, 300)]}],
+                                               "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}},
+         keys=("moved", "verified", "changed", "mismatches", "before", "after", "font_modified", "fontlab_changed_mark", "save_question_note"))
+print("37o  instruction                  ->", r["agent_instruction"][:150], "| finish_changes named:", "finish_changes" in r["agent_instruction"])
+r = mv37("37p outcome unknown after a touch", {"open": True, "name": "mna1", "moved": False, "changed": "unknown", "mismatches": ["the outline could not be read after the move (x)"],
+                                               "reason": "the re-read outline does not match the request"}, keys=("moved", "changed", "font_modified", "after"))
+mv37("37q not marked: save question note", dict(OK37, synced_with_fontlab=False, fontlab_changed_mark={"called": False, "reason": "FontLab's sync of this glyph was not confirmed"}),
+     keys=("moved", "synced_with_fontlab", "fontlab_changed_mark", "save_question_note"))
+mv37("37r no font open                 ", {"open": False})
+mv37("37s no such glyph                ", {"open": True, "found": False, "moved": False, "reason": "no glyph named 'mna1'"})
+mv37("37t listener 0.152               ", dict(OK37), version="0.152")
+mv37("37u /version unreadable: goes ahead", dict(OK37), version=None, keys=("moved", "verified"))
+mv37("37v write times out              ", srv.OutcomeUnknown("timed out"))
+for label, name, moves in (("37w empty name        ", " ", B37), ("37x moves not a list  ", "mna1", B37[0]), ("37y no moves          ", "mna1", []),
+                           ("37z 201 moves         ", "mna1", B37 * 201), ("37za extra key        ", "mna1", [dict(B37[0], dx=1)]),
+                           ("37zb contour a bool   ", "mna1", [dict(B37[0], contour=False)]), ("37zc node 1.0         ", "mna1", [dict(B37[0], node=1.0)]),
+                           ("37zd node -1          ", "mna1", [dict(B37[0], node=-1)]), ("37ze node 5001        ", "mna1", [dict(B37[0], node=5001)]),
+                           ("37zf from without y   ", "mna1", [dict(B37[0], **{"from": {"x": 400}})]), ("37zg to NaN           ", "mna1", [dict(B37[0], to={"x": float("nan"), "y": 0})]),
+                           ("37zh to 20001         ", "mna1", [dict(B37[0], to={"x": 20001, "y": 0})]), ("37zi to a list        ", "mna1", [dict(B37[0], to=[450, 0])]),
+                           ("37zj a node twice     ", "mna1", [B37[0], MV37(0, 1, (400, 0), (460, 0))]),
+                           ("37zk to = from after rounding", "mna1", [MV37(0, 1, (400, 0), (400.4, 0.49))])):
+    mv37(label, dict(OK37), moves=moves, name=name)
+# v0.65 (live 1023): no display_note on a move; undo_note wherever the outline changed, told once per conversation
+for label, reply in (("37zm1 v0.65 verified, current ", dict(OK37)),
+                     ("37zm2 v0.65 verified, lagging ", dict(OK37, margins={"lsb": 0.0, "rsb": 100.0, "advance": 500.0}, ink_width=400.0)),
+                     ("37zm3 v0.65 re-read differs   ", {"open": True, "name": "mna1", "moved": False, "changed": True, "nodes_match": False, "mismatches": ["m"], "reason": "r",
+                                                         "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}, "display_note": "NOTE"}),
+                     ("37zm4 v0.65 outcome unknown   ", {"open": True, "name": "mna1", "moved": False, "changed": "unknown", "mismatches": ["m"], "reason": "r"}),
+                     ("37zm5 v0.65 refused           ", {"open": True, "name": "mna1", "moved": False, "changed": False, "reason": "r"})):
+    s9_reset(); S9["version"] = "0.154"; S9["post"]["/glyph/move"] = reply
+    r = s9_try(lambda: srv.write_glyph_moves("mna1", B37))
+    if isinstance(r, dict):
+        ins = r.get("agent_instruction", "")
+        print(label, "-> display_note:", "display_note" in r, "| undo_note:", r.get("undo_note"), "| instruction ends with it:", ins.endswith(srv._MOVE_UNDO_INSTRUCTION),
+              "| save instruction kept:", "finish_changes" in ins, "| lag instruction first:", ins.startswith("FontLab's own"))
+    else:
+        print(label, "->", r)
+    srv.finish_change_package()
+print("37zm6 docs              -> Edit > Undo named:", "Edit > Undo does not take a move back" in srv.move_nodes.__doc__, "| undo_note named:", "undo_note" in srv.move_nodes.__doc__)
+print("37zl docs              -> tool listed:", callable(getattr(srv, "move_nodes", None)), "| signature:", _inspect.signature(srv.move_nodes),
+      "| from explained:", "where the node is NOW" in srv.move_nodes.__doc__, "| handles not taken along:", "does NOT take its control points along" in srv.move_nodes.__doc__,
+      "| one plain shape:", "exactly ONE plain shape" in srv.move_nodes.__doc__, "| nothing restored:", "Nothing is restored" in srv.move_nodes.__doc__,
+      "| RULE B:", "RULE B" in srv.move_nodes.__doc__, "| NEVER saves:", "NEVER saves" in srv.move_nodes.__doc__, "| listener named:", "listener 0.153" in srv.move_nodes.__doc__)
+srv._call_listener, srv._call_listener_post = wire_get, wire_post
+srv._reset_change_tracking()
