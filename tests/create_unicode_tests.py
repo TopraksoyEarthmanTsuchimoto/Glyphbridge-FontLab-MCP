@@ -592,7 +592,14 @@ for _n in ("Save", "SaveAs", "SaveFont", "save", "saveAs"):
     delattr(fl, _n)
 for fname in ("glyphbridge_fontlab_mcp_listener.py", "glyphbridge_mcp_server.py"):
     code = open(find(fname), encoding="utf-8").read()
+    blk = ""
+    if "# /debug/trycomponent (v0.155)" in code:   # listener 0.157: package.generateGlyph builds components from a recipe and writes no file
+        blk = code[code.index("# /debug/trycomponent (v0.155)"):code.index("# /debug/tryshape (v0.52)")]
+        code = code.replace(blk, "")
     print("8x ", fname, "-> save / export / generate call syntax found:", re.findall(r"\.(?:save\w*|export\w*|generate\w*)\s*\(", code, re.I))
+    if blk:
+        print("8x1", fname, "/debug/trycomponent, where only .generateGlyph( may appear:",
+              sorted(set(re.findall(r"\.(?:save\w*|export\w*|generate\w*)\s*\(", blk, re.I))))
 print("8y  the server never touches a FontLab dialog class:", "QMessageBox" not in open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read())
 
 print("-- wording and tool surface")
@@ -2735,5 +2742,49 @@ print("37zl docs              -> tool listed:", callable(getattr(srv, "move_node
       "| from explained:", "where the node is NOW" in srv.move_nodes.__doc__, "| handles not taken along:", "does NOT take its control points along" in srv.move_nodes.__doc__,
       "| one plain shape:", "exactly ONE plain shape" in srv.move_nodes.__doc__, "| nothing restored:", "Nothing is restored" in srv.move_nodes.__doc__,
       "| RULE B:", "RULE B" in srv.move_nodes.__doc__, "| NEVER saves:", "NEVER saves" in srv.move_nodes.__doc__, "| listener named:", "listener 0.153" in srv.move_nodes.__doc__)
+
+# ==== 38. server 0.66: add_component through POST /glyph/component (listener 0.169; faked listener replies) ====
+print("\n==== 38. server 0.66: add_component (faked listener replies) ====")
+CHK38 = {k: True for k in srv._COMP_CHECK_KEYS}
+OK38 = {"open": True, "name": "cpa1", "component": "cpasrc", "x": 100, "y": 50, "placed": True, "verified": True, "changed": True, "checks": dict(CHK38),
+        "steps_done": ["recipe", "auto_on", "build", "auto_off", "offset", "recipe_cleared"], "advance_width_after": 0.0,
+        "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}}
+def ac38(label, reply, args=("cpa1", "cpasrc", 100, 50), version="0.169",
+         keys=("placed", "verified", "x", "y", "advance_width", "changed", "reason", "steps_done", "checks", "auto_layer_set_back", "elements_after",
+               "font_modified", "fontlab_changed_mark", "save_question_note")):
+    s9_reset(); S9["version"] = version; S9["post"]["/glyph/component"] = reply; n = len(S9["posts"])
+    r = s9_try(lambda: srv.write_glyph_component(*args))
+    shown = {k: r[k] for k in keys if k in r} if isinstance(r, dict) else r
+    print(label, "->", shown, "| posts", len(S9["posts"]) - n, "|", fview(srv.finish_change_package()))
+    return r
+r = ac38("38a placed at (100, 50)          ", dict(OK38))
+print("38b  note, sent, instruction       ->", r["note"][:60], "| sent", S9["posts"][-1] if S9["posts"] else None, "| finish_changes named:", "finish_changes" in r.get("agent_instruction", ""))
+ac38("38c a whole float offset 120.0   ", dict(OK38, x=120, y=0), args=("cpa1", "cpasrc", 120.0, 0), keys=("placed", "x", "y"))
+ac38("38d placed but a check is false  ", dict(OK38, checks=dict(CHK38, ink_box=False), reason="r"))
+ac38("38e placed but a check is missing", dict(OK38, checks={k: v for k, v in CHK38.items() if k != "recipe_cleared"}, reason="r"))
+ac38("38f refused, nothing changed     ", {"open": True, "placed": False, "changed": False, "reason": "the glyph is not empty (it reads 1 element(s)); add_component places a component only into an empty glyph for now: nothing was changed"})
+ac38("38g refused, no changed key      ", {"open": True, "placed": False, "reason": "add_component is proven only on a font with one master (this font has 2 masters): nothing was changed"})
+r = ac38("38h failed after the build, set back", {"open": True, "placed": False, "verified": False, "changed": True, "auto_layer_set_back": True,
+                                                    "steps_done": ["recipe", "auto_on", "build"], "checks": dict(CHK38, one_component=False, offset=False, ink_box=False, recipe_cleared=False),
+                                                    "elements_after": [], "reason": "layer.buildAuto() failed: RuntimeError: it returned False, not True",
+                                                    "synced_with_fontlab": True, "fontlab_changed_mark": {"called": False, "reason": "the component was not confirmed"}})
+print("38i  instruction                  ->", r["agent_instruction"][:120], "| finish_changes named:", "finish_changes" in r["agent_instruction"])
+ac38("38j outcome unknown              ", {"open": True, "placed": False, "changed": "unknown", "reason": "r",
+                                            "elements_after": {"error": "the glyph has no modern active layer after the call"}})
+ac38("38k no font open                 ", {"open": False})
+ac38("38l no such glyph                ", {"open": True, "found": False, "placed": False, "reason": "no glyph named 'cpa1'"})
+ac38("38m listener 0.168               ", dict(OK38), version="0.168")
+ac38("38n write times out              ", srv.OutcomeUnknown("timed out"))
+for label, args in (("38o empty name        ", (" ", "cpasrc", 0, 0)), ("38p empty component   ", ("cpa1", "", 0, 0)),
+                    ("38q the glyph itself  ", ("cpa1", "cpa1", 0, 0)), ("38r x 1.5             ", ("cpa1", "cpasrc", 1.5, 0)),
+                    ("38s x a text          ", ("cpa1", "cpasrc", "3", 0)), ("38t y a bool          ", ("cpa1", "cpasrc", 0, True)),
+                    ("38u x 10001           ", ("cpa1", "cpasrc", 10001, 0)), ("38v y NaN             ", ("cpa1", "cpasrc", 0, float("nan"))),
+                    ("38v2 x infinite       ", ("cpa1", "cpasrc", float("-inf"), 0))):
+    ac38(label, dict(OK38), args=args)
+_d38 = srv.add_component.__doc__
+print("38w docs              -> tool listed:", callable(getattr(srv, "add_component", None)), "| signature:", _inspect.signature(srv.add_component),
+      "| EMPTY:", "be EMPTY" in _d38, "| one master:", "exactly ONE master" in _d38, "| width not changed:", "advance width is NOT changed" in _d38,
+      "| Undo untested:", "Undo takes the component back is untested" in _d38, "| unexplained run:", "one unexplained run" in _d38,
+      "| NEVER saves:", "NEVER saves" in _d38, "| listener named:", "listener 0.169" in _d38, "| placeholder left:", "SAVE_KEYS" in _d38)
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 srv._reset_change_tracking()

@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.65)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.66)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.65"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.66"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1827,6 +1827,76 @@ def write_glyph_moves(name: str, moves: Any) -> dict:
     _add_guard_fields(result, data)
     _mark_modified(result, True)
     _add_undo_note(result)
+    return result
+
+
+# ---- v0.66: add_component through POST /glyph/component (listener 0.169; design of the user, DECISIONS.md 2026-11-17) ----
+_COMP_OFFSET_MAX = 10000
+_COMP_CHECK_KEYS = ("one_component", "offset", "ink_box", "recipe_cleared", "auto_layer_off", "source_unchanged", "width_unchanged",
+                    "glyph_count_unchanged")
+_COMP_NOTE = ("The glyph now holds one component of the named glyph at the given offset, read back from FontLab: the component, its "
+              "offset and its drawn box are confirmed, FontLab's recipe for it was cleared, and the component glyph, the advance width and "
+              "the glyph count are unchanged.")
+_COMP_UNCONFIRMED_INSTRUCTION = (
+    "The re-read does NOT confirm the component, and the glyph may now hold part of it (see steps_done, checks and elements_after). Tell "
+    "the person what happened, in plain words. Do NOT repair or repeat it on your own: ask the person first.")
+
+
+def _check_comp_offset(value: Any, label: str) -> int:
+    """A whole number of font units from -10000 to 10000 (a whole float such as 120.0 is accepted), or a ToolError."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value or value in (float("inf"), float("-inf")):
+        raise ToolError(f"{label} must be a whole number of font units.")
+    if float(value) != int(value):
+        raise ToolError(f"{label} must be a whole number of font units (got {value}).")
+    if abs(int(value)) > _COMP_OFFSET_MAX:
+        raise ToolError(f"{label} must be between -{_COMP_OFFSET_MAX} and {_COMP_OFFSET_MAX}.")
+    return int(value)
+
+
+def write_glyph_component(name: str, component: str, x: Any = 0, y: Any = 0) -> dict:
+    clean = name.strip() if isinstance(name, str) else ""
+    src = component.strip() if isinstance(component, str) else ""
+    if not clean or not src:
+        raise ToolError("Both glyph names (name and component) must be non-empty.")
+    if clean == src:
+        raise ToolError(f"Glyph '{clean}' cannot hold itself as a component.")
+    ox, oy = _check_comp_offset(x, "x"), _check_comp_offset(y, "y")
+    _require_listener((0, 169), "add_component")
+
+    data = _write_post("/glyph/component", {"name": clean, "component": src, "x": ox, "y": oy})
+
+    if not data.get("open"):
+        raise ToolError(NO_FONT)
+    if data.get("found") is False:
+        raise ToolError(f"No glyph named '{clean}' was found.")
+    checks = data.get("checks") if isinstance(data.get("checks"), dict) else {}
+    if data.get("placed") is True and data.get("verified") is True and all(checks.get(k) is True for k in _COMP_CHECK_KEYS):
+        result = {"name": clean, "component": src, "x": ox, "y": oy, "placed": True, "verified": True,
+                  "advance_width": _tidy_number(data.get("advance_width_after")) if isinstance(data.get("advance_width_after"), (int, float)) else None,
+                  "note": _COMP_NOTE}
+        _add_guard_fields(result, data)
+        _mark_modified(result, True)
+        return result
+    changed = data.get("changed")
+    reason = data.get("reason") or "the re-read does not confirm the component"
+    if changed is not True and changed != "unknown":
+        raise ToolError(f"Glyph '{clean}': nothing was changed: {reason}")
+    elements = data.get("elements_after")
+    view = [{"is_component": e.get("is_component"), "component_glyph": e.get("component_glyph"), "matrix": e.get("matrix")}
+            for e in elements if isinstance(e, dict)] if isinstance(elements, list) else None
+    result = {"name": clean, "component": src, "x": ox, "y": oy, "placed": False, "verified": False, "changed": changed, "reason": reason,
+              "steps_done": [s for s in data.get("steps_done") or [] if isinstance(s, str)],
+              "checks": {k: checks.get(k) for k in _COMP_CHECK_KEYS if k in checks}, "elements_after": view,
+              "agent_instruction": _COMP_UNCONFIRMED_INSTRUCTION}
+    if "auto_layer_set_back" in data:
+        result["auto_layer_set_back"] = data["auto_layer_set_back"]
+    _add_guard_fields(result, data)
+    if changed is True:
+        _mark_modified(result, True)
+    else:
+        _note_change(sure=False)
+        result["font_modified"] = "unknown"
+        result["agent_instruction"] += " " + _SAVE_INSTRUCTION
     return result
 
 
@@ -3795,6 +3865,40 @@ def move_nodes(name: str, moves: list[dict[str, Any]], ctx: Context | None = Non
     """
     _note_client(ctx)
     return _with_font(write_glyph_moves, name, moves)
+
+
+@_tool()
+def add_component(name: str, component: str, x: int = 0, y: int = 0, ctx: Context | None = None) -> dict[str, Any]:
+    """Place the glyph `component` as ONE component in the glyph `name` of the font currently open in FontLab 8, at offset (x, y).
+
+    A component is a live reference: the glyph `name` then draws `component`'s outline, moved by (x, y) font units (y up), and
+    follows later edits of `component`. x and y must be whole numbers from -10000 to 10000; (0, 0) places it exactly where
+    `component` itself is drawn.
+
+    For now, only this is supported (anything else is refused and NOTHING changes):
+      - `name` must exist and be EMPTY (no contour, no component), with its layer (create_glyph gives one in a font with one master);
+      - `component` must exist and hold only plain contours (no component of its own, no Power Brush or other composite shape);
+      - the font must have exactly ONE master; ONE component per call; no scale, rotation, mirroring or anchors.
+
+    How it works: FontLab's own recipe build places the component; the offset is set afterwards and FontLab's recipe is cleared again.
+    Every check is made before the first change. Afterwards the glyph is read back: success (placed: true, verified: true) means
+    exactly one component of `component`, at (x, y), drawn where expected, the recipe cleared, and `component`, the advance width and
+    the glyph count unchanged. The advance width is NOT changed: set it with set_glyph_width if the person wants one.
+
+    If the re-read does NOT confirm it (placed: false, with steps_done and checks), the glyph may hold part of it. Nothing is restored
+    automatically, except that FontLab's automatic-layer switch is turned off again so the glyph stays editable. Tell the person; repair
+    or repeat only with their agreement.
+
+    Limits seen in testing: whether FontLab's Edit > Undo takes the component back is untested. In one unexplained run, two components
+    placed by FontLab's recipe build later became plain contours with no request to change them; the reply can only confirm the moment of
+    its own call. If it matters, read the glyph again later with get_glyph_outline.
+
+    Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
+    (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
+    Needs listener 0.169.
+    """
+    _note_client(ctx)
+    return _with_font(write_glyph_component, name, component, x, y)
 
 
 @_tool()

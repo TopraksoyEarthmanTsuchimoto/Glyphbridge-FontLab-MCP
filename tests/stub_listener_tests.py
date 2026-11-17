@@ -7510,7 +7510,7 @@ TELayer.resetInkBox = _te_rk
 TE_ALL_FORBIDDEN[:] = [f for f in TE_ALL_FORBIDDEN if f != "TELayer.resetInkBox"]     # expected in 2337f only: that case removed the member
 mv_setup(); TS["edpb"] = TsGlyph("edpb", [TsLayer(1, 3)])
 mv("2337g the legacy view lags: not synced", {"name": "edpb", "moves": [B1]}, keys=("moved", "synced_with_fontlab", "fontlab_changed_mark"))
-_srcmv = "\n".join(l for l in src[src.index("# POST /glyph/move (v0.153)"):src.index("# /debug/tryedit (v0.151)")].split("\n") if not l.lstrip().startswith("#"))
+_srcmv = "\n".join(l for l in src[src.index("# POST /glyph/move (v0.153)"):src.index("# POST /glyph/component (v0.169)")].split("\n") if not l.lstrip().startswith("#"))
 print("2338 spies over the move cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
 print("2338a static scan of move_nodes: forbidden call syntax:",
       _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|clearContours|smartMove|smartSetXY|moveBy|decomposite|ejectTo|activateBuilder|resetMetrics\w*|applyTransform|replaceShape|addContour|removeContour)\s*\(|shapeBuilder|font\.update|getattr\(|resetInkBox", _srcmv),
@@ -7525,6 +7525,900 @@ for tag, code, reply in (("2338c log, moved           ", 200, _ok_reply), ("2338
                          ("2338h log, HTTP 400        ", 400, {"error": "move 0: to equals from"}), ("2338i log, no font open   ", 200, {"open": False})):
     print(tag, ":", ns["_act_describe_write"]("/glyph/move", {"name": "edpb", "moves": [B1, B1]}, code, reply))
 print("2338j log, one node        :", ns["_act_describe_write"]("/glyph/move", {"name": "edpb", "moves": [B1]}, 200, _ok_reply))
+
+# ================= v0.155: /debug/trycomponent (gated research probe for P2.7: ONE placement of a component per call) =================
+print("\n==== v0.155 /debug/trycomponent ====")
+# The /debug/tryedit fakes (TE spies, the one-font gate) with component-aware shapes. TCShape and TCShapeData are spies too; a component
+# shape shares its source's contour objects, so layer.getContours() gives the source's nodes untransformed, as live 606 read them.
+TC = {"calls": [], "mode": {}}
+TC_FORBIDDEN = []
+class TCQT:
+    def __init__(s, *a):
+        TC["calls"].append(("QTransform", a))
+        if a and TC["mode"].get("qt_bad"): a = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+        s._m = tuple(float(v) for v in a) if a else (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+    def m11(s): return s._m[0]
+    def m12(s): return s._m[1]
+    def m21(s): return s._m[2]
+    def m22(s): return s._m[3]
+    def dx(s): return s._m[4]
+    def dy(s): return s._m[5]
+class TCShapeData(TESpy):
+    def __init__(s, glyph="", refs=1, contours=None, owner=None): s._glyph = glyph; s._refs = refs; s._contours = contours; s._owner = owner
+    def componentGlyph(s): return s._glyph
+    def componentLayer(s): return "test_font" if s._glyph else ""
+    def referenceCount(s): return s._refs
+class TCShape(TESpy):
+    def __init__(s, contours=None, component=None, composite=False):
+        s._tx = TCQT(); s._composite = composite
+        if isinstance(contours, TCShapeData):          # flShape(flShapeData), the second route
+            sd = contours; TC["calls"].append("flShape(shapeData)"); sd._refs += 1
+            s._contours = sd._contours; s._component = bool(TC["mode"].get("shapedata_component"))
+            s.shapeData = TCShapeData(sd._owner, sd._refs, sd._contours) if s._component else sd
+            return
+        s._contours = list(contours or []); s._component = component is not None
+        s.shapeData = TCShapeData(component or "", 1, s._contours)
+    def isComponent(s): return s._component
+    def isComposite(s): return s._composite
+    @property
+    def transform(s): return s._tx
+    @transform.setter
+    def transform(s, v):
+        TC["calls"].append("shape.transform=")
+        if not TC["mode"].get("tx_ignored"): s._tx = v
+class TCGlyphComponent(TESpy):
+    def __init__(s, name): TC["calls"].append(("GlyphComponent", name)); s._name = name; s._tx = TCQT()
+    @property
+    def transform(s): return s._tx
+    @transform.setter
+    def transform(s, v):
+        TC["calls"].append("gc.transform=")
+        if not TC["mode"].get("gc_tx_ignored"): s._tx = v
+    @property
+    def name_id(s): return 7
+    @property
+    def width_scale(s): return 1.0
+    @property
+    def use_anchors(s): return False
+class TCLayer(TELayer):
+    def __init__(s, name, shapes, glyph): TELayer.__init__(s, name, shapes); s._glyph = glyph
+    def componentsCount(s): return sum(1 for sh in s._shapes if sh._component)
+    def setGlyphComponents(s, comps, width, pkg, colorize, flags):
+        TC["calls"].append(("setGlyphComponents", len(comps), width, type(pkg).__name__, colorize, flags))
+        m = TC["mode"]
+        if m.get("set_raises"): raise RuntimeError("setGlyphComponents boom")
+        if m.get("set_noop"): return False
+        new = []
+        for gc in comps:
+            sh = TCShape(TCSRC[gc._name]._contours, component=gc._name)
+            sh._tx = TCQT() if m.get("set_drops_offset") else gc._tx
+            new.append(sh)
+        s._shapes = new if m.get("set_replaces") else s._shapes + new
+        if m.get("set_width"): P72["widths"][s._glyph] = float(width) + 10.0
+        if m.get("touch_source"): TCSRC[comps[0]._name]._contours[0].rows[0]["x"] += 1.0
+        if m.get("glyph_added"): TS["cppnew"] = TsGlyph("cppnew", [])
+        return True
+    def addShape(s, shape):
+        TC["calls"].append("addShape")
+        if TC["mode"].get("add_raises"): raise RuntimeError("addShape boom")
+        s._shapes.append(shape)
+        return shape
+TCSRC = {}
+_tc_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("GlyphComponent",)]
+def tc_setup(mode=None, count=1, packages=1, reset_calls=True, no_gc=False):
+    te_setup(count=count, packages=packages)
+    TC.update(calls=[], mode=dict(mode or {}))
+    for _m in _tf_mods:
+        _m.flShape = TCShape
+        if no_gc:
+            if hasattr(_m, "GlyphComponent"): delattr(_m, "GlyphComponent")
+        else:
+            _m.GlyphComponent = TCGlyphComponent
+    qg.QTransform = None if TC["mode"].get("no_qt") else TCQT
+    for g in ("cppsrc", "cppbase", "cppempty", "cppbrush", "cppcomp", "cpptwo", "cppbare"): TS[g] = TsGlyph(g, [TsLayer(1, 4)])
+    TS["cppnolayer"] = TsGlyph("cppnolayer", [])
+    src = TCShape([te_contour(TE_TRI)]); src.shapeData._owner = "cppsrc"
+    TCSRC.clear(); TCSRC["cppsrc"] = src
+    for g, shapes in (("cppsrc", [src]), ("cppbase", [TCShape([te_contour(TE_SQ)])]), ("cppempty", []),
+                      ("cppbrush", [TCShape([te_contour(TE_SQ)], composite=True)]), ("cppcomp", [TCShape([te_contour(TE_TRI)], component="cppsrc")]),
+                      ("cpptwo", [TCShape([te_contour(TE_SQ)]), TCShape([te_contour(TE_TRI)])]), ("cppbare", [TCShape([])])):
+        P72["layers"][g] = TCLayer("test_font", shapes, g); P72["widths"][g] = 500.0
+    if reset_calls: ns["_TRYCOMP"]["calls"] = 0
+TCK = ("placed", "existing_kept", "source_contours_in_outline", "component_placed", "changed", "side_effect_detected", "width_changed",
+       "source_changed", "error", "calls_so_far")
+def tc(tag, path, keys=("error", "calls_so_far")):
+    c, d = call(path)
+    TC_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| calls", [x for x in TC["calls"] if not (isinstance(x, tuple) and x[0] == "QTransform" and not x[1])],
+          "| Update", TE["updates"], "| marks", TE["marks"])
+    return d
+def tc_elements(d, key):
+    els = d.get(key)
+    if not isinstance(els, list): return els
+    return [(e.get("is_component"), e.get("is_composite"), e.get("component_glyph"), e.get("reference_count"),
+             None if "error" in (e.get("matrix") or {}) else tuple(e["matrix"][k] for k in ("m11", "m12", "m21", "m22", "dx", "dy"))) for e in els]
+QC = "/debug/trycomponent?"
+GC = QC + "stage=glyphcomponents&target=cppempty&source=cppsrc&dx=100&dy=200"
+tc_setup()
+tc("2340a glyphcomponents without go    ", GC)
+tc("2340b go must be exactly yes        ", GC + "&go=Yes")
+tc("2340c unknown stage                 ", QC + "stage=addcomponent&target=cppempty&source=cppsrc&dx=0&dy=0&go=yes")
+tc("2340d target without the prefix     ", QC + "stage=glyphcomponents&target=fresh&source=cppsrc&dx=0&dy=0&go=yes")
+tc("2340e source without the prefix     ", QC + "stage=glyphcomponents&target=cppempty&source=A&dx=0&dy=0&go=yes")
+tc("2340f target and source the same    ", QC + "stage=glyphcomponents&target=cppsrc&source=cppsrc&dx=0&dy=0&go=yes")
+tc("2340g dx missing                    ", QC + "stage=glyphcomponents&target=cppempty&source=cppsrc&dy=0&go=yes")
+tc("2340h dx 1001                       ", QC + "stage=glyphcomponents&target=cppempty&source=cppsrc&dx=1001&dy=0&go=yes")
+tc("2340i dy is text                    ", QC + "stage=glyphcomponents&target=cppempty&source=cppsrc&dx=0&dy=ten&go=yes")
+tc("2340j shapedata without go          ", QC + "stage=shapedata&target=cppempty&source=cppsrc&dx=-5&dy=0")
+for tag, over in (("2340k two fonts open                ", dict(count=2)), ("2340l two packages                 ", dict(packages=2)),
+                  ("2340m CountFonts raises            ", dict(count=RuntimeError("count boom"))), ("2340n no font open                 ", dict(count=0))):
+    tc_setup(**over); tc(tag, GC + "&go=yes")
+tc_setup(no_gc=True); tc("2340o no GlyphComponent: not counted", GC + "&go=yes")
+tc_setup(mode={"no_qt": 1}); _fq = [(m, getattr(m, "QTransform", None)) for m in _tf_mods]
+for _m in _tf_mods:
+    if hasattr(_m, "QTransform"): delattr(_m, "QTransform")
+tc("2340p no QTransform: not counted    ", GC + "&go=yes")
+for _m, _v in _fq:
+    if _v is not None: setattr(_m, "QTransform", _v)
+tc_setup()
+d = tc("2341 glyphcomponents into an empty glyph", GC + "&go=yes", keys=TCK)
+print("2341a  elements before / after   :", tc_elements(d, "target_elements_before"), "/", tc_elements(d, "target_elements_after"))
+print("2341b  outline after            :", te_outline(d, "target_after"), "| counts", {k: d.get("target_state_after", {}).get(k) for k in ("shapes", "nodes", "components")})
+print("2341c  source refs before/after :", tc_elements(d, "source_elements_before")[0][3], tc_elements(d, "source_elements_after")[0][3],
+      "| built", d.get("built_matrix"), "| detached", d.get("detached_matrix"), "| name_id", d.get("glyph_component_name_id"), "| returned", d.get("call_returned"))
+print("2341d  call, widths, counts, sync, mark:", d.get("call"), d.get("advance_width_before"), d.get("advance_width_after"), d.get("glyph_count_before"),
+      d.get("glyph_count_after"), "| synced", d.get("synced_with_fontlab"), "| mark", d.get("fontlab_changed_mark"), "| repainted", d.get("display_refreshed"), "| qt", d.get("qtransform"))
+tc_setup(); TS["cppempty"] = TsGlyph("cppempty", [TsLayer(1, 3)])
+d = tc("2341e the legacy view agrees: synced, marked", GC + "&go=yes", keys=("component_placed", "synced_with_fontlab", "fontlab_changed_mark"))
+tc_setup()
+d = tc("2342 glyphcomponents beside a contour", QC + "stage=glyphcomponents&target=cppbase&source=cppsrc&dx=-30&dy=0&go=yes", keys=TCK)
+print("2342a  outline after            :", te_outline(d, "target_after"), "| elements after", tc_elements(d, "target_elements_after"))
+tc_setup(mode={"set_replaces": 1})
+d = tc("2343 the call replaces the contour", QC + "stage=glyphcomponents&target=cppbase&source=cppsrc&dx=-30&dy=0&go=yes", keys=TCK)
+print("2343a  mark                     :", d.get("fontlab_changed_mark"))
+tc_setup()
+d = tc("2344 shapedata: a shared plain shape", QC + "stage=shapedata&target=cppempty&source=cppsrc&dx=100&dy=200&go=yes", keys=TCK)
+print("2344a  elements after / source  :", tc_elements(d, "target_elements_after"), "/", tc_elements(d, "source_elements_after"), "| mark", d.get("fontlab_changed_mark"))
+tc_setup(mode={"shapedata_component": 1})
+d = tc("2345 shapedata: a component      ", QC + "stage=shapedata&target=cppbase&source=cppsrc&dx=100&dy=200&go=yes", keys=TCK)
+print("2345a  elements after           :", tc_elements(d, "target_elements_after"), "| detached", d.get("detached_matrix"))
+tc_setup()
+for tag, tgt, srcn in (("2346a target with a Power Brush shape", "cppbrush", "cppsrc"), ("2346b target with a component      ", "cppcomp", "cppsrc"),
+                       ("2346c target with two shapes        ", "cpptwo", "cppsrc"), ("2346d target with no layer         ", "cppnolayer", "cppsrc"),
+                       ("2346e target that does not exist    ", "cppzz", "cppsrc"), ("2346f source with two shapes        ", "cppempty", "cpptwo"),
+                       ("2346g source is a component         ", "cppempty", "cppcomp"), ("2346h source is a Power Brush shape  ", "cppempty", "cppbrush"),
+                       ("2346i source with no nodes          ", "cppempty", "cppbare"), ("2346j source with no shape          ", "cppbase", "cppempty"),
+                       ("2346k source that does not exist    ", "cppempty", "cppzz")):
+    tc_setup(); d = tc(tag, QC + f"stage=glyphcomponents&target={tgt}&source={srcn}&dx=10&dy=10&go=yes")
+print("2346l  a refusal reads nothing after it:", "target_after" in d, "| no call made:", [x for x in TC["calls"] if x in ("addShape", "gc.transform=") or (isinstance(x, tuple) and x[0] == "setGlyphComponents")])
+for tag, mode, path in (("2347a the QTransform reads wrong     ", {"qt_bad": 1}, GC + "&go=yes"),
+                        ("2347b gc.transform is ignored       ", {"gc_tx_ignored": 1}, GC + "&go=yes"),
+                        ("2347c setGlyphComponents raises     ", {"set_raises": 1}, GC + "&go=yes"),
+                        ("2347d setGlyphComponents does nothing", {"set_noop": 1}, GC + "&go=yes"),
+                        ("2347e the offset is dropped         ", {"set_drops_offset": 1}, GC + "&go=yes"),
+                        ("2347f the advance width changes     ", {"set_width": 1}, GC + "&go=yes"),
+                        ("2347g the source changes            ", {"touch_source": 1}, GC + "&go=yes"),
+                        ("2347h a glyph appears               ", {"glyph_added": 1}, GC + "&go=yes"),
+                        ("2347i shape.transform is ignored    ", {"tx_ignored": 1}, QC + "stage=shapedata&target=cppempty&source=cppsrc&dx=1&dy=1&go=yes"),
+                        ("2347j addShape raises               ", {"add_raises": 1}, QC + "stage=shapedata&target=cppempty&source=cppsrc&dx=1&dy=1&go=yes")):
+    tc_setup(mode=mode); d = tc(tag, path, keys=TCK)
+    if "fontlab_changed_mark" in d: print("      mark:", d["fontlab_changed_mark"])
+tc_setup()
+for _i in range(6): call(GC + "&go=yes")
+tc("2348 the limit: call 7 is refused   ", GC + "&go=yes")
+_src155 = "\n".join(l for l in src[src.index("# /debug/trycomponent (v0.155)"):src.index("# /debug/tryshape (v0.52)")].split("\n") if not l.lstrip().startswith("#"))
+print("2349 spies over all cases: forbidden members, subscripts, iterations:", TC_FORBIDDEN)
+print("2349a static scan of the probe (code lines):", len(_src155) > 6000, "| forbidden call syntax:",
+      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|replaceShape|addComponent|clearComponents|decomposite|mergeTopComposite|ejectTo|findLayerCreate)\s*\(|font\.update|_ensure_modern_layer|create_layer=True", _src155),
+      "| counter raised before either glyph is read:", (lambda f: f.rindex('_TRYCOMP["calls"] += 1') < f.index("_modern_edit_target(source)") < f.index("_modern_edit_target(target)"))(
+          _src155[_src155.index("def debug_try_component("):]),
+      "| one call per request:", _src155.count("= layer.setGlyphComponents("), _src155.count("= layer.addShape("))
+print("2349b route documented:", "/debug/trycomponent   stage=glyphcomponents|shapedata" in src, "| dispatched:", 'if path == "/debug/trycomponent":' in src,
+      "| mark title:", ns["_MARK_TITLES"].get("trycomponent"), "| guard kind full:", "trycomponent" in ns["_GUARD_FULL_KINDS"])
+
+# ---- v0.156: stage=readcomponents, ONE read of layer.components on a glyph that holds a component. TCLayer.components answers by mode.
+print("\n==== v0.156 /debug/trycomponent stage=readcomponents ====")
+class TCNative(TESpy):
+    pass
+def _tc_components(s):
+    m = TC["mode"]
+    TC["calls"].append("layer.components")
+    if m.get("comps_raises"): raise RuntimeError("components boom")
+    if m.get("comps_native"): return TCNative()
+    comps = [sh for sh in s._shapes if sh._component]
+    if m.get("comps_gc"):
+        items = []
+        for sh in comps:
+            gc = TCGlyphComponent(sh.shapeData._glyph); gc._tx = sh._tx; items.append(gc)
+    elif m.get("comps_odd"):
+        items = [object(), ("cppsrc",), ["cppsrc", TCQT(1, 0, 0, 1, 5, 6), 3]]
+    else:
+        items = [(sh.shapeData._glyph, sh._tx) for sh in comps]
+    if m.get("comps_many"): items = items * 25
+    if m.get("comps_callable"): return lambda: items
+    return tuple(items) if m.get("comps_tuple") else items
+TCLayer.components = property(_tc_components)
+def tc_comp_setup(mode=None, **kw):
+    tc_setup(mode=mode, **kw)
+    sh = TCShape([te_contour(TE_TRI)], component="cppsrc"); sh._tx = TCQT(1, 0, 0, 1, 100, 200)
+    P72["layers"]["cppcomp"] = TCLayer("test_font", [sh], "cppcomp")
+RCK = ("components_type", "components_len", "components", "components_called", "components_note", "components_error",
+       "components_truncated", "side_effect_detected", "error", "calls_so_far")
+RC = QC + "stage=readcomponents&target=cppcomp"
+tc_comp_setup()
+tc("2350a readcomponents without go (no source, no offset)", RC)
+tc("2350b target without the prefix     ", QC + "stage=readcomponents&target=src&go=yes")
+tc_comp_setup(count=2); tc("2350c two fonts open                ", RC + "&go=yes")
+tc_comp_setup()
+d = tc("2351 a list of (name, transform) pairs", RC + "&go=yes", keys=RCK)
+print("2351a  elements, state          :", tc_elements(d, "target_elements"), [e.get("shape_data_type") for e in d.get("target_elements") or []],
+      {k: d.get("target_state", {}).get(k) for k in ("shapes", "nodes", "components")}, "| glyph count", d.get("glyph_count"), "| Update / marks", TE["updates"], TE["marks"])
+for tag, mode in (("2352a a tuple                       ", {"comps_tuple": 1}), ("2352b GlyphComponent items         ", {"comps_gc": 1}),
+                  ("2352c a callable                    ", {"comps_callable": 1}), ("2352d a native object: not iterated", {"comps_native": 1}),
+                  ("2352e the read raises             ", {"comps_raises": 1}), ("2352f 25 items: 20 described      ", {"comps_many": 1}),
+                  ("2352g other item kinds            ", {"comps_odd": 1})):
+    tc_comp_setup(mode=mode); d = tc(tag, RC + "&go=yes", keys=tuple(k for k in RCK if not (mode.get("comps_many") and k == "components")))
+    if mode.get("comps_many"): print("      described:", len(d.get("components") or []), "| all the same as the first:", all(c == d["components"][0] for c in d["components"]))
+tc_comp_setup()
+tc("2353a a plain glyph reads an empty list", QC + "stage=readcomponents&target=cppbase&go=yes", keys=RCK)
+tc("2353b a glyph with no layer          ", QC + "stage=readcomponents&target=cppnolayer&go=yes", keys=RCK)
+tc_comp_setup()
+for _i in range(6): call(RC + "&go=yes")
+tc("2354 the limit: call 7 is refused   ", RC + "&go=yes")
+_src156 = "\n".join(l for l in src[src.index("def _trycomp_is("):src.index("def _trycomp_name_ok(")].split("\n") if not l.lstrip().startswith("#"))
+print("2355 spies over the read cases:", TC_FORBIDDEN, "| static scan of the read stage:",
+      _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addShape|addComponent|clearComponents|removeShape|replaceShape)\s*\(|_guard_mark|_mark_font_changed|for \w+ in comps\s*:|comps\[\d", _src156),
+      "| counter before the read:", src.index('if reading:\n        _TRYCOMP["calls"] += 1') < src.index("return _trycomp_read_components("),
+      "| route documented:", "stage=readcomponents&target=cpp...: read only" in src)
+
+# ---- v0.157: stage=generate / setgenerated. TOPkg.generateGlyph and fontlab.FontMetrics are fakes; generateGlyph answers by mode.
+print("\n==== v0.157 /debug/trycomponent stage=generate / setgenerated ====")
+class TCNativeList(TESpy):
+    def __init__(s, items): s._items = items
+class TCMetrics(TESpy):
+    def __init__(s, pkg, layer_name):
+        TC["calls"].append(("FontMetrics", type(pkg).__name__, layer_name))
+        if TC["mode"].get("metrics_raises"): raise TypeError("FontMetrics boom")
+def _tc_generate(self, recipe, layer_name, metrics, rtl):
+    m = TC["mode"]
+    TC["calls"].append(("generateGlyph", recipe, layer_name, type(metrics).__name__, rtl))
+    if m.get("gen_raises"): raise RuntimeError("generateGlyph boom")
+    if m.get("gen_none"): return None
+    if m.get("gen_adds_glyph"): TS["cppnew"] = TsGlyph("cppnew", [])
+    if m.get("gen_changes_target"): P72["layers"]["cpp1"]._shapes.append(TCShape([te_contour(TE_SQ)]))
+    if m.get("gen_empty"): return ([], 0.0)
+    items = [TCGlyphComponent(p) for p in recipe.split("+")]
+    if m.get("gen_offset"): items[0]._tx = TCQT(1, 0, 0, 1, 40, 0)
+    width = "wide" if m.get("gen_bad_width") else 300.0
+    if m.get("gen_native"): return (TCNativeList(items), width)
+    if m.get("gen_three"): return (items, width, 1)
+    if m.get("gen_one_gc"): return [items[0]]                 # v0.158 cases: live 1030 returned a list of one item
+    if m.get("gen_one_pair"): return [(items, width)]
+    if m.get("gen_one_native"): return [TCNative()]
+    if m.get("gen_list"): return items                        # v0.159 cases: live 1032 returned a list of GlyphComponent, no width
+    if m.get("gen_list_mixed"): return items + [object()]
+    return (items, width)
+_tc_set_orig = TCLayer.setGlyphComponents
+def _tc_set(s, comps, width, *rest):
+    TC.setdefault("argcounts", []).append(2 + len(rest))         # v0.160: args=N; "need_args" rejects every other count as live 1026
+    need = TC["mode"].get("need_args")
+    if need is not None and 2 + len(rest) != need: raise IndexError("Unexpected SeqBase<T> length.")
+    if TC["mode"].get("third_int") and (not rest or type(rest[0]) is not int): raise TypeError("argument type must be Int!")   # v0.161, as 1033
+    if TC["mode"].get("fontlab_like"):     # v0.163: answers as live 1031, 1033, 1034 and 1035, checked in this order
+        if 2 + len(rest) != 4: raise IndexError("Unexpected SeqBase<T> length.")
+        if not isinstance(rest[0], TOPkg): raise TypeError("Wrong argument type. flPackage expected.")
+        if type(rest[1]) is not bool: raise TypeError("argument type must be Boolean!")
+        if TC["mode"].get("width_must_be_int") and type(width) is not int: raise TypeError("argument type must be Int!")
+        if TC["mode"].get("items_must_be_int") and any(type(x) is not int for x in (comps._items if isinstance(comps, TCNativeList) else comps)):
+            raise TypeError("argument type must be Int!")      # v0.164: one reading of live 1036 (whole width, GlyphComponent items)
+    if type(comps) is list and comps and all(type(x) is int for x in comps):
+        comps = [TCGlyphComponent("cppsrc") for _ in comps]    # v0.164: the fake turns name_ids back into components of cppsrc
+    pkg, colorize, flags = (list(rest) + [None, False, 0][len(rest):])[:3]
+    if isinstance(comps, TCNativeList): comps = comps._items
+    r = _tc_set_orig(s, comps, width, pkg, colorize, flags)
+    if TC["mode"].get("set_applies_width"): P72["widths"][s._glyph] = float(width)
+    return r
+TCLayer.setGlyphComponents = _tc_set
+_tc_gen_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("FontMetrics",)]
+def tc_gen_setup(mode=None, **kw):
+    tc_setup(mode=mode, **kw)
+    TOPkg.generateGlyph = _tc_generate
+    for _m in _tf_mods:
+        if TC["mode"].get("no_metrics"):
+            if hasattr(_m, "FontMetrics"): delattr(_m, "FontMetrics")
+        else:
+            _m.FontMetrics = TCMetrics
+    src2 = TCShape([te_contour(TE_SQ)]); src2.shapeData._owner = "cppsrc2"; TCSRC["cppsrc2"] = src2
+    TS["cppsrc2"] = TsGlyph("cppsrc2", [TsLayer(1, 4)]); P72["layers"]["cppsrc2"] = TCLayer("test_font", [src2], "cppsrc2")
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, 3)]); P72["layers"]["cpp1"] = TCLayer("test_font", [], "cpp1"); P72["widths"]["cpp1"] = 0.0
+GK = ("generate_returned_type", "generated_width", "generated_list_type", "generated_len", "generated", "generated_note", "generate_returned",
+      "call_returned", "placed", "existing_kept", "component_placed", "changed", "width_changed", "source_changed", "side_effect_detected",
+      "error", "calls_so_far")
+QG = QC + "stage=generate&target=cpp1&recipe=cppsrc"
+QS = QC + "stage=setgenerated&target=cpp1&recipe=cppsrc"
+tc_gen_setup()
+tc("2360a generate without go          ", QG)
+tc("2360b setgenerated without go      ", QS)
+tc("2360c no recipe                    ", QC + "stage=generate&target=cpp1&go=yes")
+tc("2360d recipe with @                ", QC + "stage=generate&target=cpp1&recipe=cppsrc@top&go=yes")
+tc("2360e recipe of three glyphs       ", QC + "stage=generate&target=cpp1&recipe=cppsrc%2Bcppsrc2%2Bcppbase&go=yes")
+tc("2360f recipe glyph without the prefix", QC + "stage=generate&target=cpp1&recipe=A&go=yes")
+tc("2360g recipe names the target      ", QC + "stage=generate&target=cpp1&recipe=cppsrc%2Bcpp1&go=yes")
+tc("2360k a plain + arrives as a space ", QC + "stage=generate&target=cpp1&recipe=cppsrc+cppsrc2&go=yes")
+tc("2360h empty part (cppsrc+)         ", QC + "stage=generate&target=cpp1&recipe=cppsrc%2B&go=yes")
+tc_gen_setup(count=2); tc("2360i two fonts open                ", QG + "&go=yes")
+tc_gen_setup(mode={"no_metrics": 1}); tc("2360j no FontMetrics: not counted ", QG + "&go=yes")
+tc_gen_setup()
+d = tc("2361 generate                       ", QG + "&go=yes", keys=GK)
+print("2361a  target before / after   :", tc_elements(d, "target_elements_before"), tc_elements(d, "target_elements_after"), "| layer", d.get("layer_name"),
+      "| widths", d.get("advance_width_before"), d.get("advance_width_after"), "| glyphs", d.get("glyph_count_before"), d.get("glyph_count_after"))
+tc_gen_setup()
+d = tc("2362 setgenerated                   ", QS + "&go=yes", keys=GK)
+print("2362a  elements after / outline :", tc_elements(d, "target_elements_after"), te_outline(d, "target_after"), "| sync", d.get("synced_with_fontlab"),
+      "| mark", d.get("fontlab_changed_mark"))
+tc_gen_setup(mode={"set_applies_width": 1}); TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, 3)]); TS["cpp1"].width = 300.0
+d = tc("2363 setgenerated takes the returned width", QS + "&go=yes", keys=GK); print("      widths:", d.get("advance_width_before"), d.get("advance_width_after"), "| mark", d.get("fontlab_changed_mark"))
+tc_gen_setup()
+d = tc("2364 two-glyph recipe beside a contour", QC + "stage=setgenerated&target=cppbase&recipe=cppsrc%2Bcppsrc2&go=yes", keys=GK)
+print("2364a  elements after           :", tc_elements(d, "target_elements_after"))
+for tag, mode, path in (("2365a FontMetrics raises           ", {"metrics_raises": 1}, QS),
+                        ("2365b generateGlyph raises         ", {"gen_raises": 1}, QS),
+                        ("2365c generateGlyph returns None   ", {"gen_none": 1}, QS),
+                        ("2365d an empty list                ", {"gen_empty": 1}, QS),
+                        ("2365e a native list, generate      ", {"gen_native": 1}, QG),
+                        ("2365f a native list, setgenerated  ", {"gen_native": 1}, QS),
+                        ("2365g a width that is not a number ", {"gen_bad_width": 1}, QS),
+                        ("2365h three items returned         ", {"gen_three": 1}, QS),
+                        ("2365i generate adds a glyph        ", {"gen_adds_glyph": 1}, QG),
+                        ("2365j generate changes the target  ", {"gen_changes_target": 1}, QG),
+                        ("2365k an offset in the result      ", {"gen_offset": 1}, QS),
+                        ("2365l the call replaces the contour", {"set_replaces": 1}, QC + "stage=setgenerated&target=cppbase&recipe=cppsrc&go=yes"),
+                        ("2365m setGlyphComponents raises    ", {"set_raises": 1}, QS),
+                        ("2365n the width moves elsewhere    ", {"set_width": 1}, QS)):
+    tc_gen_setup(mode=mode); d = tc(tag, path if path.endswith("go=yes") else path + "&go=yes", keys=GK)
+    if "fontlab_changed_mark" in d: print("      mark:", d["fontlab_changed_mark"])
+tc_gen_setup()
+for tag, tgt in (("2366a setgenerated: target with a component", "cppcomp"), ("2366b setgenerated: target with two shapes", "cpptwo"),
+                 ("2366c target with no layer          ", "cppnolayer")):
+    tc(tag, QC + f"stage=setgenerated&target={tgt}&recipe=cppsrc&go=yes")
+tc("2366d generate on a target with a component (read only)", QC + "stage=generate&target=cppcomp&recipe=cppsrc&go=yes", keys=("side_effect_detected", "error"))
+tc("2366e a recipe glyph that does not exist", QC + "stage=generate&target=cpp1&recipe=cppzz&go=yes")
+tc_gen_setup()
+for _i in range(6): call(QG + "&go=yes")
+tc("2367 the limit: call 7 is refused   ", QG + "&go=yes")
+_src157 = "\n".join(l for l in src[src.index("def _trycomp_recipe("):src.index("def debug_try_component(")].split("\n") if not l.lstrip().startswith("#"))
+print("2368 spies over the generate cases:", TC_FORBIDDEN, "| static scan:",
+      _re83.findall(r"\.(?:update|save\w*|addComponent|clearComponents|removeShape|replaceShape|addShape|addGlyph|deleteGlyph|replaceGlyph|replaceShapeWithReference)\s*\(|font\.update|for \w+ in comps\s*:", _src157),
+      "| one call each:", _src157.count("= pkg.generateGlyph("), _src157.count("= layer.setGlyphComponents("),
+      "| counter before any read:", src.index('_TRYCOMP["calls"] += 1     # counted BEFORE any glyph is read') < src.index("return _trycomp_generate("),
+      "| route documented:", "stage=generate|setgenerated&target=cpp...&recipe=cpp...[+cpp...]" in src, "| dispatched with recipe:", '(query.get("recipe") or [None])[0]' in src)
+print("\n==== v0.158 generateGlyph returns something other than a pair ====")
+GK8 = ("generate_returned_type", "generate_returned", "generate_returned_items", "call_returned", "changed", "side_effect_detected", "error", "calls_so_far")
+for tag, mode in (("2370a a list of one GlyphComponent ", {"gen_one_gc": 1}), ("2370b a list of one (list, width)  ", {"gen_one_pair": 1}),
+                  ("2370c a list of one native object  ", {"gen_one_native": 1})):
+    tc_gen_setup(mode=mode); tc(tag + ", generate    ", QG + "&go=yes", keys=GK8)
+    tc_gen_setup(mode=mode); tc(tag + ", setgenerated", QS + "&go=yes", keys=GK8)
+tc_gen_setup(mode={"gen_three": 1}); tc("2370d a tuple of three: items described", QG + "&go=yes", keys=GK8)
+print("2370e spies over the cases:", TC_FORBIDDEN)
+print("\n==== v0.159 setgenerated with a list of GlyphComponent (the form of live 1032) ====")
+GK9 = ("width_source", "call_returned", "placed", "existing_kept", "component_placed", "changed", "width_changed", "side_effect_detected", "error", "calls_so_far")
+tc_gen_setup(mode={"gen_list": 1}); TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, 3)]); TS["cpp1"].width = 250.0; P72["widths"]["cpp1"] = 250.0
+d = tc("2371a the 1032 form, setgenerated    ", QS + "&go=yes", keys=GK9)
+print("2371b  width passed, elements after, mark:", [c[2] for c in TC["calls"] if isinstance(c, tuple) and c[0] == "setGlyphComponents"],
+      tc_elements(d, "target_elements_after"), d.get("fontlab_changed_mark"))
+tc_gen_setup(mode={"gen_list": 1}); tc("2371c the 1032 form, generate: nothing called", QG + "&go=yes", keys=GK9)
+tc_gen_setup(mode={"gen_list_mixed": 1}); tc("2371d a list with a non-GlyphComponent item", QS + "&go=yes", keys=GK9)
+tc_gen_setup(mode={"gen_list": 1})
+d = tc("2371e two glyphs, two GlyphComponent: not a pair", QC + "stage=setgenerated&target=cpp1&recipe=cppsrc%2Bcppsrc2&go=yes", keys=GK9)
+print("2371f  elements after           :", tc_elements(d, "target_elements_after"))
+tc_gen_setup(mode={"gen_list": 1}); P72["widths"]["cpp1"] = "x"
+tc("2371g the target's width unreadable", QS + "&go=yes", keys=GK9)
+print("2371h spies over the cases:", TC_FORBIDDEN)
+print("\n==== v0.160 setgenerated&args=N ====")
+GK10 = ("args", "call_made", "call_returned", "placed", "component_placed", "changed", "side_effect_detected", "error", "calls_so_far")
+tc_gen_setup(mode={"gen_list": 1})
+for tag, q in (("2372a args=1                       ", "&args=1"), ("2372b args=6                       ", "&args=6"), ("2372c args=two                     ", "&args=two")):
+    tc(tag, QS + q + "&go=yes", keys=GK10)
+tc("2372d args with stage=generate     ", QG + "&args=3&go=yes", keys=GK10)
+tc("2372e args shown before go          ", QS + "&args=3", keys=GK10)
+for n in (2, 3, 4, 5):
+    tc_gen_setup(mode={"gen_list": 1, "need_args": 3}); TC["argcounts"] = []
+    d = tc(f"2373 args={n}, the fake takes only 3", QS + f"&args={n}&go=yes", keys=GK10)
+    print("      counts passed:", TC["argcounts"], "| mark", d.get("fontlab_changed_mark"))
+tc_gen_setup(mode={"gen_list": 1}); TC["argcounts"] = []
+d = tc("2374 no args: five, as 1026 and 1031", QS + "&go=yes", keys=GK10); print("      counts passed:", TC["argcounts"])
+print("2375 spies over the cases:", TC_FORBIDDEN, "| route documented:", "setgenerated&args=2..5" in src, "| dispatched:", '(query.get("args") or [None])[0]' in src)
+print("\n==== v0.161 setgenerated&pkg=id ====")
+GK11 = ("args", "pkg", "package_fgid", "call_made", "call_returned", "placed", "component_placed", "changed", "side_effect_detected", "error", "calls_so_far")
+tc_gen_setup(mode={"gen_list": 1})
+tc("2376a pkg=yes                       ", QS + "&args=4&pkg=yes&go=yes", keys=GK11)
+tc("2376b pkg=id with stage=generate   ", QG + "&pkg=id&go=yes", keys=GK11)
+tc("2376c pkg=id shown before go        ", QS + "&args=4&pkg=id", keys=GK11)
+for tag, mode, fgid in (("2377a args=4, pkg=id, the fake wants an Int third", {"gen_list": 1, "need_args": 4, "third_int": 1}, 77),
+                        ("2377b args=4 without pkg=id: the 1033 error      ", {"gen_list": 1, "need_args": 4, "third_int": 1}, 77),
+                        ("2377c fgId is text: refused before the call      ", {"gen_list": 1, "need_args": 4, "third_int": 1}, "77"),
+                        ("2377d fgId is a bool: refused                    ", {"gen_list": 1, "need_args": 4, "third_int": 1}, True),
+                        ("2377e fgId above a uint: refused                 ", {"gen_list": 1, "need_args": 4, "third_int": 1}, 4294967296)):
+    tc_gen_setup(mode=mode); TOPkg.fgId = fgid
+    d = tc(tag, QS + ("&args=4&go=yes" if "without" in tag else "&args=4&pkg=id&go=yes"), keys=GK11)
+    print("      mark:", d.get("fontlab_changed_mark"))
+tc_gen_setup(mode={"gen_list": 1}); TOPkg.fgId = 77
+tc("2377f pkg=id with all five arguments", QS + "&pkg=id&go=yes", keys=GK11)
+if "fgId" in TOPkg.__dict__: del TOPkg.fgId
+tc_gen_setup(mode={"gen_list": 1}); tc("2377g the package has no fgId     ", QS + "&args=4&pkg=id&go=yes", keys=GK11)
+print("2378 spies over the cases:", TC_FORBIDDEN, "| route documented:", "&pkg=id: the package's" in src, "| dispatched:", '(query.get("pkg") or [None])[0]' in src)
+print("\n==== v0.162 setgenerated&int=yes ====")
+GK12 = ("args", "pkg", "int", "call_made", "call_returned", "placed", "component_placed", "changed", "side_effect_detected", "error", "calls_so_far")
+tc_gen_setup(mode={"gen_list": 1})
+tc("2380a int=true                      ", QS + "&args=4&int=true&go=yes", keys=GK12)
+tc("2380b int=yes with stage=generate  ", QG + "&int=yes&go=yes", keys=GK12)
+tc("2380c int=yes shown before go       ", QS + "&args=4&int=yes", keys=GK12)
+TOPkg.fgId = 5
+for tag, q in (("2381a as 1031: five arguments         ", ""), ("2381b as 1033: four, False fourth    ", "&args=4"),
+               ("2381c as 1034: four, fgId third       ", "&args=4&pkg=id"), ("2381d four, 0 fourth (test 1035)     ", "&args=4&int=yes"),
+               ("2381e five, 0 fourth                 ", "&int=yes"), ("2381f four, fgId third, 0 fourth   ", "&args=4&pkg=id&int=yes")):
+    tc_gen_setup(mode={"gen_list": 1, "fontlab_like": 1, "width_must_be_int": 1}); TOPkg.fgId = 5
+    d = tc(tag, QS + q + "&go=yes", keys=GK12)
+    print("      mark:", d.get("fontlab_changed_mark"))
+if "fgId" in TOPkg.__dict__: del TOPkg.fgId
+print("2382 spies over the cases:", TC_FORBIDDEN, "| route documented:", "&int=yes: 0 in place of False" in src, "| dispatched:", '(query.get("int") or [None])[0]' in src)
+print("\n==== v0.163 setgenerated&width=int ====")
+GK13 = ("args", "pkg", "int", "width", "call_made", "call_returned", "placed", "component_placed", "changed", "side_effect_detected", "error", "calls_so_far")
+tc_gen_setup(mode={"gen_list": 1})
+tc("2383a width=round                   ", QS + "&args=4&width=round&go=yes", keys=GK13)
+tc("2383b width=int with stage=generate", QG + "&width=int&go=yes", keys=GK13)
+tc("2383c width=int shown before go     ", QS + "&args=4&width=int", keys=GK13)
+for tag, q, w in (("2384a as 1035: 0 fourth                ", "&args=4&int=yes", 0.0), ("2384b four, whole-number width (1036)  ", "&args=4&width=int", 0.0),
+                  ("2384c the same, width 500              ", "&args=4&width=int", 500.0), ("2384d a width of 500.5: refused        ", "&args=4&width=int", 500.5),
+                  ("2384e whole width and 0 fourth          ", "&args=4&width=int&int=yes", 0.0)):
+    tc_gen_setup(mode={"gen_list": 1, "fontlab_like": 1, "width_must_be_int": 1}); P72["widths"]["cpp1"] = w
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, 3)]); TS["cpp1"].width = w
+    d = tc(tag, QS + q + "&go=yes", keys=GK13)
+    print("      mark:", d.get("fontlab_changed_mark"))
+print("2385 spies over the cases:", TC_FORBIDDEN, "| route documented:", "&width=int: the" in src, "| dispatched:", '(query.get("width") or [None])[0]' in src)
+print("\n==== v0.164 setgenerated&items=id ====")
+GK14 = ("args", "items", "items_passed", "call_made", "call_returned", "placed", "component_placed", "changed", "side_effect_detected", "error", "calls_so_far")
+tc_gen_setup(mode={"gen_list": 1})
+tc("2386a items=name                    ", QS + "&args=4&items=name&go=yes", keys=GK14)
+tc("2386b items=id with stage=generate ", QG + "&items=id&go=yes", keys=GK14)
+tc("2386c items=id shown before go      ", QS + "&args=4&items=id", keys=GK14)
+FL164 = {"gen_list": 1, "fontlab_like": 1, "items_must_be_int": 1}     # the reading of live 1036 tested next: the items must be whole numbers
+for tag, q in (("2387a as 1033: GlyphComponent items    ", "&args=4"), ("2387b as 1036: whole width too          ", "&args=4&width=int"),
+               ("2387c name_id items (test 1037)        ", "&args=4&items=id"), ("2387d name_id items, whole width       ", "&args=4&items=id&width=int")):
+    tc_gen_setup(mode=FL164)
+    d = tc(tag, QS + q + "&go=yes", keys=GK14)
+    print("      mark:", d.get("fontlab_changed_mark"))
+for tag, mode in (("2388a items=id on the pair form (native list): refused", {"gen_native": 1}),
+                  ("2388b items=id on a real pair list: name_ids passed   ", {})):
+    tc_gen_setup(mode=mode); tc(tag, QS + "&args=4&items=id&go=yes", keys=GK14)
+_tc_gc_nid = TCGlyphComponent.name_id
+TCGlyphComponent.name_id = property(lambda s: "seven")
+tc_gen_setup(mode={"gen_list": 1}); tc("2388c a name_id that is text: refused", QS + "&args=4&items=id&go=yes", keys=GK14)
+TCGlyphComponent.name_id = _tc_gc_nid
+print("2389 spies over the cases:", TC_FORBIDDEN, "| route documented:", "&items=id: each component's name_id" in src, "| dispatched:", '(query.get("items") or [None])[0]' in src)
+
+# ---- v0.165: stage=auto. TCLayer gets recipe / autoLayer (stored per layer) and buildAuto(), which answer by TC["mode"].
+print("\n==== v0.165 /debug/trycomponent stage=auto ====")
+def _tc_get_recipe(s):
+    if TC["mode"].get("recipe_unreadable"): raise RuntimeError("recipe boom")
+    return s.__dict__.get("_recipe", "")
+def _tc_set_recipe(s, v):
+    TC["calls"].append(("recipe=", v))
+    if not TC["mode"].get("recipe_ignored"): s.__dict__["_recipe"] = v
+    if TC["mode"].get("recipe_sets_auto"): s.__dict__["_auto"] = True
+def _tc_get_auto(s): return s.__dict__.get("_auto", False)
+def _tc_set_auto(s, v):
+    TC["calls"].append(("autoLayer=", v))
+    if not TC["mode"].get("auto_ignored") and not (v is False and TC["mode"].get("auto_off_ignored")): s.__dict__["_auto"] = v
+    if v is False and TC["mode"].get("unauto_clears"): s._shapes = []          # v0.166 cases
+def _tc_build(s):
+    m = TC["mode"]
+    TC["calls"].append("buildAuto")
+    if m.get("build_raises"): raise RuntimeError("buildAuto boom")
+    if m.get("build_needs_auto") and not s.__dict__.get("_auto", False): return False
+    if m.get("build_false"): return False
+    for name in s.__dict__.get("_recipe", "").split("+"):
+        sh = TCShape(TCSRC[name]._contours, component="cppsrc2" if m.get("build_other_name") else name)     # v0.169 case
+        if m.get("build_other_name"): sh.shapeData._owner = "cppsrc2"
+        if m.get("build_offset"): sh._tx = TCQT(1, 0, 0, 1, 30, 0)
+        s._shapes.append(sh)
+    if m.get("build_width"): P72["widths"][s._glyph] = 250.0
+    if m.get("build_plain"): s._shapes.append(TCShape([te_contour(TE_SQ)]))
+    if m.get("build_adds_glyph"): TS["cppnew"] = TsGlyph("cppnew", [])
+    if m.get("build_none"): return None          # v0.169 case: placed, but not the documented True
+    return True
+TCLayer.recipe = property(_tc_get_recipe, _tc_set_recipe)
+TCLayer.autoLayer = property(_tc_get_auto, _tc_set_auto)
+TCLayer.buildAuto = _tc_build
+AK = ("step", "recipe", "auto_before", "auto_after", "step_took_effect", "call_returned", "outline_changed", "placed", "component_placed",
+      "side_effect_detected", "error", "calls_so_far")
+QA = QC + "stage=auto&target=cpp1"
+def tca(tag, q, mode=None, recipe=None, auto=None, keys=AK):
+    tc_gen_setup(mode=dict({"gen_list": 1}, **(mode or {})))
+    if recipe is not None: P72["layers"]["cpp1"].__dict__["_recipe"] = recipe
+    if auto is not None: P72["layers"]["cpp1"].__dict__["_auto"] = auto
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, 3)]); TS["cpp1"].width = 0.0
+    d = tc(tag, QA + q, keys=keys)
+    print("      elements after:", tc_elements(d, "target_elements_after"), "| mark:", d.get("fontlab_changed_mark"))
+    return d
+tca("2390a no step                       ", "&go=yes")
+tca("2390b step=make                     ", "&step=make&go=yes")
+tca("2390c setrecipe without a recipe     ", "&step=setrecipe&go=yes")
+tca("2390d read with a recipe             ", "&step=read&recipe=cppsrc&go=yes")
+tc_gen_setup(); tc("2390e step with stage=generate     ", QG + "&step=read&go=yes")
+tca("2390f setrecipe shown before go      ", "&step=setrecipe&recipe=cppsrc")
+tca("2390g a two-glyph recipe, plain +    ", "&step=setrecipe&recipe=cppsrc+cppsrc2&go=yes")
+tca("2391 read                           ", "&step=read&go=yes")
+tca("2392 setrecipe cppsrc               ", "&step=setrecipe&recipe=cppsrc&go=yes")
+tca("2393 build with the recipe set      ", "&step=build&recipe=cppsrc&go=yes", recipe="cppsrc")
+tca("2394 build when the recipe differs  ", "&step=build&recipe=cppsrc&go=yes", recipe="")
+tca("2395 setauto                        ", "&step=setauto&go=yes")
+tca("2396a build needs autoLayer: off     ", "&step=build&recipe=cppsrc&go=yes", mode={"build_needs_auto": 1}, recipe="cppsrc")
+tca("2396b build needs autoLayer: on      ", "&step=build&recipe=cppsrc&go=yes", mode={"build_needs_auto": 1}, recipe="cppsrc", auto=True)
+tca("2396c two-glyph recipe              ", "&step=build&recipe=cppsrc%2Bcppsrc2&go=yes", recipe="cppsrc+cppsrc2")
+for tag, mode, q, rec in (("2397a recipe ignored                ", {"recipe_ignored": 1}, "&step=setrecipe&recipe=cppsrc", None),
+                          ("2397b recipe also sets autoLayer    ", {"recipe_sets_auto": 1}, "&step=setrecipe&recipe=cppsrc", None),
+                          ("2397c autoLayer ignored             ", {"auto_ignored": 1}, "&step=setauto", None),
+                          ("2397d recipe unreadable: build refused", {"recipe_unreadable": 1}, "&step=build&recipe=cppsrc", None),
+                          ("2397e buildAuto raises              ", {"build_raises": 1}, "&step=build&recipe=cppsrc", "cppsrc"),
+                          ("2397f buildAuto returns False       ", {"build_false": 1}, "&step=build&recipe=cppsrc", "cppsrc"),
+                          ("2397g an offset component           ", {"build_offset": 1}, "&step=build&recipe=cppsrc", "cppsrc"),
+                          ("2397h the width changes             ", {"build_width": 1}, "&step=build&recipe=cppsrc", "cppsrc"),
+                          ("2397i a plain shape too             ", {"build_plain": 1}, "&step=build&recipe=cppsrc", "cppsrc"),
+                          ("2397j a glyph appears               ", {"build_adds_glyph": 1}, "&step=build&recipe=cppsrc", "cppsrc")):
+    tca(tag, q + "&go=yes", mode=mode, recipe=rec)
+tc_gen_setup()
+for tag, tgt in (("2398a target with a contour: refused", "cppbase"), ("2398b target with a component: refused", "cppcomp"),
+                 ("2398c target with no layer          ", "cppnolayer")):
+    tc(tag, QC + f"stage=auto&target={tgt}&step=setauto&go=yes")
+tc("2398d read on a target with a component", QC + "stage=auto&target=cppcomp&step=read&go=yes", keys=("auto_before", "side_effect_detected", "error"))
+tc_gen_setup()
+for _i in range(6): call(QA + "&step=read&go=yes")
+tc("2399 the limit: call 7 is refused   ", QA + "&step=read&go=yes")
+_src165 = "\n".join(l for l in src[src.index("def _trycomp_auto_state("):src.index("def debug_try_component(")].split("\n") if not l.lstrip().startswith("#"))
+print("2399a spies over the cases:", TC_FORBIDDEN, "| static scan:",
+      _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addShape|addComponent|clearComponents|removeShape|replaceShape)\s*\(|font\.update|_mark_font_changed", _src165),
+      "| one call each:", [len(_re83.findall(r"(?m)^\s+(?:ret = )?layer\." + c, _src165)) for c in (r'recipe = "\+"', r"autoLayer = True", r"buildAuto\(\)")],
+      "| counter before the read:", src.index('    if auto:\n        _TRYCOMP["calls"] += 1') < src.index("return _trycomp_auto("),
+      "| route documented:", "stage=auto&target=cpp...&step=read|setrecipe|setauto|build" in src, "| dispatched:", '(query.get("step") or [None])[0]' in src)
+
+# ---- v0.166: step=unauto / killauto on a layer buildAuto() filled. TCLayer.killAuto answers by TC["mode"].
+print("\n==== v0.166 stage=auto step=unauto / killauto ====")
+def _tc_kill(s):
+    m = TC["mode"]
+    TC["calls"].append("killAuto")
+    if m.get("kill_raises"): raise RuntimeError("killAuto boom")
+    if not m.get("kill_keeps_auto"): s.__dict__["_auto"] = False
+    if m.get("kill_clears_recipe"): s.__dict__["_recipe"] = ""
+    if m.get("kill_clears"): s._shapes = []
+    if m.get("kill_decomposes"): s._shapes = [TCShape(sh._contours) for sh in s._shapes]
+    return None
+TCLayer.killAuto = _tc_kill
+AK6 = ("step", "auto_before", "auto_after", "step_took_effect", "call_returned", "outline_changed", "component_kept", "component_normal",
+       "side_effect_detected", "error", "calls_so_far")
+def tcb(tag, q, mode=None, auto=True, recipe="cppsrc", shapes=None, keys=AK6):
+    tc_gen_setup(mode=dict({"gen_list": 1}, **(mode or {})))
+    lay = P72["layers"]["cpp1"]
+    lay.__dict__["_recipe"] = recipe; lay.__dict__["_auto"] = auto
+    lay._shapes = shapes if shapes is not None else [TCShape(TCSRC["cppsrc"]._contours, component="cppsrc")]
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, 3)]); TS["cpp1"].width = 0.0
+    d = tc(tag, QA + q, keys=keys)
+    print("      elements after:", tc_elements(d, "target_elements_after"), "| mark:", d.get("fontlab_changed_mark"))
+    return d
+tcb("2400a unauto with a recipe          ", "&step=unauto&recipe=cppsrc&go=yes")
+tcb("2400b unauto shown before go         ", "&step=unauto")
+tcb("2400c unauto, autoLayer already off  ", "&step=unauto&go=yes", auto=False)
+tcb("2400d unauto on an empty layer       ", "&step=unauto&go=yes", shapes=[])
+tcb("2400e killauto on a plain contour    ", "&step=killauto&go=yes", shapes=[TCShape([te_contour(TE_SQ)])])
+tcb("2401 unauto (test 1042)             ", "&step=unauto&go=yes")
+tcb("2402 killauto                       ", "&step=killauto&go=yes")
+for tag, q, mode in (("2403a unauto clears the layer       ", "&step=unauto", {"unauto_clears": 1}),
+                     ("2403b unauto is ignored             ", "&step=unauto", {"auto_ignored": 1}),
+                     ("2403c killauto clears the layer     ", "&step=killauto", {"kill_clears": 1}),
+                     ("2403d killauto decomposes           ", "&step=killauto", {"kill_decomposes": 1}),
+                     ("2403e killauto clears the recipe    ", "&step=killauto", {"kill_clears_recipe": 1}),
+                     ("2403f killauto leaves autoLayer on  ", "&step=killauto", {"kill_keeps_auto": 1}),
+                     ("2403g killauto raises               ", "&step=killauto", {"kill_raises": 1})):
+    tcb(tag, q + "&go=yes", mode=mode)
+_src166 = "\n".join(l for l in src[src.index("def _trycomp_auto("):src.index("def debug_try_component(")].split("\n") if not l.lstrip().startswith("#"))
+print("2404 spies over the cases:", TC_FORBIDDEN, "| one call each:", [len(_re83.findall(r"(?m)^\s+(?:ret = )?layer\." + c, _src166)) for c in (r"autoLayer = False", r"killAuto\(\)")],
+      "| route documented:", "step=unauto|killauto: autoLayer = False, or ONE killAuto()" in src)
+
+# ---- v0.167: stage=offset on a layer holding one component at identity, autoLayer False (as after live 1042). TCShape gets inkBox()
+# (the contours' box moved by the shape's offset, "top" the lower y as live 644) and applyTransform(); both answer by TC["mode"].
+print("\n==== v0.167 /debug/trycomponent stage=offset ====")
+class TCRect:
+    def __init__(s, l, b, r, t): s._v = dict(left=l, right=r, top=b, bottom=t, width=r - l, height=t - b)
+    def left(s): return s._v["left"]
+    def right(s): return s._v["right"]
+    def top(s): return s._v["top"]
+    def bottom(s): return s._v["bottom"]
+    def width(s): return s._v["width"]
+    def height(s): return s._v["height"]
+def _tc_inkbox(s):
+    TC["calls"].append("inkBox")
+    if TC["mode"].get("box_raises"): raise RuntimeError("inkBox boom")
+    xs = [r["x"] for c in s._contours for r in c.rows]; ys = [r["y"] for c in s._contours for r in c.rows]
+    if TC["mode"].get("box_from_source"):
+        xs = [r["x"] for c in TCSRC["cppsrc"]._contours for r in c.rows]; ys = [r["y"] for c in TCSRC["cppsrc"]._contours for r in c.rows]
+    btx = s.__dict__.get("_boxtx", s._tx)
+    ox, oy = (0.0, 0.0) if TC["mode"].get("box_stale") else (btx.dx(), btx.dy())
+    return TCRect(min(xs) + ox, min(ys) + oy, max(xs) + ox, max(ys) + oy)
+def _tc_offset_effects(s, dx, dy):
+    m = TC["mode"]
+    if m.get("moves_nodes"): s._contours = [te_contour([(r["x"] + dx, r["y"] + dy) for r in c.rows]) for c in s._contours]
+    if m.get("nodes_jitter"): s._contours = [te_contour([(r["x"] + 1, r["y"]) for r in c.rows]) for c in s._contours]
+    if m.get("offset_width"): P72["widths"]["cpp1"] = 40.0
+    if m.get("offset_source"): TCSRC["cppsrc"]._contours[0].rows[0]["x"] += 1.0
+    if m.get("offset_auto"): P72["layers"]["cpp1"].__dict__["_auto"] = True
+def _tc_apply(s, tx):
+    m = TC["mode"]
+    TC["calls"].append(("applyTransform", tx.dx(), tx.dy()))
+    if m.get("apply_raises"): raise RuntimeError("applyTransform boom")
+    if m.get("apply_ignored"): return None
+    k = 2 if m.get("apply_doubles") else 1
+    s._tx = TCQT(1, 0, 0, 1, s._tx.dx() + k * tx.dx(), s._tx.dy() + k * tx.dy())
+    _tc_offset_effects(s, tx.dx(), tx.dy())
+    return None
+_tc_tx_prop = TCShape.__dict__["transform"]
+def _tc_set_tx(s, v):
+    TC["calls"].append("shape.transform=")
+    if TC["mode"].get("tx_raises"): raise RuntimeError("transform boom")
+    if TC["mode"].get("tx_ignored"): return
+    if TC["mode"].get("tx_hidden"): s.__dict__["_boxtx"] = v; return       # drawn moved, but the matrix still reads identity
+    s._tx = v
+    _tc_offset_effects(s, v.dx(), v.dy())
+TCShape.inkBox = _tc_inkbox
+TCShape.applyTransform = _tc_apply
+TCShape.transform = property(_tc_tx_prop.fget, _tc_set_tx)
+OK7 = ("how", "source", "call_returned", "matrix_reads_offset", "ink_box_moved", "raw_nodes", "changed", "side_effect_detected",
+       "offset_placed", "error", "calls_so_far")
+QO = QC + "stage=offset&target=cpp1"
+def tco(tag, q, mode=None, auto=False, shapes=None, keys=OK7):
+    tc_gen_setup(mode=dict({"gen_list": 1}, **(mode or {})))
+    lay = P72["layers"]["cpp1"]
+    lay.__dict__["_recipe"] = "cppsrc"; lay.__dict__["_auto"] = auto
+    lay._shapes = shapes if shapes is not None else [TCShape(TCSRC["cppsrc"]._contours, component="cppsrc")]
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, 3)]); TS["cpp1"].width = 0.0
+    d = tc(tag, QO + q, keys=keys)
+    print("      elements after:", tc_elements(d, "target_elements_after"), "| boxes:", {k: (d.get(k) or {}).get("left") for k in ("ink_box_before", "ink_box_after")},
+          "| mark:", d.get("fontlab_changed_mark"))
+    return d
+tco("2405a offset shown before go         ", "&how=assign&dx=100&dy=50")
+tco("2405b how missing                    ", "&dx=100&dy=50&go=yes")
+tco("2405c how=move                       ", "&how=move&dx=100&dy=50&go=yes")
+tc_gen_setup(); tc("2405d how with stage=auto           ", QA + "&step=read&how=assign&go=yes")
+tco("2405e a source given                 ", "&how=assign&source=cppsrc&dx=100&dy=50&go=yes")
+tco("2405f dx and dy both 0               ", "&how=apply&dx=0&dy=0&go=yes")
+tco("2405g dy missing                     ", "&how=assign&dx=100&go=yes")
+tco("2405h a recipe given                 ", "&how=assign&recipe=cppsrc&dx=100&dy=50&go=yes")
+d = tco("2406 assign (test 1043)             ", "&how=assign&dx=100&dy=50&go=yes")
+print("2406a  matrix, boxes, outline, auto :", tc_elements(d, "target_elements_after"), d.get("ink_box_before"), d.get("ink_box_after"),
+      te_outline(d, "target_after"), d.get("auto_before"), d.get("auto_after"), "| synced", d.get("synced_with_fontlab"), "| qt", d.get("qtransform"))
+tco("2407 apply                          ", "&how=apply&dx=-30&dy=0&go=yes")
+for tag, kw in (("2408a autoLayer on                   ", dict(auto=True)),
+                ("2408b an empty layer                 ", dict(shapes=[])),
+                ("2408c a plain contour                ", dict(shapes=[TCShape([te_contour(TE_SQ)])])),
+                ("2408d two components                 ", dict(shapes=[TCShape([te_contour(TE_TRI)], component="cppsrc"), TCShape([te_contour(TE_TRI)], component="cppsrc")])),
+                ("2408f a component of a non-cpp glyph ", dict(shapes=[TCShape([te_contour(TE_TRI)], component="A")]))):
+    tco(tag, "&how=assign&dx=10&dy=10&go=yes", **kw)
+_sh = TCShape(TCSRC.get("cppsrc")._contours if TCSRC.get("cppsrc") else [te_contour(TE_TRI)], component="cppsrc"); _sh._tx = TCQT(1, 0, 0, 1, 5, 0)
+tco("2408e already offset                 ", "&how=assign&dx=10&dy=10&go=yes", shapes=[_sh])
+tc_gen_setup(); tc("2408g target with no layer         ", QC + "stage=offset&target=cppnolayer&how=assign&dx=10&dy=10&go=yes")
+print("2408h  no offset call in the refusals:", [x for x in TC["calls"] if x == "shape.transform=" or (isinstance(x, tuple) and x[0] == "applyTransform")])
+for tag, how, mode in (("2409a assignment ignored            ", "assign", {"tx_ignored": 1}),
+                       ("2409b assignment raises             ", "assign", {"tx_raises": 1}),
+                       ("2409c applyTransform ignored        ", "apply", {"apply_ignored": 1}),
+                       ("2409d applyTransform raises         ", "apply", {"apply_raises": 1}),
+                       ("2409e applyTransform doubles        ", "apply", {"apply_doubles": 1}),
+                       ("2409f nodes AND transform move: twice", "assign", {"moves_nodes": 1}),
+                       ("2409m raw nodes read moved, box once", "assign", {"moves_nodes": 1, "box_stale": 1}),
+                       ("2409n raw nodes moved by (1, 0) only", "assign", {"nodes_jitter": 1, "box_from_source": 1}),
+                       ("2409o box moved, matrix still identity", "assign", {"tx_hidden": 1}),
+                       ("2409g ink box stays put             ", "assign", {"box_stale": 1}),
+                       ("2409h ink box unreadable: refused   ", "assign", {"box_raises": 1}),
+                       ("2409i the width changes             ", "assign", {"offset_width": 1}),
+                       ("2409j the source changes            ", "assign", {"offset_source": 1}),
+                       ("2409k autoLayer turns on            ", "apply", {"offset_auto": 1}),
+                       ("2409l the QTransform reads wrong    ", "assign", {"qt_bad": 1})):
+    tco(tag, f"&how={how}&dx=100&dy=50&go=yes", mode=mode)
+tc_gen_setup()
+for _i in range(6): call(QO + "&how=assign&dx=1&dy=1&go=yes")
+tc("2410 the limit: call 7 is refused   ", QO + "&how=assign&dx=1&dy=1&go=yes")
+_src167 = "\n".join(l for l in src[src.index("def _trycomp_first_box("):src.index("def debug_try_component(")].split("\n") if not l.lstrip().startswith("#"))
+print("2410a spies over the cases:", TC_FORBIDDEN, "| static scan:",
+      _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addShape|addComponent|clearComponents|removeShape|replaceShape|decomposite|killAuto|buildAuto)\s*\(|font\.update|_mark_font_changed|autoLayer =|recipe =", _src167),
+      "| one call each:", [len(_re83.findall(r"(?m)^\s+(?:ret = )?shape\." + c, _src167)) for c in (r"transform = tx", r"applyTransform\(tx\)")],
+      "| counter before the read:", src.index('    if offset:\n        oqt_cls') < src.index('_TRYCOMP["calls"] += 1     # counted BEFORE the glyph is read\n        return _trycomp_offset('),
+      "| route documented:", "stage=offset&target=cpp...&how=assign|apply&dx=DX&dy=DY" in src, "| dispatched:", '(query.get("how") or [None])[0]' in src)
+TCShape.transform = _tc_tx_prop
+for _a in ("inkBox", "applyTransform"):
+    if _a in TCShape.__dict__: delattr(TCShape, _a)
+
+# ---- v0.168: stage=auto&step=clearrecipe on a normal component layer (autoLayer off, as after live 1042 and 1050). The recipe setter
+# answers the new modes below, then the v0.165 fake.
+print("\n==== v0.168 stage=auto step=clearrecipe ====")
+def _tc_set_recipe168(s, v):
+    m = TC["mode"]
+    if v == "" and m.get("clear_raises"): TC["calls"].append(("recipe=", v)); raise RuntimeError("recipe boom")
+    _tc_set_recipe(s, v)
+    if v == "" and m.get("clear_raises_after"): raise RuntimeError("recipe cleared, then boom")     # v0.169 case
+    if v == "":
+        if m.get("clear_drops"): s._shapes = []
+        if m.get("clear_resets_offset"):
+            for sh in s._shapes: sh._tx = TCQT()
+        if m.get("clear_width"): P72["widths"]["cpp1"] = 500.0
+        if m.get("clear_sets_auto"): s.__dict__["_auto"] = True
+TCLayer.recipe = property(_tc_get_recipe, _tc_set_recipe168)
+CK8 = ("step", "auto_before", "auto_after", "step_took_effect", "outline_changed", "component_kept", "recipe_cleared",
+       "side_effect_detected", "error", "calls_so_far")
+def _tc_comp(name, dx=0, dy=0):
+    sh = TCShape(TCSRC[name]._contours, component=name)
+    if dx or dy: sh._tx = TCQT(1, 0, 0, 1, dx, dy)
+    return sh
+def tcc(tag, q, mode=None, auto=False, recipe="cppsrc", shapes=None, legacy_nodes=3):
+    tc_gen_setup(mode=dict({"gen_list": 1}, **(mode or {})))
+    lay = P72["layers"]["cpp1"]
+    lay.__dict__["_recipe"] = recipe; lay.__dict__["_auto"] = auto
+    lay._shapes = shapes if shapes is not None else [_tc_comp("cppsrc", 100, 50)]
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, legacy_nodes)]); TS["cpp1"].width = 0.0     # the legacy view agrees with the modern one
+    d = tc(tag, QA + q, keys=CK8)
+    print("      elements after:", tc_elements(d, "target_elements_after"), "| mark:", d.get("fontlab_changed_mark"))
+    return d
+tcc("2411a clearrecipe shown before go    ", "&step=clearrecipe")
+tcc("2411b clearrecipe with a recipe      ", "&step=clearrecipe&recipe=cppsrc&go=yes")
+tcc("2411c autoLayer on: refused          ", "&step=clearrecipe&go=yes", auto=True)
+tcc("2411d recipe already empty: refused  ", "&step=clearrecipe&go=yes", recipe="")
+tcc("2411e recipe unreadable: refused     ", "&step=clearrecipe&go=yes", mode={"recipe_unreadable": 1})
+tcc("2411f an empty layer: refused        ", "&step=clearrecipe&go=yes", shapes=[])
+tcc("2411g a plain contour: refused       ", "&step=clearrecipe&go=yes", shapes=[TCShape([te_contour(TE_SQ)])])
+print("2411h  no recipe write in the refusals:", [x for x in TC["calls"] if isinstance(x, tuple) and x[0] == "recipe="])
+d = tcc("2412 one component at (100, 50) (test 1058)", "&step=clearrecipe&go=yes")
+print("2412a  matrices before / after, widths, sync:", tc_elements(d, "target_elements_before"), "/", tc_elements(d, "target_elements_after"),
+      d.get("advance_width_before"), d.get("advance_width_after"), "| synced", d.get("synced_with_fontlab"))
+tcc("2413 two components (test 1059)    ", "&step=clearrecipe&go=yes", recipe="cppsrc+cppsrc2",
+    shapes=[_tc_comp("cppsrc"), _tc_comp("cppsrc2", -200, 0)], legacy_nodes=7)
+for tag, mode in (("2414a the assignment is ignored     ", {"recipe_ignored": 1}),
+                  ("2414b the assignment raises         ", {"clear_raises": 1}),
+                  ("2414c the components are dropped    ", {"clear_drops": 1}),
+                  ("2414d the offset is reset           ", {"clear_resets_offset": 1}),
+                  ("2414e the width changes             ", {"clear_width": 1}),
+                  ("2414f autoLayer turns on            ", {"clear_sets_auto": 1})):
+    tcc(tag, "&step=clearrecipe&go=yes", mode=mode)
+_src168 = "\n".join(l for l in src[src.index("def _trycomp_auto("):src.index("def debug_try_component(")].split("\n") if not l.lstrip().startswith("#"))
+print("2415 spies over the cases:", TC_FORBIDDEN, "| one clearing write:", len(_re83.findall(r'(?m)^\s+layer\.recipe = ""$', _src168)),
+      "| route documented:", 'stage=auto&step=clearrecipe: layer.recipe = ""' in src)
+
+# ================= v0.169: POST /glyph/component (add_component, the placing tool; the trycomponent fakes) =================
+print("\n==== v0.169 POST /glyph/component (add_component) ====")
+TCShape.inkBox = _tc_inkbox
+TCShape.transform = property(_tc_tx_prop.fget, _tc_set_tx)
+TOPkg.mastersCount = property(lambda s: TC["mode"].get("masters", 1))
+ACK = ("placed", "verified", "changed", "steps_done", "build_returned", "checks", "auto_layer_set_back", "reason", "error", "component_found")
+def ac_setup(mode=None, auto=False, recipe=""):
+    tc_gen_setup(mode=dict({"gen_list": 1, "build_needs_auto": 1}, **(mode or {})))
+    lay = P72["layers"]["cpp1"]; lay.__dict__["_recipe"] = recipe; lay.__dict__["_auto"] = auto
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, 3)]); TS["cpp1"].width = 0.0
+def ac(tag, payload, mode=None, auto=False, recipe="", keys=ACK, legacy_nodes=3):
+    ac_setup(mode, auto, recipe)
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, legacy_nodes)]); TS["cpp1"].width = 0.0
+    c, d = sbpost("/glyph/component", payload)
+    TC_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| calls", [x for x in TC["calls"] if not (isinstance(x, tuple) and x[0] == "QTransform")],
+          "| Update", TE["updates"], "| marks", TE["marks"])
+    if isinstance(d.get("elements_after"), list):
+        print("      elements after:", tc_elements(d, "elements_after"), "| auto after:", d.get("auto_after"), "| mark:", d.get("fontlab_changed_mark"))
+    return d
+P0 = {"name": "cpp1", "component": "cppsrc", "x": 0, "y": 0}
+for tag, payload in (("2420a no x                         ", {"name": "cpp1", "component": "cppsrc", "y": 0}),
+                     ("2420b an extra key                 ", dict(P0, scale=1)),
+                     ("2420c empty name                   ", dict(P0, name=" ")),
+                     ("2420d component not a string       ", dict(P0, component=5)),
+                     ("2420e the glyph itself             ", dict(P0, component="cpp1")),
+                     ("2420f x 1.5                        ", dict(P0, x=1.5)),
+                     ("2420g y a bool                     ", dict(P0, y=True)),
+                     ("2420h x 10001                      ", dict(P0, x=10001))):
+    ac(tag, payload)
+d = ac("2421 at (0, 0)                      ", P0)
+print("2421a  ink box, expected, widths, counts, sync:", d.get("ink_box"), d.get("ink_box_expected"), d.get("advance_width_before"), d.get("advance_width_after"),
+      d.get("glyph_count_before"), d.get("glyph_count_after"), "| synced", d.get("synced_with_fontlab"), "| repainted", d.get("display_refreshed"))
+d = ac("2422 at (100, 50)                   ", dict(P0, x=100, y=50))
+print("2422a  ink box / expected        :", d.get("ink_box"), "/", d.get("ink_box_expected"))
+ac("2422b a leftover recipe on an empty layer", dict(P0, x=-30, y=0), recipe="cppsrc2")
+ac("2422c a second source, cppsrc2   ", dict(P0, component="cppsrc2", x=10, y=0), legacy_nodes=4)
+for tag, payload, kw in (("2423a no font open                 ", P0, dict(mode={})),
+                         ("2423b target does not exist        ", dict(P0, name="cppzz"), {}),
+                         ("2423c target has no layer          ", dict(P0, name="cppnolayer"), {}),
+                         ("2423d target holds a contour       ", dict(P0, name="cppbase"), {}),
+                         ("2423e target holds a component     ", dict(P0, name="cppcomp"), {}),
+                         ("2423f autoLayer on                 ", P0, dict(auto=True)),
+                         ("2423g recipe unreadable            ", P0, dict(mode={"recipe_unreadable": 1})),
+                         ("2423h source does not exist        ", dict(P0, component="cppzz"), {}),
+                         ("2423i source is a Power Brush shape", dict(P0, component="cppbrush"), {}),
+                         ("2423j source holds a component     ", dict(P0, component="cppcomp"), {}),
+                         ("2423k source has no nodes          ", dict(P0, component="cppbare"), {}),
+                         ("2423l source is empty              ", dict(P0, component="cppempty"), {}),
+                         ("2423m two masters                  ", P0, dict(mode={"masters": 2})),
+                         ("2423n box unreadable               ", P0, dict(mode={"box_raises": 1}))):
+    if tag.startswith("2423a"):
+        ac_setup(); TO["count"] = 0
+        c, d = sbpost("/glyph/component", payload); print(tag, ":", c, d)
+        continue
+    ac(tag, payload, **kw)
+print("2423o  no write in the refusals :", [x for x in TC["calls"] if x in ("buildAuto", "shape.transform=") or (isinstance(x, tuple) and x[0] in ("recipe=", "autoLayer="))])
+for tag, payload, mode in (("2424a buildAuto returns False: set back", P0, {"build_false": 1}),
+                           ("2424b buildAuto raises: set back   ", P0, {"build_raises": 1}),
+                           ("2424c autoLayer writes ignored: build False", P0, {"auto_ignored": 1}),
+                           ("2424d the offset is ignored        ", dict(P0, x=100, y=50), {"tx_ignored": 1}),
+                           ("2424e the offset raises            ", dict(P0, x=100, y=50), {"tx_raises": 1}),
+                           ("2424f clearing the recipe raises   ", P0, {"clear_raises": 1}),
+                           ("2424g FontLab places it at (30, 0) ", P0, {"build_offset": 1}),
+                           ("2424h the width changes            ", P0, {"build_width": 1}),
+                           ("2424i a plain shape comes too      ", P0, {"build_plain": 1}),
+                           ("2424j a glyph appears              ", P0, {"build_adds_glyph": 1}),
+                           ("2424k the source changes           ", dict(P0, x=100, y=50), {"offset_source": 1}),
+                           ("2424l the box stays put            ", dict(P0, x=100, y=50), {"box_stale": 1}),
+                           ("2424m buildAuto places, returns None", P0, {"build_none": 1}),
+                           ("2424n a component of another glyph ", P0, {"build_other_name": 1}),
+                           ("2424o autoLayer=False ignored      ", P0, {"auto_off_ignored": 1}),
+                           ("2424p an error after the last write", P0, {"clear_raises_after": 1})):
+    ac(tag, payload, mode=mode)
+ac_setup()
+print("2424q  the function itself refuses the glyph as its own component:", ns["add_component"]("cpp1", "cpp1", 0, 0),
+      "| calls", [x for x in TC["calls"] if not (isinstance(x, tuple) and x[0] == "QTransform")])
+_srcac = "\n".join(l for l in src[src.index("# POST /glyph/component (v0.169)"):src.index("# /debug/tryedit (v0.151)")].split("\n") if not l.lstrip().startswith("#"))
+_acf = _srcac[_srcac.index("def add_component("):]
+print("2425 spies over the cases:", TC_FORBIDDEN, "| static scan:",
+      _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addComponent|clearComponents|killAuto|decomposite|removeShape|replaceShape|addShape|applyTransform)\s*\(|font\.update|_ensure_modern_layer|create_layer=True", _srcac),
+      "| every refusal before the first write:", _acf.rindex("nothing was changed") < _acf.index("layer.recipe = component"),
+      "| write statements:", [len(_re83.findall(r"(?m)^\s+" + s, _acf)) for s in (r"layer\.recipe = component$", r"layer\.autoLayer = True$", r"ret = layer\.buildAuto\(\)$",
+                                                                                  r"layer\.autoLayer = False$", r"shapes\[0\]\.transform = ", r'layer\.recipe = ""$')])
+print("2425a route documented:", "POST /glyph/component" in src, "| dispatched:", 'if path == "/glyph/component":' in src, "| mark title:", ns["_MARK_TITLES"].get("add_component"),
+      "| guard kind full:", "add_component" in ns["_GUARD_FULL_KINDS"], "| activity kind:", ns["_ACT_WRITES"].get("/glyph/component"))
+_acr = {"open": True, "placed": True, "synced_with_fontlab": True}
+for tag, code, reply in (("2425b log, placed            ", 200, _acr), ("2425c log, placed, not synced", 200, dict(_acr, synced_with_fontlab=False)),
+                         ("2425d log, refused           ", 200, {"open": True, "placed": False, "reason": "the glyph is not empty"}),
+                         ("2425e log, changed, set back ", 200, {"open": True, "placed": False, "changed": True, "auto_layer_set_back": True, "reason": "layer.buildAuto() failed"}),
+                         ("2425f log, bad request       ", 400, {"error": "x"})):
+    print(tag, ":", ns["_act_describe_write"]("/glyph/component", dict(P0, x=100, y=50), code, reply))
+# ---- v0.170: GET /debug/markswitch (S1 research): the listener's changed mark off / on for this run, shown on an add_component write
+print("\n==== v0.170 /debug/markswitch ====")
+QM = "/debug/markswitch"
+for tag, q in (("2430a read only                     ", ""), ("2430b on=2                          ", "?on=2&go=yes"),
+               ("2430c on=0 without go               ", "?on=0"), ("2430d on=0, go=Yes                 ", "?on=0&go=Yes")):
+    print(tag, ":", call(QM + q), "| switch", ns["_MARK_CHANGED"])
+print("2430f a blank on, called directly: read only:", ns["debug_mark_switch"]("  ", "yes"), "| switch", ns["_MARK_CHANGED"])
+print("2430e switched off                     :", call(QM + "?on=0&go=yes"), "| switch", ns["_MARK_CHANGED"])
+d = ac("2431 add_component while it is off  ", P0, keys=("placed", "verified"))
+print("2431a  the reply says why               :", d.get("fontlab_changed_mark"), "| synced", d.get("synced_with_fontlab"))
+print("2431b off again: no second notice      :", call(QM + "?on=0&go=yes"))
+print("2432 switched on again                 :", call(QM + "?on=1&go=yes"), "| switch", ns["_MARK_CHANGED"])
+d = ac("2432a add_component, marked again   ", P0, keys=("placed", "verified"))
+print("2432b  mark                             :", d.get("fontlab_changed_mark"))
+_srcms = src[src.index("def debug_mark_switch("):src.index("def debug_try_component(")]
+print("2433 the switch touches nothing else   :", _re83.findall(r"\bfl\.|fontlab\.|flItems|notify\w*\(|CurrentFont|_open_font", _srcms),
+      "| route documented:", "/debug/markswitch     [on=0|1&go=yes]" in src, "| dispatched:", 'if path == "/debug/markswitch":' in src,
+      "| shipped on:", "_MARK_CHANGED = True    # v0.132" in src)
+ns["_MARK_CHANGED"] = True
+TCShape.transform = _tc_tx_prop
+for _a in ("inkBox",):
+    if _a in TCShape.__dict__: delattr(TCShape, _a)
+del TOPkg.mastersCount
+for _a in ("recipe", "autoLayer", "buildAuto", "killAuto"):
+    if _a in TCLayer.__dict__: delattr(TCLayer, _a)
+TCLayer.setGlyphComponents = _tc_set_orig
+if "generateGlyph" in TOPkg.__dict__: del TOPkg.generateGlyph
+for _m, _a, _v in _tc_gen_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else:
+        setattr(_m, _a, _v)
+qg.QTransform = QTransformStub
+for _m, _a, _v in _tc_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else:
+        setattr(_m, _a, _v)
 for _a in ("transform",):
     if _a in TEShape.__dict__: delattr(TEShape, _a)
 for _a, _v in _te_p72_saved.items():

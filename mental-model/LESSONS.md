@@ -106,3 +106,9 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 - **A probe that needs exactly one font cannot test several fonts.** Which font a mark lands on with other fonts open could only be asked after a small build (0.145, `construct_named&mark=yes`); decide early whether a question is about one font or several.
 - **An equality call is evidence only after it has answered false.** `isEqual` was recorded as proven (736) and used in `create_font` after it had only compared a package with itself; asked about two different packages it said true (930, 931). Before relying on a "same?" call, run it once on a pair that must differ, and name the alternative a positive result leaves open (928 and 929 could not tell "the glyph's own package" from "the current package" until 930 read a wrapper of a font not in front).
 - **When the person goes one step ahead, record it as its own row.** The extra Font Info round in 907 was kept as 907b and confirmed 902 from the other side; say what it showed before continuing.
+
+## Placing a component (2026-11-17, tests 1026–1042b)
+
+- **Search the records before a probe.** Test 1027 re-ran `flShape(flShapeData)`, a dead form already recorded in [topics/geometry.md](topics/geometry.md), and the meaning of 1026's "Unexpected SeqBase<T> length." (a wrong argument count) was recorded there too. Search the documents for the call and for the error text first.
+- **An error message names the first check that failed, not always the argument you changed.** 1033's "must be Int" was read as the fourth argument (0.162), then as the width (0.163); it was neither (1035–1037). Change one argument per run and compare the messages before naming the culprit.
+- **Review the full, untruncated diff before `--update`.** A filtered and cut view hid a changed test line in the 0.157 update; it was found and fixed in 0.158.

@@ -56,6 +56,7 @@ Every write is reported as successful only after a re-read agrees. Drawings are 
 | `.notdef` | `check_notdef` (+ automatic checks) | `/font/notdef`, `/font/notdef/warn` | [notdef](topics/notdef.md) |
 | names, Unicode | `create_glyph`, `delete_glyph`, `check_glyph_unicode`, `set_glyph_unicode` | `/glyph/create`, `/glyph/delete`, `/glyph/unicode` | [names-unicode](topics/names-unicode.md) |
 | geometry | `set_glyph_width`, `set_glyph_sidebearings`, `draw_polygon`, `draw_path`, `move_nodes` (server 0.63; 0.64, 0.65) | `/glyph/width`, `/glyph/sidebearings`, `/glyph/polygon`, `/glyph/path`, `/glyph/move` (listener 0.153) | [geometry](topics/geometry.md) |
+| components | `add_component` (server 0.66; live AC 1079–1101) | POST `/glyph/component` (listener 0.169) | [reading](topics/reading.md) |
 | kerning | `get_kerning`, `set_kerning` | GET/POST `/kerning/pairs`, POST `/kerning/set` (the current master's table of the font in front; with several fonts open, matched by path) | [kerning](topics/kerning.md) |
 | save policy | `finish_changes` | none (server bookkeeping) | [server-and-endpoints](topics/server-and-endpoints.md) §2 |
 | research | none | `/debug/...` probes, gated by `go=yes` where they change anything | [server-and-endpoints](topics/server-and-endpoints.md) §3 |

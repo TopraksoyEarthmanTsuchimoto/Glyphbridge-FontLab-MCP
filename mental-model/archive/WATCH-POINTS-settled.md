@@ -2,6 +2,16 @@
 
 Watch points that were settled or dropped, one line each, in the order they were recorded. Moved from [WATCH-POINTS.md](../WATCH-POINTS.md) on 2026-11-10 and still added to. A settled fact lives in the file its line names.
 
+- 2026-11-17: "FontLab 8.9.5 against 8.4.2" dropped: 8.4.2 is no longer used ([CURRENT-STATUS.md](../CURRENT-STATUS.md), Environment). No difference was seen in the writes run on 8.9.5 from 2026-11-01 to 2026-11-09 (190–683, [LIVE-TESTS.md](../LIVE-TESTS.md)).
+
+- 2026-11-17: "Arial's `kern` feature against its table" (K11) dropped: GPOS kerning is a non-goal ([PROJECT.md](../PROJECT.md)). 1,417 `pos` lines against 1,370 table entries, while the 20 pairs compared agreed ([topics/kerning.md](../topics/kerning.md) §11).
+
+- 2026-11-17: "Two 'no font' states" (852) dropped: the tools decide by `CountFonts()` ([topics/fonts-and-sync.md](../topics/fonts-and-sync.md) §8k), so neither state affects them. `CurrentFont()` returned FontLab's placeholder font at the start of a FontLab run and nothing later in the same run.
+
+- 2026-11-17: "Guessing where a kerning value comes from" (K5, K8) dropped: since 0.104 / 0.33 the reply names the `source`, and the Desktop agent in 223 reported it without guessing ([topics/kerning.md](../topics/kerning.md)).
+
+- 2026-11-17: "The component `buildAuto()` placed" (1041b, 1041c) settled in [topics/reading.md](../topics/reading.md) "Components: placing one through the API": after `autoLayer = False` FontLab showed a normal component (1042–1042b); of the differences seen, the flat fill and the icon before the name are how any unselected component looks.
+
 - 2026-11-12: "The client name is the app's own claim" moved to [topics/server-and-endpoints.md](../topics/server-and-endpoints.md) §4: a recorded fact (236–242), not an open question.
 
 - 2026-11-12: "`updated_fg_glyphs` after a write" dropped: no tool depends on it. The probe's list went from 0 to 4 ids after the width write on `testglyph2` and held 1 id after the width write on `A` (T4: 145b, 145e, [LIVE-TESTS.md](../LIVE-TESTS.md)); not predicted, not explained.

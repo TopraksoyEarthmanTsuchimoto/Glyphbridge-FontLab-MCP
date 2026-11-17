@@ -4,6 +4,115 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.170 (2026-11-17; server unchanged at v0.66)
+
+**`/debug/markswitch`: the changed mark off and on for one listener run** (S1 research; the user's choice of 2026-11-17, to make clear whether `add_component` alone brings FontLab's save question: in Demo mode a font never returns to "unchanged", and every tool that sets up a test glyph marks it).
+- `GET /debug/markswitch` reads `_MARK_CHANGED`; `?on=0|1&go=yes` sets it for THIS listener run only (a restart sets it on again). No FontLab call, no font touched. While it is off, every write reply says so in `fontlab_changed_mark` ("switched off in the listener") and the server adds `save_question_note`; the OUTPUT panel prints one line at each real change of the switch.
+- Tests: `stub_listener_tests.py` 3940 → 3959 lines (2430a–2433). Mutation run: 5 of 5 caught. Run live 1097–1101: the save-question pair for `add_component`.
+
+## Listener v0.169 / server v0.66 (2026-11-17): `add_component`
+
+**The first tool that places a component** (P2.7; design of the user, [DECISIONS.md](DECISIONS.md) 2026-11-17; the route proven with `/debug/trycomponent`, 1039–1058).
+- Listener: `POST /glyph/component` `{"name", "component", "x", "y"}` (whole numbers, ±10,000). Refused before any write: no font, more than one master, the glyph missing, without a layer, not empty, or with `autoLayer` on or an unreadable recipe; the component glyph missing, the glyph itself, without plain contours only (a component, Power Brush or other composite shape refused) or without nodes, or its ink box unreadable. Steps: `recipe = component`, `autoLayer = True`, ONE `buildAuto()` that must return True, `autoLayer = False`, `shape.transform = QTransform(1, 0, 0, 1, x, y)` only for an offset, `recipe = ""`. `placed` (and `verified`) only when every check reads true: one component of the source on its layer, the offset, its `inkBox()` equal to the source's moved by (x, y), the recipe cleared, `autoLayer` off, the source, the advance width and the glyph count unchanged. After a failure once `autoLayer` was on, ONE `autoLayer = False` (`auto_layer_set_back`); nothing else restored, nothing marked. Mark title "Glyphbridge add component"; guard kind full; OUTPUT line `component <glyph>: <source> at (x, y) (verified)`.
+- Server: tool `add_component(name, component, x=0, y=0)` (21 tools), needs listener 0.169; whole-number offsets (a whole float accepted); success only when the listener's `placed`, `verified` and all eight checks are true; a refusal that changed nothing is an error; a changed but unconfirmed glyph returns `steps_done`, `checks`, `elements_after` and counts as a change (an unknown outcome as uncertain). The description names the limits: one master, an empty glyph, plain source, Undo untested, the unexplained 1059.
+- Tests: `stub_listener_tests.py` 3865 → 3940 lines (2420–2425f); the `move_nodes` static scan now ends where the new section starts, its output unchanged; new fake modes for the trycomponent fakes, earlier output unchanged. `create_unicode_tests.py` 1315 → 1341 lines (section 38; tool count 20 → 21). Mutation run: 29 of 29 caught (23 listener, 6 server). Run live AC 1079–1101: all as predicted except Edit > Undo, which offered nothing (1090).
+
+## Listener v0.168 (2026-11-17; server unchanged at v0.65)
+
+**`/debug/trycomponent stage=auto&step=clearrecipe`: can the recipe left after a build be cleared?** (the user's design choice of 2026-11-17 for the planned placing tool: research clearing the recipe first; 1057 had not shown it re-applied.)
+- ONE `layer.recipe = ""` on a layer whose `autoLayer` reads False, that holds only components of `cpp` glyphs and whose recipe reads a non-empty text; read back. Refused, nothing touched: `autoLayer` on, an empty layer or a plain shape, an empty or unreadable recipe, a recipe in the request.
+- `recipe_cleared`: the recipe reads `""`, the same components (source, layer, matrix) and outline, `autoLayer` still False, no side effect (width, glyph count, sources). Only then is the font marked; an outline change is synced unmarked.
+- Tests: `stub_listener_tests.py` 3830 → 3865 lines (2411–2415; 2390a, b list the new step). The 0.165 call count now looks for the `setrecipe` form of `layer.recipe =`, its output unchanged. Mutation run: 8 of 10 caught; the two left (`step_took_effect` and `component_kept` dropped from the verdict) are equivalent, since either one false already makes `side_effect_detected` true. Run live 1058 (`recipe_cleared` true); 1059 refused, rightly: `cpp2tgt` no longer held components.
+
+## Listener v0.167 (2026-11-17; server unchanged at v0.65)
+
+**`/debug/trycomponent stage=offset`: can a placed component be given an offset?** (live 1042: a normal component of `cpp1src` at identity in `cpp1tgt2`; the user's approval of 2026-11-17: "first an offset after the build". Names only: `flShape.transform`, docstring "transform"; `flShape.applyTransform([QTransform transform])`; no `setTransform`, `translate` or `move`.)
+- `stage=offset&target=cpp…&how=assign|apply&dx=DX&dy=DY&go=yes`, ONE call per request: `assign` sets `shape.transform = QTransform(1, 0, 0, 1, dx, dy)`, `apply` makes ONE `shape.applyTransform(<the same QTransform>)`. Only on a layer that holds exactly one element, a component of a `cpp` glyph at the identity matrix, with `autoLayer` False. (dx, dy) may not be (0, 0). `how` belongs to this stage only, and the stage takes no source and no recipe.
+- The reply has, before and after: the element (source, layer, matrix), its ink box (`shape.inkBox()`, read only on components since 644–656), the raw nodes of `layer.getContours()`, the source's outline, the width, `recipe` / `autoLayer` and the glyph count. `offset_placed` is true when the matrix reads the offset, the ink box moved by exactly (dx, dy), the raw nodes are unchanged or moved by the offset (`raw_nodes` says which), and nothing else changed. Only then is the font marked; any other change is synced unmarked.
+- Tests: `stub_listener_tests.py` 3762 → 3830 lines (2405–2410a; 2340c lists the new stage). Mutation run: 16 of 16 caught. Run live 1043–1044 (`how=assign`, one run): `offset_placed` true; `how=apply` not run. The steps of 0.165 / 0.166 also ran a two-glyph recipe, 1045–1050a.
+
+## Listener v0.166 (2026-11-17; server unchanged at v0.65)
+
+**`stage=auto&step=unauto|killauto`: can the component `buildAuto()` placed become a normal one?** (live 1041b, 1041c: it shows as an auto layer, its element greyed and locked; the user's approval of 2026-11-17).
+- On a layer whose `autoLayer` reads True and that holds only components of `cpp` glyphs: `unauto` sets `layer.autoLayer = False` and reads it back; `killauto` makes ONE `layer.killAuto()` (its effect on the recipe is reported, not counted as a side effect). `component_kept`: the same components (source, layer, matrix) and the same outline after; `component_normal`: kept, `autoLayer` False and no side effect; only then is the font marked. Any other outline change is synced unmarked.
+- Tests: `stub_listener_tests.py` 3731 → 3762 lines (2400–2404; 2390a, b list the new steps). The 0.165 checks were narrowed, their output unchanged: the static scan no longer forbids `killAuto(`, and the call count looks for `autoLayer = True`. Mutation run: 9 of 9 caught. Run live: `unauto` 1042, 1050; `killauto` 1055 (it changed nothing the probe reads).
+
+## Listener v0.165 (2026-11-17; server unchanged at v0.65)
+
+**`/debug/trycomponent stage=auto`, FontLab's own recipe build** (live 1037: `name_id` items gave "GlyphComponent expected", so every argument of the four-argument form is right and its "must be Int" most likely asks for the fifth; the user's choice of 2026-11-17: the recipe route next. Names only: `flLayer.recipe` QString, `flLayer.autoLayer` bool, `bool flLayer.buildAuto()`, `killAuto()`).
+- `stage=auto&target=cpp…&step=S&go=yes`, ONE step per request on an existing target layer, empty for every step but `read`: `read` (`recipe`, `autoLayer`, nothing changed), `setrecipe&recipe=R` (`layer.recipe = R`, read back), `setauto` (`layer.autoLayer = True`, read back), `build&recipe=R` (`layer.buildAuto()` once, only when the recipe reads exactly R). R as for `generate`.
+- Each reply has `auto_before` / `auto_after`, the elements, outline, width, the recipe glyphs and the glyph count before and after, `step_took_effect`, `outline_changed` and `side_effect_detected`; `build` adds `placed` and `component_placed`. Only a confirmed component from `build` is marked; any other outline change is synced unmarked. `killAuto()` is never called.
+- Tests: `stub_listener_tests.py` 3674 → 3731 lines (2390–2399a; 2340c lists the new stage). Mutation run: 12 of 12 caught. Run live 1038–1041b, 1046–1049, 1052–1054.
+
+## Listener v0.164 (2026-11-17; server unchanged at v0.65)
+
+**`setgenerated&items=id`, the list's contents as the one variable** (live 1036: a whole-number width gave "must be Int!" too; FontLab's archived FontLab 7 reference gives `bool setGlyphComponents(QList result, double width, flPackage package, bool colorize)`; the user's choice of 2026-11-17: one more probe, then, if it fails, find out whether the legacy route is the only way).
+- `items=id` passes each `GlyphComponent`'s `name_id` (a plain whole number up to a uint's maximum) in place of the object; a list that is not a real Python list, or a `name_id` that is not such a number, is refused before the call. `items_passed` and `call_made` name what was passed. Only `stage=setgenerated` takes it.
+- Tests: `stub_listener_tests.py` 3657 → 3674 lines (2386–2389). The FontLab-like fake now holds two readings of the "must be Int" of 1033 / 1036: `width_must_be_int` (disproved by 1036; kept for the 2381 and 2384 cases, whose output is unchanged) and `items_must_be_int` (tested by 1037). Mutation run: 6 of 6 caught. Not yet run live.
+
+## Listener v0.163 (2026-11-17; server unchanged at v0.65)
+
+**`setgenerated&width=int`, the second argument as the one variable** (live 1035: `0` as the fourth gave "argument type must be Boolean!", so the fourth is a bool after all and 1033's "must be Int" came from the first two, most likely the width `0.0`; the user's approval of 2026-11-17).
+- `width=int` passes the width as a whole number; a width that is not one is refused before the call. `call_made` names it. Only `stage=setgenerated` takes it.
+- Tests: `stub_listener_tests.py` 3641 → 3657 lines (2383–2385). The FontLab-like fake now answers as live 1031, 1033, 1034 and 1035 (count, then third, then fourth, then second), so 2381d now fails with "must be Boolean" as 1035 did. Mutation run: 5 of 5 caught. Not yet run live.
+
+## Listener v0.162 (2026-11-17; server unchanged at v0.65)
+
+**`setgenerated&int=yes`, the fourth argument as the one variable** (live 1034: the fgId gave "Wrong argument type. flPackage expected.", so the package object is right and 1033's "must be Int" was the fourth argument, `False`; the user's approval of 2026-11-17).
+- `int=yes` passes the whole number `0` in place of `False`; `call_made` names it. Only `stage=setgenerated` takes it.
+- Tests: `stub_listener_tests.py` 3623 → 3641 lines (2380–2382; a fake that answers as FontLab did in 1031, 1033 and 1034). Mutation run: 5 of 5 caught. Not yet run live.
+
+## Listener v0.161 (2026-11-17; server unchanged at v0.65)
+
+**`setgenerated&pkg=id`, the third argument as the one variable** (live 1033: with `args=4`, "TypeError: argument type must be Int!" instead of the argument-count error; the user's approval of 2026-11-17).
+- `pkg=id` passes the package's `fgId` as the third argument of `setGlyphComponents`, read as the KERNING panel refresh reads it; a value that is not a plain whole number from 0 to a uint's maximum is refused before the call. `package_fgid` and `call_made` name what was passed. Only `stage=setgenerated` takes it.
+- Fixed while building: `call_returned` was read even when the call had not been made.
+- Tests: `stub_listener_tests.py` 3605 → 3623 lines (2376–2378). Mutation run: 7 of 7 caught. Not yet run live.
+
+## Listener v0.160 (2026-11-17; server unchanged at v0.65)
+
+**`setgenerated&args=N`, the argument count as the one variable** (live 1031: FontLab's own list gave the same "IndexError: Unexpected SeqBase<T> length." as 1026; in this project that error meant a wrong argument count before, [topics/geometry.md](topics/geometry.md); the user's approval of 2026-11-17).
+- `args=N` (2 to 5, default 5) calls `layer.setGlyphComponents` once with the first N of `(list, width, package, False, 0)`; `call_made` names the call. Only `stage=setgenerated` takes it; the message before `go=yes` names the count.
+- Tests: `stub_listener_tests.py` 3587 → 3605 lines (2372–2375; 2360b's message). Mutation run: 6 of 6 caught. Not yet run live.
+
+## Listener v0.159 (2026-11-17; server unchanged at v0.65)
+
+**`setgenerated` takes the form `generateGlyph` really returns** (live 1032: a real list of one `GlyphComponent`, `name_id` 5113, identity, no width; the user's approval of 2026-11-17).
+- `stage=setgenerated` also accepts a real list of 1–20 items that are all `GlyphComponent` (by `isinstance` only) and passes it as is to ONE `layer.setGlyphComponents(<list>, <the target's own advance width>, package, False, 0)`; `width_source` says so. A list with any other item, or an unreadable target width, is refused before the call.
+- A pair now needs a number as its second item, so the list of two `GlyphComponent` of a two-glyph recipe is not taken for a pair.
+- Tests: `stub_listener_tests.py` 3577 → 3587 lines (2371a–h); the refusal wording and the step label changed in 2365c, g, m and 2370a–c, and 2370a's `setgenerated` now places. Mutation run: 6 of 6 caught. Not yet run live.
+
+## Listener v0.158 (2026-11-17; server unchanged at v0.65)
+
+**`generateGlyph` results that are not a pair** (live 1030: a real list of one item; the user's approval of 2026-11-17).
+- `stage=generate` / `setgenerated`: a real list or tuple that is not a pair is described item by item (`generate_returned_items`, at most 20); `setGlyphComponents` is still called only for a pair.
+- Every description (also `layer.components` of 0.156) is by type only: a value is a transform only when it is an instance of the `QTransform` class (no member of an unknown object is read; the spies had caught 0.157 reading `m11` from one), a `GlyphComponent` gives its documented members, and a real tuple or list is described part by part, two levels deep at most. In the reply a transform part is `{"type", "matrix"}` (was `{"type", "value": {"matrix"}}`).
+- Test fix: the static scan of the read stage (2355) had covered the 0.157 generate code too and listed its calls; it now covers the read stage only. That line was accepted unnoticed in the 0.157 update.
+- Tests: `stub_listener_tests.py` 3567 → 3577 lines (2370a–e). Mutation run: 7 of 7 caught. Not yet run live.
+
+## Listener v0.157 (2026-11-17; server unchanged at v0.65)
+
+**`/debug/trycomponent stage=generate / setgenerated`** (P2.7; the user's approval of 2026-11-17, after 1029 read an empty `layer.components`). Names only first: `flPackage.generateGlyph(string recipe, string layer_name, FontMetrics metrics, bool rtl)` returns `(QList<GlyphComponent>, double width)`; `FontMetrics(flPackage p, string layer_name)`.
+- `stage=generate&target=cpp…&recipe=R&go=yes`: `FontMetrics(package, <target's layer name>)`, then ONE `package.generateGlyph(R, layer_name, metrics, False)`. What it returns is described (a list only when it is a real Python list or tuple); the target, the recipe glyphs and the glyph count are compared before and after, and any change is `side_effect_detected`.
+- `stage=setgenerated`: the same call, then ONE `layer.setGlyphComponents(<the returned list, as is>, <the returned width>, package, False, 0)`, read back as the 0.155 stages; the returned width is not counted as a side effect. `placed` = components naming the recipe glyphs, in order, at the identity matrix.
+- R is one or two `cpp` glyph names joined by `+` (sent as `%2B`: a plain `+` arrives as a space and is refused), none of them the target; no `@` placement.
+- Tests: `stub_listener_tests.py` 3520 → 3567 lines (2360–2368); `create_unicode_tests.py` 1314 → 1315: the no-save scan (8x) now leaves out the `/debug/trycomponent` block, and 8x1 lists that block's save / export / generate calls, where only `.generateGlyph(` may appear (it builds components and writes no file). Mutation run: 17 of 17 caught. Not yet run live.
+
+## Listener v0.156 (2026-11-17; server unchanged at v0.65)
+
+**`/debug/trycomponent stage=readcomponents`, read only** (P2.7; the user's approval of 2026-11-17, after 1026 and 1027 failed at argument conversion).
+- `stage=readcomponents&target=cpp…&go=yes`: one font, the shared cap of 6, no source and no offset. ONE read of `layer.components` (called once with no argument if it is callable). Only a real Python list or tuple is indexed, at most 20 items; a tuple or list item is described part by part (text, numbers, a transform as its matrix), a `GlyphComponent` by `name_id`, `width_scale`, `use_anchors` and its matrix, anything else by its type name. Anything else at the top level is reported by type only. `side_effect_detected` compares the layer counts and the glyph count before and after.
+- Every element listing of the probe also gives `shape_data_type`, the type name of `shape.shapeData`.
+- Tests: `stub_listener_tests.py` 3501 → 3520 lines (2350–2355) and 7 version lines, `create_unicode_tests.py` 2 version lines. Mutation run: 9 of 9 caught. Not yet run live.
+
+## Listener v0.155 (2026-11-17; server unchanged at v0.65)
+
+**`/debug/trycomponent`, research for placing a component** (P2.7; the user's approval of 2026-11-17). Names only first (no font needed): `flLayer.addComponent` takes an `flComponent`, which is not a public name, so it is not tried; `flLayer.setGlyphComponents(QList<GlyphComponent>, double width, flPackage, bool colorize, uint flags)` and `GlyphComponent(string name)` (members `name_id`, `transform`, `width_scale`, `use_anchors`) are the first route; `flShape(flShapeData)` with `layer.addShape` the second.
+- Gated probe, research only: `go=yes`, exactly one font open, `target` and `source` named `cpp…` and different, `dx` / `dy` whole numbers within ±1000, 6 calls per listener run counted before either glyph is read. The source needs one plain shape with nodes; the target needs an existing layer (a glyph with no layer is refused: the Add Component crash) with at most one plain shape.
+- `stage=glyphcomponents`: `GlyphComponent(source)`, its transform set to `QTransform(1, 0, 0, 1, dx, dy)` and read back, then ONE `layer.setGlyphComponents([gc], <target advance width>, <current package>, False, 0)`. `stage=shapedata`: `flShape(<source shape>.shapeData)`, the same transform, then ONE `layer.addShape`.
+- Reply: the target's elements (`is_component`, `component_glyph`, `component_layer`, `reference_count`, matrix), counts, outline and advance width before and after; the source's elements and outline before and after; the glyph count; `placed`, `existing_kept`, `source_contours_in_outline`, `side_effect_detected`, `component_placed`. A change goes through `_guard_mark` (mark title "Glyphbridge component"); only a confirmed placement is marked.
+- Tests: `stub_listener_tests.py` 3439 → 3501 lines (2340–2349) and 7 version lines, `create_unicode_tests.py` 2 version lines. Mutation run: 19 of 19 caught. Not yet run live.
+
 ## Server v0.65 (2026-11-15; listener unchanged at v0.154)
 
 **`move_nodes` notes after MN 1016–1024** (the user's approval of 2026-11-15).

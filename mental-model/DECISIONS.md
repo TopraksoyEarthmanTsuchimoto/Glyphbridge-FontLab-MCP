@@ -2,6 +2,18 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-17: `add_component`, version 1 (design, not yet built)
+
+- **One component per call, into an existing, empty glyph layer**, at a whole-unit offset set after the build. *Reason:* only that was proven with the width unchanged; a two-glyph recipe sets its own offset and width (1049).
+- **After a failure past `autoLayer = True`, the tool sets it back to False, reads back and reports;** no automatic restore of the outline. *Reason:* one proven write leaves the glyph editable instead of a locked auto layer (1055a).
+- **The leftover recipe is researched before the build** (done: `recipe = ""` cleared it, 1058).
+- **With several fonts open, the tool follows the font in front,** with a two-font live check in its first live round. *Reason:* the rule of the other write tools ([PROJECT.md](PROJECT.md), goal 5).
+- *Reason for all:* the user's answers, one question at a time.
+
+## 2026-11-17: placing components goes the modern way
+
+- **Components are placed through FontLab's recipe build (`recipe`, `autoLayer = True`, `buildAuto()`, `autoLayer = False`); the legacy `fgComponent` route is not probed.** *Reason:* the user's question whether legacy was the only way; the modern route worked (1041b–1042b, [topics/reading.md](topics/reading.md)) and the modern-API-first decision applies. Revisit only if the modern route cannot do what a tool needs (for example offsets or several components).
+
 ## 2026-11-15: move_nodes tells the person that Undo does not take a move back (server 0.65)
 
 - **No `display_note` in a `move_nodes` reply; `undo_note` wherever the outline changed, told once per conversation.** *Reason:* `display_note` gave repaint steps, against the decision of 2026-11-13; Edit > Undo lists a tool move but left the nodes moved (1023). The user approved the change.
@@ -13,30 +25,18 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 ## 2026-11-15: move_nodes, the first edit tool (listener 0.153 / server 0.63)
 
 - **Each move gives `from` and `to`; a `from` that differs from the node refuses the whole call.** *Reason:* a stale read becomes a refusal, not a wrong edit.
-- ~~`flLayer.resetInkBox()` refreshes the sidebearings after the moves~~ superseded the same day, below.
 - **No automatic restore when the re-read differs;** the font is marked whenever its outline changed. *Reason:* a restore is an untested second write; the person decides.
 - **One plain shape only, for now.** *Reason:* only that was probed; each shape may carry its own transform.
 - *Reason for all:* the user's answers, one question at a time.
-
-## 2026-11-14: the DECISIONS.md budget
-
-- **The word budget of this file's active part is 2,500 (was 2,200); the reference totals in [MARKDOWN-MAP.md](MARKDOWN-MAP.md) are now 12,350 and 11,850.** Nothing was archived for it. *Reason:* the user's choice, with the file at 2,157 words.
-
-## 2026-11-14: the PROJECT.md and MARKDOWN-MAP.md budgets
-
-- **The word budget of [PROJECT.md](PROJECT.md) is 1,000 (was 850) and that of [MARKDOWN-MAP.md](MARKDOWN-MAP.md) is 1,000 (was 900); the reference totals in MARKDOWN-MAP.md are now 12,050 and 11,550.** Nothing was trimmed or moved for it. *Reason:* the user's choice, with the files at 819 and 868 words.
-
-## 2026-11-14: the WATCH-POINTS.md budget
-
-- **The word budget of [WATCH-POINTS.md](WATCH-POINTS.md) is 2,500 (was 2,200).** Nothing was trimmed or moved for it; the rule of 2026-11-12 (an entry holds the open question only) stays. *Reason:* the user's choice, with the file at 2,154 words.
 
 ## 2026-11-14: editing existing glyphs
 
 - **AI agents must be able to edit an existing glyph through Glyphbridge: move nodes, add a contour to an existing shape, redraw an outline in place; in the end, every kind of glyph manipulation.** Every edit is verified by a re-read, and the layer guard's refusal is lifted only by a tool built for that edit. *Reason:* the user's requirement; today an agent must delete a glyph and draw it again.
 
-## 2026-11-13: the CURRENT-STATUS.md budget
+## 2026-11-13 to 2026-11-17: word budgets raised by the user's choice
 
-- **The word budget of [CURRENT-STATUS.md](CURRENT-STATUS.md) is 2,500 (was 2,200); the reference totals in [MARKDOWN-MAP.md](MARKDOWN-MAP.md) are now 11,800 and 11,300.** Nothing was trimmed or moved for it. *Reason:* the user's choice, with the file at 2,158 words.
+Condensed on 2026-11-17 from five entries; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Current budgets and their history: [MARKDOWN-MAP.md](MARKDOWN-MAP.md).
+- **CURRENT-STATUS.md 2,500 (2026-11-13); PROJECT.md 1,000, MARKDOWN-MAP.md 1,000, WATCH-POINTS.md 2,500, DECISIONS.md 2,500 (2026-11-14); WHAT-WORKS.md 2,250 (2026-11-17); DECISIONS.md 2,800 (2026-11-17, at 2,528 words, offered the condensing of the 2026-11-15 entries instead).** Nothing was trimmed or moved for any of them. *Reason:* the user's choice each time.
 
 ## 2026-11-13: a package is told apart by its fgId (listener 0.150 / server 0.62)
 
@@ -56,7 +56,7 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 ## 2026-11-12: watch points hold the open question only
 
-- **An entry in [WATCH-POINTS.md](WATCH-POINTS.md) holds what is open and what would settle it; the evidence lives in the topic file it links to. The budget stays 2,200** (raised to 2,500 on 2026-11-14, above). *Reason:* the user's choice over a seventh raise: the file had grown by collecting the story of each run. Nothing is cut; evidence moves, word for word where the topic file lacks it.
+- **An entry in [WATCH-POINTS.md](WATCH-POINTS.md) holds what is open and what would settle it; the evidence lives in the topic file it links to. The budget stays 2,200** (raised to 2,500 on 2026-11-14: the budget entry above). *Reason:* the user's choice over a seventh raise: the file had grown by collecting the story of each run. Nothing is cut; evidence moves, word for word where the topic file lacks it.
 
 ## 2026-11-11: new fonts made by an agent
 

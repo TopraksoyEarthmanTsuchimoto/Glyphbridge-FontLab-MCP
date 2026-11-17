@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.154)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.170)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -98,6 +98,8 @@ Routes (GET unless marked POST):
     POST /glyph/move            {"name", "moves": [{"contour", "node", "from": {x, y}, "to": {x, y}}]} (v0.153):
                                 moves existing nodes of a glyph with ONE plain shape; every "from" must
                                 match first; whole units; verified node by node
+    POST /glyph/component       {"name", "component", "x", "y"} (v0.169): ONE component of the glyph "component" into the
+                                EMPTY glyph "name" at a whole-unit offset, through FontLab's recipe build; verified by re-reading
 
   Kerning (never the whole table)
     POST /kerning/set           {"pairs": [[left, right, value], ...]} (v0.124): glyph : glyph pairs into the current
@@ -163,6 +165,24 @@ Routes (GET unless marked POST):
                           of a plain drawn glyph (one shape, no component, no Power Brush), outline before and after; refresh=R calls one
                           member of a fixed list after the edit, sidebearings before and after it (v0.152); exactly one font open,
                           8 per listener run (v0.151, P2.2 research)
+    /debug/trycomponent   stage=glyphcomponents|shapedata&target=cpp...&source=cpp...&dx=DX&dy=DY: ONE placement of the source glyph
+                          (one plain shape) in the target (an existing layer, at most one plain shape) at offset (dx, dy), elements
+                          and outlines before and after; exactly one font open, 6 per listener run (v0.155, P2.7 research);
+                          stage=readcomponents&target=cpp...: read only, ONE read of layer.components (v0.156);
+                          stage=generate|setgenerated&target=cpp...&recipe=cpp...[+cpp...]: ONE package.generateGlyph, and for
+                          setgenerated then ONE layer.setGlyphComponents with what it returned; send + as %2B (v0.157);
+                          setgenerated&args=2..5: only the first N arguments of that call (v0.160); &pkg=id: the package's
+                          fgId as its third argument (v0.161); &int=yes: 0 in place of False (v0.162); &width=int: the
+                          width as a whole number (v0.163); &items=id: each component's name_id in place of it (v0.164);
+                          stage=auto&target=cpp...&step=read|setrecipe|setauto|build[&recipe=R]: ONE step of the layer's own
+                          recipe build (layer.recipe, layer.autoLayer, layer.buildAuto()) on an empty target (v0.165);
+                          step=unauto|killauto: autoLayer = False, or ONE killAuto(), on an auto layer holding components (v0.166);
+                          stage=offset&target=cpp...&how=assign|apply&dx=DX&dy=DY: ONE shape.transform = QTransform offset, or ONE
+                          shape.applyTransform(QTransform), on a layer holding one component at identity, autoLayer off (v0.167);
+                          stage=auto&step=clearrecipe: layer.recipe = "" on a layer of components, autoLayer off (v0.168)
+    /debug/markswitch     [on=0|1&go=yes]: S1 research (v0.170): without on, reads whether the changed mark (_MARK_CHANGED) is on; with
+                          on=0 / on=1 and go=yes, switches it off / on for THIS listener run (a restart switches it on again); no
+                          FontLab call is made
     /debug/tryshapebox    stage=shapebox|dependencies&name=X: read only; ONE shape.inkBox() per element, or ONE
                           flGlyph.isUnbindedDependecies(); exactly one font open; 12 per stage and listener run (v0.129, P1.1 research)
     /debug/trynotify      stage=state|call|ids&name=X[&which=W][&on=class|instance][&id_from=object|fg]: S1 and KERNING panel research; the changed
@@ -210,7 +230,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.154"
+VERSION = "0.170"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -508,7 +528,8 @@ _MARK_CHANGED = True    # v0.132: tell FontLab that a verified, synced tool writ
 _REFRESH_KERNING_PANEL = True    # v0.136: ask FontLab to refresh its KERNING panel after a kerning write that changed an entry (live 738, 741-743); False switches it off
 _MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge width", "sidebearings": "Glyphbridge sidebearings",
                 "draw_polygon": "Glyphbridge polygon", "draw_path": "Glyphbridge path", "unicode": "Glyphbridge Unicode", "delete": "Glyphbridge delete",
-                "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit", "move_nodes": "Glyphbridge move nodes"}
+                "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit", "move_nodes": "Glyphbridge move nodes",
+                "trycomponent": "Glyphbridge component", "add_component": "Glyphbridge add component"}
 _MARK_DELETE_MAX_TRIES = 20    # v0.133: how many surviving glyphs a delete's mark may try before it says none could be notified; v0.134: also a kerning write's mark
 _SYNCED_NOTE = ("Glyphbridge asked FontLab to sync this glyph right after the change and FontLab's legacy view now matches the modern layer, so the "
                 "change is durable against the display refresh of create_glyph, delete_glyph, set_glyph_unicode and the legacy width route. "
@@ -731,7 +752,7 @@ def _guard_mark(font, name, how, result, no_mark=None):
     _record_changed_mark(font, name, how, result, no_mark)
 
 
-_GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created", "move_nodes")   # v0.153: move_nodes keeps the node count, so the full check cannot see a lost move
+_GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created", "move_nodes", "add_component")   # v0.153: move_nodes keeps the node count, so the full check cannot see a lost move
 _GUARD_LIGHT_KINDS = ("width", "sidebearings")
 
 
@@ -2153,6 +2174,186 @@ def move_nodes(name, moves, rounded=None):
 
 
 # --------------------------------------------------------------------------
+# POST /glyph/component (v0.169) - add_component: ONE component into an existing, EMPTY glyph layer (P2.7; design of the user, 2026-11-17,
+# DECISIONS.md "add_component, version 1"). The route is the one proven with /debug/trycomponent, one live run per step: layer.recipe =
+# <source> (1039), layer.autoLayer = True (1041a), ONE layer.buildAuto() that must return True (1041b), layer.autoLayer = False (1042),
+# shape.transform = QTransform(1, 0, 0, 1, x, y) only for an offset (1043), layer.recipe = "" (1058). One master only; the source holds
+# only plain shapes (no component, no Power Brush or other composite shape) and at least one node; the target exists, has a layer, and
+# that layer holds nothing, with autoLayer off. EVERY check runs before the first write.
+# Verified (placed) only when the re-read shows exactly one element, a component of the source on the source's layer, matrix
+# (1, 0, 0, 1, x, y), its inkBox() equal to the source's ink box moved by (x, y), recipe "" and autoLayer False, and the source's
+# outline, the target's advance width and the glyph count unchanged. Then _guard_mark (Update, sync check, the changed mark).
+# After a failure once autoLayer was set True, ONE autoLayer = False (the user's choice), read back; nothing else is restored, and
+# nothing is marked. Never called: setGlyphComponents, addComponent, killAuto, decomposite, font.update(), save; no subscript or
+# iteration of a native object (layer.shapes and the box rows are real lists).
+# --------------------------------------------------------------------------
+
+_COMP_OFFSET_MAX = 10000
+
+
+def _comp_union_box(rows):
+    """{left, right, top, bottom} over the ink boxes of `rows` (_tryshapebox_boxes), or None when one is not a plain box."""
+    boxes = [r.get("ink_box") for r in rows]
+    keys = ("left", "right", "top", "bottom")
+    if not boxes or any(not isinstance(b, dict) or "error" in b or any(k not in b for k in keys) for b in boxes):
+        return None
+    return {"left": min(b["left"] for b in boxes), "right": max(b["right"] for b in boxes),
+            "top": min(b["top"] for b in boxes), "bottom": max(b["bottom"] for b in boxes)}
+
+
+def _comp_box_at(box, want):
+    """True / False when `box` (one element's ink box) equals `want` within 0.001 on its four edges; "unknown" when unreadable."""
+    keys = ("left", "right", "top", "bottom")
+    if not isinstance(box, dict) or "error" in box or any(k not in box for k in keys) or want is None:
+        return "unknown"
+    return all(abs(box[k] - want[k]) <= 0.001 for k in keys)
+
+
+def add_component(name, component, x, y):
+    """Place the glyph `component` as ONE component in the empty glyph `name` at offset (x, y), whole units. See the section comment.
+    Never saves."""
+    base = {"open": True, "name": name, "component": component, "x": x, "y": y, "placed": False, "route": "modern"}
+    if name == component:
+        return dict(base, reason="a glyph cannot hold itself as a component: nothing was changed")
+    ctx, refusal = _modern_edit_target(name)
+    if ctx is None:
+        out = _public_refusal(refusal)
+        out.pop("set", None)
+        out["placed"] = False
+        return out
+    w, font = ctx["w"], ctx["font"]
+    problem = _one_master_problem()
+    if problem is not None:
+        return dict(base, reason=f"add_component is proven only on a font with one master ({problem.split(', and a layer')[0]}): nothing was changed")
+    state, layer = _tryshape_modern_state(w)
+    base["state_before"] = state
+    if layer is None:
+        return dict(base, reason="the glyph has no modern active layer: nothing was changed")
+    tel = _trycomp_elements(layer)
+    if isinstance(tel, dict):
+        return dict(base, reason=f"the glyph's elements could not be read ({tel['error']}): nothing was changed")
+    if tel or state.get("shapes") != 0 or state.get("components") != 0:
+        return dict(base, reason=("the glyph is not empty (it reads " + f"{len(tel)} element(s)" + "); add_component places a component only into "
+                                  "an empty glyph for now: nothing was changed"))
+    auto_before = _trycomp_auto_state(layer)
+    base["auto_before"] = auto_before
+    if auto_before.get("auto_layer") is not False or str(auto_before.get("recipe")).startswith("<error"):
+        return dict(base, reason=(f"the glyph's layer reads autoLayer {auto_before.get('auto_layer')!r} and recipe {auto_before.get('recipe')!r}; "
+                                  "add_component needs a readable recipe and autoLayer off: nothing was changed"))
+    # the source: plain shapes only, at least one node
+    sctx, srefusal = _modern_edit_target(component)
+    if sctx is None:
+        out = _public_refusal(srefusal)
+        why = out.get("reason") or "the glyph cannot be used"
+        return dict(base, component_found=out.get("found", "unknown"), reason=f"the component glyph {component!r} cannot be used: {why}: nothing was changed")
+    sstate, slayer = _tryshape_modern_state(sctx["w"])
+    if slayer is None:
+        return dict(base, reason=f"the component glyph {component!r} has no modern active layer: nothing was changed")
+    sel = _trycomp_elements(slayer)
+    if isinstance(sel, dict):
+        return dict(base, reason=f"the elements of {component!r} could not be read ({sel['error']}): nothing was changed")
+    snodes = sstate.get("nodes")
+    if (not sel or any(e.get("is_component") is not False or e.get("is_composite") is not False for e in sel)
+            or sstate.get("components") != 0 or not isinstance(snodes, int) or isinstance(snodes, bool) or snodes < 1):
+        return dict(base, reason=(f"the component glyph {component!r} must hold only plain contours (no component, no Power Brush or other "
+                                  "composite shape) and at least one node: nothing was changed"))
+    source_layer = sstate.get("layer_name")
+    src_rows, why = _tryshapebox_boxes(slayer)
+    src_box = _comp_union_box(src_rows) if src_rows is not None else None
+    if src_box is None:
+        return dict(base, reason=f"the ink box of {component!r} could not be read ({why or 'an element box is not a plain box'}): nothing was changed")
+    src_before = _tryedit_snapshot(component)
+    if "error" in src_before:
+        return dict(base, reason=f"the outline of {component!r} could not be read ({src_before['error']}): nothing was changed")
+    width_before = _trycomp_width(w)
+    count_before = _tryedit_glyph_count(font)
+    base["advance_width_before"], base["glyph_count_before"] = width_before, count_before
+    if not isinstance(width_before, float) or isinstance(count_before, str):
+        return dict(base, reason="the glyph's advance width or the font's glyph count could not be read: nothing was changed")
+    qt_cls = None
+    if (x, y) != (0, 0):
+        import sys as _sys
+        qt_cls, qt_src = _trycomp_qtransform_class(_sys.modules.get("fontlab") or fl)
+        if qt_cls is None:
+            return dict(base, reason=f"{qt_src}: nothing was changed")
+    want_box = {"left": src_box["left"] + x, "right": src_box["right"] + x, "top": src_box["top"] + y, "bottom": src_box["bottom"] + y}
+    done, step = [], "layer.recipe = component"
+    try:
+        layer.recipe = component
+        done.append("recipe")
+        step = "layer.autoLayer = True"
+        layer.autoLayer = True
+        done.append("auto_on")
+        step = "layer.buildAuto()"
+        ret = layer.buildAuto()
+        done.append("build")
+        base["build_returned"] = ret if (ret is None or isinstance(ret, (bool, int, float, str))) else f"<{type(ret).__name__}>"
+        if ret is not True:
+            raise RuntimeError(f"it returned {base['build_returned']!r}, not True")
+        step = "layer.autoLayer = False"
+        layer.autoLayer = False
+        done.append("auto_off")
+        if (x, y) != (0, 0):
+            step = "reading the placed component"
+            shapes, err = _tl_call(lambda: layer.shapes)
+            if err is not None or type(shapes) is not list or len(shapes) != 1:
+                raise RuntimeError(f"layer.shapes is not a plain list of one element ({err or (len(shapes) if type(shapes) is list else type(shapes).__name__)})")
+            step = "shape.transform = QTransform(1, 0, 0, 1, x, y)"
+            shapes[0].transform = qt_cls(1.0, 0.0, 0.0, 1.0, float(x), float(y))
+            done.append("offset")
+        step = 'layer.recipe = ""'
+        layer.recipe = ""
+        done.append("recipe_cleared")
+    except Exception as exc:
+        base["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
+    result = dict(base, steps_done=list(done))
+    if "auto_on" in done and "auto_off" not in done:        # the user's choice: never leave a locked auto layer behind
+        try:
+            layer.autoLayer = False
+            result["auto_layer_set_back"] = True
+        except Exception as exc:
+            result["auto_layer_set_back"] = f"failed: {type(exc).__name__}: {exc}"
+    if done:
+        result["display_refreshed"] = _repaint_viewport()
+    after_state, layer2 = _tryshape_modern_state(w)
+    result["state_after"] = after_state
+    tel2 = _trycomp_elements(layer2) if layer2 is not None else {"error": "the glyph has no modern active layer after the call"}
+    result["elements_after"] = tel2
+    auto_after = _trycomp_auto_state(layer2) if layer2 is not None else {"error": "no layer"}
+    result["auto_after"] = auto_after
+    box_after = _trycomp_first_box(layer2)
+    result["ink_box"] = box_after
+    result["ink_box_expected"] = want_box
+    src_after = _tryedit_snapshot(component)
+    width_after = _trycomp_width(w)
+    result["advance_width_after"] = width_after
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    checks = {
+        "one_component": (not isinstance(tel2, dict) and len(tel2) == 1 and tel2[0].get("is_component") is True
+                          and tel2[0].get("component_glyph") == component and tel2[0].get("component_layer") == source_layer),
+        "offset": not isinstance(tel2, dict) and len(tel2) == 1 and _trycomp_offset_ok(tel2[0].get("matrix"), x, y),
+        "ink_box": _comp_box_at(box_after, want_box) is True,
+        "recipe_cleared": auto_after.get("recipe") == "",
+        "auto_layer_off": auto_after.get("auto_layer") is False,
+        "source_unchanged": "error" not in src_after and src_after["contours"] == src_before["contours"],
+        "width_unchanged": width_after == width_before,
+        "glyph_count_unchanged": result["glyph_count_after"] == count_before,
+    }
+    result["checks"] = checks
+    result["placed"] = bool("error" not in result and all(v is True for v in checks.values()))
+    result["verified"] = result["placed"]
+    result["changed"] = ("unknown" if (isinstance(tel2, dict) or "error" in auto_after) else
+                         bool(tel2 or after_state != state or auto_after != auto_before))
+    if not result["placed"]:
+        failed = [k for k, v in checks.items() if v is not True]
+        result["reason"] = (result.get("error") or "the re-read does not confirm the component") + (
+            ": failed checks: " + ", ".join(failed) if failed else "")
+    if result["changed"] is not False:
+        _guard_mark(font, name, "add_component", result, no_mark=None if result["placed"] else "the component was not confirmed")
+    return result
+
+
+# --------------------------------------------------------------------------
 # /debug/tryedit (v0.151) - RESEARCH for P2.2 (editing an existing outline, required by the user on 2026-11-14): ONE edit of a drawn
 # glyph per call, read back from the modern layer before and after. Every stage needs go=yes and the one-font gate of /debug/trysync;
 # glyph names starting with "edp" only; at most _TRYEDIT_MAX calls per listener run, counted BEFORE anything is read or touched. The
@@ -3411,6 +3612,1046 @@ def debug_layer_stats(name):
                 readings.append(f"error: {exc}")
         result[label] = readings
 
+    return result
+
+
+# --------------------------------------------------------------------------
+# /debug/trycomponent (v0.155) - RESEARCH for ROADMAP P2.7 (placing a component; no tool places one yet). Names only (2026-11-17,
+# /debug/classdir, /debug/moddir): flLayer.addComponent takes an flComponent, which is not a public name, so it is NOT tried;
+# flLayer.setGlyphComponents(QList<GlyphComponent> result, double width, flPackage package, bool colorize, uint flags) and
+# fontlab.GlyphComponent(string name) are the first route; flShape(flShapeData) with layer.addShape is the second.
+# Every stage needs go=yes and the one-font gate of /debug/trysync; target and source names start with "cpp" and differ; at most
+# _TRYCOMP_MAX calls per listener run, counted BEFORE either glyph is read or touched.
+# SOURCE: a modern active layer with exactly one plain shape (isComponent False, isComposite False), no components, at least one node.
+# TARGET: a modern active layer that EXISTS (a glyph with no layer is refused, never given one: the Add Component crash,
+# FONTLAB-API-RULES.md section 9), at most one shape, which must be plain; no components.
+#   stage=glyphcomponents&dx=DX&dy=DY  gc = GlyphComponent(source); gc.transform = QTransform(1, 0, 0, 1, dx, dy), read back; then
+#                                      ONE layer.setGlyphComponents([gc], <the target's advance width>, <current package>, False, 0)
+#   stage=shapedata&dx=DX&dy=DY        s = flShape(<the source's shape>.shapeData); s.transform = the same QTransform, read back;
+#                                      then ONE layer.addShape(s)
+# The reply has the target's elements (is_component, component_glyph, component_layer, reference_count, matrix), counts, outline and
+# advance width before and after, the source's elements and outline before and after, the glyph count, and placed, existing_kept and
+# side_effect_detected. A change goes through _guard_mark (Update(<flGlyph>), the sync check, the changed mark), as every write does.
+# Never called by this probe: addComponent, clearComponents, decomposite, mergeTopComposite, removeShape, replaceShape, font.update(),
+# save; no subscript or iteration of a native object.
+# Live (v0.155, one run each): 1026 setGlyphComponents raised "IndexError: Unexpected SeqBase<T> length."; 1027 flShape(shapeData)
+# raised "TypeError: Error creating object of type flShapeBuilder"; nothing changed either time.
+# v0.156: stage=readcomponents&target=cpp... READ ONLY, for a component FontLab's own Glyph > Add Component made: ONE read of
+# layer.components (documented "list(name, transform)"; called once with no argument if it is callable). Only a real Python list or
+# tuple is indexed, at most _TRYCOMP_ITEMS_MAX items; each item is described by type: a tuple or list part by part (text as text, a
+# transform as its matrix), a GlyphComponent by name_id, width_scale, use_anchors and its matrix, anything else by its type name.
+# Every element listing also gives shape_data_type, the type name of shape.shapeData (1027).
+# Live (v0.156, 1028-1029): on a component made by Glyph > Add Component, layer.components read an empty list and componentsCount 0.
+# v0.157 (names only, 2026-11-17: flPackage.generateGlyph(string recipe, string layer_name, FontMetrics metrics, bool rtl) returns
+# (QList<GlyphComponent>, double width), the first two arguments of setGlyphComponents; FontMetrics(flPackage p, string layer_name)):
+#   stage=generate&target=cpp...&recipe=R      metrics = FontMetrics(package, <target's layer name>); ONE
+#                                              package.generateGlyph(R, layer_name, metrics, False); what it returns is described (a
+#                                              list only when it is a real one); the target, the recipe glyphs and the glyph count are
+#                                              compared before and after (side_effect_detected)
+#   stage=setgenerated&target=cpp...&recipe=R  the same generateGlyph call, then ONE layer.setGlyphComponents(<the returned list, as
+#                                              is>, <the returned width>, package, False, 0); read back as the other write stages
+# R is one or two glyph names starting with "cpp", joined by "+", none of them the target; nothing else (no "@" placement yet).
+# Live 1030 (v0.157): generateGlyph returned a real list of ONE item, not a pair, and changed nothing. v0.158: a real list or tuple
+# that is not a pair is described item by item (generate_returned_items); setGlyphComponents is still called only for a pair.
+# Live 1032 (v0.158): a real list of ONE GlyphComponent (name_id 5113, identity), no width, nothing changed. v0.159: setgenerated also
+# takes a real list whose items are all GlyphComponent (isinstance only), passed as is with the target's own advance width; a pair
+# needs a number as its second item.
+# Live 1031 (v0.159): with that list, setGlyphComponents(list, 0.0, package, False, 0) raised the same "IndexError: Unexpected SeqBase<T>
+# length." as 1026, nothing changed; in this project that error meant a wrong argument count before (topics/geometry.md).
+# v0.160: setgenerated&args=N (2 to 5, default 5) calls setGlyphComponents once with the first N of (list, width, package, False, 0);
+# the reply names the call made (call_made).
+# Live 1033 (v0.160): args=4 gave "TypeError: argument type must be Int!" instead, nothing changed. v0.161: setgenerated&pkg=id passes
+# the package's fgId (a plain whole number up to a uint, read as the KERNING panel refresh reads it) as the third argument.
+# Live 1034 (v0.161): "TypeError: Wrong argument type. flPackage expected." for the fgId, nothing changed: the package object is right,
+# so 1033's Int error was the fourth argument, False. v0.162: setgenerated&int=yes passes the whole number 0 in place of False.
+# Live 1035 (v0.162): 0 as the fourth gave "TypeError: argument type must be Boolean!", nothing changed: the fourth IS a bool, so
+# 1033's "must be Int" came from the first two, most likely the width 0.0. v0.163: setgenerated&width=int passes the width as a whole
+# number (refused before the call when it is not one).
+# Live 1036 (v0.163): a whole-number width gave "must be Int!" too, nothing changed; FontLab's archived FontLab 7 reference gives
+# "bool setGlyphComponents(QList result, double width, flPackage package, bool colorize)", so the list's contents are left.
+# v0.164: setgenerated&items=id passes each GlyphComponent's name_id (a plain whole number) in place of the object.
+# Live 1037 (v0.164): "Wrong argument type. GlyphComponent expected.", nothing changed: every argument of the four-argument form is
+# right, so its "must be Int" most likely asks for the fifth (uint flags); the five-argument "SeqBase" of 1026 / 1031 is unexplained.
+# v0.165 (names only: flLayer.recipe QString, flLayer.autoLayer bool, bool flLayer.buildAuto(), killAuto()): stage=auto&step=S, ONE
+# step per request on an existing target layer that is empty for every step but read:
+#   read       layer.recipe and layer.autoLayer, nothing changed
+#   setrecipe  layer.recipe = R, read back (R as for generate)
+#   setauto    layer.autoLayer = True, read back
+#   build      layer.buildAuto() once, only when layer.recipe reads exactly R; placed = components naming R's glyphs, identity matrix
+# Each reply has recipe / autoLayer, elements, outline, width, the recipe glyphs and the glyph count before and after. Only a confirmed
+# component from build is marked; any other outline change is synced unmarked. Never called: killAuto().
+# Live 1041b (v0.165): build placed one component of the recipe's glyph; FontLab shows the layer as an auto layer, its element greyed
+# and locked (1041c). v0.166, on a layer whose autoLayer reads True and that holds only components of cpp glyphs:
+#   unauto     layer.autoLayer = False, read back
+#   killauto   ONE layer.killAuto() (what it does to the recipe is reported, not counted as a side effect)
+# component_kept: the same components (source, layer, matrix) and outline after; component_normal: kept, autoLayer False, no side
+# effect; only then is the font marked. Any other outline change is synced unmarked.
+# Live 1042 (v0.166): unauto kept the component and FontLab showed a normal one (1042a, 1042b).
+# v0.167 (names only, 2026-11-17: flShape.transform, docstring "transform"; flShape.applyTransform([QTransform transform]);
+# no setTransform, translate or move): stage=offset&target=cpp...&how=assign|apply&dx=DX&dy=DY, ONE call per request on a layer
+# that holds exactly ONE component of a cpp glyph at the identity matrix, autoLayer False (as after 1042), (dx, dy) not (0, 0):
+#   how=assign  shape.transform = QTransform(1, 0, 0, 1, dx, dy)
+#   how=apply   ONE shape.applyTransform(QTransform(1, 0, 0, 1, dx, dy))
+# Read back: the element (source, layer, matrix), the element's ink box (shape.inkBox(), proven read only on components, 644-656),
+# the raw nodes of layer.getContours() (for a component they may stay the source's own: both are accepted and reported), the
+# source's outline, the width, recipe / autoLayer and the glyph count. offset_placed: the matrix reads the offset, the ink box moved
+# by exactly (dx, dy), the raw nodes unchanged or moved by the offset, no side effect; only then is the font marked.
+# Live 1043 (v0.167, assign): offset_placed. Live 1055 (v0.166 killauto): returned None, changed nothing read.
+# v0.168 (the user's design choice of 2026-11-17: research clearing the leftover recipe before a placing tool is built):
+#   stage=auto&step=clearrecipe  layer.recipe = "" on a layer whose autoLayer reads False, that holds only components of cpp glyphs
+#                                and whose recipe reads a non-empty text; read back. recipe_cleared: the recipe reads "", the same
+#                                components (source, layer, matrix) and outline, autoLayer still False, no side effect; only then
+#                                is the font marked.
+# --------------------------------------------------------------------------
+
+_TRYCOMP_MAX = 6
+_TRYCOMP = {"calls": 0}
+_TRYCOMP_STAGES = ("glyphcomponents", "shapedata", "readcomponents", "generate", "setgenerated", "auto", "offset")
+_TRYCOMP_OFFSET_HOWS = {"assign": "shape.transform = QTransform(1, 0, 0, 1, dx, dy)",
+                        "apply": "shape.applyTransform(QTransform(1, 0, 0, 1, dx, dy))"}     # v0.167
+_TRYCOMP_GEN_STAGES = ("generate", "setgenerated")
+_TRYCOMP_AUTO_STEPS = {"read": "reads layer.recipe and layer.autoLayer and changes nothing",
+                       "setrecipe": "sets layer.recipe to the recipe and reads it back",
+                       "setauto": "sets layer.autoLayer to True and reads it back",
+                       "build": "calls layer.buildAuto() once",
+                       "unauto": "sets layer.autoLayer to False on a layer buildAuto() filled, and reads it back",
+                       "killauto": "calls layer.killAuto() once on a layer buildAuto() filled",
+                       "clearrecipe": "sets layer.recipe to \"\" on a layer of components whose autoLayer is off, and reads it back"}
+_TRYCOMP_DELTA_MAX = 1000
+_TRYCOMP_ITEMS_MAX = 20
+_TRYCOMP_ARG_LABELS = ("<returned list>", "<width>", "package", "False", "0")     # v0.160: setgenerated's args=N takes the first N
+_TRYCOMP_CALLS = {"glyphcomponents": "layer.setGlyphComponents([GlyphComponent(source)], width, package, False, 0)",
+                  "shapedata": "layer.addShape(flShape(source_shape.shapeData))", "readcomponents": "layer.components (read only)",
+                  "generate": "package.generateGlyph(recipe, layer_name, FontMetrics(package, layer_name), False)",
+                  "auto": "one step of the layer's own recipe build: layer.recipe, layer.autoLayer or layer.buildAuto()",
+                  "setgenerated": ("package.generateGlyph(recipe, layer_name, FontMetrics(package, layer_name), False), then "
+                                   "layer.setGlyphComponents(<returned list>, <returned width>, package, False, 0)")}
+_TRYCOMP_NOTE = ("RESEARCH: compare with get_glyph_outline and with FontLab's Elements panel; nothing is saved by Glyphbridge; "
+                 "quit FontLab WITHOUT saving afterwards, or delete the cpp glyphs")
+_TRYCOMP_MATRIX_KEYS = ("m11", "m12", "m21", "m22", "dx", "dy")
+
+
+def _trycomp_qtransform_class(mod):
+    """(QTransform class, source) or (None, reason). Looked up at run time; nothing is constructed here."""
+    tried = []
+    try:
+        from PythonQt.QtGui import QTransform as _QT
+        if _QT is not None:
+            return _QT, "PythonQt.QtGui.QTransform"
+        tried.append("PythonQt.QtGui.QTransform is None")
+    except Exception as exc:
+        tried.append(f"PythonQt.QtGui: {type(exc).__name__}: {exc}")
+    cls = getattr(mod, "QTransform", None)
+    if cls is not None:
+        return cls, "fontlab.QTransform"
+    tried.append("fontlab module has no QTransform")
+    return None, "no QTransform class found: " + " | ".join(tried)
+
+
+def _trycomp_matrix(tr):
+    """({m11, m12, m21, m22, dx, dy} as floats, None) from a QTransform, or (None, reason). Read only. Never raises."""
+    if tr is None:
+        return None, "the transform is None"
+    m = {}
+    for a in _TRYCOMP_MATRIX_KEYS:
+        v, err = _tl_call(lambda k=a: _call0(tr, k))
+        if err is not None:
+            return None, f"{a} could not be read ({err})"
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            return None, f"{a} is not a number ({type(v).__name__})"
+        m[a] = float(v)
+    return m, None
+
+
+def _trycomp_offset_ok(m, dx, dy):
+    """True when `m` is the plain offset (dx, dy) within 0.001."""
+    if not isinstance(m, dict) or any(k not in m for k in _TRYCOMP_MATRIX_KEYS):
+        return False
+    return all(abs(m[k] - v) <= 0.001 for k, v in zip(_TRYCOMP_MATRIX_KEYS, (1.0, 0.0, 0.0, 1.0, float(dx), float(dy))))
+
+
+def _trycomp_elements(layer):
+    """[{index, is_component, is_composite, component_glyph, component_layer, reference_count, matrix}] for layer.shapes (a real list),
+    or {"error"}. A value that could not be read is "<error: ...>", never left out. Read only. Never raises."""
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list:
+        return {"error": f"layer.shapes is not a plain list ({err or type(shapes).__name__})"}
+    out = []
+    for i, sh in enumerate(shapes):
+        e = {"index": i}
+        for key, attr in (("is_component", "isComponent"), ("is_composite", "isComposite")):
+            v, err = _tl_call(lambda a=attr: _call0(sh, a))
+            e[key] = v if (err is None and type(v) is bool) else f"<error: {err or type(v).__name__}>"
+        sd, err = _tl_call(lambda: sh.shapeData)
+        if err is not None or sd is None:
+            e["shape_data_error"] = err or "shapeData is None"
+        else:
+            e["shape_data_type"] = type(sd).__name__
+            for key, attr, kinds in (("component_glyph", "componentGlyph", (str,)), ("component_layer", "componentLayer", (str,)),
+                                     ("reference_count", "referenceCount", (int,))):
+                v, err = _tl_call(lambda a=attr: _call0(sd, a))
+                e[key] = v if (err is None and isinstance(v, kinds) and not isinstance(v, bool)) else f"<error: {err or type(v).__name__}>"
+        tr, err = _tl_call(lambda: sh.transform)
+        m, why = _trycomp_matrix(tr) if err is None else (None, err)
+        e["matrix"] = m if m is not None else {"error": why}
+        out.append(e)
+    return out
+
+
+def _trycomp_width(w):
+    """The modern advance width as a float, or an "<error: ...>" string."""
+    v, err = _tl_call(lambda: _call0(w, "advanceWidth"))
+    if err is not None:
+        return f"<error: {err}>"
+    n = _num(v)
+    return n if n is not None else f"<error: not a number ({type(v).__name__})>"
+
+
+def _trycomp_holds(seq, part):
+    """True when the contours of `part` appear in `seq` in order (not necessarily next to each other)."""
+    it = iter(seq)
+    return all(any(c == p for c in it) for p in part)
+
+
+def _trycomp_shift(contours, dx, dy):
+    """`contours` (snapshot form) moved by (dx, dy)."""
+    return [dict(c, nodes=[dict(n, x=n["x"] + dx, y=n["y"] + dy) for n in c.get("nodes") or []]) for c in contours]
+
+
+def _trycomp_is(item, cls):
+    """True when `cls` is a class and `item` an instance of it. isinstance() reads no member of the item. Never raises."""
+    v, _err = _tl_call(lambda: cls is not None and isinstance(item, cls))
+    return v is True
+
+
+def _trycomp_item(item, gc_cls, qt_cls=None, depth=0):
+    """v0.156: one value or item, described by its type: text, numbers, bools and None as they are; a QTransform (by isinstance only)
+    as its matrix; a GlyphComponent by its documented members; a real tuple or list part by part, two levels deep at most (v0.158);
+    anything else by its type name only, no member of it read. Only a real tuple or list is indexed. Never raises."""
+    if item is None or isinstance(item, (bool, int, float, str)):
+        return {"type": type(item).__name__, "value": item}
+    out = {"type": type(item).__name__}
+    if type(item) in (list, tuple):
+        out["len"] = len(item)
+        if depth < 2:
+            out["parts"] = [_trycomp_item(p, gc_cls, qt_cls, depth + 1) for p in item[:_TRYCOMP_ITEMS_MAX]]
+        return out
+    if _trycomp_is(item, qt_cls):
+        m, why = _trycomp_matrix(item)
+        out["matrix"] = m if m is not None else {"error": why}
+        return out
+    if _trycomp_is(item, gc_cls) or out["type"] == "GlyphComponent":
+        for key in ("name_id", "width_scale", "use_anchors"):
+            v, err = _tl_call(lambda k=key: _call0(item, k))
+            out[key] = _rm_plain(v) if err is None else f"<error: {err}>"
+        tr, err = _tl_call(lambda: item.transform)
+        m, why = _trycomp_matrix(tr) if err is None else (None, err)
+        out["matrix"] = m if m is not None else {"error": why}
+    return out
+
+
+def _trycomp_read_components(mod, target, base):
+    """v0.156, stage=readcomponents: ONE read of layer.components on the target. Changes nothing. Never raises."""
+    ctx, refusal = _modern_edit_target(target)
+    if ctx is None:
+        return dict(base, error="the target cannot be read: " + str(refusal.get("reason") or refusal), refusal=_public_refusal(refusal))
+    w, font = ctx["w"], ctx["font"]
+    state, layer = _tryshape_modern_state(w)
+    base["target_state"] = state
+    if layer is None:
+        return dict(base, error="the target has no modern active layer")
+    base["target_elements"] = _trycomp_elements(layer)
+    count_before = _tryedit_glyph_count(font)
+    out = dict(base)
+    comps, err = _tl_call(lambda: layer.components)
+    if err is None and callable(comps) and type(comps) not in (list, tuple):
+        out["components_called"] = True
+        comps, err = _tl_call(comps)
+    if err is not None:
+        out["components_error"] = err
+    else:
+        out["components_type"] = type(comps).__name__
+        if type(comps) not in (list, tuple):
+            out["components_note"] = "not a real Python list or tuple, so it was neither indexed nor iterated"
+        else:
+            out["components_len"] = len(comps)
+            gc_cls = getattr(mod, "GlyphComponent", None)
+            qt_cls = _trycomp_qtransform_class(mod)[0]
+            out["components"] = [_trycomp_item(it, gc_cls, qt_cls) for it in comps[:_TRYCOMP_ITEMS_MAX]]
+            if len(comps) > _TRYCOMP_ITEMS_MAX:
+                out["components_truncated"] = f"only the first {_TRYCOMP_ITEMS_MAX} items are described"
+    state_after, _l = _tryshape_modern_state(w)
+    out["glyph_count"] = count_before
+    out["side_effect_detected"] = bool(state_after != state or _tryedit_glyph_count(font) != count_before)
+    return out
+
+
+def _trycomp_name_ok(nm):
+    return (isinstance(nm, str) and 4 <= len(nm) <= 40 and nm.startswith("cpp") and all(ch in _TRYCREATE_NAME_CHARS for ch in nm))
+
+
+def _trycomp_recipe(recipe, target):
+    """(parts, None) or (None, sentence): one or two "cpp" glyph names joined by "+", none of them the target."""
+    if not isinstance(recipe, str) or not recipe:
+        return None, "recipe is required for this stage"
+    parts = recipe.split("+")
+    if not 1 <= len(parts) <= 2 or not all(_trycomp_name_ok(p) for p in parts):
+        return None, 'recipe must be one or two glyph names starting with "cpp" (A-Z a-z 0-9 . _ -), joined by "+"'
+    if target in parts:
+        return None, "the recipe must not name the target"
+    return parts, None
+
+
+def _trycomp_generate(mod, pkg, stage, target, parts, base):
+    """v0.157: stage=generate / setgenerated. ONE package.generateGlyph call; for setgenerated then ONE layer.setGlyphComponents with
+    what it returned. Read back as the other stages. Never raises."""
+    ctx, refusal = _modern_edit_target(target)
+    if ctx is None:
+        return dict(base, error=("the target cannot be used: " + str(refusal.get("reason") or refusal) + " (a glyph with no layer is never "
+                                 "given a component by this probe: the Add Component crash)"), refusal=_public_refusal(refusal))
+    w, font = ctx["w"], ctx["font"]
+    state, layer = _tryshape_modern_state(w)
+    base["target_state_before"] = state
+    if layer is None:
+        return dict(base, error="the target has no modern active layer: nothing was called")
+    tel = _trycomp_elements(layer)
+    if isinstance(tel, dict):
+        return dict(base, error=f"the target's elements could not be read ({tel['error']}): nothing was called")
+    base["target_elements_before"] = tel
+    if stage == "setgenerated":
+        if len(tel) > 1 or any(e.get("is_component") is not False or e.get("is_composite") is not False for e in tel):
+            return dict(base, error="the target must have at most one shape, and a plain one: nothing was called")
+        if state.get("components") != 0:
+            return dict(base, error=f"the target reads {state.get('components')!r} components: nothing was called")
+    layer_name = state.get("layer_name")
+    if not isinstance(layer_name, str) or not layer_name:
+        return dict(base, error="the target's layer name could not be read: nothing was called")
+    src_before = {}
+    for p in parts:
+        snap = _tryedit_snapshot(p)
+        if "error" in snap:
+            return dict(base, error=f"the recipe glyph {p!r} could not be read ({snap['error']}): nothing was called")
+        src_before[p] = snap
+    base["recipe_glyphs_before"] = src_before
+    before = _tryedit_snapshot(target)
+    if "error" in before:
+        return dict(base, error=f"the target's outline could not be read ({before['error']}): nothing was called")
+    base["target_before"] = before
+    width_before = _trycomp_width(w)
+    base["advance_width_before"] = width_before
+    base["glyph_count_before"] = _tryedit_glyph_count(font)
+    base["layer_name"] = layer_name
+    recipe = "+".join(parts)
+    step, touched, gwidth = "FontMetrics(package, layer_name)", False, None
+    try:
+        metrics = mod.FontMetrics(pkg, layer_name)
+        step = "package.generateGlyph(recipe, layer_name, metrics, False)"
+        gen = pkg.generateGlyph(recipe, layer_name, metrics, False)
+        base["generate_returned_type"] = type(gen).__name__
+        comps = None
+        gc_cls = getattr(mod, "GlyphComponent", None)
+        if type(gen) in (tuple, list) and len(gen) == 2 and isinstance(gen[1], (int, float)) and not isinstance(gen[1], bool):
+            comps, gwidth = gen[0], gen[1]
+            base["generated_width"] = _rm_plain(gwidth)
+            base["generated_list_type"] = type(comps).__name__
+            if type(comps) in (list, tuple):
+                base["generated_len"] = len(comps)
+                base["generated"] = [_trycomp_item(it, getattr(mod, "GlyphComponent", None), _trycomp_qtransform_class(mod)[0])
+                                     for it in comps[:_TRYCOMP_ITEMS_MAX]]
+            else:
+                base["generated_note"] = "the list is not a real Python list or tuple, so it was neither indexed nor iterated"
+        elif type(gen) in (tuple, list):     # v0.158: live 1030 returned a list of one item; each item is described
+            base["generate_returned"] = f"a {type(gen).__name__} of {len(gen)} items"
+            base["generate_returned_items"] = [_trycomp_item(it, getattr(mod, "GlyphComponent", None), _trycomp_qtransform_class(mod)[0])
+                                               for it in gen[:_TRYCOMP_ITEMS_MAX]]
+            # v0.159: live 1032 returned a real list of GlyphComponent and no width; setgenerated passes that list as is, with the
+            # target's own advance width
+            if (stage == "setgenerated" and 0 < len(gen) <= _TRYCOMP_ITEMS_MAX and isinstance(width_before, float)
+                    and all(_trycomp_is(it, gc_cls) for it in gen)):
+                comps, gwidth = gen, width_before
+                base["width_source"] = "the target's own advance width (generateGlyph returned none)"
+        else:
+            base["generate_returned"] = _rm_plain(gen)
+        if stage == "setgenerated":
+            if comps is None or isinstance(gwidth, bool) or not isinstance(gwidth, (int, float)):
+                base["error"] = ("generateGlyph returned neither (list, width) nor a list of GlyphComponent: setGlyphComponents was not "
+                                 "called")
+            elif type(comps) in (list, tuple) and len(comps) == 0:
+                base["error"] = "generateGlyph returned an empty list: setGlyphComponents was not called"
+            else:
+                n = base.get("args", 5)     # v0.160: the first n of the five documented arguments (live 1026, 1031: 5 gave SeqBase)
+                third, labels = pkg, list(_TRYCOMP_ARG_LABELS)
+                if base.get("pkg") == "id":     # v0.161: live 1033 (4 arguments): "argument type must be Int!"; the package's fgId instead
+                    pid, perr = _pkg_get(pkg, "fgId")
+                    if perr is not None or type(pid) is not int or not 0 <= pid <= _TRYNOTIFY_UINT_MAX:
+                        base["error"] = (f"the package's fgId is not a plain whole number ({perr or repr(_rm_plain(pid))}): "
+                                         "setGlyphComponents was not called")
+                        third = None
+                    else:
+                        third, labels[2] = pid, f"package.fgId ({pid})"
+                        base["package_fgid"] = pid
+                fourth = False
+                if base.get("int") == "yes":     # v0.162: live 1034 ("flPackage expected" for the fgId): 1033's Int error was the fourth, False
+                    fourth, labels[3] = 0, "0"
+                second = float(gwidth)
+                if base.get("width") == "int":     # v0.163: live 1035 ("must be Boolean" for 0 fourth): 1033's Int error was an earlier one
+                    if float(gwidth) != int(gwidth):
+                        base["error"] = f"the width {gwidth!r} is not a whole number: setGlyphComponents was not called"
+                    else:
+                        second, labels[1] = int(gwidth), f"{int(gwidth)} (a whole number)"
+                first = comps
+                if base.get("items") == "id" and "error" not in base:     # v0.164: live 1036: "must be Int" with a whole width too
+                    ids = []
+                    if type(comps) not in (list, tuple):
+                        base["error"] = "items=id needs a real Python list of GlyphComponent: setGlyphComponents was not called"
+                    for it in (comps if type(comps) in (list, tuple) else []):
+                        nid, nerr = _tl_call(lambda i=it: _call0(i, "name_id"))
+                        if nerr is not None or type(nid) is not int or not 0 <= nid <= _TRYNOTIFY_UINT_MAX:
+                            base["error"] = (f"a component's name_id is not a plain whole number ({nerr or repr(_rm_plain(nid))}): "
+                                             "setGlyphComponents was not called")
+                            break
+                        ids.append(nid)
+                    if "error" not in base:
+                        first, labels[0] = ids, repr(ids)
+                        base["items_passed"] = ids
+                if "error" not in base:
+                    call_args = (first, second, third, fourth, 0)[:n]
+                    step, touched = "layer.setGlyphComponents(" + ", ".join(labels[:n]) + ")", True
+                    base["call_made"] = step
+                    ret = layer.setGlyphComponents(*call_args)
+                    base["call_returned"] = ret if (ret is None or isinstance(ret, (bool, int, float, str))) else f"<{type(ret).__name__}>"
+    except Exception as exc:
+        base["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
+    result = dict(base)
+    if touched:
+        result["display_refreshed"] = _repaint_viewport()
+    after_state, layer2 = _tryshape_modern_state(w)
+    result["target_state_after"] = after_state
+    tel2 = _trycomp_elements(layer2) if layer2 is not None else {"error": "the target has no modern active layer after the call"}
+    result["target_elements_after"] = tel2
+    after = _tryedit_snapshot(target)
+    result["target_after"] = after
+    width_after = _trycomp_width(w)
+    result["advance_width_after"] = width_after
+    src_after = {p: _tryedit_snapshot(p) for p in parts}
+    result["recipe_glyphs_after"] = src_after
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    result["source_changed"] = any("error" in src_after[p] or src_after[p]["contours"] != src_before[p]["contours"] for p in parts)
+    result["changed"] = ("unknown" if ("error" in after or isinstance(tel2, dict)) else
+                         (tel2 != tel or after["contours"] != before["contours"] or after_state != state))
+    widths_ok = (width_before, float(gwidth)) if (stage == "setgenerated" and isinstance(gwidth, (int, float))
+                                                  and not isinstance(gwidth, bool)) else (width_before,)
+    result["width_changed"] = (width_after != width_before) if isinstance(width_after, float) else "unknown"
+    result["side_effect_detected"] = bool(result["glyph_count_after"] != result["glyph_count_before"] or result["source_changed"]
+                                          or width_after not in widths_ok
+                                          or (stage == "generate" and result["changed"] is not False))
+    if stage == "setgenerated":
+        if isinstance(tel2, dict):
+            result["placed"] = result["existing_kept"] = "unknown"
+        else:
+            comps2 = [e for e in tel2 if e.get("is_component") is True]
+            plain = [e for e in tel2 if e.get("is_component") is False]
+            result["placed"] = ([e.get("component_glyph") for e in comps2] == parts
+                                and all(_trycomp_offset_ok(e.get("matrix"), 0, 0) for e in comps2))
+            result["existing_kept"] = (len(plain) >= len(tel) and "error" not in after
+                                       and _trycomp_holds(after.get("contours") or [], before["contours"]))
+        result["component_placed"] = bool("error" not in result and result["placed"] is True and result["existing_kept"] is True
+                                          and not result["side_effect_detected"])
+    if result["changed"] is not False:
+        _guard_mark(font, target, "trycomponent", result,
+                    no_mark=None if result.get("component_placed") is True else
+                    ("generateGlyph changed the target, which it was not asked to do" if stage == "generate" else "the component was not confirmed"))
+    return result
+
+
+def _trycomp_auto_state(layer):
+    """v0.165: {"recipe", "auto_layer"} of a layer, each as read or "<error: ...>". Read only. Never raises."""
+    out = {}
+    for key, attr, kind in (("recipe", "recipe", str), ("auto_layer", "autoLayer", bool)):
+        v, err = _tl_call(lambda a=attr: _call0(layer, a))
+        out[key] = v if (err is None and type(v) is kind) else f"<error: {err or type(v).__name__}>"
+    return out
+
+
+def _trycomp_auto(mod, target, step, parts, base):
+    """v0.165, stage=auto: ONE step of the layer's own recipe build on an existing, empty target layer (read: nothing changed).
+    Read back as the other stages. Never raises."""
+    ctx, refusal = _modern_edit_target(target)
+    if ctx is None:
+        return dict(base, error=("the target cannot be used: " + str(refusal.get("reason") or refusal) + " (a glyph with no layer is never "
+                                 "touched by this probe: the Add Component crash)"), refusal=_public_refusal(refusal))
+    w, font = ctx["w"], ctx["font"]
+    state, layer = _tryshape_modern_state(w)
+    base["target_state_before"] = state
+    if layer is None:
+        return dict(base, error="the target has no modern active layer: nothing was touched")
+    tel = _trycomp_elements(layer)
+    if isinstance(tel, dict):
+        return dict(base, error=f"the target's elements could not be read ({tel['error']}): nothing was touched")
+    base["target_elements_before"] = tel
+    auto_before = _trycomp_auto_state(layer)
+    base["auto_before"] = auto_before
+    leaving = step in ("unauto", "killauto")     # v0.166: on a layer buildAuto() filled (live 1041b)
+    clearing = step == "clearrecipe"             # v0.168: on a normal component layer (as after 1042, 1050)
+    if leaving or clearing:
+        want_auto = not clearing
+        if auto_before.get("auto_layer") is not want_auto:
+            return dict(base, error=f"the layer's autoLayer reads {auto_before.get('auto_layer')!r}, not {want_auto}: nothing was touched")
+        names = [e.get("component_glyph") for e in tel]
+        if not tel or any(e.get("is_component") is not True for e in tel) or not all(_trycomp_name_ok(n) for n in names):
+            return dict(base, error="the layer must hold only components of cpp glyphs for this step: nothing was touched")
+        if clearing:
+            rec = auto_before.get("recipe")
+            if not isinstance(rec, str) or rec == "" or rec.startswith("<error"):
+                return dict(base, error=f"the layer's recipe reads {rec!r}: there is no readable recipe to clear, nothing was touched")
+        parts = names
+    elif step != "read" and (len(tel) != 0 or state.get("components") != 0):
+        return dict(base, error="the target must be empty (no shape, no component) for this step: nothing was touched")
+    if step == "build" and auto_before.get("recipe") != "+".join(parts):
+        return dict(base, error=f"the layer's recipe reads {auto_before.get('recipe')!r}, not {'+'.join(parts)!r}: buildAuto() was not called")
+    src_before = {}
+    for p in parts or []:
+        snap = _tryedit_snapshot(p)
+        if "error" in snap:
+            return dict(base, error=f"the recipe glyph {p!r} could not be read ({snap['error']}): nothing was touched")
+        src_before[p] = snap
+    before = _tryedit_snapshot(target)
+    if "error" in before:
+        return dict(base, error=f"the target's outline could not be read ({before['error']}): nothing was touched")
+    width_before = _trycomp_width(w)
+    base["advance_width_before"] = width_before
+    base["glyph_count_before"] = _tryedit_glyph_count(font)
+    step_name, touched = "reading the layer", False
+    try:
+        if step == "setrecipe":
+            step_name, touched = "layer.recipe = recipe", True
+            layer.recipe = "+".join(parts)
+        elif step == "setauto":
+            step_name, touched = "layer.autoLayer = True", True
+            layer.autoLayer = True
+        elif step == "build":
+            step_name, touched = "layer.buildAuto()", True
+            ret = layer.buildAuto()
+            base["call_returned"] = ret if (ret is None or isinstance(ret, (bool, int, float, str))) else f"<{type(ret).__name__}>"
+        elif step == "unauto":
+            step_name, touched = "layer.autoLayer = False", True
+            layer.autoLayer = False
+        elif step == "killauto":
+            step_name, touched = "layer.killAuto()", True
+            ret = layer.killAuto()
+            base["call_returned"] = ret if (ret is None or isinstance(ret, (bool, int, float, str))) else f"<{type(ret).__name__}>"
+        elif step == "clearrecipe":
+            step_name, touched = 'layer.recipe = ""', True
+            layer.recipe = ""
+    except Exception as exc:
+        base["error"] = f"{step_name} failed: {type(exc).__name__}: {exc}"
+    result = dict(base)
+    if touched:
+        result["display_refreshed"] = _repaint_viewport()
+    after_state, layer2 = _tryshape_modern_state(w)
+    result["target_state_after"] = after_state
+    tel2 = _trycomp_elements(layer2) if layer2 is not None else {"error": "the target has no modern active layer after the step"}
+    result["target_elements_after"] = tel2
+    result["auto_after"] = _trycomp_auto_state(layer2) if layer2 is not None else {"error": "no layer"}
+    after = _tryedit_snapshot(target)
+    result["target_after"] = after
+    width_after = _trycomp_width(w)
+    result["advance_width_after"] = width_after
+    src_after = {p: _tryedit_snapshot(p) for p in parts or []}
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    result["source_changed"] = any("error" in src_after[p] or src_after[p]["contours"] != src_before[p]["contours"] for p in parts or [])
+    shape_changed = ("unknown" if ("error" in after or isinstance(tel2, dict)) else
+                     (tel2 != tel or after["contours"] != before["contours"] or after_state != state))
+    result["outline_changed"] = shape_changed
+    auto_after = result["auto_after"]
+    expected_auto = dict(auto_before)
+    if step == "setrecipe":
+        expected_auto["recipe"] = "+".join(parts)
+    elif step == "setauto":
+        expected_auto["auto_layer"] = True
+    elif clearing:
+        expected_auto["recipe"] = ""
+    elif leaving:
+        expected_auto["auto_layer"] = False
+        if step == "killauto":     # what killAuto() does to the recipe is not known: reported, not counted as a side effect
+            expected_auto["recipe"] = auto_after.get("recipe")
+    result["step_took_effect"] = ((auto_after == expected_auto) if step in ("setrecipe", "setauto", "clearrecipe") else
+                                  (auto_after.get("auto_layer") is False) if leaving else "not applicable")
+    unexpected_auto = {k: auto_after.get(k) for k in ("recipe", "auto_layer") if auto_after.get(k) != expected_auto.get(k)}
+    result["side_effect_detected"] = bool(result["glyph_count_after"] != result["glyph_count_before"] or result["source_changed"]
+                                          or width_after != width_before or unexpected_auto
+                                          or (step != "build" and shape_changed is not False))
+    if step == "build":
+        if isinstance(tel2, dict):
+            result["placed"] = "unknown"
+        else:
+            comps2 = [e for e in tel2 if e.get("is_component") is True]
+            result["placed"] = (len(comps2) == len(tel2) and [e.get("component_glyph") for e in comps2] == parts
+                                and all(_trycomp_offset_ok(e.get("matrix"), 0, 0) for e in comps2))
+        result["component_placed"] = bool("error" not in result and result["placed"] is True and not result["side_effect_detected"])
+    if leaving or clearing:
+        def _key(els):
+            return [(e.get("is_component"), e.get("component_glyph"), e.get("component_layer"), e.get("matrix")) for e in els]
+        result["component_kept"] = (not isinstance(tel2, dict) and "error" not in after and _key(tel2) == _key(tel)
+                                    and after["contours"] == before["contours"])
+        if clearing:
+            result["recipe_cleared"] = bool("error" not in result and result["component_kept"] is True
+                                            and result["step_took_effect"] is True and not result["side_effect_detected"])
+            confirmed = result["recipe_cleared"]
+        else:
+            result["component_normal"] = bool("error" not in result and result["component_kept"] is True
+                                              and auto_after.get("auto_layer") is False and not result["side_effect_detected"])
+            confirmed = result["component_normal"]
+        if confirmed:
+            _guard_mark(font, target, "trycomponent", result)
+        elif shape_changed is not False:
+            _guard_mark(font, target, "trycomponent", result, no_mark="the component did not stay as it was")
+        return result
+    if shape_changed is not False:
+        _guard_mark(font, target, "trycomponent", result,
+                    no_mark=None if result.get("component_placed") is True else "the change was not a confirmed component")
+    return result
+
+
+def _trycomp_first_box(layer):
+    """v0.167: the ink box of the layer's only element ({left, right, top, bottom, width, height}) or {"error"}. ONE inkBox()."""
+    if layer is None:
+        return {"error": "no layer"}
+    rows, why = _tryshapebox_boxes(layer)
+    if rows is None:
+        return {"error": why}
+    if len(rows) != 1:
+        return {"error": f"the layer has {len(rows)} elements, not one: no box compared"}
+    return rows[0]["ink_box"]
+
+
+def _trycomp_box_moved(b0, b1, dx, dy):
+    """v0.167: True / False when both boxes are plain numbers (left / right by dx, top / bottom by dy, width / height kept, within
+    0.001); "unknown" otherwise."""
+    shifts = (("left", dx), ("right", dx), ("top", dy), ("bottom", dy), ("width", 0), ("height", 0))
+    if any("error" in b or any(k not in b for k, _s in shifts) for b in (b0, b1)):
+        return "unknown"
+    return all(abs(b1[k] - b0[k] - float(s)) <= 0.001 for k, s in shifts)
+
+
+def _trycomp_offset(target, how, dx, dy, qt_cls, base):
+    """v0.167, stage=offset: ONE offset of the only component on the target's layer (identity before, autoLayer False), through
+    shape.transform = QTransform (how=assign) or ONE shape.applyTransform(QTransform) (how=apply). Read back. Never raises."""
+    ctx, refusal = _modern_edit_target(target)
+    if ctx is None:
+        return dict(base, error="the target cannot be used: " + str(refusal.get("reason") or refusal), refusal=_public_refusal(refusal))
+    w, font = ctx["w"], ctx["font"]
+    state, layer = _tryshape_modern_state(w)
+    base["target_state_before"] = state
+    if layer is None:
+        return dict(base, error="the target has no modern active layer: nothing was touched")
+    tel = _trycomp_elements(layer)
+    if isinstance(tel, dict):
+        return dict(base, error=f"the target's elements could not be read ({tel['error']}): nothing was touched")
+    base["target_elements_before"] = tel
+    auto_before = _trycomp_auto_state(layer)
+    base["auto_before"] = auto_before
+    if auto_before.get("auto_layer") is not False:
+        return dict(base, error=f"the layer's autoLayer reads {auto_before.get('auto_layer')!r}, not False: nothing was touched")
+    if len(tel) != 1 or tel[0].get("is_component") is not True or not _trycomp_name_ok(tel[0].get("component_glyph")):
+        return dict(base, error="the layer must hold exactly one element, a component of a cpp glyph: nothing was touched")
+    if not _trycomp_offset_ok(tel[0].get("matrix"), 0, 0):
+        return dict(base, error="the component's matrix does not read as the identity: nothing was touched")
+    source = tel[0]["component_glyph"]
+    base["source"] = source
+    src_before = _tryedit_snapshot(source)
+    if "error" in src_before:
+        return dict(base, error=f"the source {source!r} could not be read ({src_before['error']}): nothing was touched")
+    before = _tryedit_snapshot(target)
+    if "error" in before:
+        return dict(base, error=f"the target's outline could not be read ({before['error']}): nothing was touched")
+    base["target_before"] = before
+    box_before = _trycomp_first_box(layer)
+    base["ink_box_before"] = box_before
+    if "error" in box_before:
+        return dict(base, error=f"the component's ink box could not be read ({box_before['error']}): nothing was touched")
+    width_before = _trycomp_width(w)
+    base["advance_width_before"] = width_before
+    base["glyph_count_before"] = _tryedit_glyph_count(font)
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list or len(shapes) != 1:
+        return dict(base, error="the target's layer.shapes is no longer a plain list of one: nothing was touched")
+    shape = shapes[0]
+    step, touched = "QTransform(1, 0, 0, 1, dx, dy)", False
+    try:
+        tx = qt_cls(1.0, 0.0, 0.0, 1.0, float(dx), float(dy))
+        m, why = _trycomp_matrix(tx)
+        base["built_matrix"] = m if m is not None else {"error": why}
+        if not _trycomp_offset_ok(m, dx, dy):
+            return dict(base, error="the QTransform built does not read as the offset asked for: nothing was touched")
+        step, touched = _TRYCOMP_OFFSET_HOWS[how], True
+        if how == "assign":
+            shape.transform = tx
+        else:
+            ret = shape.applyTransform(tx)
+            base["call_returned"] = ret if (ret is None or isinstance(ret, (bool, int, float, str))) else f"<{type(ret).__name__}>"
+    except Exception as exc:
+        base["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
+    result = dict(base)
+    if touched:
+        result["display_refreshed"] = _repaint_viewport()
+    after_state, layer2 = _tryshape_modern_state(w)
+    result["target_state_after"] = after_state
+    tel2 = _trycomp_elements(layer2) if layer2 is not None else {"error": "the target has no modern active layer after the call"}
+    result["target_elements_after"] = tel2
+    result["auto_after"] = _trycomp_auto_state(layer2) if layer2 is not None else {"error": "no layer"}
+    box_after = _trycomp_first_box(layer2)
+    result["ink_box_after"] = box_after
+    after = _tryedit_snapshot(target)
+    result["target_after"] = after
+    width_after = _trycomp_width(w)
+    result["advance_width_after"] = width_after
+    src_after = _tryedit_snapshot(source)
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    result["source_changed"] = ("unknown" if "error" in src_after else src_after["contours"] != src_before["contours"])
+    result["matrix_reads_offset"] = (not isinstance(tel2, dict) and len(tel2) == 1 and tel2[0].get("is_component") is True
+                                     and tel2[0].get("component_glyph") == source
+                                     and tel2[0].get("component_layer") == tel[0].get("component_layer")
+                                     and _trycomp_offset_ok(tel2[0].get("matrix"), dx, dy))
+    result["ink_box_moved"] = _trycomp_box_moved(box_before, box_after, dx, dy)
+    if "error" in after:
+        result["raw_nodes"] = "unknown"
+    else:
+        got = after.get("contours") or []
+        result["raw_nodes"] = ("unchanged" if got == before["contours"] else
+                               "moved by the offset" if got == _trycomp_shift(before["contours"], dx, dy) else False)
+    result["side_effect_detected"] = bool(result["glyph_count_after"] != result["glyph_count_before"]
+                                          or result["source_changed"] is not False or width_after != width_before
+                                          or result["auto_after"] != auto_before)
+    result["changed"] = ("unknown" if ("error" in after or isinstance(tel2, dict) or "error" in box_after) else
+                         (tel2 != tel or after["contours"] != before["contours"] or after_state != state or box_after != box_before))
+    result["offset_placed"] = bool("error" not in result and result["matrix_reads_offset"] is True and result["ink_box_moved"] is True
+                                   and result["raw_nodes"] in ("unchanged", "moved by the offset") and not result["side_effect_detected"])
+    if result["changed"] is not False:
+        _guard_mark(font, target, "trycomponent", result, no_mark=None if result["offset_placed"] else "the offset was not confirmed")
+    return result
+
+
+# --------------------------------------------------------------------------
+# /debug/markswitch (v0.170) - RESEARCH for S1 (the user's choice of 2026-11-17: make clear whether add_component alone brings FontLab's
+# save question). Demo mode cannot save, so a font can never return to "unchanged", and every tool that sets up a test glyph marks the
+# font. This switch lets a test set up glyphs UNMARKED (unmarked tool writes brought no question in 467 and 472), switch the mark on,
+# make the one write under test, and close the font. Read only without "on"; with on=0 / on=1 it needs go=yes. It changes only the
+# listener's own _MARK_CHANGED for this run (a listener restart sets it True again); no FontLab call, no font touched. While it is
+# off, every write reply says so in fontlab_changed_mark ("switched off in the listener"), and the OUTPUT panel says it once.
+# --------------------------------------------------------------------------
+
+def debug_mark_switch(on, go):
+    global _MARK_CHANGED
+    before = _MARK_CHANGED
+    if on is None or not str(on).strip():
+        return {"mark_changed": before, "note": "read only; on=0 or on=1 with go=yes switches the changed mark for this listener run"}
+    on = str(on).strip()
+    if on not in ("0", "1"):
+        return {"error": 'on must be "0" (off) or "1" (on)', "mark_changed": before}
+    want = on == "1"
+    if go != "yes":
+        return {"error": (f"this switches the changed mark {'ON' if want else 'OFF'} for this listener run: verified writes "
+                          f"{'tell' if want else 'no longer tell'} FontLab that the font changed. Add &go=yes to run it."), "mark_changed": before}
+    _MARK_CHANGED = want
+    if want != before:
+        print(f"[glyphbridge] the changed mark is now {'ON' if want else 'OFF'}: verified writes "
+              f"{'are' if want else 'are NOT'} marked as changes in FontLab until it is switched again or the listener restarts.")
+    return {"mark_changed_before": before, "mark_changed": _MARK_CHANGED,
+            "note": "for this listener run only; a listener restart switches the changed mark on again"}
+
+
+def debug_try_component(stage, target, source, go, dx=None, dy=None, recipe=None, nargs=None, pkgmode=None, intmode=None,
+                        widthmode=None, itemsmode=None, step=None, how=None):
+    import sys as _sys
+    if stage not in _TRYCOMP_STAGES:
+        return {"error": "stage must be one of: " + ", ".join(_TRYCOMP_STAGES)}
+    gen = stage in _TRYCOMP_GEN_STAGES
+    auto = stage == "auto"
+    offset = stage == "offset"     # v0.167
+    for label, nm in ((("target", target),) if (stage == "readcomponents" or gen or auto or offset) else (("target", target), ("source", source))):
+        if not _trycomp_name_ok(nm):
+            return {"error": f'{label} must start with "cpp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'}
+    if how is not None and str(how).strip() and not offset:
+        return {"error": "how is used only by stage=offset"}
+    if offset:
+        how = str(how or "").strip()
+        if how not in _TRYCOMP_OFFSET_HOWS:
+            return {"error": "how must be one of: " + ", ".join(_TRYCOMP_OFFSET_HOWS)}
+        if source is not None and str(source).strip():
+            return {"error": "stage=offset takes no source: the component's own source glyph is used"}
+        if recipe is not None and str(recipe).strip():
+            return {"error": "stage=offset takes no recipe"}
+    parts = None
+    if gen:
+        parts, err = _trycomp_recipe(recipe, target)
+        if err is not None:
+            return {"error": err}
+    if step is not None and str(step).strip() and not auto:
+        return {"error": "step is used only by stage=auto"}
+    if auto:
+        step = str(step or "").strip()
+        if step not in _TRYCOMP_AUTO_STEPS:
+            return {"error": "step must be one of: " + ", ".join(_TRYCOMP_AUTO_STEPS)}
+        if step in ("setrecipe", "build"):
+            parts, err = _trycomp_recipe(recipe, target)
+            if err is not None:
+                return {"error": err}
+        elif recipe is not None and str(recipe).strip():
+            return {"error": f"step={step} takes no recipe"}
+    n_args = 5
+    if nargs is not None and str(nargs).strip():
+        if stage != "setgenerated":
+            return {"error": "args is used only by stage=setgenerated"}
+        n_args, err = _tryedit_int(nargs, "args", 2, 5)
+        if err is not None:
+            return {"error": err}
+    pkg_id = False
+    if pkgmode is not None and str(pkgmode).strip():
+        if stage != "setgenerated":
+            return {"error": "pkg is used only by stage=setgenerated"}
+        if str(pkgmode).strip() != "id":
+            return {"error": 'pkg must be "id" (the package\'s fgId as the third argument)'}
+        pkg_id = True
+    as_int = False
+    if intmode is not None and str(intmode).strip():
+        if stage != "setgenerated":
+            return {"error": "int is used only by stage=setgenerated"}
+        if str(intmode).strip() != "yes":
+            return {"error": 'int must be "yes" (False passed as the whole number 0)'}
+        as_int = True
+    width_int = False
+    if widthmode is not None and str(widthmode).strip():
+        if stage != "setgenerated":
+            return {"error": "width is used only by stage=setgenerated"}
+        if str(widthmode).strip() != "int":
+            return {"error": 'width must be "int" (the width passed as a whole number)'}
+        width_int = True
+    items_id = False
+    if itemsmode is not None and str(itemsmode).strip():
+        if stage != "setgenerated":
+            return {"error": "items is used only by stage=setgenerated"}
+        if str(itemsmode).strip() != "id":
+            return {"error": 'items must be "id" (each component\'s name_id in place of the GlyphComponent)'}
+        items_id = True
+    reading = stage == "readcomponents"
+    if not reading and not gen and not auto and not offset and target == source:
+        return {"error": "target and source must be two different glyphs"}
+    args = {}
+    for label, raw in ((("dx", dx), ("dy", dy)) if not (reading or gen or auto) else ()):
+        v, err = _tryedit_int(raw, label, -_TRYCOMP_DELTA_MAX, _TRYCOMP_DELTA_MAX)
+        if err is not None:
+            return {"error": err}
+        args[label] = v
+    if offset and args["dx"] == 0 and args["dy"] == 0:
+        return {"error": "dx and dy are both 0: there is no offset to set"}
+    if go != "yes":
+        if offset:
+            return {"error": f"stage=offset&how={how} calls {_TRYCOMP_OFFSET_HOWS[how]} once on the target's only component, offset "
+                             f"({args['dx']}, {args['dy']}). Add &go=yes to run it."}
+        if reading:
+            return {"error": "stage=readcomponents reads the target's layer.components once and changes nothing. Add &go=yes to run it."}
+        if auto:
+            with_recipe = f", recipe {'+'.join(parts)}" if parts else ""
+            return {"error": f"stage=auto&step={step} {_TRYCOMP_AUTO_STEPS[step]}{with_recipe}. Add &go=yes to run it."}
+        if gen:
+            what = ("asks FontLab's generateGlyph what the recipe gives (it is not asked to change anything)" if stage == "generate" else
+                    "asks FontLab's generateGlyph for the recipe and puts what it returns into the target through layer.setGlyphComponents")
+            with_args = (f", with the first {n_args} of its 5 arguments" + (", the package's fgId as the third" if pkg_id else "")
+                         + (", 0 in place of False" if as_int else "") + (", the width as a whole number" if width_int else "")
+                         + (", each component's name_id in place of the GlyphComponent" if items_id else "")
+                         if stage == "setgenerated" else "")
+            return {"error": f"stage={stage} {what}{with_args}, recipe {'+'.join(parts)}. Add &go=yes to run it."}
+        what = {"glyphcomponents": "places the source glyph as a component in the target through layer.setGlyphComponents",
+                "shapedata": "adds a new shape on the source's shape data to the target through layer.addShape"}[stage]
+        return {"error": f"stage={stage} {what}, offset ({args['dx']}, {args['dy']}). Add &go=yes to run it."}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"stage": stage, "error": why, "calls_so_far": _TRYCOMP["calls"], "max_calls": _TRYCOMP_MAX}
+    if _TRYCOMP["calls"] >= _TRYCOMP_MAX:
+        return {"stage": stage, "error": f"the probe already ran {_TRYCOMP_MAX} times in this listener run; restart the listener to repeat it",
+                "calls_so_far": _TRYCOMP["calls"], "max_calls": _TRYCOMP_MAX}
+    if auto:
+        _TRYCOMP["calls"] += 1     # counted BEFORE the glyph is read
+        abase = {"stage": stage, "step": step, "target": target, "call": _TRYCOMP_AUTO_STEPS[step], "calls_so_far": _TRYCOMP["calls"],
+                 "max_calls": _TRYCOMP_MAX, "note": _TRYCOMP_NOTE}
+        if parts:
+            abase["recipe"] = "+".join(parts)
+        return _trycomp_auto(mod, target, step, parts, abase)
+    if offset:
+        oqt_cls, oqt_src = _trycomp_qtransform_class(mod)
+        if oqt_cls is None:
+            return {"stage": stage, "error": oqt_src + ": nothing was touched", "calls_so_far": _TRYCOMP["calls"], "max_calls": _TRYCOMP_MAX}
+        _TRYCOMP["calls"] += 1     # counted BEFORE the glyph is read
+        return _trycomp_offset(target, how, args["dx"], args["dy"], oqt_cls,
+                               {"stage": stage, "how": how, "target": target, "dx": args["dx"], "dy": args["dy"],
+                                "call": _TRYCOMP_OFFSET_HOWS[how], "calls_so_far": _TRYCOMP["calls"], "max_calls": _TRYCOMP_MAX,
+                                "qtransform": oqt_src, "note": _TRYCOMP_NOTE})
+    if gen:
+        if getattr(mod, "FontMetrics", None) is None:
+            return {"stage": stage, "error": "fontlab.FontMetrics is missing: nothing was touched", "calls_so_far": _TRYCOMP["calls"],
+                    "max_calls": _TRYCOMP_MAX}
+        _TRYCOMP["calls"] += 1     # counted BEFORE any glyph is read
+        gbase = {"stage": stage, "target": target, "recipe": "+".join(parts), "call": _TRYCOMP_CALLS[stage],
+                 "calls_so_far": _TRYCOMP["calls"], "max_calls": _TRYCOMP_MAX, "note": _TRYCOMP_NOTE}
+        if stage == "setgenerated":
+            gbase["args"] = n_args
+            if pkg_id:
+                gbase["pkg"] = "id"
+            if as_int:
+                gbase["int"] = "yes"
+            if width_int:
+                gbase["width"] = "int"
+            if items_id:
+                gbase["items"] = "id"
+        return _trycomp_generate(mod, pkg, stage, target, parts, gbase)
+    if reading:
+        _TRYCOMP["calls"] += 1     # counted BEFORE the glyph is read
+        return _trycomp_read_components(mod, target, {"stage": stage, "target": target, "call": _TRYCOMP_CALLS[stage],
+                                                      "calls_so_far": _TRYCOMP["calls"], "max_calls": _TRYCOMP_MAX})
+    qt_cls, qt_src = _trycomp_qtransform_class(mod)
+    needed = "GlyphComponent" if stage == "glyphcomponents" else "flShape"
+    if qt_cls is None or getattr(mod, needed, None) is None:
+        return {"stage": stage, "error": (qt_src if qt_cls is None else f"fontlab.{needed} is missing") + ": nothing was touched",
+                "calls_so_far": _TRYCOMP["calls"], "max_calls": _TRYCOMP_MAX}
+    _TRYCOMP["calls"] += 1     # counted BEFORE either glyph is read or touched: whatever happens, it is on record
+    dx, dy = args["dx"], args["dy"]
+    base = {"stage": stage, "target": target, "source": source, "dx": dx, "dy": dy, "call": _TRYCOMP_CALLS[stage],
+            "calls_so_far": _TRYCOMP["calls"], "max_calls": _TRYCOMP_MAX, "qtransform": qt_src, "note": _TRYCOMP_NOTE}
+    # the source: one plain shape, no components, at least one node
+    sctx, refusal = _modern_edit_target(source)
+    if sctx is None:
+        return dict(base, error="the source cannot be used: " + str(refusal.get("reason") or refusal), refusal=_public_refusal(refusal))
+    sstate, slayer = _tryshape_modern_state(sctx["w"])
+    base["source_state_before"] = sstate
+    if slayer is None:
+        return dict(base, error="the source has no modern active layer: nothing was touched")
+    sel = _trycomp_elements(slayer)
+    if isinstance(sel, dict):
+        return dict(base, error=f"the source's elements could not be read ({sel['error']}): nothing was touched")
+    base["source_elements_before"] = sel
+    if len(sel) != 1 or sel[0].get("is_component") is not False or sel[0].get("is_composite") is not False:
+        return dict(base, error=("the source must have exactly one plain shape (no component, no Power Brush or other composite shape): "
+                                 "nothing was touched"))
+    snodes = sstate.get("nodes")
+    if sstate.get("components") != 0 or not isinstance(snodes, int) or isinstance(snodes, bool) or snodes < 1:
+        return dict(base, error=f"the source reads {sstate.get('components')!r} components and {snodes!r} nodes: nothing was touched")
+    src_before = _tryedit_snapshot(source)
+    if "error" in src_before:
+        return dict(base, error=f"the source's outline could not be read ({src_before['error']}): nothing was touched")
+    base["source_before"] = src_before
+    # the target: an existing layer (never created here), at most one plain shape, no components
+    ctx, refusal = _modern_edit_target(target)
+    if ctx is None:
+        return dict(base, error=("the target cannot be used: " + str(refusal.get("reason") or refusal) + " (a glyph with no layer is never "
+                                 "given a component by this probe: the Add Component crash)"), refusal=_public_refusal(refusal))
+    w, font = ctx["w"], ctx["font"]
+    state, layer = _tryshape_modern_state(w)
+    base["target_state_before"] = state
+    if layer is None:
+        return dict(base, error="the target has no modern active layer: nothing was touched")
+    tel = _trycomp_elements(layer)
+    if isinstance(tel, dict):
+        return dict(base, error=f"the target's elements could not be read ({tel['error']}): nothing was touched")
+    base["target_elements_before"] = tel
+    if len(tel) > 1 or any(e.get("is_component") is not False or e.get("is_composite") is not False for e in tel):
+        return dict(base, error="the target must have at most one shape, and a plain one: nothing was touched")
+    if state.get("components") != 0:
+        return dict(base, error=f"the target reads {state.get('components')!r} components: nothing was touched")
+    before = _tryedit_snapshot(target)
+    if "error" in before:
+        return dict(base, error=f"the target's outline could not be read ({before['error']}): nothing was touched")
+    base["target_before"] = before
+    width_before = _trycomp_width(w)
+    base["advance_width_before"] = width_before
+    base["glyph_count_before"] = _tryedit_glyph_count(font)
+    if stage == "glyphcomponents" and not isinstance(width_before, float):
+        return dict(base, error=f"the target's advance width is not readable ({width_before}): nothing was touched")
+    step, touched = "QTransform(1, 0, 0, 1, dx, dy)", False
+    try:
+        tx = qt_cls(1.0, 0.0, 0.0, 1.0, float(dx), float(dy))
+        m, why = _trycomp_matrix(tx)
+        base["built_matrix"] = m if m is not None else {"error": why}
+        if not _trycomp_offset_ok(m, dx, dy):
+            return dict(base, error="the QTransform built does not read as the offset asked for: nothing was touched")
+        if stage == "glyphcomponents":
+            step = "GlyphComponent(source)"
+            gc = mod.GlyphComponent(source)
+            step = "gc.transform = tx"
+            gc.transform = tx
+            gm, why = _trycomp_matrix(_tl_call(lambda: gc.transform)[0])
+            base["detached_matrix"] = gm if gm is not None else {"error": why}
+            nid, err = _tl_call(lambda: _call0(gc, "name_id"))
+            base["glyph_component_name_id"] = nid if (err is None and isinstance(nid, int) and not isinstance(nid, bool)) else (
+                f"<error: {err or type(nid).__name__}>")
+            if not _trycomp_offset_ok(gm, dx, dy):
+                return dict(base, error="the GlyphComponent's transform does not read back as the offset: nothing was touched")
+            step, touched = _TRYCOMP_CALLS[stage], True
+            ret = layer.setGlyphComponents([gc], float(width_before), pkg, False, 0)
+        else:
+            sshapes, err = _tl_call(lambda: slayer.shapes)
+            if err is not None or type(sshapes) is not list or len(sshapes) != 1:
+                return dict(base, error="the source's layer.shapes is no longer a plain list of one: nothing was touched")
+            step = "source_shape.shapeData"
+            sd = sshapes[0].shapeData
+            step = "flShape(shapeData)"
+            new_shape = mod.flShape(sd)
+            step = "new_shape.transform = tx"
+            new_shape.transform = tx
+            nm_, why = _trycomp_matrix(_tl_call(lambda: new_shape.transform)[0])
+            base["detached_matrix"] = nm_ if nm_ is not None else {"error": why}
+            if not _trycomp_offset_ok(nm_, dx, dy):
+                return dict(base, error="the new shape's transform does not read back as the offset: nothing was touched")
+            step, touched = _TRYCOMP_CALLS[stage], True
+            ret = layer.addShape(new_shape)
+        base["call_returned"] = ret if (ret is None or isinstance(ret, (bool, int, float, str))) else f"<{type(ret).__name__}>"
+    except Exception as exc:
+        base["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
+    result = dict(base)
+    if touched:
+        result["display_refreshed"] = _repaint_viewport()
+    after_state, layer2 = _tryshape_modern_state(w)
+    result["target_state_after"] = after_state
+    tel2 = _trycomp_elements(layer2) if layer2 is not None else {"error": "the target has no modern active layer after the call"}
+    result["target_elements_after"] = tel2
+    after = _tryedit_snapshot(target)
+    result["target_after"] = after
+    width_after = _trycomp_width(w)
+    result["advance_width_after"] = width_after
+    sstate2, slayer2 = _tryshape_modern_state(sctx["w"])
+    result["source_state_after"] = sstate2
+    sel2 = _trycomp_elements(slayer2) if slayer2 is not None else {"error": "the source has no modern active layer after the call"}
+    result["source_elements_after"] = sel2
+    src_after = _tryedit_snapshot(source)
+    result["source_after"] = src_after
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    if isinstance(tel2, dict):
+        result["placed"] = result["existing_kept"] = "unknown"
+    else:
+        comps = [e for e in tel2 if e.get("is_component") is True]
+        plain = [e for e in tel2 if e.get("is_component") is False]
+        result["placed"] = (len(comps) == 1 and comps[0].get("component_glyph") == source
+                            and _trycomp_offset_ok(comps[0].get("matrix"), dx, dy))
+        result["existing_kept"] = (len(plain) >= len(tel) and "error" not in after
+                                   and _trycomp_holds(after.get("contours") or [], before["contours"]))
+    if "error" in after:
+        result["source_contours_in_outline"] = "unknown"
+    else:
+        got, sc = after.get("contours") or [], src_before["contours"]
+        result["source_contours_in_outline"] = ("raw" if _trycomp_holds(got, sc) else
+                                                "moved by the offset" if _trycomp_holds(got, _trycomp_shift(sc, dx, dy)) else False)
+    result["width_changed"] = (width_after != width_before) if isinstance(width_after, float) else "unknown"
+    result["source_changed"] = ("unknown" if "error" in src_after else src_after["contours"] != src_before["contours"])
+    result["side_effect_detected"] = bool(result["glyph_count_after"] != result["glyph_count_before"] or result["source_changed"] is not False
+                                          or result["width_changed"] is not False or isinstance(sel2, dict) or len(sel2) != 1)
+    result["changed"] = ("unknown" if ("error" in after or isinstance(tel2, dict)) else
+                         (tel2 != tel or after["contours"] != before["contours"] or after_state != state))
+    result["component_placed"] = bool("error" not in result and result["placed"] is True and result["existing_kept"] is True
+                                      and not result["side_effect_detected"])
+    if result["changed"] is not False:
+        _guard_mark(font, target, "trycomponent", result,
+                    no_mark=None if result["component_placed"] else "the component was not confirmed")
     return result
 
 
@@ -10172,6 +11413,21 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
+        if path == "/debug/markswitch":      # v0.170: S1 research
+            return _build_response(200, debug_mark_switch((query.get("on") or [None])[0], (query.get("go") or [""])[0]))
+
+        if path == "/debug/trycomponent":
+            try:
+                return _build_response(200, debug_try_component((query.get("stage") or [""])[0], (query.get("target") or [""])[0],
+                                                                (query.get("source") or [""])[0], (query.get("go") or [""])[0],
+                                                                (query.get("dx") or [None])[0], (query.get("dy") or [None])[0],
+                                                                (query.get("recipe") or [None])[0], (query.get("args") or [None])[0],
+                                                                (query.get("pkg") or [None])[0], (query.get("int") or [None])[0],
+                                                                (query.get("width") or [None])[0], (query.get("items") or [None])[0],
+                                                                (query.get("step") or [None])[0], (query.get("how") or [None])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
         if path == "/debug/trynotify":
             try:
                 return _build_response(200, debug_try_notify((query.get("stage") or [""])[0], (query.get("which") or [""])[0], (query.get("on") or ["class"])[0],
@@ -10507,6 +11763,26 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": str(exc)})
 
+        if path == "/glyph/component":       # v0.169: add_component
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            if not isinstance(payload, dict) or set(payload) != {"name", "component", "x", "y"}:
+                return _build_response(400, {"error": 'the body must be an object with exactly "name", "component", "x" and "y"'})
+            name, src = payload["name"], payload["component"]
+            if not isinstance(name, str) or not name.strip() or not isinstance(src, str) or not src.strip():
+                return _build_response(400, {"error": '"name" and "component" must be non-empty strings'})
+            if name.strip() == src.strip():
+                return _build_response(400, {"error": "a glyph cannot hold itself as a component"})
+            ox, oy = payload["x"], payload["y"]
+            if any(isinstance(v, bool) or not isinstance(v, int) or abs(v) > _COMP_OFFSET_MAX for v in (ox, oy)):
+                return _build_response(400, {"error": f'"x" and "y" must be whole numbers from -{_COMP_OFFSET_MAX} to {_COMP_OFFSET_MAX}'})
+            try:
+                return _build_response(200, add_component(name.strip(), src.strip(), ox, oy))
+            except Exception as exc:
+                return _build_response(500, {"error": str(exc)})
+
         if path == "/glyph/move":            # v0.153: move_nodes
             try:
                 payload = json.loads(body.decode("utf-8")) if body else {}
@@ -10632,7 +11908,7 @@ _ACT = {"kind": None, "shown": 0, "more": 0, "reads": {}, "no_font": {}, "kern_p
 _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/width": "width",
                "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/glyph/polygon": "draw",
                "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning", "/font/create": "create font",
-               "/glyph/move": "move"}
+               "/glyph/move": "move", "/glyph/component": "component"}
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
               "/font/current": "font info", "/font/notdef": ".notdef check", "/font/notdef/warn": ".notdef check",
@@ -10796,6 +12072,15 @@ def _act_describe_write(path, payload, code, reply):
             return f"{head}: {size} (verified, nodes match{sync})", not unsynced
         changed = "; the glyph DID change" if reply.get("changed") not in (False, None) else ""
         return f"NOT DONE {head}: {why}{changed}", False
+    if kind == "component":       # v0.169: what from the request, success from the reply
+        src = payload.get("component") if isinstance(payload, dict) else None
+        at = f"({_act_num(payload.get('x'))}, {_act_num(payload.get('y'))})" if isinstance(payload, dict) else "(?)"
+        what = f"{_act_text(src) if isinstance(src, str) else '?'} at {at}"
+        if reply.get("placed") is True:
+            return f"{head}: {what} (verified{sync})", not unsynced
+        changed = "; the glyph DID change" if reply.get("changed") not in (False, None) else ""
+        back = "; autoLayer set back to off" if reply.get("auto_layer_set_back") is True else ""
+        return f"NOT DONE {head} ({what}): {why}{changed}{back}", False
     # draw (/glyph/polygon or /glyph/path): sizes from the request, success from the reply
     payload = payload if isinstance(payload, dict) else {}
     lists = payload.get("contours") if payload.get("contours") is not None else [payload.get("points")]
