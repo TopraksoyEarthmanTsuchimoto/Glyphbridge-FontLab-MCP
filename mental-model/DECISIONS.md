@@ -2,32 +2,28 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
-## 2026-11-17: `add_component`, version 1 (design, not yet built)
+## 2026-11-17: placing components, `add_component` (listener 0.169–0.175 / server 0.66–0.69)
 
-- **One component per call, into an existing, empty glyph layer**, at a whole-unit offset set after the build. *Reason:* only that was proven with the width unchanged; a two-glyph recipe sets its own offset and width (1049).
-- **After a failure past `autoLayer = True`, the tool sets it back to False, reads back and reports;** no automatic restore of the outline. *Reason:* one proven write leaves the glyph editable instead of a locked auto layer (1055a).
-- **The leftover recipe is researched before the build** (done: `recipe = ""` cleared it, 1058).
-- **With several fonts open, the tool follows the font in front,** with a two-font live check in its first live round. *Reason:* the rule of the other write tools ([PROJECT.md](PROJECT.md), goal 5).
-- *Reason for all:* the user's answers, one question at a time.
+Condensed on 2026-11-17 from three entries, all built; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md).
+- **The modern route: FontLab's recipe build (`recipe`, `autoLayer = True`, `buildAuto()`, `autoLayer = False`); the legacy `fgComponent` route is not probed.** *Reason:* the user asked whether legacy was the only way; the modern route worked (1041b–1042b, [topics/reading.md](topics/reading.md)) and the modern-API-first decision applies. Revisit only if it cannot do what a tool needs.
+- **Into an existing, empty glyph layer, at whole-unit offsets set after the build; one form per call: a single component (`component`, `x`, `y`) or a `components` list; repeated sources allowed.** *Reason:* only that was proven with the width unchanged (1049); one recipe build placed them all (1110–1177); repeats are separate components, each movable alone (1172–1177).
+- **Soft limit 30** (tested at 2–5, 15 and 30, the sizes between assumed safe): above it the first call changes nothing; the agent tells the person that only up to 30 was tested, asks, and repeats with a confirmation flag after a yes. **No hard ceiling** but the listener's request-body size. *Reason:* the user's rule, with Chinese characters in mind; the ask-first precedent of kerning reads.
+- **The width is read before, written back after, and confirmed.** *Reason:* FontLab set 500 every time (1110–1172).
+- **A failure partway: placing stops, then the auto layer is switched off, the recipe cleared and the width put back, each component and step reported; nothing else is restored.** *Reason:* `autoLayer = False` leaves the glyph editable, not a locked auto layer (1055a); `recipe = ""` clears the leftover recipe (1058); no proven way to remove a component (1090).
+- **With several fonts open, the tool follows the font in front.** *Reason:* the rule of the other write tools ([PROJECT.md](PROJECT.md), goal 5); live with two fonts (1091–1095).
+- **The element reader has no element limit and reports its timing,** replacing both 20-element caps, none with a recorded reason (`_COMPONENT_BOX_MAX`, v0.130; `_TRYSHAPEBOX_MAX_SHAPES`, v0.129). *Reason:* above 20 `source_in_step` was "unknown" (1168); 30 boxes took under 10 ms.
+- **In the list form a source name with an underscore is refused before anything changes; after a failed build each entry's state is matched by source name, and the reply lists what the glyph holds** (0.175 / 0.69). *Reason:* FontLab's recipe reads `a_b` as a ligature of its parts (1234); a placed component was called "not reached" (1200–1208).
+- *Reason for all but the first:* the user's answers, one question at a time.
 
-## 2026-11-17: placing components goes the modern way
+## 2026-11-15: `move_nodes`, the first edit tool (listener 0.153–0.154 / server 0.63–0.65)
 
-- **Components are placed through FontLab's recipe build (`recipe`, `autoLayer = True`, `buildAuto()`, `autoLayer = False`); the legacy `fgComponent` route is not probed.** *Reason:* the user's question whether legacy was the only way; the modern route worked (1041b–1042b, [topics/reading.md](topics/reading.md)) and the modern-API-first decision applies. Revisit only if the modern route cannot do what a tool needs (for example offsets or several components).
-
-## 2026-11-15: move_nodes tells the person that Undo does not take a move back (server 0.65)
-
-- **No `display_note` in a `move_nodes` reply; `undo_note` wherever the outline changed, told once per conversation.** *Reason:* `display_note` gave repaint steps, against the decision of 2026-11-13; Edit > Undo lists a tool move but left the nodes moved (1023). The user approved the change.
-
-## 2026-11-15: move_nodes is confirmed by its re-read nodes (listener 0.154 / server 0.64)
-
-- **`verified` means the re-read nodes match; the sidebearings are computed from them and FontLab's advance width; FontLab's own values are shown apart, with one plain note for the person when they lag. No refresh call.** *Reason:* FontLab's sidebearings and ink box lag after an API node move and nothing tried refreshes them (MN 1001–1015); the user approved the change.
-
-## 2026-11-15: move_nodes, the first edit tool (listener 0.153 / server 0.63)
-
+Condensed on 2026-11-17 from three entries; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md).
 - **Each move gives `from` and `to`; a `from` that differs from the node refuses the whole call.** *Reason:* a stale read becomes a refusal, not a wrong edit.
 - **No automatic restore when the re-read differs;** the font is marked whenever its outline changed. *Reason:* a restore is an untested second write; the person decides.
 - **One plain shape only, for now.** *Reason:* only that was probed; each shape may carry its own transform.
-- *Reason for all:* the user's answers, one question at a time.
+- **`verified` means the re-read nodes match; the sidebearings are computed from them and FontLab's advance width; FontLab's own values are shown apart, with one plain note for the person when they lag. No refresh call** (0.154 / 0.64). *Reason:* FontLab's sidebearings and ink box lag after an API node move and nothing tried refreshes them (MN 1001–1015).
+- **No `display_note`; `undo_note` wherever the outline changed, told once per conversation** (server 0.65). *Reason:* `display_note` gave repaint steps, against the decision of 2026-11-13; Edit > Undo lists a tool move but left the nodes moved (1023).
+- *Reason for all:* the user's answers and approvals.
 
 ## 2026-11-14: editing existing glyphs
 
@@ -35,8 +31,8 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 ## 2026-11-13 to 2026-11-17: word budgets raised by the user's choice
 
-Condensed on 2026-11-17 from five entries; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Current budgets and their history: [MARKDOWN-MAP.md](MARKDOWN-MAP.md).
-- **CURRENT-STATUS.md 2,500 (2026-11-13); PROJECT.md 1,000, MARKDOWN-MAP.md 1,000, WATCH-POINTS.md 2,500, DECISIONS.md 2,500 (2026-11-14); WHAT-WORKS.md 2,250 (2026-11-17); DECISIONS.md 2,800 (2026-11-17, at 2,528 words, offered the condensing of the 2026-11-15 entries instead).** Nothing was trimmed or moved for any of them. *Reason:* the user's choice each time.
+Condensed on 2026-11-17 from nine entries; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Current budgets and their history: [MARKDOWN-MAP.md](MARKDOWN-MAP.md).
+- **CURRENT-STATUS.md 2,500, then 2,750, then 3,000; DECISIONS.md 2,500, then 2,800; PROJECT.md 1,000; MARKDOWN-MAP.md 1,000; WATCH-POINTS.md 2,500; WHAT-WORKS.md 2,250, then 2,500.** Nothing was trimmed or moved for any of them. *Reason:* the user's choice each time.
 
 ## 2026-11-13: a package is told apart by its fgId (listener 0.150 / server 0.62)
 
@@ -56,7 +52,7 @@ Condensed on 2026-11-17 from five entries; full text: [archive/DECISIONS-ARCHIVE
 
 ## 2026-11-12: watch points hold the open question only
 
-- **An entry in [WATCH-POINTS.md](WATCH-POINTS.md) holds what is open and what would settle it; the evidence lives in the topic file it links to. The budget stays 2,200** (raised to 2,500 on 2026-11-14: the budget entry above). *Reason:* the user's choice over a seventh raise: the file had grown by collecting the story of each run. Nothing is cut; evidence moves, word for word where the topic file lacks it.
+- **An entry in [WATCH-POINTS.md](WATCH-POINTS.md) holds what is open and what would settle it; the evidence lives in the topic file it links to.** *Reason:* the user's choice over a seventh raise: the file had grown by collecting the story of each run. Nothing is cut; evidence moves, word for word where the topic file lacks it.
 
 ## 2026-11-11: new fonts made by an agent
 

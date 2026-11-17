@@ -2315,6 +2315,7 @@ _mw32 = ns["_modern_wrapper"]
 ns["_modern_wrapper"] = lambda g, f: (W32(Lay32([Sh32(0, _A32)])), "cached") if g == "G:acc" and not SPY32.get("target") and not SPY32.update(target=True) else _mw32(g, f)
 _o32 = ns["_modern_only_outline"]("acc", "body")
 print("32s the outline route adds the boxes ->", {k: b32(_o32["elements"]["shapes"][0][k]) for k in ("ink_box", "source_ink_box")}, "| forbidden", SPY32["forbidden"])
+print("32s2 v0.174: the outline route times them ->", type(_o32["elements"].get("boxes_seconds")).__name__)
 ns["_describe_modern_glyph"] = lambda w, out: out.update(shapes_error="no list")
 SPY32.pop("target", None)
 _o32 = ns["_modern_only_outline"]("acc", "body")
@@ -2322,7 +2323,7 @@ print("32t no element list: no boxes, the error stays ->", _o32["elements"])
 SPY32.pop("target", None)
 for k, v in _saved32.items(): ns[k] = v
 _lsrc32 = open(find("glyphbridge_fontlab_mcp_listener.py"), encoding="utf-8").read()
-_body32 = "\n".join(l for l in _lsrc32[_lsrc32.index("_COMPONENT_BOX_MAX = 20"):_lsrc32.index("def _modern_only_outline(")].split("\n") if not l.lstrip().startswith("#"))
+_body32 = "\n".join(l for l in _lsrc32[_lsrc32.index("# v0.174: _COMPONENT_BOX_MAX (20, v0.130"):_lsrc32.index("def _modern_only_outline(")].split("\n") if not l.lstrip().startswith("#"))
 print("32u static scan of the new listener code:", len(_body32) > 1500, "| forbidden call syntax:",
       re.findall(r"\.(?:update|save\w*|export\w*|close|release|remove\w*|bindDependencies|resetInkBox|changed|applyTransform|transform|setProperty\w*)\s*\(", _body32),
       "| subscripts of native objects other than a checked list:", [m for m in re.findall(r"\b(\w+)\[", _body32) if m in ("layer", "glyph", "shape", "w")])
@@ -2784,7 +2785,102 @@ for label, args in (("38o empty name        ", (" ", "cpasrc", 0, 0)), ("38p emp
 _d38 = srv.add_component.__doc__
 print("38w docs              -> tool listed:", callable(getattr(srv, "add_component", None)), "| signature:", _inspect.signature(srv.add_component),
       "| EMPTY:", "be EMPTY" in _d38, "| one master:", "exactly ONE master" in _d38, "| width not changed:", "advance width is NOT changed" in _d38,
-      "| Undo untested:", "Undo takes the component back is untested" in _d38, "| unexplained run:", "one unexplained run" in _d38,
+      "| Undo offers nothing:", "Undo offers nothing to take the component back" in _d38, "| no remove tool:", "No Glyphbridge tool removes a component yet" in _d38, "| unexplained run:", "one unexplained run" in _d38,
       "| NEVER saves:", "NEVER saves" in _d38, "| listener named:", "listener 0.169" in _d38, "| placeholder left:", "SAVE_KEYS" in _d38)
+# ==== 39. server 0.68: add_component with a components list (listener 0.174; faked listener replies) ====
+print("\n==== 39. server 0.68: add_component's components list (faked listener replies) ====")
+CHK39 = {k: True for k in srv._COMP_LIST_CHECK_KEYS}
+E39 = [{"component": "cpasrc", "x": 0, "y": 0}, {"component": "cpabase", "x": 120, "y": 40}]
+OK39 = {"open": True, "name": "cpa1", "form": "list", "component_count": 2, "placed": True, "verified": True, "changed": True, "checks": dict(CHK39),
+        "steps_done": ["recipe", "auto_on", "build", "auto_off", "order_checked", "offsets"], "cleanup": {"recipe_cleared": True, "width_restored": True},
+        "component_states": [dict(e, state="placed") for e in E39], "advance_width_after": 0.0, "build_seconds": 0.001, "elapsed_seconds": 0.006,
+        "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}}
+def acl39(label, reply, args=("cpa1", E39), version="0.174",
+          keys=("placed", "verified", "component_count", "components", "advance_width", "timing", "changed", "reason", "steps_done", "cleanup",
+                "component_states", "checks", "needs_confirmation", "untested_size_note", "font_modified", "fontlab_changed_mark")):
+    s9_reset(); S9["version"] = version; S9["post"]["/glyph/component"] = reply; n = len(S9["posts"])
+    r = s9_try(lambda: srv.write_glyph_components(*args))
+    shown = {k: r[k] for k in keys if k in r} if isinstance(r, dict) else r
+    print(label, "->", shown, "| posts", len(S9["posts"]) - n, "|", fview(srv.finish_change_package()))
+    return r
+r = acl39("39a two placed                  ", dict(OK39))
+print("39b  note, sent                   ->", r["note"][:60], "| sent", S9["posts"][-1] if S9["posts"] else None)
+acl39("39c x and y left out            ", dict(OK39), args=("cpa1", [{"component": "cpasrc"}, {"component": "cpabase", "x": 120.0, "y": 40}]), keys=("placed",))
+print("39c2 sent                         ->", S9["posts"][-1] if S9["posts"] else None)
+acl39("39d a check is false            ", dict(OK39, checks=dict(CHK39, width_unchanged=False), reason="r"))
+acl39("39e a check is missing          ", dict(OK39, checks={k: v for k, v in CHK39.items() if k != "components"}, reason="r"))
+r = acl39("39f stopped, cleaned up         ", {"open": True, "placed": False, "verified": False, "changed": True, "reason": "shape.transform failed: boom",
+                                               "steps_done": ["recipe", "auto_on", "build", "auto_off", "order_checked"],
+                                               "cleanup": {"recipe_cleared": True, "width_restored": "failed: RuntimeError: width boom", "extra": 1},
+                                               "component_states": [dict(E39[0], state="placed"), dict(E39[1], state="not reached"), "junk", {"state": "odd"}],
+                                               "checks": dict(CHK39, components=False, width_unchanged=False), "elapsed_seconds": 0.004,
+                                               "synced_with_fontlab": True, "fontlab_changed_mark": {"called": False, "reason": "the components were not confirmed"}})
+print("39g  instruction                  ->", r["agent_instruction"][:110], "| finish_changes named:", "finish_changes" in r["agent_instruction"])
+acl39("39h refused, nothing changed    ", {"open": True, "placed": False, "changed": False, "reason": "the glyph is not empty: nothing was changed"})
+acl39("39i outcome unknown             ", {"open": True, "placed": False, "changed": "unknown", "reason": "r"})
+acl39("39j no font open                ", {"open": False})
+acl39("39k listener 0.173              ", dict(OK39), version="0.173")
+acl39("39l write times out             ", srv.OutcomeUnknown("timed out"))
+E31 = [{"component": "cpasrc", "x": 10 * k, "y": 0} for k in range(31)]
+r = acl39("39m 31, not confirmed: no post  ", dict(OK39), args=("cpa1", E31))
+print("39n  instruction                  ->", r["agent_instruction"][:150])
+acl39("39o 31, confirmed               ", dict(OK39, component_count=31), args=("cpa1", E31, True), keys=("placed", "component_count", "untested_size_note"))
+print("39o2 sent the flag                ->", S9["posts"][-1][1].get("confirmed_untested_size"), len(S9["posts"][-1][1]["components"]))
+acl39("39p 30, not confirmed: sent     ", dict(OK39, component_count=30), args=("cpa1", E31[:30]), keys=("placed", "component_count", "untested_size_note"))
+acl39("39q listener says untested      ", {"open": True, "placed": False, "untested_size": True, "reason": "r"}, args=("cpa1", E31, True), keys=("needs_confirmation", "placed"))
+for label, args in (("39r empty list        ", ("cpa1", [])), ("39s not a list        ", ("cpa1", "cpasrc")),
+                    ("39t an entry a text   ", ("cpa1", ["cpasrc"])), ("39u no component key  ", ("cpa1", [{"x": 0}])),
+                    ("39v an extra key      ", ("cpa1", [{"component": "cpasrc", "scale": 2}])), ("39w a name with +     ", ("cpa1", [{"component": "a+b"}])),
+                    ("39x the glyph itself  ", ("cpa1", [{"component": "cpa1"}])), ("39y x 1.5             ", ("cpa1", [{"component": "cpasrc", "x": 1.5}])),
+                    ("39z confirmed a text  ", ("cpa1", E39, "yes")), ("39z2 empty name       ", (" ", E39))):
+    acl39(label, dict(OK39), args=args, keys=("placed",))
+for label, kw in (("39z3 the tool, both forms   ", dict(name="cpa1", component="cpasrc", components=E39)),
+                  ("39z4 the tool, x with a list", dict(name="cpa1", x=5, components=E39)),
+                  ("39z5 the tool, neither form ", dict(name="cpa1")),
+                  ("39z6 the tool, flag on one  ", dict(name="cpa1", component="cpasrc", confirmed_untested_size=True))):
+    s9_reset(); S9["version"] = "0.174"; S9["post"]["/glyph/component"] = dict(OK39); n = len(S9["posts"])
+    print(label, "->", s9_try(lambda: srv.add_component(**kw)), "| posts", len(S9["posts"]) - n)
+_d39 = srv.add_component.__doc__
+print("39z7 docs             -> list form:", "SEVERAL at once with `components`" in _d39, "| 30 tested:", "up to 30 components in one call have been tested" in _d39,
+      "| ask first:", "confirmed_untested_size=true" in _d39, "| repeats:", "may appear more than once" in _d39, "| width written back:", "written back" in _d39,
+      "| stop then clean up:", "placing stops at the first failure" in _d39, "| request size:", "1,000,000 bytes" in _d39, "| listener 0.174:", "0.174 (components" in _d39)
+print("39z8 outline timing   ->", end=" ")
+_v39 = {"verification": {}}
+srv._apply_source_step(_v39, {"elements": {"available": True, "boxes_seconds": 0.004, "shapes": []}})
+_w39 = {"verification": {}}
+srv._apply_source_step(_w39, {"elements": {"available": True, "boxes_seconds": True, "shapes": []}})
+print(_v39["verification"], "| a bool is not a time:", _w39["verification"])
+# ==== 40. server 0.69: underscore names refused in the list form, the new states and components_after (listener 0.175; faked replies) ====
+print("\n==== 40. server 0.69: add_component's list, underscores, states, components_after (faked listener replies) ====")
+for label, comps in (("40a an underscore in the middle ", [{"component": "cpasrc"}, {"component": "cpp_x"}]),
+                     ("40b a leading underscore        ", [{"component": "_cppx"}, {"component": "cpasrc"}]),
+                     ("40c a trailing underscore       ", [{"component": "cpasrc"}, {"component": "cppx_"}]),
+                     ("40d one entry with _            ", [{"component": "cpp_x"}])):
+    acl39(label, dict(OK39), args=("cpa1", comps), keys=("placed",))
+r = acl39("40e 31 with one _, unconfirmed   ", dict(OK39), args=("cpa1", E31[:30] + [{"component": "cpp_x"}]), keys=("placed", "needs_confirmation"))
+s9_reset(); S9["version"] = "0.174"; S9["post"]["/glyph/component"] = {"open": True, "placed": False, "changed": False, "reason": "single form reply"}; n = len(S9["posts"])
+print("40f the single form takes cppx_a   ->", s9_try(lambda: srv.add_component(name="cpa1", component="cppx_a")), "| posts", len(S9["posts"]) - n,
+      "| sent", S9["posts"][-1][1] if S9["posts"] else None)
+FAIL40 = {"open": True, "placed": False, "verified": False, "changed": True, "reason": "checking the built components against the list failed",
+          "steps_done": ["recipe", "auto_on", "build", "auto_off"], "cleanup": {"recipe_cleared": True, "width_restored": True},
+          "component_states": [dict(E39[0], state="left by the build"), dict(E39[1], state="missing after the build")],
+          "checks": dict(CHK39, element_count=False, components=False),
+          "components_after": [{"component": "cpasrc", "x": 0.0, "y": 0.0, "plain_offset": True}, "not a component", "unreadable",
+                               {"component": "a\x07b  c", "x": float("nan"), "y": 1.0}, {"component": "g", "x": 5.5, "y": True, "plain_offset": "yes"},
+                               {"component": "g", "x": 2, "y": 3, "plain_offset": False}, 7, {"no": 1}, "other text"],
+          "synced_with_fontlab": True, "fontlab_changed_mark": {"called": False, "reason": "the components were not confirmed"}}
+r = acl39("40g left by / missing after      ", dict(FAIL40), keys=("placed", "changed", "component_states", "components_after"))
+print("40h  instruction                  -> left by the build:", "left by the build" in r["agent_instruction"], "| missing after:", "missing after the build" in r["agent_instruction"],
+      "| components_after:", "components_after" in r["agent_instruction"], "| no tool removes:", "no Glyphbridge tool removes a component" in r["agent_instruction"],
+      "| ask first:", "ask the person first" in r["agent_instruction"])
+acl39("40i components_after an error    ", dict(FAIL40, components_after={"error": "layer\x00 gone"}), keys=("components_after",))
+acl39("40j components_after junk        ", dict(FAIL40, components_after="junk"), keys=("components_after",))
+acl39("40k listener 0.174: none sent    ", {k: v for k, v in FAIL40.items() if k != "components_after"}, keys=("components_after", "component_states"))
+print("40l states known                  ->", srv._COMP_LIST_STATES)
+_d40 = srv.add_component.__doc__
+print("40m docs                          -> underscore:", "no component glyph name may contain an underscore" in _d40, "| ligature:", "ligature of its parts" in _d40,
+      "| single form instead:", "Place such a glyph with the single form" in _d40, "| new states:", "left by the build, missing after the build" in _d40,
+      "| components_after:", "components_after lists what the glyph holds" in _d40, "| listener 0.175:", "components_after since 0.175" in _d40)
+
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 srv._reset_change_tracking()

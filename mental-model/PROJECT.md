@@ -16,7 +16,7 @@ As of October 2026 there was only one MCP project for FontLab on GitHub which at
 ## Goals, in priority order
 
 1. **Read any glyph accurately.** This covers outlines, element transforms, layers, widths, sidebearings and Unicode, checked against FontLab's bounding box and margins. The biggest remaining gaps are components and multi-master fonts ([ROADMAP.md](ROADMAP.md), P1).
-2. **Write geometry a designer needs.** Today: width, sidebearings, and closed and open straight and cubic contours into an empty glyph. Required by the user (2026-11-14): editing existing glyphs, from moving nodes to any kind of glyph manipulation (P2.2, [DECISIONS.md](DECISIONS.md)).
+2. **Write geometry a designer needs.** Today: width, sidebearings, closed and open straight and cubic contours into an empty glyph, moving nodes and control points of an existing outline (`move_nodes`), and placing components into an empty glyph (`add_component`). Required by the user (2026-11-14): editing existing glyphs, from moving nodes to any kind of glyph manipulation (P2.2, [DECISIONS.md](DECISIONS.md)).
 3. **Read kerning cheaply.** Only the pairs the task needs, using FontLab's own effective values, class kerning included ([topics/kerning.md](topics/kerning.md)).
 4. **Make new fonts usable by agents**: a create-font tool and a correct "is a font open" check (P0).
 5. **Work the same with several fonts open.** The most desirable result: any operation runs without confusion when 2, 3 or more fonts are open. Where closing the other fonts is the only way to a goal, the tool says so, and that research has shown it to be a limitation of FontLab ([DECISIONS.md](DECISIONS.md), [topics/fonts-and-sync.md](topics/fonts-and-sync.md)).
@@ -28,7 +28,7 @@ As of October 2026 there was only one MCP project for FontLab on GitHub which at
 
 - FontLab 8 on Windows. macOS should work in principle but is untested; the code is kept macOS-compatible ([DECISIONS.md](DECISIONS.md)). Linux would need Wine and is not supported.
 - Claude Desktop and Claude Code as MCP clients. Any stdio MCP client should work.
-- The current font: the one whose window is in front. With two fonts open every tool is proven to use the font in front, and every reply names its font (T5 in [LIVE-TESTS.md](LIVE-TESTS.md)); with three fonts, two read tools (`list_glyphs`, `get_glyph_width`) and every write tool but `draw_path` are proven, `get_kerning` only in refusing an unsaved font in front (268), and two unsaved fonts with the same name are untested (goal 5).
+- The current font: the one whose window is in front. With two fonts open every tool that existed at T5 (2026-11-03) is proven to use the font in front, and every reply names its font (T5 in [LIVE-TESTS.md](LIVE-TESTS.md)); of the later tools, `set_kerning` (747), `create_font` (916, 917) and `add_component` (1091–1095) are proven with two fonts, `move_nodes` is not; with three fonts, two read tools (`list_glyphs`, `get_glyph_width`), `create_font` beside two other fonts (917) and every write tool of T5 but `draw_path` are proven, `get_kerning` only in refusing an unsaved font in front (268), and two unsaved fonts with the same name are untested (goal 5).
 
 ## Non-goals and hard limits
 

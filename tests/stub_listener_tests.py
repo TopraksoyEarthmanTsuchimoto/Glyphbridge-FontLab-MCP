@@ -8366,7 +8366,7 @@ for tag, payload, mode in (("2424a buildAuto returns False: set back", P0, {"bui
 ac_setup()
 print("2424q  the function itself refuses the glyph as its own component:", ns["add_component"]("cpp1", "cpp1", 0, 0),
       "| calls", [x for x in TC["calls"] if not (isinstance(x, tuple) and x[0] == "QTransform")])
-_srcac = "\n".join(l for l in src[src.index("# POST /glyph/component (v0.169)"):src.index("# /debug/tryedit (v0.151)")].split("\n") if not l.lstrip().startswith("#"))
+_srcac = "\n".join(l for l in src[src.index("# POST /glyph/component (v0.169)"):src.index('# POST /glyph/component with "components" (v0.174)')].split("\n") if not l.lstrip().startswith("#"))
 _acf = _srcac[_srcac.index("def add_component("):]
 print("2425 spies over the cases:", TC_FORBIDDEN, "| static scan:",
       _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addComponent|clearComponents|killAuto|decomposite|removeShape|replaceShape|addShape|applyTransform)\s*\(|font\.update|_ensure_modern_layer|create_layer=True", _srcac),
@@ -8400,6 +8400,299 @@ print("2433 the switch touches nothing else   :", _re83.findall(r"\bfl\.|fontlab
       "| route documented:", "/debug/markswitch     [on=0|1&go=yes]" in src, "| dispatched:", 'if path == "/debug/markswitch":' in src,
       "| shipped on:", "_MARK_CHANGED = True    # v0.132" in src)
 ns["_MARK_CHANGED"] = True
+
+# ---- v0.171: several components (the user's choice of 2026-11-17). stage=auto takes recipes of up to three glyphs; stage=offset&element=I
+# sets the offset of ONE component among 2 or 3 (as after live 1049: cppsrc at identity, cppsrc2 at (-200, 0)). The transform setter of
+# v0.167 answers the new mode "other_moves" (every other component moves by (5, 0) too); TCShapeDataFlip names another glyph once the
+# ink boxes were read (the shape at I changed between the read and the write).
+print("\n==== v0.171 /debug/trycomponent: several components ====")
+def _tc_set_tx171(s, v):
+    _tc_set_tx(s, v)
+    if TC["mode"].get("other_moves"):
+        for sh in P72["layers"]["cpp1"]._shapes:
+            if sh is not s: sh._tx = TCQT(1, 0, 0, 1, sh._tx.dx() + 5, sh._tx.dy())
+    if TC["mode"].get("other_matrix_only"):     # another component's matrix reads changed, its box does not
+        for sh in P72["layers"]["cpp1"]._shapes:
+            if sh is not s: sh.__dict__["_boxtx"] = sh._tx; sh._tx = TCQT(1, 0, 0, 1, sh._tx.dx() + 5, sh._tx.dy())
+TCShape.transform = property(_tc_tx_prop.fget, _tc_set_tx171)
+class TCShapeDataFlip(TCShapeData):
+    def componentGlyph(s):
+        if "inkBox" not in TC["calls"]: return s._glyph
+        if TC["mode"].get("flip_raises"): raise RuntimeError("componentGlyph boom")
+        return "cppother"
+def _tc_src3():
+    src3 = TCShape([te_contour([(0, 400), (100, 400), (100, 500), (0, 500)])]); src3.shapeData._owner = "cppsrc3"; TCSRC["cppsrc3"] = src3
+    TS["cppsrc3"] = TsGlyph("cppsrc3", [TsLayer(1, 4)]); P72["layers"]["cppsrc3"] = TCLayer("test_font", [src3], "cppsrc3"); P72["widths"]["cppsrc3"] = 100.0
+def _tc_two():
+    return [_tc_comp("cppsrc"), _tc_comp("cppsrc2", -200, 0)]
+OK71 = ("how", "element", "source", "offset_before", "matrix_reads_offset", "ink_box_moved", "raw_nodes", "others_kept", "changed",
+        "side_effect_detected", "offset_placed", "error", "calls_so_far")
+def tce(tag, q, mode=None, auto=False, shapes=None, legacy_nodes=7):
+    tc_gen_setup(mode=dict({"gen_list": 1}, **(mode or {})))
+    _tc_src3()
+    lay = P72["layers"]["cpp1"]
+    lay.__dict__["_recipe"] = ""; lay.__dict__["_auto"] = auto
+    lay._shapes = shapes() if callable(shapes) else (shapes if shapes is not None else _tc_two())
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, legacy_nodes)]); TS["cpp1"].width = 0.0
+    d = tc(tag, QO + q, keys=OK71)
+    lefts = lambda k: [b.get("left") for b in d[k]] if isinstance(d.get(k), list) else d.get(k)
+    print("      elements after:", tc_elements(d, "target_elements_after"), "| lefts:", lefts("ink_boxes_before"), "->", lefts("ink_boxes_after"),
+          "| mark:", d.get("fontlab_changed_mark"))
+    return d
+E1 = "&how=assign&element=1&dx=0&dy=0"
+tce("2440a element shown before go       ", E1)
+tce("2440b element with how=apply        ", "&how=apply&element=1&dx=0&dy=0&go=yes")
+tc_gen_setup(); tc("2440c element with stage=auto      ", QA + "&step=read&element=1&go=yes")
+tce("2440d element 30 (v0.173: 0 to 29)  ", "&how=assign&element=30&dx=0&dy=0&go=yes")
+tce("2440e element x                     ", "&how=assign&element=x&dx=0&dy=0&go=yes")
+tce("2440f element -1                    ", "&how=assign&element=-1&dx=0&dy=0&go=yes")
+d = tce("2441 cppsrc2 from (-200, 0) to (0, 0) (after 1049)", E1 + "&go=yes")
+print("2441a  boxes, outline, width, sync    :", d.get("ink_boxes_after"), te_outline(d, "target_after"), d.get("advance_width_before"),
+      d.get("advance_width_after"), "| synced", d.get("synced_with_fontlab"))
+tce("2441b element 0 to (50, 0)          ", "&how=assign&element=0&dx=50&dy=0&go=yes")
+tce("2441c three: element 2 to (300, -20)", "&how=assign&element=2&dx=300&dy=-20&go=yes",
+    shapes=lambda: _tc_two() + [_tc_comp("cppsrc3")], legacy_nodes=11)
+tce("2441d one source twice, element 1   ", "&how=assign&element=1&dx=-100&dy=0&go=yes",
+    shapes=lambda: [_tc_comp("cppsrc"), _tc_comp("cppsrc", 300, 0)], legacy_nodes=6)
+def _flip(raises=False):
+    sh = _tc_comp("cppsrc2", -200, 0); sh.shapeData = TCShapeDataFlip("cppsrc2", 1, sh._contours); return [_tc_comp("cppsrc"), sh]
+for tag, kw in (("2442a element 2 of two                ", dict(q="&how=assign&element=2&dx=0&dy=0&go=yes")),
+                ("2442b one component only             ", dict(shapes=lambda: [_tc_comp("cppsrc2", -200, 0)], legacy_nodes=4)),
+                ("2442c 31 components (v0.173)         ", dict(shapes=lambda: _tc_two() + [_tc_comp("cppsrc", 10 * k, 0) for k in range(1, 30)],
+                                                               legacy_nodes=7 + 3 * 29)),
+                ("2442d a plain contour among them     ", dict(shapes=lambda: [_tc_comp("cppsrc"), TCShape([te_contour(TE_SQ)])])),
+                ("2442e a component of a non-cpp glyph ", dict(shapes=lambda: [_tc_comp("cppsrc"), TCShape([te_contour(TE_SQ)], component="A")])),
+                ("2442f a scaled component             ", dict(shapes=lambda: [_tc_comp("cppsrc"), TCShape(TCSRC["cppsrc2"]._contours, component="cppsrc2")],
+                                                               scale=True)),
+                ("2442g already at (0, 0)              ", dict(q="&how=assign&element=0&dx=0&dy=0&go=yes")),
+                ("2442h autoLayer on                   ", dict(auto=True)),
+                ("2442i the shape at 1 names another   ", dict(shapes=lambda: _flip())),
+                ("2442j the shape at 1 cannot be checked", dict(shapes=lambda: _flip(), mode={"flip_raises": 1})),
+                ("2442k an ink box unreadable          ", dict(mode={"box_raises": 1}))):
+    q = kw.pop("q", E1 + "&go=yes")
+    if kw.pop("scale", False):
+        _shp = kw["shapes"]
+        def _scaled(_shp=_shp):
+            out = _shp(); out[1]._tx = TCQT(2, 0, 0, 1, -200, 0); return out
+        kw["shapes"] = _scaled
+    tce(tag, q, **kw)
+print("2442l  no offset write in the refusals:", [x for x in TC["calls"] if x == "shape.transform="])
+for tag, mode in (("2443a the assignment is ignored     ", {"tx_ignored": 1}),
+                  ("2443b the other component moves too ", {"other_moves": 1}),
+                  ("2443c the width changes             ", {"offset_width": 1}),
+                  ("2443d a source changes              ", {"offset_source": 1}),
+                  ("2443e autoLayer turns on            ", {"offset_auto": 1}),
+                  ("2443f the ink boxes stay put        ", {"box_stale": 1}),
+                  ("2443h the assignment raises         ", {"tx_raises": 1}),
+                  ("2443i another matrix changes, not its box", {"other_matrix_only": 1})):
+    tce(tag, E1 + "&go=yes", mode=mode)
+# recipes of three glyphs (stage=auto only)
+def tca3(tag, q, recipe=None, auto=None, legacy_nodes=3):
+    tc_gen_setup(mode={"gen_list": 1})
+    _tc_src3()
+    if recipe is not None: P72["layers"]["cpp1"].__dict__["_recipe"] = recipe
+    if auto is not None: P72["layers"]["cpp1"].__dict__["_auto"] = auto
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, legacy_nodes)]); TS["cpp1"].width = 0.0
+    d = tc(tag, QA + q, keys=AK)
+    print("      elements after:", tc_elements(d, "target_elements_after"), "| mark:", d.get("fontlab_changed_mark"))
+    return d
+R3 = "cppsrc%2Bcppsrc2%2Bcppsrc3"
+tca3("2445a setrecipe of three glyphs     ", "&step=setrecipe&recipe=" + R3 + "&go=yes")
+tca3("2445b build of three glyphs         ", "&step=build&recipe=" + R3 + "&go=yes", recipe="cppsrc+cppsrc2+cppsrc3", auto=True, legacy_nodes=11)
+tca3("2445c a recipe of 31 glyphs (v0.173)", "&step=setrecipe&recipe=" + "%2B".join([R3] * 10) + "%2Bcppsrc&go=yes")
+tca3("2445d three, one names the target   ", "&step=setrecipe&recipe=cppsrc%2Bcppsrc2%2Bcpp1&go=yes")
+tc_gen_setup(); _tc_src3(); tc("2445e generate keeps two           ", QC + "stage=generate&target=cpp1&recipe=" + R3 + "&go=yes")
+_src171 = "\n".join(l for l in src[src.index("def _trycomp_first_box("):src.index("def debug_try_component(")].split("\n") if not l.lstrip().startswith("#"))
+print("2446 spies over the cases:", TC_FORBIDDEN, "| static scan:",
+      _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addShape|addComponent|clearComponents|removeShape|replaceShape|decomposite|killAuto|buildAuto)\s*\(|font\.update|_mark_font_changed|autoLayer =|recipe =", _src171),
+      "| one assignment:", len(_re83.findall(r"(?m)^\s+shape\.transform = tx$", _src171)),
+      "| route documented:", "stage=offset&how=assign&element=I&dx=DX&dy=DY" in src, "| dispatched:", '(query.get("element") or [None])[0]' in src,
+      "| more only for auto:", src.count("_trycomp_recipe(recipe, target, most=_TRYCOMP_AUTO_PARTS_MAX)"))
+# ---- v0.172: four and five glyphs (the user's choice of 2026-11-17, before the tool's list limit is set). Two more sources: cppsrc4, a
+# wide bar, and cppsrc5, a small square.
+print("\n==== v0.172 /debug/trycomponent: four and five components ====")
+def _tc_src45():
+    _tc_src3()
+    for name, pts, w in (("cppsrc4", [(0, -100), (600, -100), (600, -50), (0, -50)], 600.0), ("cppsrc5", [(0, 600), (50, 600), (50, 650), (0, 650)], 50.0)):
+        sh = TCShape([te_contour(pts)]); sh.shapeData._owner = name; TCSRC[name] = sh
+        TS[name] = TsGlyph(name, [TsLayer(1, 4)]); P72["layers"][name] = TCLayer("test_font", [sh], name); P72["widths"][name] = w
+def tca5(tag, q, recipe=None, auto=None, legacy_nodes=3):
+    tc_gen_setup(mode={"gen_list": 1})
+    _tc_src45()
+    if recipe is not None: P72["layers"]["cpp1"].__dict__["_recipe"] = recipe
+    if auto is not None: P72["layers"]["cpp1"].__dict__["_auto"] = auto
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, legacy_nodes)]); TS["cpp1"].width = 0.0
+    d = tc(tag, QA + q, keys=AK)
+    print("      elements after:", tc_elements(d, "target_elements_after"), "| mark:", d.get("fontlab_changed_mark"))
+    return d
+R4, R5 = R3 + "%2Bcppsrc4", R3 + "%2Bcppsrc4%2Bcppsrc5"
+tca5("2447a setrecipe of five glyphs      ", "&step=setrecipe&recipe=" + R5 + "&go=yes")
+tca5("2447b build of four glyphs          ", "&step=build&recipe=" + R4 + "&go=yes", recipe="cppsrc+cppsrc2+cppsrc3+cppsrc4", auto=True, legacy_nodes=15)
+tca5("2447c build of five glyphs          ", "&step=build&recipe=" + R5 + "&go=yes", recipe="cppsrc+cppsrc2+cppsrc3+cppsrc4+cppsrc5", auto=True, legacy_nodes=19)
+def tce5(tag, q, shapes, legacy_nodes):
+    tc_gen_setup(mode={"gen_list": 1})
+    _tc_src45()
+    lay = P72["layers"]["cpp1"]
+    lay.__dict__["_recipe"] = ""; lay.__dict__["_auto"] = False
+    lay._shapes = shapes()
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, legacy_nodes)]); TS["cpp1"].width = 0.0
+    d = tc(tag, QO + q, keys=OK71)
+    lefts = lambda k: [b.get("left") for b in d[k]] if isinstance(d.get(k), list) else d.get(k)
+    print("      elements after:", tc_elements(d, "target_elements_after"), "| lefts:", lefts("ink_boxes_before"), "->", lefts("ink_boxes_after"),
+          "| mark:", d.get("fontlab_changed_mark"))
+    return d
+_four = lambda: _tc_two() + [_tc_comp("cppsrc3", -50, 0), _tc_comp("cppsrc4", -300, 0)]
+_five = lambda: _four() + [_tc_comp("cppsrc5", -25, 0)]
+tce5("2448a four: element 3 to (0, 0)     ", "&how=assign&element=3&dx=0&dy=0&go=yes", _four, 15)
+tce5("2448b five: element 4 to (175, 0)   ", "&how=assign&element=4&dx=175&dy=0&go=yes", _five, 19)
+tce5("2448c four: element 4 does not exist", "&how=assign&element=4&dx=0&dy=0&go=yes", _four, 15)
+print("2449 limits:", ns["_TRYCOMP_SEVERAL_MAX"], ns["_TRYCOMP_AUTO_PARTS_MAX"], "| route documented:", "stage=auto recipes of up to 30 glyphs (v0.173" in src,
+      "| spies:", TC_FORBIDDEN)
+# ---- v0.173: 30 glyphs (the user's choice of 2026-11-17, CJK in mind; 15 as the middle control live). The probe reads up to 30 ink boxes
+# through its own limit; the shared _TRYSHAPEBOX_MAX_SHAPES stays 20. Timing keys are checked for presence and type only (their values vary).
+print("\n==== v0.173 /debug/trycomponent: 30 components, the probe's own box limit, timing ====")
+R30 = "%2B".join([R3] * 10)
+d = tca5("2450a build of 30 glyphs            ", "&step=build&recipe=" + R30 + "&go=yes", recipe="+".join(["cppsrc+cppsrc2+cppsrc3"] * 10), auto=True,
+         legacy_nodes=110)
+print("2450b  components, timing keys       :", len(d.get("target_elements_after") or []), type(d.get("build_seconds")).__name__,
+      type(d.get("elapsed_seconds")).__name__, d.get("build_seconds", -1) >= 0, d.get("elapsed_seconds", -1) >= d.get("build_seconds", 0))
+_thirty = lambda: [_tc_comp("cppsrc")] + [_tc_comp("cppsrc", 10 * k, 0) for k in range(1, 30)]
+d = tce5("2451a 30: element 29 to (0, 50)     ", "&how=assign&element=29&dx=0&dy=50&go=yes", _thirty, 90)
+print("2451b  boxes read, timing key        :", len(d.get("ink_boxes_before") or []), len(d.get("ink_boxes_after") or []),
+      type(d.get("elapsed_seconds")).__name__, "| no build_seconds on an offset:", "build_seconds" not in d)
+tce5("2451c 30: element 0 to (5, 0)       ", "&how=assign&element=0&dx=5&dy=0&go=yes", _thirty, 90)
+d = tce5("2451d a refusal is timed too        ", "&how=assign&element=29&dx=0&dy=0&go=yes", lambda: _tc_two(), 7)
+print("2451e  timing key on a refusal       :", type(d.get("elapsed_seconds")).__name__)
+class _TC21:
+    def __init__(s, n): s.shapes = [_tc_comp("cppsrc", k, 0) for k in range(n)]
+_r21, _w21 = ns["_tryshapebox_boxes"](_TC21(21))
+_r31 = ns["_trycomp_all_boxes"](_TC21(31))
+print("2452 v0.174: the shared reader has no limit:", len(_r21 or []), _w21, "| 31 for the probe:", len(_r31) if isinstance(_r31, list) else _r31,
+      "| caps gone:", "_TRYSHAPEBOX_MAX_SHAPES" not in ns, "_COMPONENT_BOX_MAX" not in ns, "max_shapes" not in src.split("def _tryshapebox_boxes(")[1][:400])
+# ---- v0.174: add_component's list form (POST /glyph/component with "components"; the user's design of 2026-11-17). The build fake of
+# v0.165 places every recipe glyph at identity (build_offset: at (30, 0)); here the transform setter can fail at its N-th call
+# (tx_fail_at), the build can return the list reversed (build_reverse), and the width write-back can fail (width_set_raises).
+print("\n==== v0.174 add_component: the components list ====")
+_tc_build165 = TCLayer.buildAuto
+def _tc_build174(s):
+    r = _tc_build165(s)
+    if TC["mode"].get("build_reverse"): s._shapes.reverse()
+    if "build_drop" in TC["mode"]: s._shapes.pop(TC["mode"]["build_drop"])      # v0.175: FontLab drops one entry (AC2 1200-1208)
+    return r
+TCLayer.buildAuto = _tc_build174
+def _tc_set_tx174(s, v):
+    TC["tx_calls"] = TC.get("tx_calls", 0) + 1
+    if TC["mode"].get("tx_fail_at") == TC["tx_calls"]: TC["calls"].append("shape.transform="); raise RuntimeError("transform boom")
+    _tc_set_tx(s, v)
+TCShape.transform = property(_tc_tx_prop.fget, _tc_set_tx174)
+_p72_adv = P72Mod.__dict__["advanceWidth"]
+def _p72_adv_set174(s, v):
+    if TC["mode"].get("width_set_raises"): P72["calls"].append(("advanceWidth", s.name, v)); raise RuntimeError("width boom")
+    _p72_adv.fset(s, v)
+P72Mod.advanceWidth = property(_p72_adv.fget, _p72_adv_set174)
+LK = ("form", "component_count", "placed", "verified", "changed", "steps_done", "build_returned", "cleanup", "checks", "untested_size",
+      "untested_size_note", "reason", "error", "component_found")
+def acl(tag, payload, mode=None, auto=False, recipe="", legacy_nodes=3, keys=LK):
+    ac_setup(mode, auto, recipe)
+    _tc_src45(); TC["tx_calls"] = 0
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, legacy_nodes)]); TS["cpp1"].width = 0.0
+    c, d = sbpost("/glyph/component", payload)
+    TC_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| calls", [x for x in TC["calls"] if not (isinstance(x, tuple) and x[0] == "QTransform")],
+          "| widths", [x for x in P72["calls"] if x[0] == "advanceWidth"], "| marks", TE["marks"])
+    if isinstance(d.get("component_states"), list):
+        print("      states:", [(x["component"], x["x"], x["y"], x["state"]) for x in d["component_states"]], "| timing keys:",
+              type(d.get("elapsed_seconds")).__name__, type(d.get("build_seconds")).__name__)
+    return d
+def L(*items): return {"name": "cpp1", "components": [{"component": c, "x": x, "y": y} for c, x, y in items]}
+L2 = L(("cppsrc", 0, 0), ("cppsrc2", 0, 0))
+for tag, payload in (("2460a an empty list                ", {"name": "cpp1", "components": []}),
+                     ("2460b components not a list        ", {"name": "cpp1", "components": "cppsrc"}),
+                     ("2460c both forms                   ", dict(L2, component="cppsrc")),
+                     ("2460d an entry without y           ", {"name": "cpp1", "components": [{"component": "cppsrc", "x": 0}]}),
+                     ("2460e an entry x 1.5               ", L(("cppsrc", 1.5, 0))),
+                     ("2460f an entry x 10001             ", L(("cppsrc", 10001, 0))),
+                     ("2460g a name with +                ", L(("cppsrc+cppsrc2", 0, 0))),
+                     ("2460h confirmed not a bool         ", dict(L2, confirmed_untested_size="yes")),
+                     ("2460i the target in the list       ", L(("cppsrc", 0, 0), ("cpp1", 0, 0)))):
+    acl(tag, payload)
+acl("2460j a missing source              ", L(("cppsrc", 0, 0), ("cppnone", 0, 0)))
+acl("2460k a source with a component     ", L(("cppsrc", 0, 0), ("cppcomp", 0, 0)))
+d = acl("2461 two at (0, 0)                  ", L2, legacy_nodes=7)
+print("2461a  elements, width, count, sync:", tc_elements(d, "elements_after"), d.get("advance_width_before"), d.get("advance_width_after"),
+      d.get("glyph_count_before"), d.get("glyph_count_after"), "| synced", d.get("synced_with_fontlab"))
+acl("2461b FontLab offsets them (30, 0)  ", L(("cppsrc", 0, 0), ("cppsrc2", 120, 40)), mode={"build_offset": 1}, legacy_nodes=7)
+acl("2461c FontLab sets the width 250    ", L2, mode={"build_width": 1}, legacy_nodes=7)
+acl("2461d a repeated source, three      ", L(("cppsrc", 0, 0), ("cppsrc", 150, 0), ("cppsrc", -200, 0)), mode={"build_offset": 1}, legacy_nodes=9)
+d = acl("2461e 30 entries                    ", L(*[("cppsrc", 10 * k, 0) for k in range(30)]), legacy_nodes=90)
+print("2461f  30: placed, states:", d.get("placed"), len(d.get("component_states") or []), "| boxes read for the check:", TC["calls"].count("inkBox"))
+acl("2462a 31 entries, not confirmed     ", L(*[("cppsrc", 10 * k, 0) for k in range(31)]))
+d = acl("2462b 31 entries, confirmed         ", dict(L(*[("cppsrc", 10 * k, 0) for k in range(31)]), confirmed_untested_size=True), legacy_nodes=93)
+acl("2462c 30 entries, confirmed anyway  ", dict(L(*[("cppsrc", 10 * k, 0) for k in range(30)]), confirmed_untested_size=True), legacy_nodes=90)
+L3 = L(("cppsrc", 0, 0), ("cppsrc2", 0, 0), ("cppsrc3", 0, 0))
+for tag, pl, mode in (("2463a buildAuto returns False       ", L2, {"build_false": 1}),
+                      ("2463b buildAuto raises              ", L2, {"build_raises": 1}),
+                      ("2463c the built order differs       ", L2, {"build_reverse": 1}),
+                      ("2463d offset 1 of 2 fails           ", L2, {"build_offset": 1, "tx_fail_at": 2}),
+                      ("2463e offset 1 of 3 fails, 2 not reached", L3, {"build_offset": 1, "tx_fail_at": 2}),
+                      ("2463f the width write-back fails    ", L2, {"build_width": 1, "width_set_raises": 1}),
+                      ("2463g offset 0 and the width fail   ", L2, {"build_width": 1, "build_offset": 1, "tx_fail_at": 1, "width_set_raises": 1}),
+                      ("2463h clearing the recipe fails     ", L2, {"clear_raises": 1}),
+                      ("2463i a box not where its matrix says", L(("cppsrc", 0, 0), ("cppsrc2", 120, 40)), {"build_offset": 1, "box_stale": 1}),
+                      ("2463j a source changes with the offset", L(("cppsrc", 0, 0), ("cppsrc2", 120, 40)), {"build_offset": 1, "offset_source": 1})):
+    acl(tag, pl, mode=mode, legacy_nodes=11 if pl is L3 else 7)
+ac_setup(); _tc_src45(); P72["layers"]["cpp1"]._shapes = [TCShape([te_contour(TE_SQ)])]
+c, d = sbpost("/glyph/component", L2); print("2464 a target that is not empty   :", c, d.get("placed"), d.get("reason"), "| writes", [x for x in TC["calls"] if not (isinstance(x, tuple) and x[0] == "QTransform") and x != "inkBox"])
+ac_setup(auto=True); _tc_src45()
+c, d = sbpost("/glyph/component", L2); print("2464b autoLayer on                 :", c, d.get("placed"), d.get("reason"), "| writes", [x for x in TC["calls"] if not (isinstance(x, tuple) and x[0] == "QTransform") and x != "inkBox"])
+class _OW:
+    def __init__(s, n): s.activeLayer = type("L", (), {})(); s.activeLayer.shapes = [_tc_comp("cppsrc", k, 0) for k in range(n)]
+ac_setup(); _tc_src45()
+_ents = [{"is_component": True, "component_glyph": "cppsrc", "component_layer": "test_font"} for _k in range(21)]
+_secs = ns["_add_component_boxes"](_OW(21), None, _ents)
+print("2464c outline boxes, 21 components:", sum(1 for e in _ents if "error" not in e.get("ink_box", {"error": 1})), "of 21 boxed | lefts", [e["ink_box"].get("left") for e in _ents][:3],
+      "| seconds a float:", type(_secs).__name__, "| none for no component:", ns["_add_component_boxes"](_OW(0), None, []))
+_srcl = "\n".join(l for l in src[src.index('# POST /glyph/component with "components" (v0.174)'):src.index("# /debug/tryedit (v0.151)")].split("\n")
+                  if not l.lstrip().startswith("#"))
+_acl = _srcl[_srcl.index("def add_components("):]
+print("2465 spies over the cases:", TC_FORBIDDEN, "| static scan:",
+      _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addComponent|clearComponents|killAuto|decomposite|removeShape|replaceShape|addShape|applyTransform)\s*\(|font\.update|_ensure_modern_layer|create_layer=True", _srcl),
+      "| every refusal before the first write:", _acl.rindex("nothing was changed") < _acl.index('layer.recipe = "+".join(names)'),
+      "| write statements:", [len(_re83.findall(r"(?m)^\s+" + x, _acl)) for x in (r'layer\.recipe = "\+"\.join\(names\)$', r"layer\.autoLayer = True$",
+                                                                                 r"ret = layer\.buildAuto\(\)$", r"layer\.autoLayer = False$",
+                                                                                 r"shapes\[i\]\.transform = ", r'layer\.recipe = ""$', r"w\.advanceWidth = width_before$")],
+      "| soft limit:", ns["_COMP_SOFT_LIMIT"], "| route documented:", '"components": [{"component", "x", "y"}, ...], "confirmed_untested_size"' in src)
+# ---- v0.175: an underscore name is refused before anything is touched (FontLab reads "a_b" as a ligature, AC2u 1216-1235), states by
+# source name when the build leaves a different number of elements (build_drop: the fake drops the element at that index), components_after.
+print("\n==== v0.175 add_component: underscore names, states after a dropped entry, components_after ====")
+LK175 = LK + ("underscore_refused", "components_after")
+for tag, pl in (("2466a an underscore in the middle   ", L(("cppsrc", 0, 0), ("cpp_x", 0, 0))),
+                ("2466b a leading underscore          ", L(("cppsrc", 0, 0), ("_cppx", 0, 0))),
+                ("2466c a trailing underscore, first  ", L(("cppx_", 0, 0), ("cppsrc", 0, 0))),
+                ("2466d one entry with an underscore  ", L(("cpp_x", 0, 0)))):
+    acl(tag, pl, keys=LK175)
+acl("2466e 31 entries, one with _, unconfirmed", L(*([("cppsrc", 10 * k, 0) for k in range(30)] + [("cpp_x", 0, 0)])), keys=LK175)
+d = acl("2467a two, the build drops the second", L(("cppsrc", 0, 0), ("cppsrc2", 500, 0)), mode={"build_drop": 1}, legacy_nodes=7, keys=LK175)
+d = acl("2467b two, the build drops the first ", L(("cppsrc2", 500, 0), ("cppsrc", 0, 0)), mode={"build_drop": 0}, legacy_nodes=7, keys=LK175)
+d = acl("2467c three, the middle one dropped ", L3, mode={"build_drop": 1}, legacy_nodes=11, keys=LK175)
+d = acl("2467d a repeat, one copy dropped    ", L(("cppsrc", 0, 0), ("cppsrc", 150, 0), ("cppsrc2", 0, 0)), mode={"build_drop": 0, "build_offset": 1},
+        legacy_nodes=11, keys=LK175)
+d = acl("2467e placed: no components_after  ", L2, legacy_nodes=7, keys=LK175)
+_ca = ns["_comp_after"]
+print("2467f components_after directly:", _ca({"error": "boom"}), "|", _ca({}), "|",
+      _ca([{"is_component": False}, {"is_component": "<error: x>", "component_glyph": "a"}, {"is_component": True, "component_glyph": "<error: y>"},
+           {"is_component": True, "component_glyph": "g", "matrix": {"error": "no"}},
+           {"is_component": True, "component_glyph": "g", "matrix": {"m11": 2.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": 5.0, "dy": -3.0}},
+           {"is_component": True, "component_glyph": "g", "matrix": {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": 5, "dy": 0.0}}]))
+_srcl175 = "\n".join(l for l in src[src.index('# POST /glyph/component with "components" (v0.174)'):src.index("# /debug/tryedit (v0.151)")].split("\n")
+                     if not l.lstrip().startswith("#"))
+_acl175 = _srcl175[_srcl175.index("def add_components("):]
+print("2468 underscore refusal before the limit and every read:", _acl175.index('if "_" in n') < _acl175.index("_COMP_SOFT_LIMIT") < _acl175.index("_modern_edit_target(name)"),
+      "| spies:", TC_FORBIDDEN, "| route documented:", 'a name with "_" is refused (v0.175)' in src)
+TCLayer.buildAuto = _tc_build165
+P72Mod.advanceWidth = _p72_adv
+TCShape.transform = property(_tc_tx_prop.fget, _tc_set_tx)
+TCShape.transform = property(_tc_tx_prop.fget, _tc_set_tx)
 TCShape.transform = _tc_tx_prop
 for _a in ("inkBox",):
     if _a in TCShape.__dict__: delattr(TCShape, _a)

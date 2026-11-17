@@ -6,3 +6,4 @@
 - Do not call `get_current_font` first: it can open the `.notdef` dialog in FontLab. Start with `fontlab_status`.
 - After a server change, fully quit Claude Desktop (tray too) and reopen it. Tool descriptions can stay stale until a second restart. A call that hangs right after a restart usually means an approval prompt is waiting.
 - Restarting Claude Desktop also ends the running Claude Code session. Reopen it from the sidebar.
+- A resumed Claude Code session keeps the tool definitions it loaded before a server change, even after restarts (1178). To use a changed tool, start a new session.

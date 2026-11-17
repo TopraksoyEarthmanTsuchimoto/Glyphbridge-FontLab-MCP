@@ -17,7 +17,7 @@ a note. After any listener change, copy the tested file into the Scripts folder 
 with a pre-rename name (`glyphbridge_listener.py`, `glyphbridge_server.py`) still exists in the project folder, in `tests\` or in the
 Scripts folder: delete such files, because a stale copy could be started by habit.
 
-`run_all.py` also prints the Python version. It **stops with `ERROR` (exit code 2, nothing tested)** if either script is missing from the project
+`run_all.py` shows **only the first 60 lines of each diff**: before `--update`, diff the full harness output against its expected file. `run_all.py` also prints the Python version. It **stops with `ERROR` (exit code 2, nothing tested)** if either script is missing from the project
 folder, and on a harness that crashes it shows the last lines the harness printed. It runs the harnesses with `-B`, so no `__pycache__` is created
 (if one appears anyway it is harmless and can be deleted; never attach it to a chat).
 

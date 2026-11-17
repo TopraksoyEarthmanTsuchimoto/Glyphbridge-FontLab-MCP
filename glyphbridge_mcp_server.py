@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.66)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.69)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.66"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.69"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1900,6 +1900,141 @@ def write_glyph_component(name: str, component: str, x: Any = 0, y: Any = 0) -> 
     return result
 
 
+# ---- v0.68: add_component with a components list (listener 0.174; the user's design, DECISIONS.md 2026-11-17 "several components") ----
+_COMP_SOFT_LIMIT = 30         # tested at 2-5, 15 and 30 (PC2 / PC3 1102-1177); more needs the person's agreement (confirmed_untested_size)
+_COMP_UNTESTED_NOTE = "Only up to 30 components in one call have been tested; anything above is unknown territory."
+_COMP_LIST_CHECK_KEYS = ("element_count", "components", "recipe_cleared", "auto_layer_off", "sources_unchanged", "width_unchanged",
+                         "glyph_count_unchanged")
+_COMP_LIST_STATES = ("placed", "at FontLab's position", "left by the build", "missing after the build", "not reached", "unknown")
+_COMP_LIST_NOTE = ("The glyph now holds the listed components, in order, each at its offset, read back from FontLab: every component, its "
+                   "offset and its drawn box are confirmed, FontLab's recipe was cleared, the advance width is as before, and the component "
+                   "glyphs and the glyph count are unchanged.")
+_COMP_LIST_UNCONFIRMED_INSTRUCTION = (
+    "The re-read does NOT confirm the components. Placing stopped at the first failure; then the automatic layer was switched off, the "
+    "recipe cleared and the width written back where possible (see cleanup). component_states says for each entry whether it is placed, "
+    "at FontLab's own position, left by the build (in the glyph, its offset not confirmed), missing after the build, not reached (the "
+    "build never ran) or unknown. components_after lists what the glyph holds now. Tell the person, in plain words, what happened and "
+    "which components are left in the glyph, and that no Glyphbridge tool removes a component yet: they can delete any they do not want "
+    "in FontLab. Do NOT repair or repeat it on your own: ask the person first.")
+_COMP_UNDERSCORE_NOTE = ("FontLab's recipe build of several glyphs reads a name with an underscore as a ligature of its parts (\"a_b\" as a "
+                         "and b): it drops the glyph, or places the parts instead if they exist (seen live, 1234). Place such a glyph on "
+                         "its own with component, x and y, into an empty glyph.")
+
+
+def _comp_after_view(raw: Any) -> Any:
+    """The listener's components_after (v0.175), with text cleaned and only the known fields kept; None when it is missing."""
+    if isinstance(raw, dict):
+        err = raw.get("error")
+        return {"error": _clean_font_text(err) if isinstance(err, str) else "the elements could not be read"}
+    if not isinstance(raw, list):
+        return None
+    out = []
+    for el in raw:
+        if el in ("not a component", "unreadable"):
+            out.append(el)
+        elif isinstance(el, dict) and isinstance(el.get("component"), str):
+            row = {"component": _clean_font_text(el["component"])}
+            if all(isinstance(el.get(k), (int, float)) and not isinstance(el.get(k), bool) and math.isfinite(el[k]) for k in ("x", "y")):
+                row["x"], row["y"] = _tidy_number(el["x"]), _tidy_number(el["y"])
+                if isinstance(el.get("plain_offset"), bool):
+                    row["plain_offset"] = el["plain_offset"]
+            else:
+                row["offset"] = "unreadable"
+            out.append(row)
+        else:
+            out.append("unreadable")
+    return out
+
+
+def _comp_needs_confirmation(clean: str, n: int) -> dict:
+    return {"name": clean, "component_count": n, "placed": False, "changed": False, "needs_confirmation": True,
+            "untested_size_note": _COMP_UNTESTED_NOTE,
+            "agent_instruction": (f"Nothing was changed. Tell the person that this would place {n} components in '{clean}', that only up to "
+                                  f"{_COMP_SOFT_LIMIT} components in one call have been tested and anything above is unknown territory, and "
+                                  "ask whether to go ahead. Only if they agree, call add_component again with the same components and "
+                                  "confirmed_untested_size=true.")}
+
+
+def write_glyph_components(name: str, components: Any, confirmed: Any = False) -> dict:
+    clean = name.strip() if isinstance(name, str) else ""
+    if not clean:
+        raise ToolError("name must be a non-empty glyph name.")
+    if not isinstance(confirmed, bool):
+        raise ToolError("confirmed_untested_size must be true or false.")
+    if not isinstance(components, list) or not components:
+        raise ToolError("components must be a non-empty list of {\"component\", \"x\", \"y\"}.")
+    entries = []
+    for i, c in enumerate(components):
+        if not isinstance(c, dict) or "component" not in c or not set(c) <= {"component", "x", "y"}:
+            raise ToolError(f"components[{i}] must be an object with \"component\" and optionally \"x\" and \"y\".")
+        src = c["component"].strip() if isinstance(c["component"], str) else ""
+        if not src:
+            raise ToolError(f"components[{i}].component must be a non-empty glyph name.")
+        if "+" in src:
+            raise ToolError(f"components[{i}].component must not contain '+' (FontLab's recipe joins the names with it).")
+        if src == clean:
+            raise ToolError(f"Glyph '{clean}' cannot hold itself as a component (components[{i}]).")
+        if "_" in src:
+            raise ToolError(f"components[{i}] '{src}' contains an underscore, so the list form cannot place it: nothing was changed. "
+                            + _COMP_UNDERSCORE_NOTE)
+        entries.append({"component": src, "x": _check_comp_offset(c.get("x", 0), f"components[{i}].x"),
+                        "y": _check_comp_offset(c.get("y", 0), f"components[{i}].y")})
+    n = len(entries)
+    if n > _COMP_SOFT_LIMIT and confirmed is not True:
+        return _comp_needs_confirmation(clean, n)
+    _require_listener((0, 174), "add_component with a components list")
+    payload = {"name": clean, "components": entries}
+    if confirmed:
+        payload["confirmed_untested_size"] = True
+
+    data = _write_post("/glyph/component", payload)
+
+    if not data.get("open"):
+        raise ToolError(NO_FONT)
+    if data.get("found") is False:
+        raise ToolError(f"No glyph named '{clean}' was found.")
+    if data.get("untested_size") is True:
+        return _comp_needs_confirmation(clean, n)
+    checks = data.get("checks") if isinstance(data.get("checks"), dict) else {}
+    timing = {k: _tidy_number(data[k]) for k in ("build_seconds", "elapsed_seconds") if isinstance(data.get(k), (int, float))}
+    if data.get("placed") is True and data.get("verified") is True and all(checks.get(k) is True for k in _COMP_LIST_CHECK_KEYS):
+        result = {"name": clean, "component_count": n, "components": entries, "placed": True, "verified": True,
+                  "advance_width": _tidy_number(data.get("advance_width_after")) if isinstance(data.get("advance_width_after"), (int, float)) else None,
+                  "note": _COMP_LIST_NOTE, "timing": timing}
+        if n > _COMP_SOFT_LIMIT:
+            result["untested_size_note"] = _COMP_UNTESTED_NOTE
+        _add_guard_fields(result, data)
+        _mark_modified(result, True)
+        return result
+    changed = data.get("changed")
+    reason = data.get("reason") or "the re-read does not confirm the components"
+    if changed is not True and changed != "unknown":
+        raise ToolError(f"Glyph '{clean}': nothing was changed: {reason}")
+    raw_states = data.get("component_states") if isinstance(data.get("component_states"), list) else []
+    states = [{"component": st.get("component"), "x": st.get("x"), "y": st.get("y"),
+               "state": st.get("state") if st.get("state") in _COMP_LIST_STATES else "unknown"} for st in raw_states if isinstance(st, dict)]
+    cleanup = data.get("cleanup") if isinstance(data.get("cleanup"), dict) else {}
+    result = {"name": clean, "component_count": n, "placed": False, "verified": False, "changed": changed, "reason": reason,
+              "steps_done": [x for x in data.get("steps_done") or [] if isinstance(x, str)],
+              "cleanup": {k: v for k, v in cleanup.items() if k in ("auto_layer_set_back", "recipe_cleared", "width_restored")
+                          and (v is True or isinstance(v, str))},
+              "component_states": states, "checks": {k: checks.get(k) for k in _COMP_LIST_CHECK_KEYS if k in checks},
+              "timing": timing, "agent_instruction": _COMP_LIST_UNCONFIRMED_INSTRUCTION}
+    after = _comp_after_view(data.get("components_after"))
+    if after is not None:
+        result["components_after"] = after
+    if n > _COMP_SOFT_LIMIT:
+        result["untested_size_note"] = _COMP_UNTESTED_NOTE
+    _add_guard_fields(result, data)
+    if changed is True:
+        _mark_modified(result, True)
+    else:
+        _note_change(sure=False)
+        result["font_modified"] = "unknown"
+        result["agent_instruction"] += " " + _SAVE_INSTRUCTION
+    return result
+
+
 _U_NAME = re.compile(r"u([0-9A-F]{4,6})")          # uXXXX .. uXXXXXX
 _UNI_SEQUENCE = re.compile(r"uni(?:[0-9A-F]{4})+")  # uni00410042: valid, but a SEQUENCE (ligature), not one codepoint
 
@@ -3258,6 +3393,8 @@ def _apply_source_step(result: dict, data: dict) -> None:
     """v0.50: says for each component whether it is in step with its source, and makes the read unverified when one is not, whatever
     the box checks said: they compare with what FontLab holds for this glyph, which is then behind its source (live 638b, 640, 648)."""
     el = data.get("elements")
+    if isinstance(el, dict) and isinstance(el.get("boxes_seconds"), (int, float)) and not isinstance(el.get("boxes_seconds"), bool):
+        result["verification"]["element_boxes_seconds"] = _tidy_number(el["boxes_seconds"])      # v0.68 (listener 0.174): no element limit, timed
     shapes = el.get("shapes") if isinstance(el, dict) and el.get("available") else None
     rows = result.get("elements")
     if not isinstance(shapes, list) or not isinstance(rows, list) or len(shapes) != len(rows):
@@ -3868,36 +4005,60 @@ def move_nodes(name: str, moves: list[dict[str, Any]], ctx: Context | None = Non
 
 
 @_tool()
-def add_component(name: str, component: str, x: int = 0, y: int = 0, ctx: Context | None = None) -> dict[str, Any]:
-    """Place the glyph `component` as ONE component in the glyph `name` of the font currently open in FontLab 8, at offset (x, y).
+def add_component(name: str, component: str | None = None, x: int = 0, y: int = 0, components: list | None = None,
+                  confirmed_untested_size: bool = False, ctx: Context | None = None) -> dict[str, Any]:
+    """Place components in the EMPTY glyph `name` of the font currently open in FontLab 8: ONE glyph `component` at offset (x, y), or
+    SEVERAL at once with `components`, a list of {"component": glyph name, "x": whole number, "y": whole number} (x and y default to 0).
+    Give one form or the other, never both.
 
-    A component is a live reference: the glyph `name` then draws `component`'s outline, moved by (x, y) font units (y up), and
-    follows later edits of `component`. x and y must be whole numbers from -10000 to 10000; (0, 0) places it exactly where
-    `component` itself is drawn.
+    A component is a live reference: the glyph `name` then draws the component glyph's outline, moved by (x, y) font units (y up), and
+    follows later edits of it. x and y must be whole numbers from -10000 to 10000; (0, 0) places a component exactly where its glyph is
+    drawn. In the list the same glyph may appear more than once (for example a radical repeated in a CJK character); each entry becomes
+    its own component, in list order.
 
     For now, only this is supported (anything else is refused and NOTHING changes):
       - `name` must exist and be EMPTY (no contour, no component), with its layer (create_glyph gives one in a font with one master);
-      - `component` must exist and hold only plain contours (no component of its own, no Power Brush or other composite shape);
-      - the font must have exactly ONE master; ONE component per call; no scale, rotation, mirroring or anchors.
+      - every component glyph must exist and hold only plain contours (no component of its own, no Power Brush or other composite shape);
+      - the font must have exactly ONE master; no scale, rotation, mirroring or anchors; glyph names must not contain "+";
+      - in the list form no component glyph name may contain an underscore ("_"): FontLab's recipe build of several glyphs reads it as
+        a ligature of its parts and drops the glyph or places the parts instead (seen live). Place such a glyph with the single form.
 
-    How it works: FontLab's own recipe build places the component; the offset is set afterwards and FontLab's recipe is cleared again.
-    Every check is made before the first change. Afterwards the glyph is read back: success (placed: true, verified: true) means
-    exactly one component of `component`, at (x, y), drawn where expected, the recipe cleared, and `component`, the advance width and
-    the glyph count unchanged. The advance width is NOT changed: set it with set_glyph_width if the person wants one.
+    SIZE: up to 30 components in one call have been tested (2 to 5, 15 and 30). More than 30 is allowed but is unknown territory: the
+    first call then changes nothing and returns needs_confirmation with an agent_instruction. Tell the person how many components it
+    would place and that only up to 30 has been tested, and ask. Only after they agree, call again with confirmed_untested_size=true.
+    There is no other limit than the size of one request (about 1,000,000 bytes, roughly 20,000 entries).
 
-    If the re-read does NOT confirm it (placed: false, with steps_done and checks), the glyph may hold part of it. Nothing is restored
-    automatically, except that FontLab's automatic-layer switch is turned off again so the glyph stays editable. Tell the person; repair
-    or repeat only with their agreement.
+    How it works: FontLab's own recipe build places the components (FontLab puts each one where it likes and sets the width to 500);
+    every offset is then set as asked, FontLab's recipe is cleared, and the advance width is written back to what it was. Every check is
+    made before the first change. Afterwards the glyph is read back: success (placed: true, verified: true) means exactly the listed
+    components, in order, each at its offset and drawn where expected, the recipe cleared, and the component glyphs, the advance width and
+    the glyph count unchanged. The advance width is NOT changed: set it with set_glyph_width if the person wants one. The list form's
+    reply gives timing in seconds.
 
-    Limits seen in testing: whether FontLab's Edit > Undo takes the component back is untested. In one unexplained run, two components
+    If the re-read does NOT confirm it (placed: false), the glyph may hold part of it. In the list form placing stops at the first failure;
+    then the automatic layer is switched off, the recipe cleared and the width written back (cleanup says what worked);
+    component_states says for each entry: placed, at FontLab's position, left by the build, missing after the build, not reached or
+    unknown, and components_after lists what the glyph holds. Nothing else is restored automatically. Tell the person which
+    components are left; repair or repeat only with their agreement.
+
+    Limits seen in testing: FontLab's Edit > Undo offers nothing to take the component back (seen live once: Undo was greyed out).
+    No Glyphbridge tool removes a component yet. In one unexplained run, two components
     placed by FontLab's recipe build later became plain contours with no request to change them; the reply can only confirm the moment of
     its own call. If it matters, read the glyph again later with get_glyph_outline.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
-    Needs listener 0.169.
+    Needs listener 0.169 (one component) or 0.174 (components; components_after since 0.175).
     """
     _note_client(ctx)
+    if components is not None:
+        if component is not None or x != 0 or y != 0:
+            raise ToolError("Give either component (with x and y) or components (a list), not both.")
+        return _with_font(write_glyph_components, name, components, confirmed_untested_size)
+    if component is None:
+        raise ToolError("Give component (one glyph name) or components (a list of {\"component\", \"x\", \"y\"}).")
+    if confirmed_untested_size is not False:
+        raise ToolError("confirmed_untested_size belongs to the components list, not to a single component.")
     return _with_font(write_glyph_component, name, component, x, y)
 
 

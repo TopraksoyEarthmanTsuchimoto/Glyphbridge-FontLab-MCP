@@ -112,3 +112,8 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 - **Search the records before a probe.** Test 1027 re-ran `flShape(flShapeData)`, a dead form already recorded in [topics/geometry.md](topics/geometry.md), and the meaning of 1026's "Unexpected SeqBase<T> length." (a wrong argument count) was recorded there too. Search the documents for the call and for the error text first.
 - **An error message names the first check that failed, not always the argument you changed.** 1033's "must be Int" was read as the fourth argument (0.162), then as the width (0.163); it was neither (1035–1037). Change one argument per run and compare the messages before naming the culprit.
 - **Review the full, untruncated diff before `--update`.** A filtered and cut view hid a changed test line in the 0.157 update; it was found and fixed in 0.158.
+
+## The 0.175 build (2026-11-17)
+
+- **The cut view was `run_all.py`'s own.** It shows only the first 60 lines of a diff; for 0.175 those held only version lines, and the six intended state changes lay below the cut. They were found by diffing the full harness output against the expected file. The rule of the 0.157 lesson above stands; [tests/README.md](../tests/README.md) now names the limit.
+- **Write test code to a file, not through a shell heredoc.** A heredoc turned `\n` and `\x07` in new test lines into real characters (a syntax error and a raw control byte); a script written to a file and run from there did not.
