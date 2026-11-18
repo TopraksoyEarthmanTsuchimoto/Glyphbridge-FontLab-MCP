@@ -54,7 +54,7 @@ Condensed on 2026-11-17 from three entries; full text: [archive/DECISIONS-ARCHIV
 ## 2026-11-13 to 2026-11-18: word budgets
 
 Condensed on 2026-11-17 and 2026-11-18; each raise in full, with the file's word count at the time: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Current budgets: [MARKDOWN-MAP.md](MARKDOWN-MAP.md).
-- **Every raise was the user's choice; nothing was trimmed or moved for any of them.** CURRENT-STATUS.md 2,500, 2,750, 3,000; DECISIONS.md 2,500, 2,800, 3,000, 3,500, 4,000 (the active part; 4,000 on 2026-11-18 at 3,326 words, after the tidy-up); PROJECT.md 1,000; MARKDOWN-MAP.md 1,000; WATCH-POINTS.md 2,500; WHAT-WORKS.md 2,250, 2,500, 3,000; CHECKLIST.md 1,500 (chosen over moving "How to test a scenario" to RUNBOOK.md), 1,750; root README.md 600 (2026-11-18 at 494 words, chosen over moving the macOS section, to make room for the ChatGPT Desktop install step).
+- **Every raise was the user's choice; nothing was trimmed or moved for any of them.** CURRENT-STATUS.md 2,500, 2,750, 3,000; DECISIONS.md 2,500, 2,800, 3,000, 3,500, 4,000 (the active part; 4,000 on 2026-11-18 at 3,326 words, after the tidy-up); PROJECT.md 1,000; MARKDOWN-MAP.md 1,000; WATCH-POINTS.md 2,500; WHAT-WORKS.md 2,250, 2,500, 3,000; CHECKLIST.md 1,500 (chosen over moving "How to test a scenario" to RUNBOOK.md), 1,750; root README.md 600 (2026-11-18 at 494 words, chosen over moving the macOS section, to make room for the ChatGPT Desktop install step), 700 (the same day at 595 words, so that every AI app gets an equal install section).
 
 ## 2026-11-13: a package is told apart by its fgId (listener 0.150 / server 0.62)
 
