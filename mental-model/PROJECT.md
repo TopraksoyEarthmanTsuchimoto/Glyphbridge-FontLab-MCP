@@ -27,7 +27,7 @@ As of October 2026 there was only one MCP project for FontLab on GitHub which at
 ## Scope
 
 - FontLab 8 on Windows. macOS should work in principle but is untested; the code is kept macOS-compatible ([DECISIONS.md](DECISIONS.md)). Linux would need Wine and is not supported.
-- Claude Desktop and Claude Code as MCP clients. Any stdio MCP client should work.
+- Claude Desktop, Claude Code and ChatGPT Desktop as MCP clients. Any stdio MCP client should work.
 - The current font: the one whose window is in front. With two fonts open every tool that existed at T5 (2026-11-03) is proven to use the font in front, and every reply names its font (T5 in [LIVE-TESTS.md](LIVE-TESTS.md)); of the later tools, `set_kerning` (747), `create_font` (916, 917), `add_component` (1091–1095) and `remove_component` (1264a, 1264b) are proven with two fonts, `move_nodes` is not; with three fonts, two read tools (`list_glyphs`, `get_glyph_width`), `create_font` beside two other fonts (917) and every write tool of T5 but `draw_path` are proven, `get_kerning` only in refusing an unsaved font in front (268), and two unsaved fonts with the same name are untested (goal 5).
 
 ## Non-goals and hard limits

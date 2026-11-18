@@ -17,7 +17,7 @@ Which version each feature needs: [WHAT-WORKS.md](WHAT-WORKS.md). What each rele
 The founding developer has moved the project to a new Windows 11 PC and to this repository on November 1st 2026. This change has set the project environment as:
 - Python **3.15.2**, with `mcp` **2.2.0** in the repository `venv`.
 - FontLab **8.9.5** (the earlier work was on 8.4.2).
-- The MCP connection works from **Claude Code** and from the **Claude Desktop chat**.
+- The MCP connection works from **Claude Code**, from the **Claude Desktop chat** and, since 2026-11-18, from **ChatGPT Desktop** ([WHAT-WORKS.md](WHAT-WORKS.md)).
 - FontLab runs in **Demo mode** on this PC (the user, 2026-11-11): it does everything a fully functional FontLab does except save files. Research with a File > Save stage cannot be completed here, and the user is told before each research ([AGENTS.md](../AGENTS.md)). FontLab's save question on close (S1) behaves in Demo mode as it did before: it asked after a marked change (912–914) and not after an unmarked one (911). The project may move to a PC where FontLab is fully functional; that PC's entry here then replaces this one.
 
 On 2026-11-01 `--check` gave four `[OK]` lines, and the tests passed on this machine with the deployed listener copy identical; re-checked at the end of that day with listener 0.104 / server 0.33 (Arial open).

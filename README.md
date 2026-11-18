@@ -33,6 +33,15 @@ Option 2 - Do these manually:
    ```
 5. Fully quit Claude Desktop (**including the tray icon**) and start it again.
 
+**ChatGPT Desktop instead of Claude Desktop (steps 4 and 5):** open `%USERPROFILE%\.codex\config.toml` in a text editor, keep a backup, and add this block at the end of the file, outside any other section, using your own folder path:
+   ```toml
+   [mcp_servers.glyphbridge-fontlab]
+   command = "C:\\path\\to\\Glyphbridge-FontLab-MCP\\venv\\Scripts\\python.exe"
+   args = ["C:\\path\\to\\Glyphbridge-FontLab-MCP\\glyphbridge_mcp_server.py"]
+   cwd = "C:\\path\\to\\Glyphbridge-FontLab-MCP"
+   ```
+   Then fully quit ChatGPT Desktop (**including the tray icon**) and start it again. Use **Work** or **Codex** mode: a plain chat has no Glyphbridge tools and offers to continue in Work mode. Approve each tool when asked. ChatGPT's Settings > Add-ons > MCP servers route is not tested.
+
 ## Install on macOS (not tested yet)
 
 The same steps should apply, with these differences:
@@ -50,7 +59,7 @@ FontLab 8 has no Linux version and would need Wine. This setup is not supported 
 
 1. Start FontLab with or without a font.
 2. Open the **Scripting** panel, open `glyphbridge_fontlab_mcp_listener.py` and run it. The Output panel shows the listener's version.
-3. In Claude, ask for example: *"Check the FontLab connection"* or *"What is the kerning between A and V?"*
+3. In Claude or ChatGPT, ask for example: *"Check the FontLab connection"* or *"What is the kerning between A and V?"*
 
 The listener has to be started again every time FontLab starts. It only accepts connections from your own computer (`127.0.0.1:8765`).
 

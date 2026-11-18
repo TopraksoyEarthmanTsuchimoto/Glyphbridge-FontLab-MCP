@@ -16,9 +16,9 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 1,000 |
 | [CHECKLIST.md](CHECKLIST.md) | open scenarios | 1,750 |
 
-Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 500; [WATCH-POINTS.md](WATCH-POINTS.md) 2,500; [WHAT-WORKS.md](WHAT-WORKS.md) 3,000.
+Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 600; [WATCH-POINTS.md](WATCH-POINTS.md) 2,500; [WHAT-WORKS.md](WHAT-WORKS.md) 3,000.
 
-**Reference totals:** 14,700 words including the root README, and 14,200 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [DECISIONS.md](DECISIONS.md), and before that [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text).
+**Reference totals:** 14,800 words including the root README, and 14,200 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [DECISIONS.md](DECISIONS.md), and before that [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text).
 
 ## Linked files (read when the task needs them; no budget unless noted)
 
