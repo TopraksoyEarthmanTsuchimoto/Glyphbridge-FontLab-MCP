@@ -56,7 +56,7 @@ args = ["C:\\path\\to\\Glyphbridge-FontLab-MCP\\glyphbridge_mcp_server.py"]
 cwd = "C:\\path\\to\\Glyphbridge-FontLab-MCP"
 ```
 
-Use **Work** or **Codex** mode: a plain chat has no Glyphbridge tools and offers to continue in Work mode. Approve each tool when asked.
+Use **Work** or **Codex** mode: In ChatGPT Desktop a plain chat has no Glyphbridge tools and offers to continue in Work mode. Approve each tool when asked.
 
 ### Other AI apps
 
