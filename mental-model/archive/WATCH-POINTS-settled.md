@@ -2,6 +2,8 @@
 
 Watch points that were settled or dropped, one line each, in the order they were recorded. Moved from [WATCH-POINTS.md](../WATCH-POINTS.md) on 2026-11-10 and still added to. A settled fact lives in the file its line names.
 
+- 2026-11-17: "A source name with an underscore dropped from a recipe" settled by the approved plan: the likely cause, a recipe of several glyphs reading `a_b` as a ligature of its parts (one run, 1234), is guarded since listener 0.175 / server 0.69, which refuse such a list; run live AC3 1237–1239. What is left open (a second run of 1234; why the single form places such a glyph) is in [topics/reading.md](../topics/reading.md).
+
 - 2026-11-17: "FontLab 8.9.5 against 8.4.2" dropped: 8.4.2 is no longer used ([CURRENT-STATUS.md](../CURRENT-STATUS.md), Environment). No difference was seen in the writes run on 8.9.5 from 2026-11-01 to 2026-11-09 (190–683, [LIVE-TESTS.md](../LIVE-TESTS.md)).
 
 - 2026-11-17: "Arial's `kern` feature against its table" (K11) dropped: GPOS kerning is a non-goal ([PROJECT.md](../PROJECT.md)). 1,417 `pos` lines against 1,370 table entries, while the 20 pairs compared agreed ([topics/kerning.md](../topics/kerning.md) §11).

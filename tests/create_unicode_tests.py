@@ -2882,5 +2882,91 @@ print("40m docs                          -> underscore:", "no component glyph na
       "| single form instead:", "Place such a glyph with the single form" in _d40, "| new states:", "left by the build, missing after the build" in _d40,
       "| components_after:", "components_after lists what the glyph holds" in _d40, "| listener 0.175:", "components_after since 0.175" in _d40)
 
+print("\n==== 41. server 0.70: the component note of the modern route (listener 0.177 counts the shapes flagged isComponent) ====")
+for tag, comp in (("41a three components            ", 3), ("41b none                        ", 0), ("41c a bool, not a count         ", True),
+                  ("41d unreadable                  ", "not readable: isComponent of shape 1 (RuntimeError: x)"),
+                  ("41e unreadable, control chars   ", "not readable: x\x00y"), ("41f no count sent             ", None)):
+    r = mf(tag, mf_reply(component_count=comp))
+    print("      component notes ->", [n for n in r["notes"] if "component" in n])
+print("\n==== 42. server 0.71: width_set_by_build and the single form's cleanup (listener 0.178; faked listener replies) ====")
+K42 = ("placed", "verified", "changed", "width_set_by_build", "cleanup", "auto_layer_set_back", "advance_width", "reason")
+ac38("42a single, placed, FontLab set 0 ", dict(OK38, width_set_by_build=0.0, cleanup={"width_restored": True}), version="0.178", keys=K42)
+ac38("42b single, placed, no field      ", dict(OK38, cleanup={}), version="0.178", keys=K42)
+ac38("42c single, write-back failed     ", dict(OK38, placed=False, verified=False, checks=dict(CHK38, width_unchanged=False), reason="r",
+                                            width_set_by_build=0.0, cleanup={"width_restored": "failed: RuntimeError: width boom"}), version="0.178", keys=K42)
+ac38("42d single, cleanup junk dropped  ", dict(OK38, placed=False, verified=False, reason="r", width_set_by_build=float("nan"),
+                                            cleanup={"recipe_cleared": True, "auto_layer_set_back": 5, "other": True}), version="0.178", keys=K42)
+ac38("42e single, listener 0.177 reply  ", dict(OK38, placed=False, verified=False, reason="r", auto_layer_set_back=True), version="0.177", keys=K42)
+ac38("42f single, a bool width ignored  ", dict(OK38, width_set_by_build=True), version="0.178", keys=K42)
+acl39("42g list, placed, FontLab set 500 ", dict(OK39, width_set_by_build=500.0), version="0.178", keys=K42)
+acl39("42h list, failed, FontLab set 500 ", dict(FAIL40, width_set_by_build=500.0), version="0.178", keys=K42)
+print("42i docs                          -> width written back since 0.178:", "the single form writes the width back" in srv.add_component.__doc__,
+      "| width_set_by_build named:", "width_set_by_build" in srv.add_component.__doc__)
+import inspect as _ins41
+_src41 = _ins41.getsource(srv._modern_outline_result)
+print("41g the old sentence is gone from the modern route:", "whose outlines are not read by this tool" not in _src41,
+      "| the legacy routes keep theirs:", "Their outlines are NOT included here" in _ins41.getsource(srv.analyze_outline),
+      "Their outlines are NOT included here" in _ins41.getsource(srv._analyze_with_elements))
+print("\n==== 43. server 0.72: remove_component through POST /glyph/component/remove (listener 0.179; faked listener replies) ====")
+CHK43 = {k: True for k in srv._REMOVE_CHECK_KEYS}
+OK43 = {"open": True, "name": "rmc1", "form": "single", "removed": True, "verified": True, "changed": True, "checks": dict(CHK43),
+        "entry_states": [{"index": 1, "component": "rmcs2", "state": "removed"}], "empty_after": False, "advance_width_after": 0.0,
+        "components_after": [{"component": "rmcs1", "x": 0.0, "y": 0.0, "plain_offset": True}], "cleanup": {}, "elapsed_seconds": 0.004,
+        "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}}
+FAIL43 = {"open": True, "name": "rmc1", "form": "list", "removed": False, "verified": False, "changed": True, "checks": dict(CHK43, elements=False),
+          "entry_states": [{"index": 0, "component": "rmcs1", "state": "call failed"}, {"index": 1, "component": "rmcs2", "state": "called, not confirmed"},
+                           {"index": 2, "component": "x", "state": "bogus"}], "cleanup": {}, "elapsed_seconds": 0.003,
+          "components_after": [{"component": "rmcs1", "x": 0.0, "y": 0.0, "plain_offset": True}],
+          "reason": "layer.removeShape(element 0, False) failed: RuntimeError: boom", "synced_with_fontlab": True}
+K43 = ("removed", "verified", "entries", "empty_after", "advance_width", "timing", "changed", "reason", "entry_states", "checks", "components_after",
+       "recipe_kept", "recipe_note", "width_changed_by_removal", "cleanup", "font_modified", "fontlab_changed_mark")
+def rm43(label, reply, kw=None, version="0.179", keys=K43):
+    s9_reset(); S9["version"] = version; S9["post"]["/glyph/component/remove"] = reply; n = len(S9["posts"])
+    r = s9_try(lambda: srv.remove_component("rmc1", **(kw if kw is not None else {"index": 1, "component": "rmcs2", "x": -200, "y": 0})))
+    shown = {k: r[k] for k in keys if k in r} if isinstance(r, dict) else r
+    print(label, "->", shown, "| sent", S9["posts"][n:] if len(S9["posts"]) > n else None, "|", fview(srv.finish_change_package()))
+    return r
+r = rm43("43a single, removed                ", dict(OK43))
+print("43b  note, finish_changes named     ->", r["note"][:70], "|", "finish_changes" in r.get("agent_instruction", ""))
+rm43("43c list of two, removed           ", dict(OK43, form="list", empty_after=True, components_after=[]),
+     kw={"components": [{"index": 0, "component": "rmcs1"}, {"index": 1, "component": "rmcs2", "x": -200, "y": 0}]})
+rm43("43d a fractional offset            ", dict(OK43), kw={"index": 1, "component": "rmcs2", "x": -199.5, "y": 0.0}, keys=("removed", "entries"))
+rm43("43e recipe kept, width written back ", dict(OK43, recipe_kept="rmcs1+rmcs2", width_changed_by_removal=500.0, cleanup={"width_restored": True, "x": 1}))
+rm43("43f removed but a check is false   ", dict(OK43, checks=dict(CHK43, ink_boxes=False), reason="r"))
+rm43("43g removed but a check is missing ", dict(OK43, checks={k: v for k, v in CHK43.items() if k != "outline_kept"}, reason="r"))
+rm43("43h refused, nothing changed       ", {"open": True, "removed": False, "changed": False,
+                                            "reason": "entry 0 (index 1): element 1 is a component of 'rmcs1', not 'rmcs2' (read the glyph again with get_glyph_outline): nothing was changed"})
+r = rm43("43i failed partway                 ", dict(FAIL43),
+         kw={"components": [{"index": 0, "component": "rmcs1"}, {"index": 1, "component": "rmcs2", "x": -200}, {"index": 2, "component": "x"}]})
+print("43j  instruction                    -> entry_states:", "entry_states" in r["agent_instruction"], "| read again:", "read the glyph again" in r["agent_instruction"],
+      "| ask first:", "ask the person first" in r["agent_instruction"])
+rm43("43k outcome unknown                ", dict(FAIL43, changed="unknown", components_after={"error": "the glyph has no modern active layer\x00 after the call"}))
+rm43("43l failed, write-back failed      ", dict(FAIL43, width_changed_by_removal=500.0, cleanup={"width_restored": "failed: RuntimeError: width boom"}))
+rm43("43m no font open                   ", {"open": False})
+rm43("43n no such glyph                  ", {"open": True, "found": False, "removed": False, "reason": "no glyph named 'rmc1'"})
+rm43("43o listener 0.178                 ", dict(OK43), version="0.178")
+rm43("43p write times out                ", srv.OutcomeUnknown("timed out"))
+for label, kw in (("43q no index             ", {"component": "rmcs2"}),
+                  ("43r no component         ", {"index": 1}),
+                  ("43s index -1             ", {"index": -1, "component": "rmcs2"}),
+                  ("43t index a bool         ", {"index": True, "component": "rmcs2"}),
+                  ("43u x a text             ", {"index": 1, "component": "rmcs2", "x": "3"}),
+                  ("43v x 20001              ", {"index": 1, "component": "rmcs2", "x": 20001}),
+                  ("43w y NaN                ", {"index": 1, "component": "rmcs2", "y": float("nan")}),
+                  ("43x both forms           ", {"index": 1, "component": "rmcs2", "components": [{"index": 0, "component": "rmcs1"}]}),
+                  ("43y an empty list        ", {"components": []}),
+                  ("43z an index twice       ", {"components": [{"index": 0, "component": "rmcs1"}, {"index": 0, "component": "rmcs1"}]}),
+                  ("43za an entry with a key too many", {"components": [{"index": 0, "component": "rmcs1", "recursive": 1}]}),
+                  ("43zb component blank     ", {"index": 1, "component": "  "})):
+    rm43(label, dict(OK43), kw=kw)
+_d43 = srv.remove_component.__doc__
+print("43zc docs             -> tool listed:", callable(getattr(srv, "remove_component", None)), "| signature:", _inspect.signature(srv.remove_component),
+      "| read first:", "First read the glyph with get_glyph_outline" in _d43, "| WHOLE call refused:", "WHOLE call is refused" in _d43,
+      "| highest first:", "highest index down" in _d43, "| one master:", "exactly ONE master" in _d43, "| automatic layer:", "automatic layer must be off" in _d43,
+      "| Power Brush:", "Power Brush" in _d43, "| recipe kept:", "recipe_kept" in _d43, "| Undo offers nothing:", "Undo offers nothing" in _d43,
+      "| NEVER saves:", "NEVER saves" in _d43, "| listener named:", "listener 0.179" in _d43, "| placeholder left:", "SAVE_KEYS" in _d43)
+print("43zd add_component names remove_component:", "remove_component removes a component" in srv.add_component.__doc__,
+      "| list failure instruction names it:", "remove_component" in srv._COMP_LIST_UNCONFIRMED_INSTRUCTION, "| states known:", srv._REMOVE_STATES)
+
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 srv._reset_change_tracking()

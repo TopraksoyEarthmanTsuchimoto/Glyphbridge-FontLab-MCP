@@ -5903,6 +5903,7 @@ class SBPRect:
     def height(s): return s.v[3] - s.v[2]
 class SBPShape(SBPSpy):
     def __init__(s, i, box): s.__dict__.update(i=i, box=box)
+    def isComponent(s): return True       # v0.177: the layer's componentsCount equals its shape count, so each shape is a component
     def inkBox(s, *a):
         SBP["ink"].append((s.i, a)); m = SBP["mode"]
         if m.get("ink_raises") == s.i: raise RuntimeError("ink boom")
@@ -6037,8 +6038,10 @@ class NTWs(NTFlags):
         if m.get("find_badnull"): return NTPkg(isNull=lambda: (_ for _ in ()).throw(RuntimeError("null boom")))
         if m.get("find_other"): return NTPkg()
         return NT["pkg"]
+class NTShape(NTSpy):                      # v0.177: the state read counts the shapes flagged isComponent; this one is plain
+    def isComponent(s): return False
 class NTLayer(NTSpy):
-    name = "Regular"; nodesCount = 8; shapesCount = 1; componentsCount = 0
+    name = "Regular"; nodesCount = 8; shapesCount = 1; componentsCount = 0; shapes = [NTShape()]
 class NTGlyph(NTFlags):
     def __init__(s, **kw): super().__init__(activeLayer=NTLayer(), advanceWidth=500.0, id=9, fgGlyphId=6); s.__dict__.update(kw)
 _NT_NAMES = ("notifyChangesApplied", "notifyWorkspaceHasChanges", "notifyPackageUpdated", "notifyPackageContentUpdated", "notifyGlyphUpdated", "notifyFontSelected")
@@ -8693,6 +8696,319 @@ TCLayer.buildAuto = _tc_build165
 P72Mod.advanceWidth = _p72_adv
 TCShape.transform = property(_tc_tx_prop.fget, _tc_set_tx)
 TCShape.transform = property(_tc_tx_prop.fget, _tc_set_tx)
+# ---- v0.176: the remove stages of /debug/trycomponent (research for removing a component, the user's choice of 2026-11-17). The fake
+# layer's removeShape drops the shape it is given and clearComponents every component; the modes below add what could go wrong.
+print("\n==== v0.176 /debug/trycomponent: removeshape and clearcomponents ====")
+def _tc_rm_effects(s):
+    m = TC["mode"]
+    if m.get("rm_other") and s._shapes: s._shapes = s._shapes[1:]
+    if m.get("rm_moves_other") and s._shapes: s._shapes[0]._tx = TCQT(1, 0, 0, 1, s._shapes[0]._tx.dx() + 5, s._shapes[0]._tx.dy())
+    if m.get("rm_source"): TCSRC["cppsrc"]._contours[0].rows[0]["x"] += 1.0
+    if m.get("rm_width"): P72["widths"]["cpp1"] = 500.0
+    if m.get("rm_glyph"): TS["cppnew"] = TsGlyph("cppnew", [])
+    if m.get("rm_auto"): s.__dict__["_auto"] = True
+    if m.get("rm_drops_layer"): P72["layers"].pop(s._glyph, None)
+    if not m.get("rm_legacy_stale"):     # the legacy view follows, as after FontLab's own sync
+        _w = TS[s._glyph].width; TS[s._glyph] = TsGlyph(s._glyph, [TsLayer(1, sum(len(c.rows) for k in s._shapes for c in k._contours))])
+        TS[s._glyph].width = _w
+def _tc_remove_shape(s, shape, recursive=True):
+    m = TC["mode"]
+    TC["calls"].append(("removeShape", type(shape).__name__, recursive))
+    if m.get("rm_raises"): raise RuntimeError("removeShape boom")
+    if m.get("rm_ignored"): return None
+    s._shapes = [k for k in s._shapes if k is not shape]
+    _tc_rm_effects(s)
+    return True if m.get("rm_true") else None
+def _tc_clear_components(s):
+    m = TC["mode"]
+    TC["calls"].append("clearComponents")
+    if m.get("rm_raises"): raise RuntimeError("clearComponents boom")
+    if m.get("rm_ignored"): return None
+    s._shapes = [k for k in s._shapes if not k._component]
+    _tc_rm_effects(s)
+    return None
+TCLayer.removeShape = _tc_remove_shape
+TCLayer.clearComponents = _tc_clear_components
+RK = ("element", "recursive", "call_returned", "layer_kept", "elements_as_expected", "others_kept", "empty_after", "source_changed",
+      "changed", "side_effect_detected", "removed", "error", "calls_so_far")
+QR = QC + "stage=removeshape&target=cpp1"
+QX = QC + "stage=clearcomponents&target=cpp1"
+def tcr(tag, q, mode=None, auto=False, shapes=None, legacy_nodes=7):
+    tc_gen_setup(mode=dict({"gen_list": 1}, **(mode or {})))
+    _tc_src3()
+    lay = P72["layers"]["cpp1"]
+    lay.__dict__["_recipe"] = ""; lay.__dict__["_auto"] = auto
+    lay._shapes = shapes() if callable(shapes) else (shapes if shapes is not None else _tc_two())
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, legacy_nodes)]); TS["cpp1"].width = 0.0
+    d = tc(tag, q, keys=RK)
+    lefts = lambda k: [b.get("left") for b in d[k]] if isinstance(d.get(k), list) else d.get(k)
+    print("      elements after:", tc_elements(d, "target_elements_after"), "| lefts:", lefts("ink_boxes_before"), "->", lefts("ink_boxes_after"),
+          "| widths:", d.get("advance_width_before"), d.get("advance_width_after"), "| mark:", d.get("fontlab_changed_mark"))
+    return d
+R1 = "&element=1&recursive=0"
+for tag, q in (("2470a removeshape shown before go   ", QR + R1),
+               ("2470b no element                   ", QR + "&recursive=0&go=yes"),
+               ("2470c no recursive                 ", QR + "&element=1&go=yes"),
+               ("2470d recursive=2                  ", QR + "&element=1&recursive=2&go=yes"),
+               ("2470e element 30                   ", QR + "&element=30&recursive=0&go=yes"),
+               ("2470f element -1                   ", QR + "&element=-1&recursive=0&go=yes"),
+               ("2470g clearcomponents shown before go", QX),
+               ("2470h clearcomponents with element ", QX + "&element=0&go=yes"),
+               ("2470i clearcomponents with recursive", QX + "&recursive=1&go=yes"),
+               ("2470j a source given               ", QR + R1 + "&source=cppsrc&go=yes"),
+               ("2470k dx given                     ", QR + R1 + "&dx=5&go=yes"),
+               ("2470l how given                    ", QX + "&how=assign&go=yes"),
+               ("2470m target not a cpp glyph       ", QC + "stage=removeshape&target=A&element=0&recursive=0&go=yes"),
+               ("2470n an unknown stage             ", QC + "stage=remove&target=cpp1&go=yes")):
+    tcr(tag, q)
+tc_gen_setup(); tc("2470o recursive with stage=offset ", QO + "&how=assign&dx=1&dy=1&recursive=1&go=yes")
+d = tcr("2471 the second of two, recursive 0 (plan 1241)", QR + R1 + "&go=yes")
+print("2471a  outline, sources kept, sync, timing:", te_outline(d, "target_after"), d.get("source_changed"), "| synced", d.get("synced_with_fontlab"),
+      "| state", {k: d.get("target_state_after", {}).get(k) for k in ("shapes", "components")}, "| timing a float:", type(d.get("elapsed_seconds")).__name__)
+tcr("2471b the first of two, recursive 1 (plan 1243)", QR + "&element=0&recursive=1&go=yes")
+tcr("2471c one source twice, the first (plan 1244)", QR + "&element=0&recursive=0&go=yes",
+    shapes=lambda: [_tc_comp("cppsrc"), _tc_comp("cppsrc", 300, 0)], legacy_nodes=6)
+tcr("2471d the only component (plan 1245)", QR + "&element=0&recursive=0&go=yes", shapes=lambda: [_tc_comp("cppsrc2", -200, 0)], legacy_nodes=4)
+tcr("2471e three, the middle one        ", QR + R1 + "&go=yes", shapes=lambda: _tc_two() + [_tc_comp("cppsrc3")], legacy_nodes=11)
+tcr("2472 clearcomponents, three (plan 1246)", QX + "&go=yes", shapes=lambda: _tc_two() + [_tc_comp("cppsrc3")], legacy_nodes=11)
+for tag, q, kw in (("2473a autoLayer on                  ", QR + R1 + "&go=yes", dict(auto=True)),
+                   ("2473b a plain contour among them    ", QR + R1 + "&go=yes", dict(shapes=lambda: [_tc_comp("cppsrc"), TCShape([te_contour(TE_SQ)])])),
+                   ("2473c a component of a non-cpp glyph", QX + "&go=yes", dict(shapes=lambda: [_tc_comp("cppsrc"), TCShape([te_contour(TE_SQ)], component="A")])),
+                   ("2473d element 2 of two              ", QR + "&element=2&recursive=0&go=yes", {}),
+                   ("2473e the shape at 1 names another  ", QR + R1 + "&go=yes", dict(shapes=lambda: _flip())),
+                   ("2473f an empty layer                ", QX + "&go=yes", dict(shapes=[])),
+                   ("2473g 31 components                 ", QX + "&go=yes", dict(shapes=lambda: _tc_two() + [_tc_comp("cppsrc", 10 * k, 0) for k in range(1, 30)],
+                                                                                legacy_nodes=7 + 3 * 29)),
+                   ("2473h an ink box unreadable         ", QR + R1 + "&go=yes", dict(mode={"box_raises": 1}))):
+    tcr(tag, q, **kw)
+tc_gen_setup(); tc("2473i target with no layer          ", QC + "stage=removeshape&target=cppnolayer&element=0&recursive=0&go=yes")
+tc_gen_setup(count=2); tc("2473j two fonts open               ", QR + R1 + "&go=yes")
+print("2473k  no remove call in the refusals:", [x for x in TC["calls"] if x == "clearComponents" or (isinstance(x, tuple) and x[0] == "removeShape")])
+for tag, q, mode in (("2474a removeShape ignored           ", QR + R1 + "&go=yes", {"rm_ignored": 1}),
+                     ("2474b removeShape raises            ", QR + R1 + "&go=yes", {"rm_raises": 1}),
+                     ("2474c another component goes too    ", QR + R1 + "&go=yes", {"rm_other": 1}),
+                     ("2474d the other component moves     ", QR + R1 + "&go=yes", {"rm_moves_other": 1}),
+                     ("2474e a source changes              ", QR + R1 + "&go=yes", {"rm_source": 1}),
+                     ("2474f the width changes             ", QR + R1 + "&go=yes", {"rm_width": 1}),
+                     ("2474g a glyph appears               ", QR + R1 + "&go=yes", {"rm_glyph": 1}),
+                     ("2474h autoLayer turns on            ", QR + R1 + "&go=yes", {"rm_auto": 1}),
+                     ("2474i removeShape returns True      ", QR + R1 + "&go=yes", {"rm_true": 1}),
+                     ("2474j clearComponents ignored       ", QX + "&go=yes", {"rm_ignored": 1}),
+                     ("2474k clearComponents raises        ", QX + "&go=yes", {"rm_raises": 1}),
+                     ("2474l clearComponents, a source changes", QX + "&go=yes", {"rm_source": 1}),
+                     ("2474m the legacy view stays behind  ", QR + R1 + "&go=yes", {"rm_legacy_stale": 1}),
+                     ("2474n the layer disappears          ", QX + "&go=yes", {"rm_drops_layer": 1})):
+    tcr(tag, q, mode=mode)
+tc_gen_setup()
+for _i in range(6): call(QC + "stage=removeshape&target=cppnolayer&element=0&recursive=0&go=yes")
+tc("2475 the limit: call 7 is refused   ", QX + "&go=yes")
+_srcrm = "\n".join(l for l in src[src.index("# /debug/trycomponent remove stages (v0.176)"):src.index("# /debug/trycomponent (v0.155)")].split("\n")
+                   if not l.lstrip().startswith("#"))
+print("2476 spies over the cases:", TC_FORBIDDEN, "| static scan:",
+      _re83.findall(r"\.(?:update|save\w*|removeAllShapes|decomposite|replaceShape|addShape|addComponent|setGlyphComponents|applyTransform|buildAuto|killAuto|remove)\s*\(|font\.update|autoLayer =|recipe =|transform =", _srcrm),
+      "| one call each:", [len(_re83.findall(r"(?m)^\s+ret = layer\." + c + "$", _srcrm)) for c in (r"removeShape\(shape, recursive\)", r"clearComponents\(\)")],
+      "| counter before the read:", _srcrm.index('_TRYCOMP["calls"] += 1') < _srcrm.index("return _trycomp_remove("),
+      "| every refusal before the call:", _srcrm.rindex("nothing was touched") < _srcrm.index("ret = layer.removeShape("),
+      "| route documented:", "stage=removeshape&target=cpp...&element=I&recursive=0|1" in src, "| dispatched:", '(query.get("recursive") or [None])[0]' in src)
+# ---- v0.177: the modern state counts the shapes flagged isComponent ("components"); FontLab's componentsCount() is kept apart as
+# "fontlab_components_count", information and a guard (it read 0 on glyphs holding components, RM 1241-1246). TCLayer0 answers
+# componentsCount() with 0, as FontLab did.
+print("\n==== v0.177 the component count of a modern state ====")
+class _W177:
+    def __init__(s, layer): s.activeLayer = layer
+class TCLayer0(TCLayer):
+    def componentsCount(s): return 0
+class TCLayerNoCount(TCLayer):
+    def componentsCount(s): raise RuntimeError("count boom")
+class TCLayerShapesSpy(TCLayer0):
+    @property
+    def shapes(s): TC["calls"].append("layer.shapes"); raise RuntimeError("shapes boom")
+class TCLayerTwo(TCLayer):
+    def componentsCount(s): return 2
+class TCShapeBadFlag(TCShape):
+    def isComponent(s):
+        if TC["mode"].get("flag_int"): return 1
+        raise RuntimeError("flag boom")
+def st177(tag, shapes, layer_cls=TCLayer0, te_mode=None, tc_mode=None):
+    tc_gen_setup(); _tc_src3()
+    TE["mode"].update(te_mode or {}); TC["mode"].update(tc_mode or {})
+    st, _layer = ns["_tryshape_modern_state"](_W177(layer_cls("test_font", shapes() if callable(shapes) else shapes, "cpp1")))
+    print(tag, ":", {k: st.get(k) for k in ("shapes", "fontlab_components_count", "fontlab_components_count_error", "components") if k in st},
+          "| has components:", ns["_state_has_components"](st), "| known empty:", ns["_tryshape_modern_known_empty"](st),
+          "| layer.shapes read:", "layer.shapes" in TC["calls"])
+    return st
+st177("2480a two component shapes, FontLab reads 0", lambda: [_tc_comp("cppsrc"), _tc_comp("cppsrc2", 500, 0)])
+st177("2480b one plain shape                   ", lambda: [TCShape([te_contour(TE_SQ)])])
+st177("2480c a component among plain shapes    ", lambda: [TCShape([te_contour(TE_SQ)]), _tc_comp("cppsrc3")])
+st177("2480d no shape: layer.shapes not read   ", [], layer_cls=TCLayerShapesSpy)
+st177("2480e layer.shapes raises (one shape)   ", lambda: [TCShape([te_contour(TE_SQ)])], layer_cls=TCLayerShapesSpy)
+st177("2480f layer.shapes a tuple              ", lambda: [TCShape([te_contour(TE_SQ)])], te_mode={"shapes_tuple": 1})
+st177("2480g isComponent raises                ", lambda: [TCShape([te_contour(TE_SQ)]), TCShapeBadFlag([te_contour(TE_SQ)])])
+st177("2480h isComponent returns 1, not a bool ", lambda: [TCShapeBadFlag([te_contour(TE_SQ)])], tc_mode={"flag_int": 1})
+st177("2480i FontLab's count raises            ", lambda: [TCShape([te_contour(TE_SQ)])], layer_cls=TCLayerNoCount)
+st177("2480j FontLab counts 2, no shape flagged", lambda: [TCShape([te_contour(TE_SQ)]), TCShape([te_contour(TE_SQ)])], layer_cls=TCLayerTwo)
+_hc = ns["_state_has_components"]
+print("2481 the guard: both 0", _hc({"components": 0, "fontlab_components_count": 0}), "| shapes 1", _hc({"components": 1, "fontlab_components_count": 0}),
+      "| FontLab 1", _hc({"components": 0, "fontlab_components_count": 1}), "| a count missing", _hc({"components": 0}),
+      "| unreadable", _hc({"components": "not readable: x", "fontlab_components_count": 0}))
+print("2481a refusal text:", ns["_state_components_text"]({"components": 2, "fontlab_components_count": 0}), "|",
+      ns["_state_components_text"]({"components": 0, "fontlab_components_count_error": "RuntimeError: count boom"}))
+_src177 = "\n".join(l.split("#")[0] for l in src.splitlines())
+print("2482 static: guards on the old count:", len(_re83.findall(r'\b(?:state|sstate|after_state)\.get\("components"\) != 0', _src177)),
+      "| componentsCount() read only by the state loop:", _re83.findall(r'"componentsCount"\)', _src177),
+      "| guards through the helper:", len(_re83.findall(r"_state_has_components\(", _src177)) - 1,
+      "| outline reply uses the state count:", "component_count=state.get(\"components\")" in _src177)
+# ---- v0.178: add_component's single form gets the list form's clean-up (the width written back, a leftover recipe cleared); both forms
+# report width_set_by_build (live 1250: the single form left .notdef at width 0 after FontLab's build, not 500).
+print("\n==== v0.178 add_component: the single form writes the width back; width_set_by_build ====")
+P72Mod.advanceWidth = property(_p72_adv.fget, _p72_adv_set174)
+AK178 = ("placed", "verified", "changed", "steps_done", "width_set_by_build", "cleanup", "checks", "reason")
+d = ac("2490a FontLab sets the width 250     ", P0, mode={"build_width": 1}, keys=AK178)
+print("      width before / after:", d.get("advance_width_before"), d.get("advance_width_after"))
+ac("2490b ... and the write-back fails   ", P0, mode={"build_width": 1, "width_set_raises": 1}, keys=AK178)
+ac("2490c buildAuto raises: recipe cleared", P0, mode={"build_raises": 1}, keys=AK178)
+ac("2490d clearing the recipe raises twice", P0, mode={"clear_raises": 1}, keys=AK178)
+ac("2490e the width unchanged: no field  ", P0, keys=AK178)
+ac("2490f an offset, FontLab sets 250    ", dict(P0, x=100, y=50), mode={"build_width": 1}, keys=AK178)
+acl("2491a list: FontLab sets 250        ", L2, mode={"build_width": 1}, legacy_nodes=7, keys=LK + ("width_set_by_build",))
+acl("2491b list: the width unchanged     ", L2, legacy_nodes=7, keys=LK + ("width_set_by_build",))
+P72Mod.advanceWidth = _p72_adv
+_srcac178 = "\n".join(l for l in src[src.index("# POST /glyph/component (v0.169)"):src.index('# POST /glyph/component with "components" (v0.174)')].split("\n")
+                      if not l.lstrip().startswith("#"))
+_acf178 = _srcac178[_srcac178.index("def add_component("):]
+print("2492 single form: the write-back before the re-read:", _acf178.index("w.advanceWidth = width_before") < _acf178.index("width_after = _trycomp_width(w)"),
+      "| only when the recipe was set:", 'if "recipe" in done and width_now != width_before:' in _acf178,
+      "| width_unchanged still checked:", '"width_unchanged": width_after == width_before' in _acf178,
+      "| spies:", TC_FORBIDDEN)
+# ---- v0.179: POST /glyph/component/remove (remove_component; the user's design of 2026-11-18). The removeShape fake of v0.176 and its
+# rm_* modes stay; TCShape gains contoursCount (cc_raises, cc_off), and rm_fail_at makes the n-th removeShape call raise.
+print("\n==== v0.179 POST /glyph/component/remove (remove_component) ====")
+def _tc_ccount(s):
+    if TC["mode"].get("cc_raises"): raise RuntimeError("contoursCount boom")
+    return len(s._contours) + (1 if TC["mode"].get("cc_off") else 0)
+TCShape.contoursCount = _tc_ccount
+def _tc_remove_shape179(s, shape, recursive=True):
+    TC["rm_calls"] = TC.get("rm_calls", 0) + 1
+    if TC["mode"].get("rm_fail_at") == TC["rm_calls"]:
+        TC["calls"].append(("removeShape", type(shape).__name__, recursive)); raise RuntimeError("removeShape boom")
+    return _tc_remove_shape(s, shape, recursive)
+TCLayer.removeShape = _tc_remove_shape179
+P72Mod.advanceWidth = property(_p72_adv.fget, _p72_adv_set174)
+RMK = ("form", "removed", "verified", "changed", "removal_order", "removed_calls", "calls_returned", "entry_states", "checks", "recipe_kept",
+       "width_changed_by_removal", "cleanup", "empty_after", "failed_index", "reason", "error")
+def rmc(tag, payload, mode=None, auto=False, recipe="", shapes=None, legacy_nodes=7, keys=RMK):
+    tc_gen_setup(mode=dict(mode or {})); _tc_src3(); TC["rm_calls"] = 0
+    lay = P72["layers"]["cpp1"]
+    lay.__dict__["_recipe"] = recipe; lay.__dict__["_auto"] = auto
+    lay._shapes = shapes() if callable(shapes) else (shapes if shapes is not None else _tc_two())
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, legacy_nodes)]); TS["cpp1"].width = 0.0
+    c, d = sbpost("/glyph/component/remove", payload)
+    TC_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d},
+          "| calls", [x for x in TC["calls"] if x == "clearComponents" or (isinstance(x, tuple) and x[0] in ("removeShape", "recipe=", "autoLayer="))],
+          "| Update", TE["updates"], "| marks", TE["marks"])
+    if "components_after" in d:
+        print("      after:", d.get("components_after"), "| widths:", d.get("advance_width_before"), d.get("advance_width_after"),
+              "| timing a float:", type(d.get("elapsed_seconds")).__name__)
+    return d
+R0 = {"name": "cpp1", "index": 1, "component": "cppsrc2", "x": -200, "y": 0}
+RL = {"name": "cpp1", "components": [{"index": 0, "component": "cppsrc", "x": 0, "y": 0}, {"index": 1, "component": "cppsrc2", "x": -200, "y": 0}]}
+_e = lambda i, c, x=0, y=0: {"index": i, "component": c, "x": x, "y": y}
+for tag, payload in (("2500a no index                     ", {k: v for k, v in R0.items() if k != "index"}),
+                     ("2500b an extra key                 ", dict(R0, recursive=1)),
+                     ("2500c index -1                     ", dict(R0, index=-1)),
+                     ("2500d index a bool                 ", dict(R0, index=True)),
+                     ("2500e index 1.0                    ", dict(R0, index=1.0)),
+                     ("2500f component empty              ", dict(R0, component=" ")),
+                     ("2500g x a string                   ", dict(R0, x="0")),
+                     ("2500h x 20001                      ", dict(R0, x=20001)),
+                     ("2500i empty name                   ", dict(R0, name="")),
+                     ("2500j an empty list                ", {"name": "cpp1", "components": []}),
+                     ("2500k list and index together      ", dict(RL, index=0)),
+                     ("2500l an index twice               ", {"name": "cpp1", "components": [_e(0, "cppsrc"), _e(0, "cppsrc")]}),
+                     ("2500m an entry without y           ", {"name": "cpp1", "components": [{"index": 0, "component": "cppsrc", "x": 0}]}),
+                     ("2500n the list not a list          ", {"name": "cpp1", "components": {"index": 0}})):
+    rmc(tag, payload)
+c, d = ns["_route"]("POST", "/glyph/component/remove", b"{not json").partition(b"\r\n\r\n")[0][9:12], None
+print("2500o not JSON                     :", c)
+d = rmc("2501 single: the second of two      ", R0, legacy_nodes=7)
+print("2501a  shapes after, sync, recipe_kept present, mark:", d.get("state_after", {}).get("shapes"),
+      d.get("synced_with_fontlab"), "recipe_kept" in d, "|", d.get("fontlab_changed_mark"))
+rmc("2501b single: the first, (0, 0)     ", dict(R0, index=0, component="cppsrc", x=0))
+rmc("2501c a fractional offset           ", dict(R0, x=-199.5), shapes=lambda: [_tc_comp("cppsrc"), _tc_comp("cppsrc2", -199.5, 0)])
+d = rmc("2502 list: 0 and 2 of three          ", {"name": "cpp1", "components": [_e(0, "cppsrc"), _e(2, "cppsrc3")]},
+        shapes=lambda: _tc_two() + [_tc_comp("cppsrc3")], legacy_nodes=11)
+rmc("2502a list: both of two            ", RL)
+rmc("2502b list given 1 then 0           ", {"name": "cpp1", "components": list(reversed(RL["components"]))})
+rmc("2502c one source twice, the second  ", dict(R0, component="cppsrc", x=300), shapes=lambda: [_tc_comp("cppsrc"), _tc_comp("cppsrc", 300, 0)], legacy_nodes=6)
+rmc("2503 mixed: the component, contour kept", dict(R0, index=0, component="cppsrc", x=0), shapes=lambda: [_tc_comp("cppsrc"), TCShape([te_contour(TE_SQ)])])
+rmc("2503a mixed: contour first          ", dict(R0, index=1, component="cppsrc", x=0), shapes=lambda: [TCShape([te_contour(TE_SQ)]), _tc_comp("cppsrc")])
+rmc("2504 a leftover recipe is kept      ", R0, recipe="cppsrc+cppsrc2")
+d = rmc("2505 31 components, all in one call  ", {"name": "cpp1", "components": [_e(0, "cppsrc"), _e(1, "cppsrc2", -200)] + [_e(k + 1, "cppsrc", 10 * k) for k in range(1, 30)]},
+        shapes=lambda: _tc_two() + [_tc_comp("cppsrc", 10 * k, 0) for k in range(1, 30)], legacy_nodes=7 + 3 * 29, keys=("removed", "empty_after", "checks"))
+print("2505a  removal order starts / ends:", d.get("removal_order", [None])[:3], d.get("removal_order", [None])[-2:], "| calls", TC.get("rm_calls"))
+for tag, payload, kw in (("2506a the source at 1 differs      ", dict(R0, component="cppsrc"), {}),
+                         ("2506b the offset at 1 differs      ", dict(R0, x=-199), {}),
+                         ("2506c index 2 of two              ", dict(R0, index=2), {}),
+                         ("2506d the index holds a contour    ", dict(R0, index=1, component="cppsrc"), dict(shapes=lambda: [_tc_comp("cppsrc"), TCShape([te_contour(TE_SQ)])])),
+                         ("2506e autoLayer on                 ", R0, dict(auto=True)),
+                         ("2506f recipe unreadable            ", R0, dict(mode={"recipe_unreadable": 1})),
+                         ("2506g a Power Brush shape among them", dict(R0, index=0, component="cppsrc", x=0),
+                          dict(shapes=lambda: [_tc_comp("cppsrc"), TCShape([te_contour(TE_SQ)], composite=True)])),
+                         ("2506h target does not exist        ", dict(R0, name="cppzz"), {}),
+                         ("2506i target has no layer          ", dict(R0, name="cppnolayer"), {}),
+                         ("2506j two masters                  ", R0, dict(mode={"masters": 2})),
+                         ("2506k contoursCount raises         ", R0, dict(mode={"cc_raises": 1})),
+                         ("2506l contour counts do not add up ", R0, dict(mode={"cc_off": 1})),
+                         ("2506m an ink box unreadable        ", R0, dict(mode={"box_raises": 1})),
+                         ("2506n the shape names another at the call", R0, dict(shapes=lambda: _flip())),
+                         ("2506o one entry of two is wrong    ", {"name": "cpp1", "components": [_e(0, "cppsrc"), _e(1, "cppsrc2", -199)]}, {})):
+    rmc(tag, payload, **kw)
+tc_gen_setup(); TO["count"] = 0
+c, d = sbpost("/glyph/component/remove", R0); print("2506p no font open                 :", c, d)
+print("2506q  no remove call in the refusals:", [x for x in TC["calls"] if x == "clearComponents" or (isinstance(x, tuple) and x[0] == "removeShape")])
+for tag, payload, mode in (("2507a removeShape ignored           ", R0, {"rm_ignored": 1}),
+                           ("2507b removeShape raises            ", R0, {"rm_raises": 1}),
+                           ("2507c the second call raises        ", RL, {"rm_fail_at": 2}),
+                           ("2507d another component goes too    ", R0, {"rm_other": 1}),
+                           ("2507e the other component moves     ", R0, {"rm_moves_other": 1}),
+                           ("2507f a source changes              ", R0, {"rm_source": 1}),
+                           ("2507g FontLab sets the width 500    ", R0, {"rm_width": 1}),
+                           ("2507h ... and the write-back fails  ", R0, {"rm_width": 1, "width_set_raises": 1}),
+                           ("2507i a glyph appears               ", R0, {"rm_glyph": 1}),
+                           ("2507j autoLayer turns on            ", R0, {"rm_auto": 1}),
+                           ("2507k the layer disappears          ", R0, {"rm_drops_layer": 1}),
+                           ("2507l the legacy view stays behind  ", R0, {"rm_legacy_stale": 1}),
+                           ("2507m removeShape returns True      ", R0, {"rm_true": 1})):
+    rmc(tag, payload, mode=mode)
+rmc("2507n three, the second call raises: the third not reached", {"name": "cpp1", "components": [_e(0, "cppsrc"), _e(1, "cppsrc2", -200), _e(2, "cppsrc3")]},
+    mode={"rm_fail_at": 2}, shapes=lambda: _tc_two() + [_tc_comp("cppsrc3")], legacy_nodes=11,
+    keys=("removed", "changed", "removal_order", "removed_calls", "entry_states", "failed_index"))
+tc_gen_setup()
+print("2508 the function itself, an index past the end:", {k: v for k, v in ns["remove_components"]("cpp1", [_e(5, "cppsrc")], "single").items()
+                                                          if k in ("removed", "reason")})
+_ok179 = {"open": True, "removed": True, "changed": True, "synced_with_fontlab": True}
+for tag, payload, code, reply in (("2509a log, one                ", R0, 200, _ok179),
+                                  ("2509b log, a list of two      ", RL, 200, _ok179),
+                                  ("2509c log, not done, changed  ", RL, 200, {"open": True, "removed": False, "changed": True, "reason": "x"}),
+                                  ("2509d log, refused            ", R0, 400, {"error": "bad"})):
+    print(tag, ":", ns["_act_describe_write"]("/glyph/component/remove", payload, code, reply))
+_src179 = "\n".join(l for l in src[src.index("# POST /glyph/component/remove (v0.179)"):src.index("# POST /glyph/move (v0.153)")].split("\n")
+                    if not l.lstrip().startswith("#"))
+print("2510 spies over the cases:", TC_FORBIDDEN, "| static scan:",
+      _re83.findall(r"\.(?:update|save\w*|clearComponents|removeAllShapes|decomposite|replaceShape|addShape|addComponent|setGlyphComponents|applyTransform|buildAuto|killAuto)\s*\(|font\.update|autoLayer =|recipe =|transform =", _src179),
+      "| one call:", len(_re83.findall(r"= layer\.removeShape\(shapes\[i\], False\)", _src179)), "| no other removeShape call:",
+      len(_re83.findall(r"(?m)^[^\"'#]*\blayer\.removeShape\(", _src179)) == 1,
+      "| every refusal before the call:", _src179.rindex("nothing was changed") < _src179.index("layer.removeShape("),
+      "| highest first:", "sorted((e[\"index\"] for e in entries), reverse=True)" in _src179)
+print("2510a route documented:", "POST /glyph/component/remove" in src, "| dispatched:", 'if path == "/glyph/component/remove":' in src,
+      "| mark title:", ns["_MARK_TITLES"].get("remove_component"), "| guard kind full:", "remove_component" in ns["_GUARD_FULL_KINDS"],
+      "| activity kind:", ns["_ACT_WRITES"].get("/glyph/component/remove"))
+del TCShape.contoursCount
+TCLayer.removeShape = _tc_remove_shape
+P72Mod.advanceWidth = _p72_adv
+for _a in ("removeShape", "clearComponents"):
+    if _a in TCLayer.__dict__: delattr(TCLayer, _a)
 TCShape.transform = _tc_tx_prop
 for _a in ("inkBox",):
     if _a in TCShape.__dict__: delattr(TCShape, _a)

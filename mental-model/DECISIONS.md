@@ -2,6 +2,16 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-18: removing components, `remove_component` (listener 0.179 / server 0.72)
+
+- **A component is named by its index in `get_glyph_outline`'s element list, with the source and offset expected there; any mismatch refuses the whole call before anything changes.** *Reason:* a stale read becomes a refusal, as with `move_nodes`' `from`; two copies of one source at one place stay apart.
+- **One form per call: `component` or a `components` list. In a list every index refers to the glyph as read before the call, every entry is checked first, and removal runs from the highest index down. No size limit.**
+- **Any glyph holding a component is accepted, also one with contours; every other element is confirmed unchanged.** A Power Brush shape is refused (F1; added in the build).
+- **A target whose auto layer is on is refused; a leftover recipe is kept and reported.** *Reason:* an auto layer is FontLab's to rebuild; RM tested only glyphs with it off.
+- **The call is `layer.removeShape(component, False)`.** *Reason:* it removed exactly the component asked for (RM 1241–1245), `recursive` made no difference, and `clearComponents()` changed nothing (1246).
+- **The font is marked whenever the outline changed; a width FontLab changed is written back once and reported.** *Reason:* the precedents of `move_nodes` and `add_component`.
+- *Reason for the rest:* the user's answers, one question at a time.
+
 ## 2026-11-17: placing components, `add_component` (listener 0.169–0.175 / server 0.66–0.69)
 
 Condensed on 2026-11-17 from three entries, all built; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md).
@@ -29,10 +39,13 @@ Condensed on 2026-11-17 from three entries; full text: [archive/DECISIONS-ARCHIV
 
 - **AI agents must be able to edit an existing glyph through Glyphbridge: move nodes, add a contour to an existing shape, redraw an outline in place; in the end, every kind of glyph manipulation.** Every edit is verified by a re-read, and the layer guard's refusal is lifted only by a tool built for that edit. *Reason:* the user's requirement; today an agent must delete a glyph and draw it again.
 
-## 2026-11-13 to 2026-11-17: word budgets raised by the user's choice
+## 2026-11-13 to 2026-11-18: word budgets raised by the user's choice (CHECKLIST.md and DECISIONS.md 3,000 added 2026-11-17, DECISIONS.md 3,500 on 2026-11-18)
 
 Condensed on 2026-11-17 from nine entries; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Current budgets and their history: [MARKDOWN-MAP.md](MARKDOWN-MAP.md).
-- **CURRENT-STATUS.md 2,500, then 2,750, then 3,000; DECISIONS.md 2,500, then 2,800; PROJECT.md 1,000; MARKDOWN-MAP.md 1,000; WATCH-POINTS.md 2,500; WHAT-WORKS.md 2,250, then 2,500.** Nothing was trimmed or moved for any of them. *Reason:* the user's choice each time.
+- **CURRENT-STATUS.md 2,500, then 2,750, then 3,000; DECISIONS.md 2,500, then 2,800; PROJECT.md 1,000; MARKDOWN-MAP.md 1,000; WATCH-POINTS.md 2,500; WHAT-WORKS.md 2,250, then 2,500, then 3,000 (2026-11-18, at 2,426 words).** Nothing was trimmed or moved for any of them. *Reason:* the user's choice each time.
+- **CHECKLIST.md 1,500 (from 1,400), 2026-11-17,** after its tidy-up (row 85 split from row 83, a status legend) reached 1,411 words; chosen over moving "How to test a scenario" to RUNBOOK.md. *Reason:* the user's choice.
+- **DECISIONS.md 3,000 (from 2,800, the active part), 2026-11-17,** at 2,722 words, before the design of `remove_component` adds its entry; nothing was trimmed or moved. *Reason:* the user's choice.
+- **DECISIONS.md 3,500 (from 3,000, the active part), 2026-11-18,** at 2,984 words; nothing was trimmed or moved. *Reason:* the user's choice.
 
 ## 2026-11-13: a package is told apart by its fgId (listener 0.150 / server 0.62)
 

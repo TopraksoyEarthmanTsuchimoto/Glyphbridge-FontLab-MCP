@@ -26,9 +26,9 @@ Snapshots and retired material. Nothing here is current: live facts are in the f
 | [milestone-summary-v11.md](milestone-summary-v11.md) | the last chat-era hand-off (listener 0.95 / server 0.31, 2026-10-27), unchanged except for personal details; its sections now live in the files mapped in MARKDOWN-MAP |
 | [scenarios-checklist-v11.md](scenarios-checklist-v11.md) | the full 80-row scenario matrix of v11 with its evidence, verbatim |
 | [CHECKLIST-closed-rows.md](CHECKLIST-closed-rows.md) | rows closed since v11, with dates and tests; moved from CHECKLIST on 2026-11-06 and still added to |
-| [DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md) | superseded decisions |
+| [DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md) | superseded decisions, and the budget history moved from MARKDOWN-MAP on 2026-11-17 |
 | [WATCH-POINTS-settled.md](WATCH-POINTS-settled.md) | watch points settled or dropped, one line each; moved from WATCH-POINTS on 2026-11-10 and still added to |
-| [CURRENT-STATUS-resume-2026-11-10.md](CURRENT-STATUS-resume-2026-11-10.md) | the finished items of CURRENT-STATUS's "Resume here" (S1, save and reopen, kerning marks, the KERNING panel, T9), unchanged |
+| [CURRENT-STATUS-resume-2026-11-10.md](CURRENT-STATUS-resume-2026-11-10.md) | the finished items of CURRENT-STATUS's "Resume here", moved on 2026-11-10 (S1, save and reopen, kerning marks, the KERNING panel, T9), on 2026-11-15 and on 2026-11-17, and the material of the CURRENT-STATUS tidy-up of 2026-11-17 (the long "Last verified" line, the P2.7 resume point, finished items), unchanged except for link paths |
 | [listener-history-to-v0.95.md](listener-history-to-v0.95.md) | the listener's module docstring at v0.95, with its version history, unchanged |
 | [server-history-to-v0.31.md](server-history-to-v0.31.md) | the server's module docstring at v0.31, with its version history, unchanged |
 

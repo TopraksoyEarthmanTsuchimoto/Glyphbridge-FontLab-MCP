@@ -33,7 +33,9 @@ folder, and on a harness that crashes it shows the last lines the harness printe
 The checks are **print based**, not assertions: a change shows up as a diff against the expected output, so review the diff before
 using `--update`. Adding a case: append it to the relevant script, run, review, `--update`.
 
-What these tests do NOT cover: real FontLab behaviour (that needs the live checks in sections 7 and 12 of the milestone summary and scenarios 16, 18 and 19 of the checklist), the
+From v0.122 on, each release's new cases and line counts are recorded in its [CHANGELOG.md](../mental-model/CHANGELOG.md) entry ("Tests:"); the per-version notes below stop at v0.121.
+
+What these tests do NOT cover: real FontLab behaviour (that needs the live tests in [LIVE-TESTS.md](../mental-model/LIVE-TESTS.md) and the open scenarios in [CHECKLIST.md](../mental-model/CHECKLIST.md), for example rows 16, 18 and 19), the
 MCP SDK plumbing (stdio, tool registration), and real latency.
 
 

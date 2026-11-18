@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.69)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.72)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.69"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.72"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1874,6 +1874,7 @@ def write_glyph_component(name: str, component: str, x: Any = 0, y: Any = 0) -> 
         result = {"name": clean, "component": src, "x": ox, "y": oy, "placed": True, "verified": True,
                   "advance_width": _tidy_number(data.get("advance_width_after")) if isinstance(data.get("advance_width_after"), (int, float)) else None,
                   "note": _COMP_NOTE}
+        _comp_width_fields(result, data, False)
         _add_guard_fields(result, data)
         _mark_modified(result, True)
         return result
@@ -1888,8 +1889,9 @@ def write_glyph_component(name: str, component: str, x: Any = 0, y: Any = 0) -> 
               "steps_done": [s for s in data.get("steps_done") or [] if isinstance(s, str)],
               "checks": {k: checks.get(k) for k in _COMP_CHECK_KEYS if k in checks}, "elements_after": view,
               "agent_instruction": _COMP_UNCONFIRMED_INSTRUCTION}
-    if "auto_layer_set_back" in data:
+    if "auto_layer_set_back" in data:                       # listeners 0.169-0.177; since 0.178 it is in cleanup
         result["auto_layer_set_back"] = data["auto_layer_set_back"]
+    _comp_width_fields(result, data, "cleanup" in data)
     _add_guard_fields(result, data)
     if changed is True:
         _mark_modified(result, True)
@@ -1914,11 +1916,23 @@ _COMP_LIST_UNCONFIRMED_INSTRUCTION = (
     "recipe cleared and the width written back where possible (see cleanup). component_states says for each entry whether it is placed, "
     "at FontLab's own position, left by the build (in the glyph, its offset not confirmed), missing after the build, not reached (the "
     "build never ran) or unknown. components_after lists what the glyph holds now. Tell the person, in plain words, what happened and "
-    "which components are left in the glyph, and that no Glyphbridge tool removes a component yet: they can delete any they do not want "
-    "in FontLab. Do NOT repair or repeat it on your own: ask the person first.")
+    "which components are left in the glyph; any they do not want can be removed with remove_component (after reading the glyph with "
+    "get_glyph_outline) or deleted in FontLab. Do NOT repair, remove or repeat anything on your own: ask the person first.")
 _COMP_UNDERSCORE_NOTE = ("FontLab's recipe build of several glyphs reads a name with an underscore as a ligature of its parts (\"a_b\" as a "
                          "and b): it drops the glyph, or places the parts instead if they exist (seen live, 1234). Place such a glyph on "
                          "its own with component, x and y, into an empty glyph.")
+
+
+def _comp_width_fields(result: dict, data: dict, with_cleanup: bool) -> None:
+    """v0.71: pass on what FontLab's build set the width to (width_set_by_build, listener 0.178, a finite number only) and, when asked,
+    the clean-up block (only its known keys, each True or a text)."""
+    v = data.get("width_set_by_build")
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
+        result["width_set_by_build"] = _tidy_number(v)
+    if with_cleanup:
+        cleanup = data.get("cleanup") if isinstance(data.get("cleanup"), dict) else {}
+        result["cleanup"] = {k: v for k, v in cleanup.items() if k in ("auto_layer_set_back", "recipe_cleared", "width_restored")
+                             and (v is True or isinstance(v, str))}
 
 
 def _comp_after_view(raw: Any) -> Any:
@@ -2003,6 +2017,7 @@ def write_glyph_components(name: str, components: Any, confirmed: Any = False) -
                   "note": _COMP_LIST_NOTE, "timing": timing}
         if n > _COMP_SOFT_LIMIT:
             result["untested_size_note"] = _COMP_UNTESTED_NOTE
+        _comp_width_fields(result, data, False)
         _add_guard_fields(result, data)
         _mark_modified(result, True)
         return result
@@ -2023,8 +2038,108 @@ def write_glyph_components(name: str, components: Any, confirmed: Any = False) -
     after = _comp_after_view(data.get("components_after"))
     if after is not None:
         result["components_after"] = after
+    _comp_width_fields(result, data, False)
     if n > _COMP_SOFT_LIMIT:
         result["untested_size_note"] = _COMP_UNTESTED_NOTE
+    _add_guard_fields(result, data)
+    if changed is True:
+        _mark_modified(result, True)
+    else:
+        _note_change(sure=False)
+        result["font_modified"] = "unknown"
+        result["agent_instruction"] += " " + _SAVE_INSTRUCTION
+    return result
+
+
+# ---- v0.72: remove_component through POST /glyph/component/remove (listener 0.179; the user's design, DECISIONS.md 2026-11-18) ----
+_REMOVE_OFFSET_MAX = 20000
+_REMOVE_INDEX_MAX = 100000
+_REMOVE_CHECK_KEYS = ("layer_kept", "elements", "ink_boxes", "outline_kept", "auto_layer_and_recipe_unchanged", "sources_unchanged",
+                      "width_unchanged", "glyph_count_unchanged")
+_REMOVE_STATES = ("removed", "called, not confirmed", "call failed", "not reached")
+_REMOVE_NOTE = ("The named components were removed, read back from FontLab: every other element of the glyph (contours and components) "
+                "is where and what it was, with the same drawn box and outline, and the component glyphs, the advance width and the "
+                "glyph count are unchanged.")
+_REMOVE_UNCONFIRMED_INSTRUCTION = (
+    "The re-read does NOT confirm the removal. Removal stopped at the first failure (entry_states says, per entry: removed, called "
+    "but not confirmed, call failed, or not reached); components_after lists what the glyph holds now. Tell the person, in plain "
+    "words, what happened. Do NOT repair, remove or repeat anything on your own: ask the person first, and read the glyph again with "
+    "get_glyph_outline before any new call, because the indices may have changed.")
+_REMOVE_RECIPE_NOTE = ("FontLab still keeps a recipe on this glyph's layer (recipe_kept). remove_component leaves it as it is; it does "
+                       "not rebuild anything while the automatic layer is off.")
+
+
+def _check_remove_entry(c: Any, label: str) -> dict:
+    """One entry as a clean dict {index, component, x, y}, or a ToolError before anything is sent."""
+    if not isinstance(c, dict) or not {"index", "component"} <= set(c) or not set(c) <= {"index", "component", "x", "y"}:
+        raise ToolError(f'{label} must be an object with "index" and "component", and optionally "x" and "y".')
+    idx = c["index"]
+    if isinstance(idx, bool) or not isinstance(idx, int) or not (0 <= idx <= _REMOVE_INDEX_MAX):
+        raise ToolError(f"{label}: index must be a whole number from 0 (the numbering of get_glyph_outline's elements).")
+    src = c["component"].strip() if isinstance(c["component"], str) else ""
+    if not src:
+        raise ToolError(f"{label}: component must be a non-empty glyph name.")
+    xy = []
+    for key in ("x", "y"):
+        v = c.get(key, 0)
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or abs(v) > _REMOVE_OFFSET_MAX:
+            raise ToolError(f"{label}: {key} must be a number from -{_REMOVE_OFFSET_MAX} to {_REMOVE_OFFSET_MAX} (the offset get_glyph_outline shows).")
+        xy.append(int(v) if float(v) == int(v) else float(v))
+    return {"index": idx, "component": src, "x": xy[0], "y": xy[1]}
+
+
+def write_glyph_remove_components(name: str, entries: list, form: str) -> dict:
+    clean = name.strip() if isinstance(name, str) else ""
+    if not clean:
+        raise ToolError("name must be a non-empty glyph name.")
+    seen = set()
+    for e in entries:
+        if e["index"] in seen:
+            raise ToolError(f"index {e['index']} appears twice; give each component once.")
+        seen.add(e["index"])
+    _require_listener((0, 179), "remove_component")
+    payload = {"name": clean, **entries[0]} if form == "single" else {"name": clean, "components": entries}
+
+    data = _write_post("/glyph/component/remove", payload)
+
+    if not data.get("open"):
+        raise ToolError(NO_FONT)
+    if data.get("found") is False:
+        raise ToolError(f"No glyph named '{clean}' was found.")
+    checks = data.get("checks") if isinstance(data.get("checks"), dict) else {}
+    timing = {k: _tidy_number(data[k]) for k in ("elapsed_seconds",) if isinstance(data.get(k), (int, float)) and not isinstance(data.get(k), bool)}
+    after = _comp_after_view(data.get("components_after"))
+    width = data.get("width_changed_by_removal")
+    cleanup = data.get("cleanup") if isinstance(data.get("cleanup"), dict) else {}
+    extra = {}
+    if isinstance(width, (int, float)) and not isinstance(width, bool) and math.isfinite(width):
+        extra["width_changed_by_removal"] = _tidy_number(width)
+        extra["cleanup"] = {k: v for k, v in cleanup.items() if k == "width_restored" and (v is True or isinstance(v, str))}
+    if isinstance(data.get("recipe_kept"), str) and data["recipe_kept"]:
+        extra["recipe_kept"] = _clean_font_text(data["recipe_kept"])
+        extra["recipe_note"] = _REMOVE_RECIPE_NOTE
+    if data.get("removed") is True and data.get("verified") is True and all(checks.get(k) is True for k in _REMOVE_CHECK_KEYS):
+        result = {"name": clean, "removed": True, "verified": True, "entries": entries,
+                  "empty_after": data.get("empty_after") if isinstance(data.get("empty_after"), bool) else "unknown",
+                  "advance_width": _tidy_number(data.get("advance_width_after")) if isinstance(data.get("advance_width_after"), (int, float)) else None,
+                  "note": _REMOVE_NOTE, "timing": timing, **extra}
+        if after is not None:
+            result["components_after"] = after
+        _add_guard_fields(result, data)
+        _mark_modified(result, True)
+        return result
+    changed = data.get("changed")
+    reason = data.get("reason") or "the re-read does not confirm the removal"
+    if changed is not True and changed != "unknown":
+        raise ToolError(f"Glyph '{clean}': nothing was changed: {reason}")
+    raw_states = data.get("entry_states") if isinstance(data.get("entry_states"), list) else []
+    states = [{"index": st.get("index"), "component": st.get("component"),
+               "state": st.get("state") if st.get("state") in _REMOVE_STATES else "unknown"} for st in raw_states if isinstance(st, dict)]
+    result = {"name": clean, "removed": False, "verified": False, "changed": changed, "reason": reason, "entries": entries,
+              "entry_states": states, "checks": {k: checks.get(k) for k in _REMOVE_CHECK_KEYS if k in checks},
+              "timing": timing, "agent_instruction": _REMOVE_UNCONFIRMED_INSTRUCTION, **extra}
+    if after is not None:
+        result["components_after"] = after
     _add_guard_fields(result, data)
     if changed is True:
         _mark_modified(result, True)
@@ -3085,8 +3200,14 @@ def _modern_outline_result(clean: str, mo: dict, mc: dict, data: dict, modern_fi
     else:
         notes.append(f"The legacy reader sees {data.get('node_count')} node(s) for this glyph (it lags on glyphs changed through the API), so this "
                      f"outline was read from FontLab's modern layer ({mo.get('node_count')} node(s)).")
-    if data.get("component_count"):
-        notes.append(f"The glyph has {data['component_count']} component(s), whose outlines are not read by this tool.")
+    # v0.70: this outline comes from the modern layer, which includes every component's contours, so the old note ("whose outlines
+    # are not read by this tool") was wrong here; it was never shown only because the count read 0 (componentsCount, RM 1241-1246).
+    comp = data.get("component_count")
+    if isinstance(comp, int) and not isinstance(comp, bool) and comp > 0:
+        notes.append(f"{comp} of the glyph's elements are components; their outlines are included in this reply (where 'elements' is "
+                     "present, it names each component's source).")
+    elif isinstance(comp, str) and comp.strip():
+        notes.append("Whether the glyph holds components could not be read: " + _clean_font_text(comp) + ".")
     margins = mo.get("margins") if isinstance(mo.get("margins"), dict) else None
     box = None
     curves_exact = has_curves and exact_ok and bool(curve_boxes)
@@ -4042,13 +4163,14 @@ def add_component(name: str, component: str | None = None, x: int = 0, y: int = 
     components are left; repair or repeat only with their agreement.
 
     Limits seen in testing: FontLab's Edit > Undo offers nothing to take the component back (seen live once: Undo was greyed out).
-    No Glyphbridge tool removes a component yet. In one unexplained run, two components
+    remove_component removes a component again (listener 0.179). In one unexplained run, two components
     placed by FontLab's recipe build later became plain contours with no request to change them; the reply can only confirm the moment of
     its own call. If it matters, read the glyph again later with get_glyph_outline.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
-    Needs listener 0.169 (one component) or 0.174 (components; components_after since 0.175).
+    Needs listener 0.169 (one component) or 0.174 (components; components_after since 0.175; the single form writes the width back
+    since 0.178, and both forms report width_set_by_build, the width FontLab's build had set, when it differed).
     """
     _note_client(ctx)
     if components is not None:
@@ -4060,6 +4182,54 @@ def add_component(name: str, component: str | None = None, x: int = 0, y: int = 
     if confirmed_untested_size is not False:
         raise ToolError("confirmed_untested_size belongs to the components list, not to a single component.")
     return _with_font(write_glyph_component, name, component, x, y)
+
+
+@_tool()
+def remove_component(name: str, index: int | None = None, component: str | None = None, x: float = 0, y: float = 0,
+                     components: list | None = None, ctx: Context | None = None) -> dict[str, Any]:
+    """Remove components from the glyph `name` of the font currently open in FontLab 8: ONE component with index, component, x and y,
+    or SEVERAL at once with `components`, a list of {"index", "component", "x", "y"}. Give one form or the other, never both.
+
+    First read the glyph with get_glyph_outline. Its element list numbers the glyph's elements from 0; a component element names its
+    source (component_glyph) and its matrix gives its offset (dx, dy). For each component to remove, give that index and, as a check,
+    the source and offset you read there. If the glyph does not hold exactly that at that index (it changed since you read it), the
+    WHOLE call is refused and NOTHING changes: read the glyph again. In the list every index refers to the glyph as you read it before
+    the call (the tool removes from the highest index down, so the others do not shift); give each index once. There is no size limit.
+
+    For now, only this is supported (anything else is refused and NOTHING changes):
+      - the font must have exactly ONE master, and the glyph its layer;
+      - the glyph's automatic layer must be off (an automatic glyph is FontLab's to rebuild);
+      - the other elements may be contours or components; a glyph holding a Power Brush or other composite shape is refused.
+    A recipe FontLab keeps on the glyph's layer is left as it is and reported (recipe_kept).
+
+    Afterwards the glyph is read back: success (removed: true, verified: true) means the named components are gone and every other
+    element is exactly where and what it was (its source or contours, matrix and drawn box), and the component glyphs, the advance width
+    and the glyph count are unchanged. Removing the last component leaves an empty glyph that keeps its layer (empty_after). If FontLab
+    changed the advance width, it is written back and reported (width_changed_by_removal). The reply gives timing in seconds.
+
+    If the re-read does NOT confirm it (removed: false), the glyph may have changed partly: removal stops at the first failure;
+    entry_states says for each entry: removed, called, not confirmed, call failed or not reached, and components_after lists what the
+    glyph holds. Nothing is restored automatically. Tell the person; repair or repeat only with their agreement.
+
+    Limits seen in testing: FontLab's Edit > Undo offers nothing to take a removal back (seen live once: Undo was greyed out). To put
+    a component back, add_component places components only into an EMPTY glyph for now.
+
+    Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
+    (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
+    Needs listener 0.179.
+    """
+    _note_client(ctx)
+    if components is not None:
+        if index is not None or component is not None or x != 0 or y != 0:
+            raise ToolError("Give either index, component, x and y (one component) or components (a list), not both.")
+        if not isinstance(components, list) or not components:
+            raise ToolError("components must be a non-empty list of {\"index\", \"component\", \"x\", \"y\"}.")
+        entries = [_check_remove_entry(c, f"components[{i}]") for i, c in enumerate(components)]
+        return _with_font(write_glyph_remove_components, name, entries, "list")
+    if index is None or component is None:
+        raise ToolError("Give index and component (with x and y, as get_glyph_outline shows them), or components (a list).")
+    entry = _check_remove_entry({"index": index, "component": component, "x": x, "y": y}, "the request")
+    return _with_font(write_glyph_remove_components, name, [entry], "single")
 
 
 @_tool()

@@ -4,6 +4,8 @@ Goal: an agent reads *any* glyph accurately and writes only what it can verify. 
 
 This list holds the **open** scenarios only. Row numbers are those of the v11 matrix: the full matrix, including every DONE row and its evidence, is [archive/scenarios-checklist-v11.md](archive/scenarios-checklist-v11.md). When a row is proven, record the evidence in the topic file, delete the row here, and log the date in [archive/CHECKLIST-closed-rows.md](archive/CHECKLIST-closed-rows.md).
 
+Status words: TODO, not started; PARTLY, some cases proven live and the rest named; stub-only, tested without FontLab only; optional and POSTPONED, by the user's decision. New rows since v11 are numbered from 81.
+
 ## How to test a scenario
 
 1. Build a small reference glyph in a disposable font (Font > New Glyph… > Create Blank).
@@ -25,9 +27,9 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 |---|---|---|
 | 53 | Auto sync not yet proven for: multi-layer (11), quadratic (43), big glyphs (42) | PARTLY |
 | 57 | No font open: every route answers `open: false` (`CountFonts()`, listener 0.105) | PARTLY: every read route proven, after closing the only font (227) and in a freshly started FontLab (244); writes with no font open: one create refused (227), the rest stub-only (T12) |
-| 63 | Several fonts open: which one the tools address | PARTLY: with two fonts every tool of 2026-11-03 follows the font in front and every reply names it (262–316), and later `set_kerning` (747), `create_font` (916, 917) and `add_component` (1091–1095); `move_nodes` not run; a new font's first glyph gets its layer beside another font since 0.150 (933–935). Open: two unsaved fonts with the same name (a Font Info rename does not produce it, 322–324; new fonts get a numbered family, through the GUI and `flPackage()` alike, 832–835); with three fonts, `draw_path`, the later tools but `create_font`, `get_kerning` (only its refusal, 268) and the reads other than `list_glyphs` and `get_glyph_width` are untested (317–331); a switch during one call ([topics/fonts-and-sync.md](topics/fonts-and-sync.md)); `construct_named&mark=yes` beside two fonts marked only the new font (914) |
+| 63 | Several fonts open: which one the tools address | PARTLY: with two fonts every tool but `move_nodes` follows the font in front, and every reply names it (262–316, 747, 916, 917, 1091–1095; the list: [PROJECT.md](PROJECT.md) Scope); a new font's first glyph gets its layer beside another font since 0.150 (933–935). Open: two unsaved fonts with the same name (a Font Info rename does not produce it, 322–324; new fonts get a numbered family, through the GUI and `flPackage()` alike, 832–835); with three fonts, `draw_path`, the later tools but `create_font`, `get_kerning` (only its refusal, 268) and the reads other than `list_glyphs` and `get_glyph_width` are untested (317–331); a switch during one call ([topics/fonts-and-sync.md](topics/fonts-and-sync.md)); `construct_named&mark=yes` beside two fonts marked only the new font (914) |
 | 62 | Modern glyph creation without `font.update()` | TODO, low priority (T6) |
-| 22 | Layer-name derivation when glyphs disagree, or when none has a layer | stub-tested only |
+| 22 | Layer-name derivation when glyphs disagree, or when none has a layer | stub-only |
 
 ## Reading gaps
 
@@ -44,8 +46,8 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 15, 40, 51 | A real designed letter (Arial `O`, `S`, `g`, `eacute`), read-only | TODO (P1.5), under about 150 nodes each |
 | 4 | Back To PS Curves round trip | TODO |
 | 5 | The "To Line" route itself (straight polygons already read back) | PARTLY |
-| 16 | Other empty glyphs (e.g. `space`): zero layers like `.notdef`? | OPEN |
-| 18 | `.notdef` remainders: explicit `check_notdef` through Claude, a drawn `.notdef`, the `missing` dialog, waits of 90–120 s and over 120 s | PARTLY; a drawn `.notdef`: `draw_path`, 3 contours, layer created, verified (926, one run) |
+| 16 | Other empty glyphs (e.g. `space`): zero layers like `.notdef`? | TODO |
+| 18 | `.notdef` remainders: explicit `check_notdef` through Claude, a drawn `.notdef`, the `missing` dialog, waits of 90–120 s and over 120 s | PARTLY: a drawn `.notdef`: `draw_path`, 3 contours, layer created, verified (926, one run) |
 | 20 | `create_glyph('uni00e8')` shows the lowercase-hex warning in its v0.17 wording | TODO (T10) |
 
 ## Writing gaps
@@ -54,7 +56,8 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 |---|---|---|
 | 28 | Draw an open contour | PARTLY: `draw_path` with `"closed": false` (listener 0.126 / server 0.47) draws open straight and cubic contours, alone or with closed ones, `verified` (586–603); unchanged after a save and reopen (755–764); FontLab's export drops them silently (779–791). Open: quadratic, other export settings ([topics/geometry.md](topics/geometry.md) §8g) |
 | 82 | `create_glyph` in a font with components, then Add Component on the new glyph | PARTLY: FontLab crashes on a glyph with no layer (612–618); fixed for one master in 0.127 / 0.48 (620, 767: two runs); `layer_note` seen live (691a); open: multi-master ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §9) |
-| 83 | Edit a component's source: do the glyphs using it follow? | PARTLY: GUI edits yes (639, 643, 652, 655); `set_glyph_sidebearings` one of five (638, 638b, 640, 648, 653); a missed glyph reads `unverified` since 0.130 / 0.50 (651, 653; [topics/reading.md](topics/reading.md)); placing a component by tool: `add_component` (0.169 / 0.66) live-proven, AC 1079–1101 ([WHAT-WORKS.md](WHAT-WORKS.md)); two to five, 15 and 30 components and a repeated source by the probe of 0.171–0.173, each offset set alone (1112–1177); `add_component`'s `components` list (0.174 / 0.68) live-proven (AC2 1178–1215; 1180–1213); whether a tool edit of the source reaches it: open; two recipe-built components became contours unexplained (1059) |
+| 83 | Edit a component's source: do the glyphs using it follow? | PARTLY: GUI edits yes (639, 643, 652, 655); `set_glyph_sidebearings` one of five (638, 638b, 640, 648, 653); a missed glyph reads `unverified` since 0.130 / 0.50 (651, 653; [topics/reading.md](topics/reading.md)). Open: whether the other tool edits of the source reach it (`move_nodes`, drawing) |
+| 85 | Place and remove components by tool (P2.7) | PARTLY, one master, an empty target: `add_component` (0.169 / 0.66) places one component, AC 1079–1101 ([WHAT-WORKS.md](WHAT-WORKS.md)); two to five, 15 and 30 components and a repeated source by the probe of 0.171–0.173, each offset set alone (1112–1177); its `components` list (0.174 / 0.68), AC2 1178–1215 (1180–1213); its underscore refusal (0.69) live (1237); its single form's width write-back (0.178 / 0.71) live (1254, 1255). Removing one: the probe of 0.176, `layer.removeShape`, exact (1241–1245); the tool `remove_component` (0.179 / 0.72), live RC 1258–1264b (one, a list, all, 30, beside a contour, two fonts; stale requests refused). Open: its auto-layer refusal live, a non-empty target, other transforms, other masters; two recipe-built components became contours unexplained (1059) ([topics/reading.md](topics/reading.md)) |
 | 30 | Several separate shapes in one glyph | TODO (P2.2); `move_nodes` refuses them (stub only); FontLab's Rectangle tool made a second contour, not a shape (1022a) |
 | 31 | Draw into, or edit, an existing outline | PARTLY: `move_nodes` (0.154 / 0.64) moves nodes and control points `verified`, refuses a lone smooth node and a component (1016–1022); Edit > Undo does not revert it (1023). Open: adding, removing and redrawing contours, Power Brush glyphs, several shapes ([topics/geometry.md](topics/geometry.md)) |
 | 43 | `draw_path` in a quadratic font | TODO, low (T8) |

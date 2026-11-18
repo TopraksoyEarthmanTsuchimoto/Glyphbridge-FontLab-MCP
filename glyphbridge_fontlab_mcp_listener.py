@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.175)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.179)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -103,6 +103,10 @@ Routes (GET unless marked POST):
                                 {"name", "components": [{"component", "x", "y"}, ...], "confirmed_untested_size"} (v0.174): several,
                                 in order, repeats allowed; more than 30 need confirmed_untested_size; the width is written back;
                                 a name with "_" is refused (v0.175); a failure reply gives components_after
+    POST /glyph/component/remove {"name", "index", "component", "x", "y"} or {"name", "components": [{"index", "component", "x",
+                                "y"}, ...]} (v0.179): removes the components at those indices of layer.shapes, each checked first
+                                against its expected source and offset; highest index first, layer.removeShape(shape, False);
+                                verified by re-reading; autoLayer on and Power Brush shapes refused
 
   Kerning (never the whole table)
     POST /kerning/set           {"pairs": [[left, right, value], ...]} (v0.124): glyph : glyph pairs into the current
@@ -186,6 +190,9 @@ Routes (GET unless marked POST):
                           stage=auto recipes of up to 30 glyphs (v0.173; five in v0.172, three in v0.171); stage=offset&how=assign&element=I&dx=DX&dy=DY: ONE
                           shape.transform = QTransform offset (absolute) on component I of a layer of 2 to 30 components, each at a
                           plain offset, autoLayer off; the others must stay as they are (v0.171)
+                          stage=removeshape&target=cpp...&element=I&recursive=0|1: ONE layer.removeShape(<component I>, recursive);
+                          stage=clearcomponents&target=cpp...: ONE layer.clearComponents(); on a layer of 1 to 30 components of cpp
+                          glyphs, autoLayer off; elements, boxes, outline, width and sources before and after (v0.176)
     /debug/markswitch     [on=0|1&go=yes]: S1 research (v0.170): without on, reads whether the changed mark (_MARK_CHANGED) is on; with
                           on=0 / on=1 and go=yes, switches it off / on for THIS listener run (a restart switches it on again); no
                           FontLab call is made
@@ -236,7 +243,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.175"
+VERSION = "0.179"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -535,7 +542,8 @@ _REFRESH_KERNING_PANEL = True    # v0.136: ask FontLab to refresh its KERNING pa
 _MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge width", "sidebearings": "Glyphbridge sidebearings",
                 "draw_polygon": "Glyphbridge polygon", "draw_path": "Glyphbridge path", "unicode": "Glyphbridge Unicode", "delete": "Glyphbridge delete",
                 "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit", "move_nodes": "Glyphbridge move nodes",
-                "trycomponent": "Glyphbridge component", "add_component": "Glyphbridge add component"}
+                "trycomponent": "Glyphbridge component", "add_component": "Glyphbridge add component",
+                "remove_component": "Glyphbridge remove component"}
 _MARK_DELETE_MAX_TRIES = 20    # v0.133: how many surviving glyphs a delete's mark may try before it says none could be notified; v0.134: also a kerning write's mark
 _SYNCED_NOTE = ("Glyphbridge asked FontLab to sync this glyph right after the change and FontLab's legacy view now matches the modern layer, so the "
                 "change is durable against the display refresh of create_glyph, delete_glyph, set_glyph_unicode and the legacy width route. "
@@ -758,7 +766,7 @@ def _guard_mark(font, name, how, result, no_mark=None):
     _record_changed_mark(font, name, how, result, no_mark)
 
 
-_GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created", "move_nodes", "add_component")   # v0.153: move_nodes keeps the node count, so the full check cannot see a lost move
+_GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created", "move_nodes", "add_component", "remove_component")   # v0.153: move_nodes keeps the node count, so the full check cannot see a lost move
 _GUARD_LIGHT_KINDS = ("width", "sidebearings")
 
 
@@ -1946,6 +1954,216 @@ def draw_path(name, contours, rounded=None, closed_flags=None):
 
 
 # --------------------------------------------------------------------------
+# POST /glyph/component/remove (v0.179) - remove_component: remove components from a glyph (P2.7; the user's design of 2026-11-18,
+# DECISIONS.md "removing components"). The call is the one proven with /debug/trycomponent stage=removeshape (RM 1241-1245, one
+# run each): layer.removeShape(<the component from layer.shapes>, False); recursive 0 and 1 gave the same result, so False is
+# always passed explicitly. layer.clearComponents() changed nothing (1246) and is never called.
+# Each entry names the element by its index in layer.shapes (the numbering of get_glyph_outline's element list) and the source
+# and offset expected there (dx, dy of its matrix, within 0.001; any other part of the matrix is accepted and not compared). In a
+# list every index refers to the glyph as read before the call, and an index may appear once. One master only; the glyph needs a
+# modern layer; autoLayer must read False (an auto layer is FontLab's to rebuild) and the recipe must be readable; a leftover
+# recipe is kept and reported (recipe_kept). The other elements may be contours or components; a Power Brush or other composite
+# shape that is not a component is refused (F1: the guard's full check after the write reads the legacy layer). EVERY check runs
+# before the first removal, including each shape's source read again from the shape object itself.
+# Removal runs from the highest index down (the lower indices do not shift), ONE removeShape per entry, and stops at the first
+# exception. If FontLab changed the advance width, it is written back ONCE (width_changed_by_removal, cleanup.width_restored).
+# Verified (removed) only when the re-read shows: the layer kept; exactly the elements read before minus the removed ones, in order,
+# each with its kind, source, source layer and matrix; their ink boxes unchanged; the outline equal to the contours of the kept
+# elements (layer.getContours() grouped by each shape's contoursCount, which must add up before the call); autoLayer and recipe
+# unchanged; every component's source outline, the advance width and the glyph count unchanged. Whenever the glyph changed (also
+# unconfirmed or "unknown") _guard_mark syncs and marks it, so FontLab asks to save (the user's design: as move_nodes).
+# Nothing else is restored. Never called: clearComponents, removeAllShapes, decomposite, replaceShape, addShape, font.update(), save.
+# --------------------------------------------------------------------------
+
+_REMOVE_OFFSET_TOLERANCE = 0.001
+
+
+def _remove_key(e):
+    """What must stay the same for a kept element: kind, source, source layer and matrix."""
+    return (e.get("is_component"), e.get("is_composite"), e.get("component_glyph"), e.get("component_layer"), e.get("matrix"))
+
+
+def _remove_contour_counts(shapes):
+    """[contoursCount of each shape] (whole numbers), or (None, sentence). Read only. Never raises."""
+    counts = []
+    for i, sh in enumerate(shapes):
+        v, err = _tl_call(lambda s=sh: _call0(s, "contoursCount"))
+        if err is not None or isinstance(v, bool) or not isinstance(v, int) or v < 0:
+            return None, f"contoursCount of element {i} could not be read ({err or type(v).__name__})"
+        counts.append(v)
+    return counts, None
+
+
+def remove_components(name, entries, form):
+    """Remove the components named by `entries` ([{"index", "component", "x", "y"}]) from the glyph `name`. See the section comment.
+    Never saves. Never raises out of the route's try."""
+    t0 = time.perf_counter()
+    base = {"open": True, "name": name, "form": form, "removed": False, "route": "modern",
+            "entries": [{"index": e["index"], "component": e["component"], "x": e["x"], "y": e["y"]} for e in entries]}
+
+    def _done(out):
+        out["elapsed_seconds"] = round(time.perf_counter() - t0, 3)
+        return out
+
+    ctx, refusal = _modern_edit_target(name)
+    if ctx is None:
+        out = _public_refusal(refusal)
+        out.pop("set", None)
+        out["removed"] = False
+        return _done(out)
+    w, font = ctx["w"], ctx["font"]
+    problem = _one_master_problem()
+    if problem is not None:
+        return _done(dict(base, reason=f"remove_component is proven only on a font with one master ({problem.split(', and a layer')[0]}): nothing was changed"))
+    state, layer = _tryshape_modern_state(w)
+    base["state_before"] = state
+    if layer is None:
+        return _done(dict(base, reason="the glyph has no modern active layer: nothing was changed"))
+    tel = _trycomp_elements(layer)
+    if isinstance(tel, dict):
+        return _done(dict(base, reason=f"the glyph's elements could not be read ({tel['error']}): nothing was changed"))
+    base["elements_before"] = _comp_after(tel)
+    auto_before = _trycomp_auto_state(layer)
+    base["auto_before"] = auto_before
+    if auto_before.get("auto_layer") is not False or not isinstance(auto_before.get("recipe"), str) or auto_before["recipe"].startswith("<error"):
+        return _done(dict(base, reason=(f"the glyph's layer reads autoLayer {auto_before.get('auto_layer')!r} and recipe {auto_before.get('recipe')!r}; "
+                                        "remove_component needs autoLayer off and a readable recipe (an automatic layer is FontLab's to "
+                                        "rebuild): nothing was changed")))
+    for i, e in enumerate(tel):
+        if e.get("is_component") is not True and e.get("is_composite") is not False:
+            return _done(dict(base, reason=(f"element {i} is a Power Brush or other composite shape (or its kind cannot be read); "
+                                            "remove_component does not change such a glyph, because the check after the write would "
+                                            "read its legacy layer, which can flatten a Power Brush shape: nothing was changed")))
+    for k, e in enumerate(entries):
+        i = e["index"]
+        label = f"entry {k} (index {i})"
+        if i >= len(tel):
+            return _done(dict(base, reason=f"{label}: the glyph has {len(tel)} element(s), numbered from 0: nothing was changed"))
+        el = tel[i]
+        if el.get("is_component") is not True:
+            return _done(dict(base, reason=f"{label}: element {i} is not a component: nothing was changed"))
+        if el.get("component_glyph") != e["component"]:
+            return _done(dict(base, reason=(f"{label}: element {i} is a component of {el.get('component_glyph')!r}, not {e['component']!r} "
+                                            "(read the glyph again with get_glyph_outline): nothing was changed")))
+        m = el.get("matrix")
+        if (not isinstance(m, dict) or not all(isinstance(m.get(a), float) for a in ("dx", "dy"))
+                or abs(m["dx"] - float(e["x"])) > _REMOVE_OFFSET_TOLERANCE or abs(m["dy"] - float(e["y"])) > _REMOVE_OFFSET_TOLERANCE):
+            found = f"({m['dx']}, {m['dy']})" if isinstance(m, dict) and all(isinstance(m.get(a), float) for a in ("dx", "dy")) else "unreadable"
+            return _done(dict(base, reason=(f"{label}: the component of {e['component']!r} is at offset {found}, not ({e['x']}, {e['y']}) "
+                                            "(read the glyph again with get_glyph_outline): nothing was changed")))
+    boxes_before = _trycomp_all_boxes(layer)
+    if isinstance(boxes_before, dict):
+        return _done(dict(base, reason=f"the ink boxes of the glyph's elements could not be read ({boxes_before['error']}): nothing was changed"))
+    bad_box = next((i for i, b in enumerate(boxes_before) if not isinstance(b, dict) or "error" in b), None)
+    if bad_box is not None:
+        why_box = boxes_before[bad_box].get("error") if isinstance(boxes_before[bad_box], dict) else type(boxes_before[bad_box]).__name__
+        return _done(dict(base, reason=f"the ink box of element {bad_box} could not be read ({why_box}): nothing was changed"))
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list or len(shapes) != len(tel):
+        return _done(dict(base, reason="layer.shapes is not a plain list matching the elements read: nothing was changed"))
+    counts, why = _remove_contour_counts(shapes)
+    if counts is None:
+        return _done(dict(base, reason=f"{why}: nothing was changed"))
+    snap_before = _tryedit_snapshot(name)
+    if "error" in snap_before:
+        return _done(dict(base, reason=f"the glyph's outline could not be read ({snap_before['error']}): nothing was changed"))
+    if sum(counts) != len(snap_before["contours"]):
+        return _done(dict(base, reason=(f"the elements' contour counts add up to {sum(counts)}, but the outline has "
+                                        f"{len(snap_before['contours'])} contour(s), so the kept contours could not be checked: nothing was changed")))
+    sources = {}
+    for e in tel:
+        src = e.get("component_glyph")
+        if e.get("is_component") is True and src not in sources:
+            snap = _tryedit_snapshot(src) if isinstance(src, str) and not src.startswith("<error") else {"error": "the source name is unreadable"}
+            if "error" in snap:
+                return _done(dict(base, reason=f"the outline of the component glyph {src!r} could not be read ({snap['error']}): nothing was changed"))
+            sources[src] = snap
+    width_before = _trycomp_width(w)
+    count_before = _tryedit_glyph_count(font)
+    base["advance_width_before"], base["glyph_count_before"] = width_before, count_before
+    if not isinstance(width_before, float) or isinstance(count_before, str):
+        return _done(dict(base, reason="the glyph's advance width or the font's glyph count could not be read: nothing was changed"))
+    order = sorted((e["index"] for e in entries), reverse=True)
+    for i in order:           # each shape object asked again, right before any removal
+        sd, err = _tl_call(lambda s=shapes[i]: s.shapeData)
+        named, err2 = (None, err or "shapeData is None") if (err is not None or sd is None) else _tl_call(lambda: _call0(sd, "componentGlyph"))
+        if err2 is not None or named != tel[i].get("component_glyph"):
+            return _done(dict(base, reason=(f"the shape at index {i} names {named!r}, not {tel[i].get('component_glyph')!r} as read before"
+                                            if err2 is None else f"the shape at index {i} could not be checked ({err2})") + ": nothing was changed"))
+    base["removal_order"] = order
+    called, returned = [], []
+    for i in order:
+        try:
+            ret = layer.removeShape(shapes[i], False)
+            called.append(i)
+            returned.append(ret if (ret is None or isinstance(ret, (bool, int, float, str))) else f"<{type(ret).__name__}>")
+        except Exception as exc:
+            base["error"] = f"layer.removeShape(element {i}, False) failed: {type(exc).__name__}: {exc}"
+            base["failed_index"] = i
+            break
+    result = dict(base, removed_calls=list(called), calls_returned=returned)
+    cleanup = {}
+    width_now = _trycomp_width(w)
+    if called and width_now != width_before:
+        result["width_changed_by_removal"] = width_now
+        try:
+            w.advanceWidth = width_before
+            cleanup["width_restored"] = True
+        except Exception as exc:
+            cleanup["width_restored"] = f"failed: {type(exc).__name__}: {exc}"
+    result["cleanup"] = cleanup
+    if called:
+        result["display_refreshed"] = _repaint_viewport()
+    after_state, layer2 = _tryshape_modern_state(w)
+    result["state_after"] = after_state
+    tel2 = _trycomp_elements(layer2) if layer2 is not None else {"error": "the glyph has no modern active layer after the call"}
+    auto_after = _trycomp_auto_state(layer2) if layer2 is not None else {"error": "no layer"}
+    result["auto_after"] = auto_after
+    boxes2 = _trycomp_all_boxes(layer2)
+    snap_after = _tryedit_snapshot(name)
+    width_after = _trycomp_width(w)
+    result["advance_width_after"] = width_after
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    removed_set = set(called)
+    keep = [i for i in range(len(tel)) if i not in removed_set]
+    starts = [sum(counts[:i]) for i in range(len(counts))]
+    want_contours = [c for i in keep for c in snap_before["contours"][starts[i]:starts[i] + counts[i]]]
+    checks = {
+        "layer_kept": layer2 is not None,
+        "elements": not isinstance(tel2, dict) and [_remove_key(e) for e in tel2] == [_remove_key(tel[i]) for i in keep],
+        "ink_boxes": isinstance(boxes2, list) and boxes2 == [boxes_before[i] for i in keep],
+        "outline_kept": "error" not in snap_after and snap_after["contours"] == want_contours,
+        "auto_layer_and_recipe_unchanged": auto_after == auto_before,
+        "sources_unchanged": all("error" not in (s2 := _tryedit_snapshot(src)) and s2["contours"] == sources[src]["contours"] for src in sources),
+        "width_unchanged": width_after == width_before,
+        "glyph_count_unchanged": result["glyph_count_after"] == count_before,
+    }
+    result["checks"] = checks
+    ok = bool("error" not in result and len(called) == len(entries) and all(v is True for v in checks.values()))
+    result["removed"] = ok
+    result["verified"] = ok
+    by_index = {}
+    for i in order:
+        by_index[i] = ("removed" if ok else "called, not confirmed" if i in removed_set else
+                       "call failed" if i == result.get("failed_index") else "not reached")
+    result["entry_states"] = [{"index": e["index"], "component": e["component"], "state": by_index[e["index"]]} for e in entries]
+    result["components_after"] = _comp_after(tel2)
+    result["empty_after"] = "unknown" if isinstance(tel2, dict) else len(tel2) == 0
+    if auto_before.get("recipe"):
+        result["recipe_kept"] = auto_after.get("recipe") if isinstance(auto_after.get("recipe"), str) else "unknown"
+    result["changed"] = ("unknown" if (isinstance(tel2, dict) or "error" in snap_after) else
+                         bool([_remove_key(e) for e in tel2] != [_remove_key(e) for e in tel] or snap_after["contours"] != snap_before["contours"]
+                              or after_state != state or width_after != width_before or "width_changed_by_removal" in result))
+    if not ok:
+        failed = [k for k, v in checks.items() if v is not True]
+        result["reason"] = (result.get("error") or "the re-read does not confirm the removal") + (
+            ": failed checks: " + ", ".join(failed) if failed else "")
+    if result["changed"] is not False:
+        _guard_mark(font, name, "remove_component", result)
+    return _done(result)
+
+
+# --------------------------------------------------------------------------
 # POST /glyph/move (v0.153) - move_nodes, the first edit of an EXISTING outline (P2.2, required by the user on 2026-11-14; research
 # ED2 964-983 and B2 989-1000 with /debug/tryedit; design approved by the user on 2026-11-15). Each move names contour C and node N
 # in the numbering of get_glyph_outline's modern-layer reply (layer.getContours(), getNodeAt; control points are nodes too), the
@@ -2080,8 +2298,8 @@ def move_nodes(name, moves, rounded=None):
         if err is not None or v is not False:
             return dict(base, reason=(f"the shape's {attr} reads {v!r}{' (' + err + ')' if err else ''}: only a plain shape is edited, never a "
                                       "component or a Power Brush or other composite shape: nothing was moved"))
-    if state.get("components") != 0:
-        return dict(base, reason=f"the layer reads {state.get('components')!r} components: nothing was moved")
+    if _state_has_components(state):
+        return dict(base, reason=f"the layer reads {_state_components_text(state)}: nothing was moved")
     why = _move_shape_identity(shape)
     if why is not None:
         return dict(base, reason=why)
@@ -2190,7 +2408,8 @@ def move_nodes(name, moves, rounded=None):
 # (1, 0, 0, 1, x, y), its inkBox() equal to the source's ink box moved by (x, y), recipe "" and autoLayer False, and the source's
 # outline, the target's advance width and the glyph count unchanged. Then _guard_mark (Update, sync check, the changed mark).
 # After a failure once autoLayer was set True, ONE autoLayer = False (the user's choice), read back; nothing else is restored, and
-# nothing is marked. Never called: setGlyphComponents, addComponent, killAuto, decomposite, font.update(), save; no subscript or
+# nothing is marked. v0.178: as in the list form, a leftover recipe is also cleared, and whenever the recipe was set the width is
+# read and, if FontLab's build changed it, written back (width_set_by_build, cleanup); "width unchanged" is checked after that. Never called: setGlyphComponents, addComponent, killAuto, decomposite, font.update(), save; no subscript or
 # iteration of a native object (layer.shapes and the box rows are real lists).
 # --------------------------------------------------------------------------
 
@@ -2238,7 +2457,7 @@ def add_component(name, component, x, y):
     tel = _trycomp_elements(layer)
     if isinstance(tel, dict):
         return dict(base, reason=f"the glyph's elements could not be read ({tel['error']}): nothing was changed")
-    if tel or state.get("shapes") != 0 or state.get("components") != 0:
+    if tel or state.get("shapes") != 0 or _state_has_components(state):
         return dict(base, reason=("the glyph is not empty (it reads " + f"{len(tel)} element(s)" + "); add_component places a component only into "
                                   "an empty glyph for now: nothing was changed"))
     auto_before = _trycomp_auto_state(layer)
@@ -2260,7 +2479,7 @@ def add_component(name, component, x, y):
         return dict(base, reason=f"the elements of {component!r} could not be read ({sel['error']}): nothing was changed")
     snodes = sstate.get("nodes")
     if (not sel or any(e.get("is_component") is not False or e.get("is_composite") is not False for e in sel)
-            or sstate.get("components") != 0 or not isinstance(snodes, int) or isinstance(snodes, bool) or snodes < 1):
+            or _state_has_components(sstate) or not isinstance(snodes, int) or isinstance(snodes, bool) or snodes < 1):
         return dict(base, reason=(f"the component glyph {component!r} must hold only plain contours (no component, no Power Brush or other "
                                   "composite shape) and at least one node: nothing was changed"))
     source_layer = sstate.get("layer_name")
@@ -2313,12 +2532,30 @@ def add_component(name, component, x, y):
     except Exception as exc:
         base["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
     result = dict(base, steps_done=list(done))
+    # v0.178: the list form's clean-up (the tool's description promised the width written back for both forms): autoLayer off if still
+    # on, a leftover recipe cleared, and the width written back when FontLab's build changed it (live 1250: 500 -> 0, one run)
+    cleanup = {}
     if "auto_on" in done and "auto_off" not in done:        # the user's choice: never leave a locked auto layer behind
         try:
             layer.autoLayer = False
-            result["auto_layer_set_back"] = True
+            cleanup["auto_layer_set_back"] = True
         except Exception as exc:
-            result["auto_layer_set_back"] = f"failed: {type(exc).__name__}: {exc}"
+            cleanup["auto_layer_set_back"] = f"failed: {type(exc).__name__}: {exc}"
+    if "recipe" in done and "recipe_cleared" not in done:
+        try:
+            layer.recipe = ""
+            cleanup["recipe_cleared"] = True
+        except Exception as exc:
+            cleanup["recipe_cleared"] = f"failed: {type(exc).__name__}: {exc}"
+    width_now = _trycomp_width(w)
+    if "recipe" in done and width_now != width_before:
+        result["width_set_by_build"] = width_now
+        try:
+            w.advanceWidth = width_before
+            cleanup["width_restored"] = True
+        except Exception as exc:
+            cleanup["width_restored"] = f"failed: {type(exc).__name__}: {exc}"
+    result["cleanup"] = cleanup
     if done:
         result["display_refreshed"] = _repaint_viewport()
     after_state, layer2 = _tryshape_modern_state(w)
@@ -2425,7 +2662,7 @@ def add_components(name, entries, confirmed):
     tel = _trycomp_elements(layer)
     if isinstance(tel, dict):
         return _done(dict(base, reason=f"the glyph's elements could not be read ({tel['error']}): nothing was changed"))
-    if tel or state.get("shapes") != 0 or state.get("components") != 0:
+    if tel or state.get("shapes") != 0 or _state_has_components(state):
         return _done(dict(base, reason=("the glyph is not empty (it reads " + f"{len(tel)} element(s)" + "); add_component places components only "
                                          "into an empty glyph for now: nothing was changed")))
     auto_before = _trycomp_auto_state(layer)
@@ -2449,7 +2686,7 @@ def add_components(name, entries, confirmed):
             return _done(dict(base, reason=f"the elements of {src!r} could not be read ({sel['error']}): nothing was changed"))
         snodes = sstate.get("nodes")
         if (not sel or any(e.get("is_component") is not False or e.get("is_composite") is not False for e in sel)
-                or sstate.get("components") != 0 or not isinstance(snodes, int) or isinstance(snodes, bool) or snodes < 1):
+                or _state_has_components(sstate) or not isinstance(snodes, int) or isinstance(snodes, bool) or snodes < 1):
             return _done(dict(base, reason=(f"the component glyph {src!r} must hold only plain contours (no component, no Power Brush or other "
                                             "composite shape) and at least one node: nothing was changed")))
         src_rows, why = _tryshapebox_boxes(slayer)
@@ -2524,6 +2761,7 @@ def add_components(name, entries, confirmed):
             cleanup["recipe_cleared"] = f"failed: {type(exc).__name__}: {exc}"
     width_now = _trycomp_width(w)
     if "recipe" in done and width_now != width_before:
+        result["width_set_by_build"] = width_now      # v0.178: what FontLab's build left, before the write-back
         try:
             w.advanceWidth = width_before
             cleanup["width_restored"] = True
@@ -2869,8 +3107,8 @@ def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, r
         if err is not None or v is not False:
             return dict(base, error=(f"the shape's {attr} reads {v!r}{' (' + err + ')' if err else ''}: only a plain shape is edited, never a "
                                      "component or a Power Brush or other composite shape: nothing was touched"))
-    if state.get("components") != 0:
-        return dict(base, error=f"the layer reads {state.get('components')!r} components: nothing was touched")
+    if _state_has_components(state):
+        return dict(base, error=f"the layer reads {_state_components_text(state)}: nothing was touched")
     before = _tryedit_snapshot(name)
     if "error" in before:
         return dict(base, error=f"the outline could not be read before the edit ({before['error']}): nothing was touched")
@@ -2966,7 +3204,7 @@ def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, r
             result[k] = v
         result["refresh_changed_outline"] = ("unknown" if ("error" in mid or "error" in after) else mid["contours"] != after["contours"])
     result["side_effect_detected"] = bool(result["smooth_changed"] or result["glyph_count_after"] != result["glyph_count_before"]
-                                          or after_state.get("shapes") != 1 or after_state.get("components") != 0
+                                          or after_state.get("shapes") != 1 or _state_has_components(after_state)
                                           or result.get("refresh_changed_outline") is True)
     result["edited"] = bool("error" not in result and not result["mismatches"] and not result["side_effect_detected"])
     if result["changed"] is not False:
@@ -3884,6 +4122,176 @@ def debug_layer_stats(name):
 
 
 # --------------------------------------------------------------------------
+# /debug/trycomponent remove stages (v0.176) - RESEARCH for removing a component (the user's choice of 2026-11-17, after add_component:
+# no tool removes a component, and Edit > Undo offered nothing after it, 1090). Names only (test 1240, /debug/classdir):
+# flLayer.removeShape(flShape[, bool recursive=true]), flLayer.clearComponents(), flLayer.removeAllShapes([ShapeType]) and
+# flShape.remove([flObject]); what "recursive" does is not documented, so it is always passed explicitly (0 or 1) and both are tried.
+#   stage=removeshape&target=cpp...&element=I&recursive=0|1&go=yes  ONE layer.removeShape(<component I>, recursive)
+#   stage=clearcomponents&target=cpp...&go=yes                       ONE layer.clearComponents()
+# The target: a modern active layer of 1 to _TRYCOMP_SEVERAL_MAX elements, each a component of a cpp glyph, autoLayer off. Every
+# check is made before the call; the call is counted in _TRYCOMP (the probe's 6 per listener run) BEFORE the glyph is read.
+# The reply has the target's elements (source, layer, reference_count, matrix), ink boxes, outline, state, autoLayer and recipe,
+# advance width and glyph count before and after, and every source's outline before and after. removed is true only when the
+# elements left are exactly the ones expected, in order, with their matrices and ink boxes unchanged, the layer is still there, and
+# nothing else changed (sources, width, glyph count, autoLayer and recipe). A change goes through _guard_mark (sync, changed mark).
+# Never called here: removeAllShapes, remove, decomposite, replaceShape, font.update(), save; no subscript or iteration of a native
+# object (layer.shapes is a real list).
+# --------------------------------------------------------------------------
+
+_TRYCOMP_REMOVE_STAGES = ("removeshape", "clearcomponents")
+_TRYCOMP_REMOVE_CALLS = {"removeshape": "layer.removeShape(component, recursive)", "clearcomponents": "layer.clearComponents()"}
+
+
+def _trycomp_remove_gate(stage, target, go, element, recursive):
+    """v0.176: the parameters, the go gate, the one-font gate and the call counter of the remove stages; then _trycomp_remove."""
+    import sys as _sys
+    has_elem = element is not None and str(element).strip() != ""
+    has_rec = recursive is not None and str(recursive).strip() != ""
+    elem, rec = None, None
+    if stage == "removeshape":
+        if not has_elem:
+            return {"error": "stage=removeshape needs element=I, the position of the component to remove (0 = the first)"}
+        elem, err = _tryedit_int(element, "element", 0, _TRYCOMP_SEVERAL_MAX - 1)
+        if err is not None:
+            return {"error": err}
+        rec_s = str(recursive or "").strip()
+        if rec_s not in ("0", "1"):
+            return {"error": 'stage=removeshape needs recursive=0 or recursive=1 (passed to removeShape as False / True)'}
+        rec = rec_s == "1"
+    elif has_elem or has_rec:
+        return {"error": "stage=clearcomponents takes no element and no recursive: it removes every component of the target"}
+    if go != "yes":
+        if stage == "removeshape":
+            return {"error": f"stage=removeshape calls {_TRYCOMP_REMOVE_CALLS[stage]} once on component {elem} of the target, recursive "
+                             f"{rec}; the other components must stay as they are. Add &go=yes to run it."}
+        return {"error": f"stage=clearcomponents calls {_TRYCOMP_REMOVE_CALLS[stage]} once on the target. Add &go=yes to run it."}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, _pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"stage": stage, "error": why, "calls_so_far": _TRYCOMP["calls"], "max_calls": _TRYCOMP_MAX}
+    if _TRYCOMP["calls"] >= _TRYCOMP_MAX:
+        return {"stage": stage, "error": f"the probe already ran {_TRYCOMP_MAX} times in this listener run; restart the listener to repeat it",
+                "calls_so_far": _TRYCOMP["calls"], "max_calls": _TRYCOMP_MAX}
+    _TRYCOMP["calls"] += 1     # counted BEFORE the glyph is read
+    base = {"stage": stage, "target": target, "call": _TRYCOMP_REMOVE_CALLS[stage], "calls_so_far": _TRYCOMP["calls"],
+            "max_calls": _TRYCOMP_MAX, "note": _TRYCOMP_NOTE}
+    if stage == "removeshape":
+        base["element"], base["recursive"] = elem, rec
+    return _trycomp_remove(target, stage, elem, rec, base)
+
+
+def _trycomp_remove(*args, **kwargs):
+    """v0.176: _trycomp_remove_run, timed."""
+    return _trycomp_timed(_trycomp_remove_run, *args, **kwargs)
+
+
+def _trycomp_remove_run(target, stage, element, recursive, base):
+    """v0.176: ONE layer.removeShape(<component `element`>, recursive) or ONE layer.clearComponents() on a layer of components. Read
+    back. Never raises."""
+    ctx, refusal = _modern_edit_target(target)
+    if ctx is None:
+        return dict(base, error="the target cannot be used: " + str(refusal.get("reason") or refusal), refusal=_public_refusal(refusal))
+    w, font = ctx["w"], ctx["font"]
+    state, layer = _tryshape_modern_state(w)
+    base["target_state_before"] = state
+    if layer is None:
+        return dict(base, error="the target has no modern active layer: nothing was touched")
+    tel = _trycomp_elements(layer)
+    if isinstance(tel, dict):
+        return dict(base, error=f"the target's elements could not be read ({tel['error']}): nothing was touched")
+    base["target_elements_before"] = tel
+    auto_before = _trycomp_auto_state(layer)
+    base["auto_before"] = auto_before
+    if auto_before.get("auto_layer") is not False:
+        return dict(base, error=f"the layer's autoLayer reads {auto_before.get('auto_layer')!r}, not False: nothing was touched")
+    if not 1 <= len(tel) <= _TRYCOMP_SEVERAL_MAX or any(e.get("is_component") is not True or not _trycomp_name_ok(e.get("component_glyph"))
+                                                        for e in tel):
+        return dict(base, error=(f"the layer must hold 1 to {_TRYCOMP_SEVERAL_MAX} elements, each a component of a cpp glyph "
+                                 f"(it holds {len(tel)}): nothing was touched"))
+    if element is not None and element >= len(tel):
+        return dict(base, error=f"element {element} does not exist: the layer holds {len(tel)} elements (0 to {len(tel) - 1}): nothing was touched")
+    sources = []
+    for e in tel:
+        if e["component_glyph"] not in sources:
+            sources.append(e["component_glyph"])
+    src_before = {}
+    for s in sources:
+        snap = _tryedit_snapshot(s)
+        if "error" in snap:
+            return dict(base, error=f"the source {s!r} could not be read ({snap['error']}): nothing was touched")
+        src_before[s] = snap
+    base["sources_before"] = src_before
+    before = _tryedit_snapshot(target)
+    if "error" in before:
+        return dict(base, error=f"the target's outline could not be read ({before['error']}): nothing was touched")
+    base["target_before"] = before
+    boxes_before = _trycomp_all_boxes(layer)
+    base["ink_boxes_before"] = boxes_before
+    if isinstance(boxes_before, dict) or len(boxes_before) != len(tel) or any("error" in b for b in boxes_before):
+        return dict(base, error="the components' ink boxes could not all be read: nothing was touched")
+    width_before = _trycomp_width(w)
+    base["advance_width_before"] = width_before
+    base["glyph_count_before"] = _tryedit_glyph_count(font)
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list or len(shapes) != len(tel):
+        return dict(base, error=f"the target's layer.shapes is no longer a plain list of {len(tel)}: nothing was touched")
+    shape = None
+    if stage == "removeshape":
+        shape = shapes[element]
+        expected_name = tel[element]["component_glyph"]
+        sd, err = _tl_call(lambda: shape.shapeData)
+        named, err2 = (None, err or "shapeData is None") if (err is not None or sd is None) else _tl_call(lambda: _call0(sd, "componentGlyph"))
+        if err2 is not None or named != expected_name:
+            return dict(base, error=(f"the shape at position {element} names {named!r}, not {expected_name!r} as read before: nothing was touched"
+                                     if err2 is None else f"the shape at position {element} could not be checked ({err2}): nothing was touched"))
+    try:
+        if stage == "removeshape":
+            ret = layer.removeShape(shape, recursive)
+        else:
+            ret = layer.clearComponents()
+        base["call_returned"] = ret if (ret is None or isinstance(ret, (bool, int, float, str))) else f"<{type(ret).__name__}>"
+    except Exception as exc:
+        base["error"] = f"{_TRYCOMP_REMOVE_CALLS[stage]} failed: {type(exc).__name__}: {exc}"
+    result = dict(base)
+    result["display_refreshed"] = _repaint_viewport()
+    after_state, layer2 = _tryshape_modern_state(w)
+    result["target_state_after"] = after_state
+    result["layer_kept"] = layer2 is not None
+    tel2 = _trycomp_elements(layer2) if layer2 is not None else {"error": "the target has no modern active layer after the call"}
+    result["target_elements_after"] = tel2
+    result["auto_after"] = _trycomp_auto_state(layer2) if layer2 is not None else {"error": "no layer"}
+    boxes_after = _trycomp_all_boxes(layer2)
+    result["ink_boxes_after"] = boxes_after
+    after = _tryedit_snapshot(target)
+    result["target_after"] = after
+    width_after = _trycomp_width(w)
+    result["advance_width_after"] = width_after
+    src_after = {s: _tryedit_snapshot(s) for s in sources}
+    result["sources_after"] = src_after
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    result["source_changed"] = ("unknown" if any("error" in src_after[s] for s in sources) else
+                                any(src_after[s]["contours"] != src_before[s]["contours"] for s in sources))
+    keep = [i for i in range(len(tel)) if stage == "removeshape" and i != element]
+
+    def _key(e):
+        return (e.get("is_component"), e.get("component_glyph"), e.get("component_layer"), e.get("matrix"))
+    list_ok = not isinstance(tel2, dict) and [_key(e) for e in tel2] == [_key(tel[i]) for i in keep]
+    boxes_ok = isinstance(boxes_after, list) and boxes_after == [boxes_before[i] for i in keep]
+    result["elements_as_expected"] = list_ok
+    result["others_kept"] = bool(list_ok and boxes_ok)
+    result["empty_after"] = "unknown" if isinstance(tel2, dict) else len(tel2) == 0
+    result["side_effect_detected"] = bool(result["glyph_count_after"] != result["glyph_count_before"]
+                                          or result["source_changed"] is not False or width_after != width_before
+                                          or result["auto_after"] != auto_before)
+    result["changed"] = ("unknown" if isinstance(tel2, dict) else True if (tel2 != tel or after_state != state) else
+                         "unknown" if "error" in after else after["contours"] != before["contours"])
+    result["removed"] = bool("error" not in result and result["layer_kept"] and list_ok and boxes_ok and not result["side_effect_detected"])
+    if result["changed"] is not False:
+        _guard_mark(font, target, "trycomponent", result, no_mark=None if result["removed"] else "the removal was not confirmed")
+    return result
+
+
+# --------------------------------------------------------------------------
 # /debug/trycomponent (v0.155) - RESEARCH for ROADMAP P2.7 (placing a component; no tool places one yet). Names only (2026-11-17,
 # /debug/classdir, /debug/moddir): flLayer.addComponent takes an flComponent, which is not a public name, so it is NOT tried;
 # flLayer.setGlyphComponents(QList<GlyphComponent> result, double width, flPackage package, bool colorize, uint flags) and
@@ -3901,7 +4309,8 @@ def debug_layer_stats(name):
 # advance width before and after, the source's elements and outline before and after, the glyph count, and placed, existing_kept and
 # side_effect_detected. A change goes through _guard_mark (Update(<flGlyph>), the sync check, the changed mark), as every write does.
 # Never called by this probe: addComponent, clearComponents, decomposite, mergeTopComposite, removeShape, replaceShape, font.update(),
-# save; no subscript or iteration of a native object.
+# save; no subscript or iteration of a native object. (v0.176: the remove stages, in their own section above this one, call
+# removeShape and clearComponents, one per request.)
 # Live (v0.155, one run each): 1026 setGlyphComponents raised "IndexError: Unexpected SeqBase<T> length."; 1027 flShape(shapeData)
 # raised "TypeError: Error creating object of type flShapeBuilder"; nothing changed either time.
 # v0.156: stage=readcomponents&target=cpp... READ ONLY, for a component FontLab's own Glyph > Add Component made: ONE read of
@@ -4211,8 +4620,8 @@ def _trycomp_generate(mod, pkg, stage, target, parts, base):
     if stage == "setgenerated":
         if len(tel) > 1 or any(e.get("is_component") is not False or e.get("is_composite") is not False for e in tel):
             return dict(base, error="the target must have at most one shape, and a plain one: nothing was called")
-        if state.get("components") != 0:
-            return dict(base, error=f"the target reads {state.get('components')!r} components: nothing was called")
+        if _state_has_components(state):
+            return dict(base, error=f"the target reads {_state_components_text(state)}: nothing was called")
     layer_name = state.get("layer_name")
     if not isinstance(layer_name, str) or not layer_name:
         return dict(base, error="the target's layer name could not be read: nothing was called")
@@ -4409,7 +4818,7 @@ def _trycomp_auto_run(mod, target, step, parts, base):
             if not isinstance(rec, str) or rec == "" or rec.startswith("<error"):
                 return dict(base, error=f"the layer's recipe reads {rec!r}: there is no readable recipe to clear, nothing was touched")
         parts = names
-    elif step != "read" and (len(tel) != 0 or state.get("components") != 0):
+    elif step != "read" and (len(tel) != 0 or _state_has_components(state)):
         return dict(base, error="the target must be empty (no shape, no component) for this step: nothing was touched")
     if step == "build" and auto_before.get("recipe") != "+".join(parts):
         return dict(base, error=f"the layer's recipe reads {auto_before.get('recipe')!r}, not {'+'.join(parts)!r}: buildAuto() was not called")
@@ -4749,10 +5158,20 @@ def debug_mark_switch(on, go):
 
 
 def debug_try_component(stage, target, source, go, dx=None, dy=None, recipe=None, nargs=None, pkgmode=None, intmode=None,
-                        widthmode=None, itemsmode=None, step=None, how=None, element=None):
+                        widthmode=None, itemsmode=None, step=None, how=None, element=None, recursive=None):
     import sys as _sys
-    if stage not in _TRYCOMP_STAGES:
-        return {"error": "stage must be one of: " + ", ".join(_TRYCOMP_STAGES)}
+    if stage not in _TRYCOMP_STAGES + _TRYCOMP_REMOVE_STAGES:
+        return {"error": "stage must be one of: " + ", ".join(_TRYCOMP_STAGES + _TRYCOMP_REMOVE_STAGES)}
+    if stage in _TRYCOMP_REMOVE_STAGES:     # v0.176: the remove stages have their own parameters and gate
+        if not _trycomp_name_ok(target):
+            return {"error": 'target must start with "cpp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'}
+        for label, raw in (("source", source), ("dx", dx), ("dy", dy), ("recipe", recipe), ("args", nargs), ("pkg", pkgmode), ("int", intmode),
+                           ("width", widthmode), ("items", itemsmode), ("step", step), ("how", how)):
+            if raw is not None and str(raw).strip():
+                return {"error": f"stage={stage} takes no {label}"}
+        return _trycomp_remove_gate(stage, target, go, element, recursive)
+    if recursive is not None and str(recursive).strip():
+        return {"error": "recursive is used only by stage=removeshape"}
     gen = stage in _TRYCOMP_GEN_STAGES
     auto = stage == "auto"
     offset = stage == "offset"     # v0.167
@@ -4936,8 +5355,8 @@ def debug_try_component(stage, target, source, go, dx=None, dy=None, recipe=None
         return dict(base, error=("the source must have exactly one plain shape (no component, no Power Brush or other composite shape): "
                                  "nothing was touched"))
     snodes = sstate.get("nodes")
-    if sstate.get("components") != 0 or not isinstance(snodes, int) or isinstance(snodes, bool) or snodes < 1:
-        return dict(base, error=f"the source reads {sstate.get('components')!r} components and {snodes!r} nodes: nothing was touched")
+    if _state_has_components(sstate) or not isinstance(snodes, int) or isinstance(snodes, bool) or snodes < 1:
+        return dict(base, error=f"the source reads {_state_components_text(sstate)} and {snodes!r} nodes: nothing was touched")
     src_before = _tryedit_snapshot(source)
     if "error" in src_before:
         return dict(base, error=f"the source's outline could not be read ({src_before['error']}): nothing was touched")
@@ -4958,8 +5377,8 @@ def debug_try_component(stage, target, source, go, dx=None, dy=None, recipe=None
     base["target_elements_before"] = tel
     if len(tel) > 1 or any(e.get("is_component") is not False or e.get("is_composite") is not False for e in tel):
         return dict(base, error="the target must have at most one shape, and a plain one: nothing was touched")
-    if state.get("components") != 0:
-        return dict(base, error=f"the target reads {state.get('components')!r} components: nothing was touched")
+    if _state_has_components(state):
+        return dict(base, error=f"the target reads {_state_components_text(state)}: nothing was touched")
     before = _tryedit_snapshot(target)
     if "error" in before:
         return dict(base, error=f"the target's outline could not be read ({before['error']}): nothing was touched")
@@ -5143,18 +5562,50 @@ def _tryshape_modern_state(w):
         st["layer_name"] = str(_call0(layer, "name"))
     except Exception as exc:
         st["layer_name_error"] = f"{type(exc).__name__}: {exc}"
-    for label, attr in (("shapes", "shapesCount"), ("nodes", "nodesCount"), ("components", "componentsCount")):
+    # v0.177: FontLab's componentsCount() is kept as "fontlab_components_count", information and a guard only: it read 0 on every
+    # glyph holding components (RM 1241-1246). "components" counts the shapes flagged isComponent (_layer_component_shapes); a layer
+    # whose shapesCount() reads 0 holds no shape, so none is a component, and layer.shapes is not read.
+    for label, attr in (("shapes", "shapesCount"), ("nodes", "nodesCount"), ("fontlab_components_count", "componentsCount")):
         try:
             v = _call0(layer, attr)
             st[label] = int(v) if (isinstance(v, (int, float)) and not isinstance(v, bool)) else f"not a plain number: {type(v).__name__}"
         except Exception as exc:
             st[label + "_error"] = f"{type(exc).__name__}: {exc}"
+    st["components"] = 0 if st.get("shapes") == 0 else _layer_component_shapes(layer)
     return st, layer
+
+
+def _layer_component_shapes(layer):
+    """v0.177: how many of the layer's shapes are components, from layer.shapes (a real list) and each shape's isComponent, the
+    check proven live (606, 610, 1016-1022, 1209-1213). A whole number, or a "not readable: ..." text (never a guess): every
+    guard then refuses. Read only. Never raises."""
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list:
+        return f"not readable: layer.shapes ({err or type(shapes).__name__})"
+    n = 0
+    for i, sh in enumerate(shapes):
+        v, err = _tl_call(lambda s=sh: _call0(s, "isComponent"))
+        if err is not None or type(v) is not bool:
+            return f"not readable: isComponent of shape {i} ({err or type(v).__name__})"
+        n += 1 if v else 0
+    return n
+
+
+def _state_has_components(st):
+    """v0.177: True unless BOTH counts of a modern state read a plain 0: the shapes flagged isComponent ("components") and
+    FontLab's componentsCount() ("fontlab_components_count"). A missing or unreadable count counts as components."""
+    return st.get("components") != 0 or st.get("fontlab_components_count") != 0
+
+
+def _state_components_text(st):
+    """v0.177: both counts of a modern state, for a refusal."""
+    return (f"{st.get('components')!r} component shape(s) (FontLab's componentsCount() reads "
+            f"{st.get('fontlab_components_count', st.get('fontlab_components_count_error'))!r})")
 
 
 def _tryshape_modern_known_empty(st):
     return (st.get("active_layer") == "present" and st.get("shapes") == 0 and st.get("nodes") == 0
-            and st.get("components") == 0)
+            and not _state_has_components(st))
 
 
 def _tryshape_enum_names():
@@ -11827,7 +12278,7 @@ def _route(method, full_path, body=b""):
                                                                 (query.get("pkg") or [None])[0], (query.get("int") or [None])[0],
                                                                 (query.get("width") or [None])[0], (query.get("items") or [None])[0],
                                                                 (query.get("step") or [None])[0], (query.get("how") or [None])[0],
-                                                                (query.get("element") or [None])[0]))
+                                                                (query.get("element") or [None])[0], (query.get("recursive") or [None])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
@@ -12166,6 +12617,47 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": str(exc)})
 
+        if path == "/glyph/component/remove":       # v0.179: remove_component
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            if not isinstance(payload, dict):
+                return _build_response(400, {"error": "the body must be a JSON object"})
+            if "components" in payload:
+                if set(payload) != {"name", "components"}:
+                    return _build_response(400, {"error": 'the list form takes exactly "name" and "components"'})
+                raw, form = payload["components"], "list"
+                if not isinstance(raw, list) or not raw:
+                    return _build_response(400, {"error": '"components" must be a non-empty list'})
+            else:
+                if set(payload) != {"name", "index", "component", "x", "y"}:
+                    return _build_response(400, {"error": 'the body must be an object with exactly "name", "index", "component", "x" and "y", or "name" and "components"'})
+                raw, form = [{k: payload[k] for k in ("index", "component", "x", "y")}], "single"
+            name = payload["name"]
+            if not isinstance(name, str) or not name.strip():
+                return _build_response(400, {"error": '"name" must be a non-empty string'})
+            entries, seen = [], set()
+            for i, c in enumerate(raw):
+                where = f"components[{i}]" if form == "list" else "the request"
+                if not isinstance(c, dict) or set(c) != {"index", "component", "x", "y"}:
+                    return _build_response(400, {"error": f'{where} must be an object with exactly "index", "component", "x" and "y"'})
+                idx, cn = c["index"], c["component"]
+                if isinstance(idx, bool) or not isinstance(idx, int) or idx < 0:
+                    return _build_response(400, {"error": f'{where}: "index" must be a whole number from 0'})
+                if idx in seen:
+                    return _build_response(400, {"error": f'{where}: index {idx} appears twice; give each component once'})
+                seen.add(idx)
+                if not isinstance(cn, str) or not cn.strip():
+                    return _build_response(400, {"error": f'{where}: "component" must be a non-empty glyph name'})
+                if any(isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or abs(v) > 2 * _COMP_OFFSET_MAX for v in (c["x"], c["y"])):
+                    return _build_response(400, {"error": f'{where}: "x" and "y" must be numbers from -{2 * _COMP_OFFSET_MAX} to {2 * _COMP_OFFSET_MAX}'})
+                entries.append({"index": idx, "component": cn.strip(), "x": c["x"], "y": c["y"]})
+            try:
+                return _build_response(200, remove_components(name.strip(), entries, form))
+            except Exception as exc:
+                return _build_response(500, {"error": str(exc)})
+
         if path == "/glyph/component":       # v0.169: add_component
             try:
                 payload = json.loads(body.decode("utf-8")) if body else {}
@@ -12335,7 +12827,7 @@ _ACT = {"kind": None, "shown": 0, "more": 0, "reads": {}, "no_font": {}, "kern_p
 _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/width": "width",
                "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/glyph/polygon": "draw",
                "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning", "/font/create": "create font",
-               "/glyph/move": "move", "/glyph/component": "component"}
+               "/glyph/move": "move", "/glyph/component": "component", "/glyph/component/remove": "remove component"}
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
               "/font/current": "font info", "/font/notdef": ".notdef check", "/font/notdef/warn": ".notdef check",
@@ -12507,6 +12999,14 @@ def _act_describe_write(path, payload, code, reply):
         changed = "; the glyph DID change" if reply.get("changed") not in (False, None) else ""
         if reply.get("untested_size") is True:
             return f"NOT DONE {head} ({what}): more than 30, waiting for the person's agreement", False
+        return f"NOT DONE {head} ({what}): {why}{changed}", False
+    if kind == "remove component":       # v0.179: how many from the request, success from the reply
+        comps = payload.get("components") if isinstance(payload, dict) else None
+        n = len(comps) if isinstance(comps, list) else 1 if isinstance(payload, dict) and "index" in payload else None
+        what = f"{n} component{'' if n == 1 else 's'}" if n is not None else "size unreadable"
+        if reply.get("removed") is True:
+            return f"{head}: {what} (verified{sync})", not unsynced
+        changed = "; the glyph DID change" if reply.get("changed") not in (False, None) else ""
         return f"NOT DONE {head} ({what}): {why}{changed}", False
     if kind == "component":       # v0.169: what from the request, success from the reply
         src = payload.get("component") if isinstance(payload, dict) else None
