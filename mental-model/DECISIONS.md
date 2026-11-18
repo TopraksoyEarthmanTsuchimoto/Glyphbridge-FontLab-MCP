@@ -2,6 +2,10 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-18: every AI app is treated equally
+
+The docs name AI apps side by side, never one "instead of" another. Shared steps are written for "your AI app", and each app gets a section of the same rank ([README.md](../README.md)). Apps may be listed in an order, but none is presented as the default. Reason: the user's choice, after ChatGPT Desktop joined Claude Desktop as a tested client.
+
 ## 2026-11-18: `add_component` for a glyph that is not empty (research listener 0.180–0.185; built listener 0.186–0.187 / server 0.73–0.74)
 
 Merged on 2026-11-18 from three entries; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md).
