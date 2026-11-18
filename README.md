@@ -31,7 +31,7 @@ Every app needs the same three values: `command` (the venv's `python.exe`), `arg
 
 ### Claude Desktop
 
-Open **Settings > Developer > Edit Config** and add this inside the file's top-level braces. Keep everything else that is already in the file:
+Open **Settings > Developer > Edit Config** and add this inside the file's top-level braces. Keep everything else that is already in the file and make sure you don't break anything:
 
 ```json
 "mcpServers": {
@@ -45,7 +45,8 @@ Open **Settings > Developer > Edit Config** and add this inside the file's top-l
 
 ### ChatGPT Desktop
 
-Open `%USERPROFILE%\.codex\config.toml` in a text editor, keep a backup, and add this block at the end of the file, outside any other section:
+Note that there is also ChatGPT's Settings > Add-ons > MCP servers route that may work instead of copying and pasting the following. You may try whichever you like.
+If you are OK with copying and pasting then open `%USERPROFILE%\.codex\config.toml` in a text editor, keep a backup, and add this block at the end of the file, outside any other section:
 
 ```toml
 [mcp_servers.glyphbridge-fontlab]
@@ -54,7 +55,7 @@ args = ["C:\\path\\to\\Glyphbridge-FontLab-MCP\\glyphbridge_mcp_server.py"]
 cwd = "C:\\path\\to\\Glyphbridge-FontLab-MCP"
 ```
 
-Use **Work** or **Codex** mode: a plain chat has no Glyphbridge tools and offers to continue in Work mode. Approve each tool when asked. ChatGPT's Settings > Add-ons > MCP servers route is not tested.
+Use **Work** or **Codex** mode: a plain chat has no Glyphbridge tools and offers to continue in Work mode. Approve each tool when asked.
 
 ### Other AI apps
 
