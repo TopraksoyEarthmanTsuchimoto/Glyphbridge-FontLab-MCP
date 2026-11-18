@@ -1259,6 +1259,11 @@ class P72Mod:
     def activeLayer(s):
         if s.name in P72["mode"].get("inactive", ()): return None       # v0.82 tests: the wrapper reports no active layer although one exists
         return P72["layers"].get(s.name)
+    @property
+    def layers(s):      # v0.187: the glyph's layers, the active one only (the v0.181 fakes below replace it with the full model)
+        if s.name in P72.get("layers_unreadable", ()): raise RuntimeError("layers boom")
+        lay = P72["layers"].get(s.name)
+        return [lay] if lay is not None else []
     def _ask(s, name):                                                    # read-only question: does a layer of this name exist? (not logged)
         if P72["mode"].get("ask_raises"): raise RuntimeError("ask boom")
         lay = P72["layers"].get(s.name)
@@ -8343,6 +8348,7 @@ for tag, payload, kw in (("2423a no font open                 ", P0, dict(mode={
                          ("2423l source is empty              ", dict(P0, component="cppempty"), {}),
                          ("2423m two masters                  ", P0, dict(mode={"masters": 2})),
                          ("2423n box unreadable               ", P0, dict(mode={"box_raises": 1}))):
+    P72["layers_unreadable"] = {"cppbase", "cppcomp"} if tag.startswith(("2423d", "2423e")) else set()     # v0.187: as before the v0.181 fakes
     if tag.startswith("2423a"):
         ac_setup(); TO["count"] = 0
         c, d = sbpost("/glyph/component", payload); print(tag, ":", c, d)
@@ -8644,8 +8650,9 @@ for tag, pl, mode in (("2463a buildAuto returns False       ", L2, {"build_false
                       ("2463i a box not where its matrix says", L(("cppsrc", 0, 0), ("cppsrc2", 120, 40)), {"build_offset": 1, "box_stale": 1}),
                       ("2463j a source changes with the offset", L(("cppsrc", 0, 0), ("cppsrc2", 120, 40)), {"build_offset": 1, "offset_source": 1})):
     acl(tag, pl, mode=mode, legacy_nodes=11 if pl is L3 else 7)
-ac_setup(); _tc_src45(); P72["layers"]["cpp1"]._shapes = [TCShape([te_contour(TE_SQ)])]
+ac_setup(); _tc_src45(); P72["layers"]["cpp1"]._shapes = [TCShape([te_contour(TE_SQ)])]; P72["layers_unreadable"] = {"cpp1"}     # v0.187: as before
 c, d = sbpost("/glyph/component", L2); print("2464 a target that is not empty   :", c, d.get("placed"), d.get("reason"), "| writes", [x for x in TC["calls"] if not (isinstance(x, tuple) and x[0] == "QTransform") and x != "inkBox"])
+P72["layers_unreadable"] = set()
 ac_setup(auto=True); _tc_src45()
 c, d = sbpost("/glyph/component", L2); print("2464b autoLayer on                 :", c, d.get("placed"), d.get("reason"), "| writes", [x for x in TC["calls"] if not (isinstance(x, tuple) and x[0] == "QTransform") and x != "inkBox"])
 class _OW:
@@ -8655,8 +8662,8 @@ _ents = [{"is_component": True, "component_glyph": "cppsrc", "component_layer": 
 _secs = ns["_add_component_boxes"](_OW(21), None, _ents)
 print("2464c outline boxes, 21 components:", sum(1 for e in _ents if "error" not in e.get("ink_box", {"error": 1})), "of 21 boxed | lefts", [e["ink_box"].get("left") for e in _ents][:3],
       "| seconds a float:", type(_secs).__name__, "| none for no component:", ns["_add_component_boxes"](_OW(0), None, []))
-_srcl = "\n".join(l for l in src[src.index('# POST /glyph/component with "components" (v0.174)'):src.index("# /debug/tryedit (v0.151)")].split("\n")
-                  if not l.lstrip().startswith("#"))
+_srcl = "\n".join(l for l in src[src.index('# POST /glyph/component with "components" (v0.174)'):src.index("# add_component into a glyph that is NOT empty (v0.186")].split("\n")
+                  if not l.lstrip().startswith("#"))     # v0.186: up to the temporary-layer route, which has its own scan (2590)
 _acl = _srcl[_srcl.index("def add_components("):]
 print("2465 spies over the cases:", TC_FORBIDDEN, "| static scan:",
       _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addComponent|clearComponents|killAuto|decomposite|removeShape|replaceShape|addShape|applyTransform)\s*\(|font\.update|_ensure_modern_layer|create_layer=True", _srcl),
@@ -9117,6 +9124,7 @@ def _tl_active_fake(s):
 def _tl_layers_fake(s):
     main = P72["layers"].get(s.name)
     out = ([main] if main is not None else []) + list(P72.get("extra", {}).get(s.name) or [])
+    if TC["mode"].get("layers_other_only"): out = list(P72.get("extra", {}).get(s.name) or [])      # v0.187: one layer, not the active one
     return tuple(out) if TC["mode"].get("layers_tuple") else out
 def _tl_add_fake(s, layer, back=False):
     TC["calls"].append(("addLayer", layer.name))
@@ -9232,8 +9240,8 @@ tl("2541e build, the recipe names the target", "&step=build&recipe=cpp1&go=yes")
 P72["layers"]["cppsrc2"]._shapes = [_tc_comp("cppsrc")]
 tl("2541f build with a source holding a component", "&step=build&recipe=cppsrc2&go=yes")
 tls(lambda: [_contour()])
-for _i in range(10): call(QT + "&step=addlayer&go=yes")
-tc("2542 the limit: call 11 is refused  ", QT + "&step=addlayer&go=yes")
+for _i in range(ns["_TRYCOMP_TL_MAX"]): call(QT + "&step=addlayer&go=yes")     # v0.185: 20 (10 before)
+tc(f"2542 the limit: call {ns['_TRYCOMP_TL_MAX'] + 1} is refused  ", QT + "&step=addlayer&go=yes")
 _src181 = "\n".join(l for l in src[src.index("# /debug/trycomponent stage=templayer (v0.181)"):src.index("# /debug/tryshape (v0.52)")].split("\n")
                     if not l.lstrip().startswith("#"))
 print("2543 spies over the cases:", TC_FORBIDDEN, "| static scan:",
@@ -9403,6 +9411,171 @@ print("2565 one setlayer assignment:", len(_re83.findall(r'(?m)^\s+sd\.component
       "| removeLayer statements (removelayer, droptemp):", len(_re83.findall(r"(?m)^\s+ret = w\.removeLayer\(tl\)$", _src184)),
       "| droptemp refuses a non-empty layer:", 'if not _tl_ok(tview) or tview["elements"] or tview["contours"]:' in _src184,
       "| route documented:", "step=droptemp: an EMPTY gb_temp_component left behind removed (v0.184)" in src)
+# ---- v0.185: stage=templayer brush=yes (a working layer that also holds Power Brush shapes) and sync=light|full (the user's choice of
+# 2026-11-18: research Power Brush targets before the tool). The legacy glyph of cpp1 records every read of its layer members (F1:
+# glyph.layer / glyph.layers arm a Power Brush glyph); TCBrush is a composite shape that records an inkBox() call on itself.
+print("\n==== v0.185 /debug/trycomponent stage=templayer: brush=yes, sync=light|full ====")
+SPY185 = []
+class TsSpy185(TsGlyph):
+    @property
+    def layers(self): SPY185.append("layers"); return self._layers
+    @property
+    def layer(self): SPY185.append("layer"); return self._layers[0] if self._layers else None
+    @property
+    def bodyLayer(self): SPY185.append("bodyLayer"); return self._layers[0] if self._layers else None
+    @property
+    def activeLayer(self): SPY185.append("activeLayer"); return self._layers[0] if self._layers else None
+def spy_legacy(nodes, width=0.0):
+    TS["cpp1"] = TsSpy185("cpp1", [TsLayer(1, nodes)]); TS["cpp1"].width = width
+class TCBrush(TCShape):
+    def __init__(s): TCShape.__init__(s, [te_contour(TE_SQ)], composite=True)
+    def inkBox(s): TC["calls"].append("inkBox on the brush"); return _tc_inkbox(s)
+tls(lambda: [TCBrush()])
+for tag, q in (("2570a brush=no                      ", "&step=addlayer&brush=no&go=yes"),
+               ("2570b sync=fast                     ", "&step=addlayer&sync=fast&go=yes"),
+               ("2570c shown before go, brush, light ", "&step=addlayer&brush=yes&sync=light"),
+               ("2570d brush=Yes                     ", "&step=addlayer&brush=Yes&go=yes")):
+    tc(tag, QT + q)
+tc("2570e brush on stage=fixlayer       ", QC + "stage=fixlayer&target=cpp1&element=0&brush=yes&go=yes")
+tc("2570f sync on stage=offset          ", QC + "stage=offset&target=cpp1&how=assign&dx=5&dy=0&sync=light&go=yes")
+tls(lambda: [TCBrush()]); tl("2571a a brush target without brush=yes", "&step=addlayer&sync=light&go=yes")
+print("2571b  no layer call in the refusal:", [x for x in TC["calls"] if isinstance(x, tuple) and x[0] in ("addLayer", "flLayer")])
+def tl_brush(tag, sync, shapes, steps=("addlayer", "activate", "build", "setlayer", "move", "removelayer")):
+    tls(shapes, mode={"build_names_layer": 1, "add_activates": 1})
+    out = {}
+    for st in steps:
+        spy_legacy(7 if st in ("move", "removelayer") else 4)
+        SPY185.clear()
+        d = tl4(f"{tag} {st:<12}", f"&step={st}" + ("&recipe=cppsrc" if st == "build" else "") + f"&brush=yes&sync={sync}&go=yes")
+        wa = d.get("working_after")
+        print("      legacy layer reads:", list(SPY185), "| sync verdict:", (d.get("fontlab_sync") or {}).get("verdict"), "| brush/sync:",
+              d.get("brush"), d.get("sync"), "| brush rows:", [r.get("ink_box") == ns["_TL_BOX_NOT_READ"] for r in (wa.get("elements") or [])
+                                                                 if isinstance(r, dict)] if isinstance(wa, dict) and isinstance(wa.get("elements"), list) else wa,
+              "| inkBox on the brush:", TC["calls"].count("inkBox on the brush"))
+        out[st] = d
+    return out
+r185 = tl_brush("2572 brush, sync=light:", "light", lambda: [TCBrush()])
+print("2572a  placed_beside:", r185["removelayer"].get("placed_beside"), "| guard entry left:", ns["_guard_state"](ns["_open_font"]())["glyphs"].get("cpp1"))
+r185 = tl_brush("2573 brush, sync=full:", "full", lambda: [TCBrush()])
+print("2573a  placed_beside:", r185["removelayer"].get("placed_beside"))
+tl_brush("2574 brush + contour, sync=light:", "light", lambda: [TCBrush(), _contour()], steps=("addlayer", "activate", "build"))
+tl_brush("2575 contour only, brush=yes, sync=light:", "light", lambda: [_contour()], steps=("addlayer", "activate", "build", "setlayer", "move", "removelayer"))
+tls(lambda: [TCBrush()], mode={"build_names_layer": 1, "add_activates": 1}); spy_legacy(4)
+tl4("2576a addlayer, brush, light       ", "&step=addlayer&brush=yes&sync=light&go=yes")
+P72["layers"]["cpp1"]._shapes[0]._tx = TCQT(1, 0, 0, 1, 5, 0)
+tl4("2576b the brush moved: build refused", "&step=build&recipe=cppsrc&brush=yes&sync=light&go=yes")
+tls(lambda: [TCBrush()], mode={"build_names_layer": 1, "add_activates": 1}); spy_legacy(4)
+tl4("2576c addlayer, brush, light       ", "&step=addlayer&brush=yes&sync=light&go=yes")
+P72["layers"]["cpp1"]._shapes[0] = _contour()     # the same square and matrix, but a plain shape: no longer the brush recorded
+tl4("2576d the brush became plain: build refused", "&step=build&recipe=cppsrc&brush=yes&sync=light&go=yes")
+def dt185(tag, sync, mode=None):
+    tls(lambda: [TCBrush()], mode=dict({"add_activates": 1}, **(mode or {})), extra=[TCTempLayer("gb_temp_component")], legacy=4)
+    spy_legacy(4); SPY185.clear()
+    d = tl4(tag, f"&step=droptemp&brush=yes&sync={sync}&go=yes")
+    print("      legacy layer reads:", list(SPY185), "| sync verdict:", (d.get("fontlab_sync") or {}).get("verdict"),
+          "| layer calls:", [x for x in TC["calls"] if isinstance(x, tuple) and x[0] in ("setActive", "removeLayer")])
+    return d
+dt185("2577a droptemp, brush, sync=light  ", "light")
+dt185("2577b droptemp, brush, sync=full   ", "full")
+tls(lambda: [TCBrush()], extra=[TCTempLayer("gb_temp_component")]); tl4("2577c droptemp, brush, no brush=yes ", "&step=droptemp&sync=light&go=yes")
+_src185 = "\n".join(l for l in src[src.index("# /debug/trycomponent stage=templayer (v0.181)"):src.index("# /debug/tryshape (v0.52)")].split("\n")
+                    if not l.lstrip().startswith("#"))
+def _fn185(name):
+    body = _src185[_src185.index(f"def {name}("):]
+    return body[:body.index("\ndef ", 5)]
+print("2578 light kind:", "trycomponent_light" in ns["_GUARD_LIGHT_KINDS"], "| marked as a component:", ns["_MARK_TITLES"].get("trycomponent_light"),
+      "| guard calls through _tl_guard_how:", _src185.count("_guard_mark(font, target, _tl_guard_how(sync_mode), result"),
+      "| a plain \"trycomponent\" guard call left in templayer:", len(_re83.findall(r'_guard_mark\(font, target, "trycomponent"', _src185[_src185.index("def _trycomp_templayer_gate"):_src185.index("def _trycomp_fixlayer_gate")])),
+      "| kind check before the first view (run, droptemp):", [_fn185(f).index("why = _tl_plain_elements_problem(wtel,") < _fn185(f).index("wview = _tl_view(wl, brush)")
+                                                               for f in ("_trycomp_templayer_run", "_trycomp_droptemp_run")],
+      "| limit:", ns["_TRYCOMP_TL_MAX"], "| route documented:", "stage=templayer&brush=yes: the working layer may also hold Power Brush shapes" in src)
+# ---- v0.186: add_component into a glyph that is NOT empty: the temporary-layer route inside ONE request (the user's design of
+# 2026-11-18), both forms; a failure partway restores the glyph. The v0.181-v0.185 fakes stay: layers, addLayer / removeLayer,
+# setActive, a settable componentLayer, build_names_layer (the build names the temporary layer), TCBrush (records inkBox on itself).
+print("\n==== v0.186 POST /glyph/component: a glyph that is not empty ====")
+AB = ("placement", "placed", "verified", "existing_kept", "changed", "steps_done", "component_states", "checks", "layers_after",
+      "active_layer_after", "restore", "width_set_by_build", "cleanup", "components_after", "reason", "error")
+def ab(tag, payload, shapes, mode=None, legacy=7, auto=False, extra=None, prep=None, activates=True):
+    tls(shapes, mode=dict({"build_names_layer": 1, "add_activates": 1 if activates else 0}, **(mode or {})), auto=auto, extra=extra, legacy=legacy)
+    TC["rm_calls"] = 0
+    if prep: prep()
+    c, d = sbpost("/glyph/component", payload)
+    TC_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in AB if k in d})
+    lay = P72["layers"]["cpp1"]
+    print("      calls:", [x if isinstance(x, str) else x[0] for x in TC["calls"] if x != "inkBox" and not (isinstance(x, tuple) and x[0] == "QTransform")],
+          "| Update", TE["updates"], "| marks", TE["marks"], "| inkBox on the brush:", TC["calls"].count("inkBox on the brush"),
+          "| working now:", [("comp", sh.shapeData.componentGlyph(), sh.shapeData.componentLayer, sh._tx.dx(), sh._tx.dy()) if sh._component
+                             else ("brush" if sh._composite else "plain") for sh in lay._shapes],
+          "| other layers:", [l.name for l in P72.get("extra", {}).get("cpp1") or []])
+    return d
+PB0 = {"name": "cpp1", "component": "cppsrc", "x": 0, "y": 0}
+ab("2580a one, onto a contour         ", PB0, lambda: [_contour()])
+ab("2580b one at (120, -40), onto a component", dict(PB0, x=120, y=-40), lambda: [_tc_comp("cppsrc2", -200, 0)])
+ab("2580c one, onto a Power Brush shape", PB0, lambda: [TCBrush()])
+ab("2580d a list of three, onto a brush and a contour", {"name": "cpp1", "components": [{"component": "cppsrc", "x": 0, "y": 0},
+   {"component": "cppsrc3", "x": 300, "y": 0}, {"component": "cppsrc", "x": 500, "y": 0}]}, lambda: [TCBrush(), _contour()], legacy=18)
+ab("2580e addLayer leaves the working layer active", PB0, lambda: [_contour()], activates=False)
+class TCTempLayerG(TCTempLayer):      # a temporary layer whose build changes the glyph's width (build_width writes P72["widths"][_glyph])
+    def __init__(s, title): TCTempLayer.__init__(s, title); s._glyph = "cpp1"
+for _m in _tf_mods: _m.flLayer = TCTempLayerG
+ab("2580f the build sets the width     ", PB0, lambda: [_contour()], mode={"build_width": 1})
+ab("2580g the width write-back fails   ", PB0, lambda: [_contour()], mode={"build_width": 1, "width_set_raises": 1})
+for _m in _tf_mods: _m.flLayer = TCTempLayer
+ab("2581a a second layer already       ", PB0, lambda: [_contour()], extra=[TCTempLayer("other")], activates=False)
+ab("2581b autoLayer on                 ", PB0, lambda: [_contour()], auto=True)
+def _src2_comp(): P72["layers"]["cppsrc2"]._shapes = [_tc_comp("cppsrc")]
+ab("2581c a source holding a component ", dict(PB0, component="cppsrc2"), lambda: [_contour()], prep=_src2_comp)
+ab("2581d an empty glyph keeps its route", PB0, lambda: [], legacy=3)
+for tag, mode in (("2582a buildAuto returns False      ", {"build_false": 1}), ("2582b addShape raises              ", {"add_raises": 1}),
+                  ("2582c componentLayer cannot be set  ", {"cl_raises": 1}), ("2582d setActive ignored             ", {"setactive_ignored": 1}),
+                  ("2582e removeLayer raises: restore incomplete", {"removelayer_raises": 1}), ("2582f the build hits the working layer", {"build_working": 1})):
+    ab(tag, PB0, lambda: [_contour()], mode=mode)
+ab("2582h the source-layer assignment is ignored", PB0, lambda: [_contour()], mode={"cl_ignored": 1})
+class TCOdd(TCShape):
+    def isComponent(s): raise RuntimeError("isComponent boom")
+ab("2581e an element that cannot be read", PB0, lambda: [_contour(), TCOdd([te_contour(TE_SQ)])])
+_tc_add186_orig = TCLayer.addShape
+def _tc_add186(s, shape):      # moves the working layer's first element by 5 while adding (an existing element changed by the call)
+    r = _tc_add186_orig(s, shape)
+    if TC["mode"].get("add_moves_existing") and s._shapes: s._shapes[0]._tx = TCQT(1, 0, 0, 1, s._shapes[0]._tx.dx() + 5, s._shapes[0]._tx.dy())
+    return r
+TCLayer.addShape = _tc_add186
+ab("2582i the move shifts an existing element", PB0, lambda: [_tc_comp("cppsrc2", -200, 0)], mode={"add_moves_existing": 1})
+TCLayer.addShape = _tc_add186_orig
+ab("2582g a list fails at addShape     ", {"name": "cpp1", "components": [{"component": "cppsrc", "x": 0, "y": 0},
+   {"component": "cppsrc3", "x": 300, "y": 0}]}, lambda: [_contour()], mode={"add_raises": 1})
+# ---- v0.187: both routes, both forms, need exactly one layer, the active one (rule A, the user's choice after NB 1353: an empty active
+# layer beside a full one took the empty route, and the build named that layer as the source's layer); source_layer is its own check.
+print("\n==== v0.187 POST /glyph/component: one layer, the active one, in both routes ====")
+PL2 = {"name": "cpp1", "components": [{"component": "cppsrc", "x": 0, "y": 0}, {"component": "cppsrc3", "x": 300, "y": 0}]}
+ab("2584a an empty layer active beside a full one (NB 1353)", PB0, lambda: [_contour()], extra=[TCTempLayer("New Layer")])
+ab("2584b an empty glyph with a second layer, master active", PB0, lambda: [], extra=[TCTempLayer("other")], activates=False, legacy=3)
+ab("2584c the list form, an empty layer active beside a full one", PL2, lambda: [_contour()], extra=[TCTempLayer("New Layer")])
+ab("2584d the list form, an empty glyph with a second layer", PL2, lambda: [], extra=[TCTempLayer("other")], activates=False, legacy=3)
+ab("2584e the layers cannot be read    ", PB0, lambda: [], mode={"layers_tuple": 1}, legacy=3)
+def _rename_working(): P72["layers"]["cpp1"].name = "master2"
+d = ab("2584f the build names another layer: source_layer fails", PB0, lambda: [], prep=_rename_working, legacy=3)
+print("      checks:", d.get("checks"), "| elements after:", [(e.get("component_glyph"), e.get("component_layer")) for e in d.get("elements_after") or []])
+def _rename_temp(): P72["layers"]["cpp1"].name = "gb_temp_component"
+ab("2584h the only layer is a leftover temporary layer", PB0, lambda: [_contour()], prep=_rename_temp)
+ab("2584i one layer listed, not the active one", PB0, lambda: [_contour()], extra=[TCTempLayer("other")], activates=False,
+   mode={"layers_other_only": 1})
+_s187 =src[src.index("def add_component(name, component, x, y):"):src.index("def _comp_one_layer_problem(")]
+print("2584g asked in both forms before the route:", _s187.count("why = _comp_one_layer_problem(w, state)"),
+      [_s187.index("why = _comp_one_layer_problem(w, state)", _s187.index(f)) < _s187.index("if tel:", _s187.index(f))
+       for f in ("def add_component(name", "def add_components(name")],
+      "| route documented:", "v0.187: both routes, both forms, need exactly one layer, the active one" in src)
+_srcb ="\n".join(l for l in src[src.index("# add_component into a glyph that is NOT empty (v0.186"):src.index("# /debug/tryedit (v0.151)")].split("\n")
+                  if not l.lstrip().startswith("#"))
+_ab = _srcb[_srcb.index("def _add_beside("):]
+print("2583 static scan:", _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addComponent|clearComponents|killAuto|decomposite|replaceShape|applyTransform)\s*\(|font\.update", _srcb),
+      "| every refusal before the first write:", _ab.rindex("nothing was changed") < _ab.index("w.addLayer(layer_cls(_TL_TEMP_NAME))"),
+      "| addLayer( texts (the call and its step label), removeLayer( calls (route, restore) and its label:", len(_re83.findall(r"\.addLayer\(", _srcb)), len(_re83.findall(r"\.removeLayer\(", _srcb)),
+      "| removeShape only in the restore:", "removeShape" not in _ab and _srcb.count("wl.removeShape(shapes[j], False)") == 1,
+      "| restore only after an error:", 'if "error" in result and done:' in _ab, "| full check:", '_guard_mark(font, name, "add_component", result,' in _ab,
+      "| hooked in both forms:", src.count("return _add_beside(base, name, ctx, state, layer, tel,"), src.count("return _done(_add_beside(base, name, ctx, state, layer, tel,"),
+      "| route documented:", 'temporary-layer route in the same request (placement "temporary layer")' in src)
 TCShapeData.componentLayer = _tcsd_layer_orig
 TCLayer.buildAuto = _tc_build181
 del TCLayer.setActive; del TCLayer.isActive

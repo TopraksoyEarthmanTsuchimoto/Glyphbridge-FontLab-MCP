@@ -20,7 +20,7 @@
 1u  scan_unicode '66' (ignored)               -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1v  scan_unicode 1114112 (ignored)            -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1h  no font open                       -> (200, {'open': False})
-1i  /version                           -> {'version': '0.184'}
+1i  /version                           -> {'version': '0.187'}
 
 ==== 2. server create_glyph: fields and agent_instruction (faked listener replies) ====
 2a  'B' assigned 66 (matches)             -> {'unicode': 66, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': True}
@@ -311,7 +311,7 @@
 9zc width, legacy reply (empty glyph) -> route: legacy_empty_glyph | display_note absent: True | font_modified: True
 9zd tool surface     -> set_glyph_sidebearings: True | get_glyph_sidebearings: True | NEVER saves in set docstring: True | outline moved explained: True | right defaults to left: True | width tool says advance only: True
 9ze signature        -> (name: str, left: float, right: float | None = None, ctx: __main__.Context | None = None) -> dict[str, typing.Any] | (name: str, ctx: __main__.Context | None = None) -> dict[str, typing.Any]
-9zf MIN_LISTENER_VERSION -> (0, 82) | server 0.72
+9zf MIN_LISTENER_VERSION -> (0, 82) | server 0.74
 
 ==== 10. server 0.20: draw_polygon, layer_created on set_glyph_width, get_glyph_outline modern_check (faked listener replies) ====
 10a draw_polygon     -> {'name': 'fresh', 'drawn': True, 'verified': True, 'coordinates_rounded': [], 'points': 4, 'contours': 1, 'contour_sizes': [4], 'shapes': 1, 'nodes': 4, 'left': 0, 'right': -400, 'advance_width': 0, 'ink_width': 400, 'note': 'Closed contours of straight segments, in one shape. The advance width is NOT changed by drawing: set it with set_glyph_width, or place the outline and the width together with set_glyph_sidebearings.', 'layer_created': 'test_font', 'display_note': 'NOTE', 'font_modified': True, 'agent_instruction': "The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written."}
@@ -488,7 +488,7 @@
 16f instruction keeps the create text and the save reminder: True | True | tail ok True
 16g failed create still raises ToolError: Glyph 'g1' was NOT created: x
 16i a broken reply never raises, adds nothing: {'x': 1}
-16h version / MIN_LISTENER_VERSION: 0.72 (0, 82)
+16h version / MIN_LISTENER_VERSION: 0.74 (0, 82)
 
 ==== 17. server 0.28: stale legacy view answered from the modern layer when the listener (0.88) sends margins_agree false (faked listener replies) ====
 17a stale margins + modern_outline -> source modern layer | verified | legacy_view_was_stale True | stale_legacy_view None | extra sidebearing reads 0
@@ -509,7 +509,7 @@
 17p old listener (no margins_agree): v0.25 behaviour -> unverified | check mismatch | stale_legacy_view True | extra reads 1 | source None
 17q docs                  -> modern answer explained: True | v0.25 text kept: True
 17r no write, no save     -> posts sent: []
-17s version / MIN_LISTENER_VERSION: 0.72 (0, 82)
+17s version / MIN_LISTENER_VERSION: 0.74 (0, 82)
 
 ==== 18. server 0.29: fontlab_sync of listener 0.89 is forwarded, type-checked; the editor-tab advice only when the sync attempt failed (faked listener replies) ====
 18a synced set_glyph_width        : synced_with_fontlab True | fontlab_sync {'attempted': True, 'synced': True, 'verdict': 'synced'} | secret False | failed-sync sentence False | unsynced sentence False | editor advice False
@@ -528,7 +528,7 @@
 18h older listener                  : synced_with_fontlab False | fontlab_sync None | secret False | failed-sync sentence False | unsynced sentence True | editor advice True
 18i synced: no agent_instruction about sync: True | font_modified True
 18j a broken reply never raises  : {'x': 1}
-18k version / MIN_LISTENER_VERSION: 0.72 (0, 82)
+18k version / MIN_LISTENER_VERSION: 0.74 (0, 82)
 
 ==== 19. server 0.30 / 0.31: get_kerning reads selected pairs through POST /kerning/pairs; no upper limit, approval above 250 (faked listener replies) ====
 19a pairs, tidy numbers          : {'mode': 'pairs', 'fonts_open': None, 'matched_by': None, 'family_name': None, 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048, 'table_size': 1370, 'count': 4, 'errors': 0} | instruction True
@@ -699,7 +699,7 @@
 19ck wrapper equals read_kerning (pairs): True
 19cl wrapper equals read_kerning (text) : True | both None -> ToolError: Give exactly one of pairs (a 
 19cl2 wrapper passes the approval flag : refused / 251
-19cm MIN_LISTENER_VERSION unchanged / server version: (0, 82) 0.72
+19cm MIN_LISTENER_VERSION unchanged / server version: (0, 82) 0.74
 19dn two fonts, matched by path   : {'fonts_open': 2, 'matched_by': 'path', 'family_name': 'Arial'} | names the font: True True | say which: True
 19do one font                     : {'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Arial'} | names the font: False False | say which: False
 19dp two fonts, no family name    : {'fonts_open': 2, 'matched_by': 'path', 'family_name': None} | names the font: True False | say which: True
@@ -848,7 +848,7 @@
 25t dx 10 on a square            -> modern layer | verified | y_extent_checked False | box {'box_left': 10, 'lsb': 10, 'box_width': 100, 'ink_width': 100, 'left_ok': True, 'width_ok': True} | reason  | requests ['/glyph/outline?name=A']
 25u GLYPHBRIDGE_MODERN=0        -> ['/glyph/outline?name=grd83a&modern=no'] | F1 note: ["GLYPHBRIDGE_MODERN=0: this outline was read through FontLab'"]
 25v an older listener (no source) -> verified | F1 note: False
-25w version / MIN_LISTENER_VERSION: 0.72 (0, 82)
+25w version / MIN_LISTENER_VERSION: 0.74 (0, 82)
 
 ==== 26. server 0.43: exact quadratic extents; the vertical extent checked against FontLab's ink box (listener 0.121, layer.inkBox()) ====
 26a testglyph3, quadratic (live 525/526) -> verified | y_extent_checked True | bbox {'left': 101.87, 'right': 383, 'bottom': 203.238, 'top': 414} exact True | vs FontLab {'box_bottom': 203.238, 'box_top': 414, 'fontlab_bottom': 203.238, 'fontlab_top': 414, 'y_ok': True} | reason  | y note 
@@ -886,7 +886,7 @@
 26z7 three cubic handles        -> None
 26z8 quad extremes              -> peak [(50.0, 50.0)] | monotonic [] | x only (y linear) [(50.0, 100.0)] | at an end (t=0) []
 26z9 docs                       -> quadratic extents: True | FontLab's ink box: True | old 'quadratic stays unverified' gone: True
-26zz version / MIN_LISTENER_VERSION: 0.72 (0, 82)
+26zz version / MIN_LISTENER_VERSION: 0.74 (0, 82)
 
 ==== 27. server 0.44: set_kerning (faked listener replies) ====
 27a one new pair                 : {'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 1000, 'count': 1, 'set_count': 1, 'table_size_before': 2, 'table_size_after': 3, 'font_modified': True} | changes (1, 0)
@@ -971,7 +971,7 @@
 27zq read refusal: stop added     : Kerning could not be read: 2 fonts are open; close the others.
 27zr read refusal: one stop only  : Kerning could not be read: the table is not reachable.
 27zs read refusal: question mark : Kerning could not be read: was another window brought to the front?
-27zz version / MIN_LISTENER_VERSION: 0.72 (0, 82)
+27zz version / MIN_LISTENER_VERSION: 0.74 (0, 82)
 
 ==== 28. server 0.46: open contours (live 581 / 583) ====
 28a open V (live 581)                -> verified | y_extent_checked True | bbox {'left': 24, 'right': 228, 'bottom': 69, 'top': 482} exact True | vs FontLab {'box_bottom': 69, 'box_top': 482, 'fontlab_bottom': 69, 'fontlab_top': 482, 'y_ok': True} | reason  | y note 
@@ -1016,7 +1016,7 @@
 28n parser, closed flag None       -> None
 28o svg, open / closed            -> M 0 0 L 10 0 | M 0 0 L 10 0 Z
 28p docs                           -> open contours: True | no direction: True
-28z version / MIN_LISTENER_VERSION: 0.72 (0, 82)
+28z version / MIN_LISTENER_VERSION: 0.74 (0, 82)
 
 ==== 29. server 0.47: draw_path with open contours (faked listener replies) ====
 29a open V                     -> {'drawn': True, 'verified': True, 'closed': [False], 'contours': 1, 'nodes': 3} | posts 1
@@ -1052,7 +1052,7 @@
 29ze FontLab closes it on attach -> ToolError: Glyph 'od': something was drawn, but the layer does not match the request: layer contour 0: closed reads True, an open contour was requested. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save. | posts 1
 29zf  the change is counted     -> {'changes': 1, 'uncertain': 0, 'reminder_given': True}
 29zg docs                       -> open contours: True | object form: True | listener 0.126: True | export drops them: True | old 'not been tested' gone: True | signature: (name: str, contours: list[list[dict[str, typing.Any]] | dict[str, typing.Any]], ctx: __main__.Context | None = None) -> dict[str, typing.Any]
-29zz version / MIN_LISTENER_VERSION: 0.72 (0, 82)
+29zz version / MIN_LISTENER_VERSION: 0.74 (0, 82)
 
 ==== 30. listener 0.127 / server 0.48: create_glyph gives the new glyph its layer (live 612-619 are the reason; stubs only) ====
 30a one master, layer made -> {'layer_created': 'Regular', 'layer_name_source': 'other glyphs', 'synced_with_fontlab': True} | calls: ['target(g30, create_layer=True)', 'guard(g30, layer_created)']
@@ -1107,7 +1107,7 @@
 31u element list unavailable -> verified | {} | notes: ["FontLab's element transforms could not be read (no list), so none was applied. Whether this glyph contains components is therefore unknown."]
 31v -0 in a description -> scale 100.00% horizontally, 100.00% vertically; offset (0, 30) | scale 100.00% horizontally, 100.00% vertically; offset (40, 0) | scale 200.00% horizontally, 100.00% vertically; offset (-100, 30)
 31w docs -> outline names is_component: True | names source: True | old claim only for legacy: True | draw_polygon corrected: True | still explains layer_created: True
-31z version / MIN_LISTENER_VERSION: 0.72 (0, 82)
+31z version / MIN_LISTENER_VERSION: 0.74 (0, 82)
 
 ==== 32. listener 0.130 / server 0.50: a box per component, an accent inside its base, a composite behind its source (live 633-650 are the reason; stubs only) ====
 32a two components -> [{'ink_box': (50.0, 650.0, 0.0, 700.0), 'source_ink_box': (50.0, 650.0, 0.0, 700.0)}, {'ink_box': (220.0, 480.0, 780.0, 880.0), 'source_ink_box': (70.0, 330.0, 780.0, 880.0)}] | inkBox [(0, ()), (1, ())] | source [('Regular', ()), ('Regular', ())] | forbidden []
@@ -1158,7 +1158,7 @@
 32zpb a plain element carrying boxes gets no verdict -> verified | element_boxes_checked absent | note absent | reason none | in step [True, 'absent'] | step notes [] | instruction none
 32zpc a box with an error beside its numbers -> unverified | element_boxes_checked False | note FontLab's box of element 1 could not be used: partial read | reason the coordinates match FontLab's horizontal margins and its ink box both with and without the element transform, so which reading is right cannot be told | in step [True, 'unknown'] | step notes ["FontLab's box of this element could not be used: partial read"] | instruction none
 32zq docs -> outline names source_in_step: True | element_boxes_checked: True | sidebearings warns: True True
-32zr listener / server versions: 0.184 0.72 | MIN_LISTENER_VERSION: (0, 82)
+32zr listener / server versions: 0.187 0.74 | MIN_LISTENER_VERSION: (0, 82)
 
 ==== 33. server 0.51: fontlab_changed_mark and save_question_note (stubs only) ====
 33a confirmed                    -> {'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}, 'font_modified': True}
@@ -1319,11 +1319,11 @@
 38a placed at (100, 50)           -> {'placed': True, 'verified': True, 'x': 100, 'y': 50, 'advance_width': 0, 'font_modified': True, 'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
 38b  note, sent, instruction       -> The glyph now holds one component of the named glyph at the  | sent ('/glyph/component', {'name': 'cpa1', 'component': 'cpasrc', 'x': 100, 'y': 50}) | finish_changes named: True
 38c a whole float offset 120.0    -> {'placed': True, 'x': 120, 'y': 0} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
-38d placed but a check is false   -> {'placed': False, 'verified': False, 'x': 100, 'y': 50, 'changed': True, 'reason': 'r', 'steps_done': ['recipe', 'auto_on', 'build', 'auto_off', 'offset', 'recipe_cleared'], 'checks': {'one_component': True, 'offset': True, 'ink_box': False, 'recipe_cleared': True, 'auto_layer_off': True, 'source_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'elements_after': None, 'font_modified': True, 'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
-38e placed but a check is missing -> {'placed': False, 'verified': False, 'x': 100, 'y': 50, 'changed': True, 'reason': 'r', 'steps_done': ['recipe', 'auto_on', 'build', 'auto_off', 'offset', 'recipe_cleared'], 'checks': {'one_component': True, 'offset': True, 'ink_box': True, 'auto_layer_off': True, 'source_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'elements_after': None, 'font_modified': True, 'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
-38f refused, nothing changed      -> ToolError: Glyph 'cpa1': nothing was changed: the glyph is not empty (it reads 1 element(s)); add_component places a component only into an empty glyph for now: nothing was changed | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
-38g refused, no changed key       -> ToolError: Glyph 'cpa1': nothing was changed: add_component is proven only on a font with one master (this font has 2 masters): nothing was changed | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
-38h failed after the build, set back -> {'placed': False, 'verified': False, 'x': 100, 'y': 50, 'changed': True, 'reason': 'layer.buildAuto() failed: RuntimeError: it returned False, not True', 'steps_done': ['recipe', 'auto_on', 'build'], 'checks': {'one_component': False, 'offset': False, 'ink_box': False, 'recipe_cleared': False, 'auto_layer_off': True, 'source_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'auto_layer_set_back': True, 'elements_after': [], 'font_modified': True, 'fontlab_changed_mark': {'called': False, 'reason': 'the component was not confirmed'}, 'save_question_note': 'FontLab may not count this change as unsaved, so closing the font may ask no save question and lose it silently (see fontlab_changed_mark). Tell the person if they may close the font before saving.'} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+38d placed but a check is false   -> {'placed': False, 'verified': False, 'x': 100, 'y': 50, 'changed': True, 'reason': 'r', 'steps_done': ['recipe', 'auto_on', 'build', 'auto_off', 'offset', 'recipe_cleared'], 'checks': {'one_component': True, 'source_layer': True, 'offset': True, 'ink_box': False, 'recipe_cleared': True, 'auto_layer_off': True, 'source_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'elements_after': None, 'font_modified': True, 'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+38e placed but a check is missing -> {'placed': False, 'verified': False, 'x': 100, 'y': 50, 'changed': True, 'reason': 'r', 'steps_done': ['recipe', 'auto_on', 'build', 'auto_off', 'offset', 'recipe_cleared'], 'checks': {'one_component': True, 'source_layer': True, 'offset': True, 'ink_box': True, 'auto_layer_off': True, 'source_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'elements_after': None, 'font_modified': True, 'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+38f refused, nothing changed      -> ToolError: Glyph 'cpa1': nothing was changed: the glyph is not empty (it reads 1 element(s)); add_component places a component only into an empty glyph for now | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+38g refused, no changed key       -> ToolError: Glyph 'cpa1': nothing was changed: add_component is proven only on a font with one master (this font has 2 masters) | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+38h failed after the build, set back -> {'placed': False, 'verified': False, 'x': 100, 'y': 50, 'changed': True, 'reason': 'layer.buildAuto() failed: RuntimeError: it returned False, not True', 'steps_done': ['recipe', 'auto_on', 'build'], 'checks': {'one_component': False, 'source_layer': True, 'offset': False, 'ink_box': False, 'recipe_cleared': False, 'auto_layer_off': True, 'source_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'auto_layer_set_back': True, 'elements_after': [], 'font_modified': True, 'fontlab_changed_mark': {'called': False, 'reason': 'the component was not confirmed'}, 'save_question_note': 'FontLab may not count this change as unsaved, so closing the font may ask no save question and lose it silently (see fontlab_changed_mark). Tell the person if they may close the font before saving.'} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
 38i  instruction                  -> The re-read does NOT confirm the component, and the glyph may now hold part of it (see steps_done, checks and elements_a | finish_changes named: True
 38j outcome unknown               -> {'placed': False, 'verified': False, 'x': 100, 'y': 50, 'changed': 'unknown', 'reason': 'r', 'steps_done': [], 'checks': {}, 'elements_after': None, 'font_modified': 'unknown'} | posts 1 | {'changes': 0, 'uncertain': 1, 'reminder_given': True}
 38k no font open                  -> ToolError: FontLab is running and the listener answered, but no font is open. Open a font in FontLab and try again. | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
@@ -1339,7 +1339,7 @@
 38u x 10001            -> ToolError: x must be between -10000 and 10000. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
 38v y NaN              -> ToolError: y must be a whole number of font units. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
 38v2 x infinite        -> ToolError: x must be a whole number of font units. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
-38w docs              -> tool listed: True | signature: (name: str, component: str | None = None, x: int = 0, y: int = 0, components: list | None = None, confirmed_untested_size: bool = False, ctx: __main__.Context | None = None) -> dict[str, typing.Any] | EMPTY: True | one master: True | width not changed: True | Undo offers nothing: True | no remove tool: False | unexplained run: True | NEVER saves: True | listener named: True | placeholder left: False
+38w docs              -> tool listed: True | signature: (name: str, component: str | None = None, x: int = 0, y: int = 0, components: list | None = None, confirmed_untested_size: bool = False, ctx: __main__.Context | None = None) -> dict[str, typing.Any] | not-empty route (v0.73): True | one master: True | width not changed: True | Undo offers nothing: True | no remove tool: False | unexplained run: True | NEVER saves: True | listener named: True | placeholder left: False
 
 ==== 39. server 0.68: add_component's components list (faked listener replies) ====
 39a two placed                   -> {'placed': True, 'verified': True, 'component_count': 2, 'components': [{'component': 'cpasrc', 'x': 0, 'y': 0}, {'component': 'cpabase', 'x': 120, 'y': 40}], 'advance_width': 0, 'timing': {'build_seconds': 0.001, 'elapsed_seconds': 0.006}, 'font_modified': True, 'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
@@ -1350,7 +1350,7 @@
 39e a check is missing           -> {'placed': False, 'verified': False, 'component_count': 2, 'timing': {'build_seconds': 0.001, 'elapsed_seconds': 0.006}, 'changed': True, 'reason': 'r', 'steps_done': ['recipe', 'auto_on', 'build', 'auto_off', 'order_checked', 'offsets'], 'cleanup': {'recipe_cleared': True, 'width_restored': True}, 'component_states': [{'component': 'cpasrc', 'x': 0, 'y': 0, 'state': 'placed'}, {'component': 'cpabase', 'x': 120, 'y': 40, 'state': 'placed'}], 'checks': {'element_count': True, 'recipe_cleared': True, 'auto_layer_off': True, 'sources_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'font_modified': True, 'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
 39f stopped, cleaned up          -> {'placed': False, 'verified': False, 'component_count': 2, 'timing': {'elapsed_seconds': 0.004}, 'changed': True, 'reason': 'shape.transform failed: boom', 'steps_done': ['recipe', 'auto_on', 'build', 'auto_off', 'order_checked'], 'cleanup': {'recipe_cleared': True, 'width_restored': 'failed: RuntimeError: width boom'}, 'component_states': [{'component': 'cpasrc', 'x': 0, 'y': 0, 'state': 'placed'}, {'component': 'cpabase', 'x': 120, 'y': 40, 'state': 'not reached'}, {'component': None, 'x': None, 'y': None, 'state': 'unknown'}], 'checks': {'element_count': True, 'components': False, 'recipe_cleared': True, 'auto_layer_off': True, 'sources_unchanged': True, 'width_unchanged': False, 'glyph_count_unchanged': True}, 'font_modified': True, 'fontlab_changed_mark': {'called': False, 'reason': 'the components were not confirmed'}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
 39g  instruction                  -> The re-read does NOT confirm the components. Placing stopped at the first failure; then the automatic layer wa | finish_changes named: True
-39h refused, nothing changed     -> ToolError: Glyph 'cpa1': nothing was changed: the glyph is not empty: nothing was changed | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+39h refused, nothing changed     -> ToolError: Glyph 'cpa1': nothing was changed: the glyph is not empty | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
 39i outcome unknown              -> {'placed': False, 'verified': False, 'component_count': 2, 'timing': {}, 'changed': 'unknown', 'reason': 'r', 'steps_done': [], 'cleanup': {}, 'component_states': [], 'checks': {}, 'font_modified': 'unknown'} | posts 1 | {'changes': 0, 'uncertain': 1, 'reminder_given': True}
 39j no font open                 -> ToolError: FontLab is running and the listener answered, but no font is open. Open a font in FontLab and try again. | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
 39k listener 0.173               -> ToolError: add_component with a components list needs listener v0.174 or newer; the running listener is v0.173. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
@@ -1450,3 +1450,29 @@
 43zb component blank      -> ToolError: the request: component must be a non-empty glyph name. | sent None | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
 43zc docs             -> tool listed: True | signature: (name: str, index: int | None = None, component: str | None = None, x: float = 0, y: float = 0, components: list | None = None, ctx: __main__.Context | None = None) -> dict[str, typing.Any] | read first: True | WHOLE call refused: True | highest first: True | one master: True | automatic layer: True | Power Brush: True | recipe kept: True | Undo offers nothing: True | NEVER saves: True | listener named: True | placeholder left: False
 43zd add_component names remove_component: True | list failure instruction names it: True | states known: ('removed', 'called, not confirmed', 'call failed', 'not reached')
+
+==== 44. server 0.73: add_component into a glyph that is not empty ====
+44a one, beside the glyph's content -> {'placement': 'temporary layer', 'placed': True, 'verified': True, 'existing_kept': True, 'advance_width': 600, 'font_modified': True, 'timing': {'build_seconds': 0.004, 'elapsed_seconds': 0.02}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+44b  note, instruction             -> The glyph still holds everything it held before, unchanged and first,  | finish_changes named: True
+44c a list of two, beside           -> {'placement': 'temporary layer', 'placed': True, 'verified': True, 'existing_kept': True, 'advance_width': 600, 'font_modified': True, 'timing': {'build_seconds': 0.004, 'elapsed_seconds': 0.02}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+44d failed, glyph restored         -> {'placement': 'temporary layer', 'placed': False, 'verified': False, 'changed': False, 'reason': 'temporary layer: buildAuto() failed: failed checks: components', 'restore': {'components_removed': 0, 'temp_layer_removed': True, 'restored': True}, 'component_states': [{'component': 'cpasrc', 'x': 100, 'y': 50, 'state': 'not reached'}], 'components_after': ['not a component'], 'checks': {'layers': True, 'existing_kept': True, 'components': False, 'contours_held': True, 'auto_layer_and_recipe_unchanged': True, 'sources_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'font_modified': False, 'timing': {'build_seconds': 0.004, 'elapsed_seconds': 0.02}} | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+44e  restored instruction          -> Placing failed partway (see reason), and the glyph was put back as it was before the call:
+44f failed, NOT restored           -> {'placement': 'temporary layer', 'placed': False, 'verified': False, 'changed': True, 'reason': 'temporary layer: buildAuto() failed: failed checks: components', 'restore': {'components_removed': 1, 'error': 'RuntimeError: removeLayer boom', 'restored': False}, 'layers_after': ['Regular', 'gb_temp_component'], 'component_states': [{'component': 'cpasrc', 'x': 100, 'y': 50, 'state': 'not reached'}], 'components_after': ['not a component'], 'checks': {'layers': True, 'existing_kept': True, 'components': False, 'contours_held': True, 'auto_layer_and_recipe_unchanged': True, 'sources_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'font_modified': True, 'timing': {'build_seconds': 0.004, 'elapsed_seconds': 0.02}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+44g  not-restored instruction      -> Placing did NOT succeed, and the glyph could NOT be confirmed as it was before the call: i
+44h refused, nothing changed       -> ToolError: Glyph 'cpa1': nothing was changed: a glyph that is not empty needs exactly one layer, the active one (it has ['Regular', 'x'], active 'Regular') | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+44i placed but a check is missing  -> {'placement': 'temporary layer', 'placed': False, 'verified': False, 'changed': True, 'reason': 'r', 'component_states': [{'component': 'cpasrc', 'x': 100, 'y': 50, 'state': 'placed'}], 'checks': {'layers': True, 'components': True, 'contours_held': True, 'auto_layer_and_recipe_unchanged': True, 'sources_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'font_modified': True, 'timing': {'build_seconds': 0.004, 'elapsed_seconds': 0.02}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+44j restore with unknown keys      -> {'placement': 'temporary layer', 'placed': False, 'verified': False, 'changed': False, 'reason': 'temporary layer: buildAuto() failed: failed checks: components', 'restore': {'restored': True, 'temp_layer_removed': True}, 'component_states': [{'component': 'cpasrc', 'x': 100, 'y': 50, 'state': 'not reached'}], 'components_after': ['not a component'], 'checks': {'layers': True, 'existing_kept': True, 'components': False, 'contours_held': True, 'auto_layer_and_recipe_unchanged': True, 'sources_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'font_modified': False, 'timing': {'build_seconds': 0.004, 'elapsed_seconds': 0.02}} | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+44k state outside the list         -> {'placement': 'temporary layer', 'placed': False, 'verified': False, 'changed': False, 'reason': 'temporary layer: buildAuto() failed: failed checks: components', 'restore': {'components_removed': 0, 'temp_layer_removed': True, 'restored': True}, 'component_states': [{'component': 'cpasrc', 'x': 1, 'y': 2, 'state': 'unknown'}], 'components_after': ['not a component'], 'checks': {'layers': True, 'existing_kept': True, 'components': False, 'contours_held': True, 'auto_layer_and_recipe_unchanged': True, 'sources_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'font_modified': False, 'timing': {'build_seconds': 0.004, 'elapsed_seconds': 0.02}} | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+44l outcome unknown                -> {'placement': 'temporary layer', 'placed': False, 'verified': False, 'changed': 'unknown', 'reason': 'temporary layer: buildAuto() failed: failed checks: components', 'component_states': [{'component': 'cpasrc', 'x': 100, 'y': 50, 'state': 'not reached'}], 'components_after': ['not a component'], 'checks': {'layers': True, 'existing_kept': True, 'components': False, 'contours_held': True, 'auto_layer_and_recipe_unchanged': True, 'sources_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}, 'font_modified': 'unknown', 'timing': {'build_seconds': 0.004, 'elapsed_seconds': 0.02}} | posts 1 | {'changes': 0, 'uncertain': 1, 'reminder_given': True}
+44m the empty route is unchanged    -> {'placement': 'empty layer', 'placed': True, 'verified': True, 'advance_width': 0, 'font_modified': True} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+44n beside, the build set the width -> {'placement': 'temporary layer', 'placed': True, 'verified': True, 'existing_kept': True, 'advance_width': 600, 'width_set_by_build': 500, 'font_modified': True, 'timing': {'build_seconds': 0.004, 'elapsed_seconds': 0.02}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+44o remove_component points back: True | add_component: not-empty route documented: True | listener named: True
+
+==== 45 add_component: one layer for every target, source_layer (server 0.74) ====
+45a an older listener, no source_layer -> {'placed': True, 'verified': True} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+45b source_layer false               -> {'placed': False, 'verified': False, 'reason': 'the re-read does not confirm the component: failed checks: source_layer', 'checks': {'one_component': True, 'source_layer': False, 'offset': True, 'ink_box': True, 'recipe_cleared': True, 'auto_layer_off': True, 'source_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+45c placed, but source_layer false   -> {'placed': False, 'verified': False, 'checks': {'one_component': True, 'source_layer': False, 'offset': True, 'ink_box': True, 'recipe_cleared': True, 'auto_layer_off': True, 'source_unchanged': True, 'width_unchanged': True, 'glyph_count_unchanged': True}} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+45d refused, two layers (both routes) -> ToolError: Glyph 'cpa1': nothing was changed: add_component needs a glyph with exactly one layer, the active one (it has ['Regular', 'New Layer'], active 'New Layer') | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+45e the list form refused, two layers -> ToolError: Glyph 'cpa1': nothing was changed: add_component needs a glyph with exactly one layer, the active one (it has ['Regular', 'other'], active 'Regular') | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+45f a reason without the tail         -> ToolError: Glyph 'cpa1': nothing was changed: the glyph's layers could not be read | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+45g description: True | 0.187 named: True | the seen case: True | remove_component's refusal untouched: True | _comp_refusal in add_component's three refusals: 3

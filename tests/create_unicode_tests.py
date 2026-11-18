@@ -2784,7 +2784,7 @@ for label, args in (("38o empty name        ", (" ", "cpasrc", 0, 0)), ("38p emp
     ac38(label, dict(OK38), args=args)
 _d38 = srv.add_component.__doc__
 print("38w docs              -> tool listed:", callable(getattr(srv, "add_component", None)), "| signature:", _inspect.signature(srv.add_component),
-      "| EMPTY:", "be EMPTY" in _d38, "| one master:", "exactly ONE master" in _d38, "| width not changed:", "advance width is NOT changed" in _d38,
+      "| not-empty route (v0.73):", "A glyph that is NOT empty" in _d38 and "restore.restored" in _d38, "| one master:", "exactly ONE master" in _d38, "| width not changed:", "advance width is NOT changed" in _d38,
       "| Undo offers nothing:", "Undo offers nothing to take the component back" in _d38, "| no remove tool:", "No Glyphbridge tool removes a component yet" in _d38, "| unexplained run:", "one unexplained run" in _d38,
       "| NEVER saves:", "NEVER saves" in _d38, "| listener named:", "listener 0.169" in _d38, "| placeholder left:", "SAVE_KEYS" in _d38)
 # ==== 39. server 0.68: add_component with a components list (listener 0.174; faked listener replies) ====
@@ -2967,6 +2967,58 @@ print("43zc docs             -> tool listed:", callable(getattr(srv, "remove_com
       "| NEVER saves:", "NEVER saves" in _d43, "| listener named:", "listener 0.179" in _d43, "| placeholder left:", "SAVE_KEYS" in _d43)
 print("43zd add_component names remove_component:", "remove_component removes a component" in srv.add_component.__doc__,
       "| list failure instruction names it:", "remove_component" in srv._COMP_LIST_UNCONFIRMED_INSTRUCTION, "| states known:", srv._REMOVE_STATES)
+
+# ==== 44. server 0.73: add_component into a glyph that is NOT empty (placement "temporary layer", listener 0.186; faked replies) ====
+print("\n==== 44. server 0.73: add_component into a glyph that is not empty ====")
+CHK44 = {k: True for k in srv._COMP_BESIDE_CHECK_KEYS}
+OK44 = {"open": True, "name": "cpa1", "placement": "temporary layer", "placed": True, "verified": True, "existing_kept": True, "changed": True,
+        "checks": dict(CHK44), "steps_done": ["temp_added", "working_active", "recipe", "auto_on", "build", "auto_off", "order_checked",
+                                              "offsets_and_layers", "recipe_cleared", "moved", "temp_removed"],
+        "component_states": [{"component": "cpasrc", "x": 100, "y": 50, "state": "placed"}], "advance_width_after": 600.0,
+        "build_seconds": 0.004, "elapsed_seconds": 0.02, "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}}
+K44 = ("placement", "placed", "verified", "existing_kept", "changed", "reason", "restore", "layers_after", "component_states", "components_after",
+       "checks", "advance_width", "width_set_by_build", "font_modified", "timing")
+RESTORED44 = dict(OK44, placed=False, verified=False, changed=False, error="temporary layer: buildAuto() failed", reason="temporary layer: buildAuto() failed: failed checks: components",
+                  checks=dict(CHK44, components=False), component_states=[{"component": "cpasrc", "x": 100, "y": 50, "state": "not reached"}],
+                  restore={"components_removed": 0, "temp_layer_removed": True, "restored": True}, components_after=["not a component"],
+                  fontlab_changed_mark={"called": False, "reason": "nothing was placed: the glyph was restored"})
+r = ac38("44a one, beside the glyph's content", dict(OK44), keys=K44)
+print("44b  note, instruction             ->", r["note"][:70], "| finish_changes named:", "finish_changes" in r.get("agent_instruction", ""))
+acl39("44c a list of two, beside          ", dict(OK44, component_states=[{"component": "cpasrc", "x": 0, "y": 0, "state": "placed"}] * 2), keys=K44)
+r = ac38("44d failed, glyph restored        ", dict(RESTORED44), keys=K44)
+print("44e  restored instruction          ->", r.get("agent_instruction", "")[:90] if isinstance(r, dict) else r)
+r = ac38("44f failed, NOT restored          ", dict(RESTORED44, changed=True, layers_after=["Regular", "gb_temp_component"],
+         restore={"components_removed": 1, "error": "RuntimeError: removeLayer boom\x00", "restored": False}), keys=K44)
+print("44g  not-restored instruction      ->", r.get("agent_instruction", "")[:90] if isinstance(r, dict) else r)
+ac38("44h refused, nothing changed      ", {"open": True, "placement": "temporary layer", "placed": False, "changed": False,
+     "reason": "a glyph that is not empty needs exactly one layer, the active one (it has ['Regular', 'x'], active 'Regular'): nothing was changed"}, keys=K44)
+ac38("44i placed but a check is missing ", dict(OK44, checks={k: v for k, v in CHK44.items() if k != "existing_kept"}, reason="r"), keys=K44)
+ac38("44j restore with unknown keys     ", dict(RESTORED44, restore={"restored": True, "temp_layer_removed": True, "evil": "x", "components_removed": -3}), keys=K44)
+ac38("44k state outside the list        ", dict(RESTORED44, component_states=[{"component": "cpasrc", "x": 1, "y": 2, "state": "exploded"}]), keys=K44)
+ac38("44l outcome unknown               ", dict(RESTORED44, changed="unknown", restore=None), keys=K44)
+ac38("44m the empty route is unchanged   ", dict(OK38, placement="empty layer"), keys=K44)
+ac38("44n beside, the build set the width", dict(OK44, width_set_by_build=500.0, cleanup={"width_restored": True}), keys=K44)
+print("44o remove_component points back:", "listener 0.186 places components also into a glyph that is not empty" in srv.remove_component.__doc__,
+      "| add_component: not-empty route documented:", "A glyph that is NOT empty" in srv.add_component.__doc__, "| listener named:", "listener 0.186" in srv.add_component.__doc__)
+
+# ---- server v0.74 (listener 0.187): one layer, the active one, for every target; source_layer its own check; "nothing was changed" once
+print("\n==== 45 add_component: one layer for every target, source_layer (server 0.74) ====")
+OK45_OLD = dict(OK38, checks={k: v for k, v in CHK38.items() if k != "source_layer"})
+ac38("45a an older listener, no source_layer", OK45_OLD, keys=("placed", "verified", "checks"))
+ac38("45b source_layer false              ", dict(OK38, placed=False, verified=False, checks=dict(CHK38, source_layer=False),
+     reason="the re-read does not confirm the component: failed checks: source_layer"), keys=("placed", "verified", "reason", "checks"))
+ac38("45c placed, but source_layer false  ", dict(OK38, checks=dict(CHK38, source_layer=False)), keys=("placed", "verified", "checks"))
+ac38("45d refused, two layers (both routes)", {"open": True, "placed": False, "reason": "add_component needs a glyph with exactly one layer, the "
+     "active one (it has ['Regular', 'New Layer'], active 'New Layer'): nothing was changed"})
+acl39("45e the list form refused, two layers", {"open": True, "form": "list", "placed": False, "reason": "add_component needs a glyph with exactly "
+      "one layer, the active one (it has ['Regular', 'other'], active 'Regular'): nothing was changed"})
+ac38("45f a reason without the tail        ", {"open": True, "placed": False, "changed": False, "reason": "the glyph's layers could not be read"})
+print("45g description:", "exactly ONE layer, the active one" in srv.add_component.__doc__, "| 0.187 named:",
+      "the one-layer rule for every target needs listener 0.187" in srv.add_component.__doc__, "| the seen case:",
+      "listener 0.187 refuses any glyph with more than one layer instead" in srv.add_component.__doc__,
+      "| remove_component's refusal untouched:", "raise _comp_refusal(" not in _inspect.getsource(srv.write_glyph_remove_components),
+      "| _comp_refusal in add_component's three refusals:", sum(_inspect.getsource(f).count("raise _comp_refusal(clean, reason)")
+                                                                 for f in (srv.write_glyph_component, srv._comp_beside_reply, srv.write_glyph_components)))
 
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 srv._reset_change_tracking()

@@ -6,13 +6,15 @@ What an agent can do today: read glyph outlines, widths, sidebearings, Unicode v
 
 ## Requirements
 
+Make sure you have these installed on your computer:
 - FontLab 8
 - Python 3.14 or newer (3.15 tested)
-- Claude Desktop, or another MCP client that can start a local (stdio) server
+- Claude Desktop, or ChatGPT Desktop, or another MCP client that can start a local (stdio) server
 
 ## Install on Windows (tested)
-
-1. Download or clone this repository, for example to `Documents\GitHub\Glyphbridge-FontLab-MCP`.
+Option 1 - Open the AI agent of your choice and type "Tell me how to install and use https://github.com/TopraksoyEarthmanTsuchimoto/Glyphbridge-FontLab-MCP on this computer"
+Option 2 - Do these manually:
+1. Download or clone this repository, for example to `Documents\GitHub\Glyphbridge-FontLab-MCP` (You can use the green "< > Code" button and Download ZIP).
 2. Open PowerShell in that folder and create the server's own Python environment:
    ```
    py -m venv venv

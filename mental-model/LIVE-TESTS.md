@@ -937,6 +937,95 @@ Not reached live: the per-entry states after a dropped entry and `components_aft
 | 1300 | `get_glyph_outline cppnet6` (and `cppnet1` as a check) | `verified`, the component on `Regular`, `source_in_step` true | as predicted; `cppnet1`'s recipe-built component is still a component |
 | 1283b | `get_glyph_outline cppnet3` | as 1283a | `verified` (ink 100…400 × 0…500); `cppnes2` at (300, 0) on `Regular`, `source_in_step` true; the new `cppnes1` component names `gb_temp_component`, as in 1283a |
 
+### H1 series: what turned `cppnet2`'s component into a plain shape (2026-11-18, listener 0.184 / server 0.72, FontLab 8.9.5 in Demo mode, through Claude Code; probe `/debug/trycomponent` `stage=templayer`, requests sent straight to the listener after the user's go-ahead; the TL font `Unnamed`, one font open; one run; no File > Save stage, nothing saved)
+
+Hypothesis H1: `create_glyph`'s `font.update()`, run after a listener restart had emptied the update guard's memory, flattens the component of a glyph whose empty temporary layer is active and unsynced. Predicted for the whole series: only R4 (`cppnet10`) flattens. The targets were not read between steps, only by the probe's own replies and at the end (1314).
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1301 | `fontlab_status`, `list_glyphs` | 0.184 / 0.72, `Unnamed` open | as predicted; the nine glyphs of TL |
+| 1302 | setup: `create_glyph` `cppnet7`–`cppnet10`, then `add_component` `cppnes2` at (300, 0) into each | layers `Regular`, `verified` | as predicted: each `layer_created` `Regular`, `placed`, `verified`, synced, marked; `font.update()` ran in each `create_glyph` (no temporary layer existed) |
+| 1303–1304 | R1 (control) `cppnet7`: `addlayer`, `droptemp` | the temporary layer active, then dropped; the component kept | as predicted: `gb_temp_component` active, sync `at_risk`; `droptemp`: `setActive()` of `Regular`, the layer removed, the component of `cppnes2` / `Regular` at (300, 0) before and after, synced |
+| 1305 | R2 `addlayer cppnet8` | as 1303 | as predicted |
+| 1306 | R2 `create_glyph cppnex1` | the refresh skipped to protect `cppnet8`; created **without** a layer (as 1273a) | the refresh skipped, `display_refresh_skipped_to_protect` `["cppnet8"]` (as predicted); **but created with its layer `Regular`** (`layer_name_source` "other glyphs"), against 1273a |
+| 1307 | R2 `droptemp cppnet8` | the component kept | as predicted: a component before and after, synced |
+| 1308–1309 | `addlayer` `cppnet9`, `cppnet10`, left | as 1303 | as predicted: each temporary layer active, `at_risk` |
+| — | the person restarted the listener (0.184 in the OUTPUT panel; FontLab's grid still showed 13 glyphs, without `cppnex1`) | | |
+| 1310 | `fontlab_status` | 0.184 / 0.72 | as predicted |
+| 1311 | R3 `droptemp cppnet9` (no `create_glyph` before it) | the component kept | as predicted: a component before and after, synced |
+| 1312 | R4 `create_glyph cppnex2` | `font.update()` runs (no skip), no layer | `font.update()` ran (no skip, as predicted); **created with its layer `Regular`** |
+| 1313 | R4 `droptemp cppnet10` | `Regular` holds a plain shape | as predicted: `Regular` held one plain shape at (300, 0) before the clean-up; the layer dropped |
+| 1314 | `get_glyph_outline` `cppnet7`–`cppnet10`, `cppnet1`, `cppnet3`, `cppnet4`, `cppnet6` | only `cppnet10` a plain shape | **not as predicted: `cppnet8`, `cppnet9` and `cppnet10` are plain shapes** (the square at 300…400 × 400…500, `is_component` false, the offset (300, 0) kept, `verified`); `cppnet7`, and the components of `cppnet1`, `cppnet3`, `cppnet4`, `cppnet6`, are still components, `source_in_step` true |
+
+Reading: `font.update()` ran only in 1302 (before any temporary layer) and 1312; `cppnet9` was a component in 1311, so 1312 is the likely moment for it. `cppnet8` changed somewhere between 1307 and 1314, not narrowed. H1 as predicted ("only the glyph with the active temporary layer") is contradicted; why `cppnet7` stayed a component is open ([WATCH-POINTS.md](WATCH-POINTS.md)). Lesson: read every target after every step.
+
+### Run C: the moment of the flattening (2026-11-18, the same conditions as the H1 series; every target read straight from `/glyph/outline` after every step)
+
+Targets `cppnec1`–`cppnec4`, each a component of `cppnes2` at (300, 0); `cppnec1` mirrors `cppnet7`, `cppnec2` `cppnet8`, `cppnec3` `cppnet9`; `cppnec4` never gets a temporary layer. "All components" below means all four read as components, unless a row says otherwise.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1315 | `fontlab_status`; the reading script checked on `cppnet7`, `cppnet8`, `cppnet4` | 0.184 / 0.72 | as predicted; the script agreed with 1314 |
+| 1316 | setup: `create_glyph`, then `add_component` `cppnes2` at (300, 0), for `cppnec1`–`cppnec4` | four components, `verified` | as predicted |
+| 1317 | C1 `addlayer cppnec1` | all components (90 %) | as predicted; while its temporary layer was active, `/glyph/outline` of `cppnec1` listed no elements (`available` false; also 1319, 1320, 1322, 1323 for the glyph then holding one) |
+| 1318 | C2 `droptemp cppnec1` | all components (90 %) | as predicted |
+| 1319 | C3 `addlayer cppnec2` | all components (90 %) | as predicted |
+| 1320 | C4 `create_glyph cppnexc1` | the refresh skipped; all components (75 %) | as predicted: skipped to protect `cppnec2`; `cppnexc1` got its layer `Regular` |
+| 1321 | C5 `droptemp cppnec2` | all components (80 %) | as predicted |
+| 1322 | C6 `addlayer cppnec3`, left | all components (90 %) | as predicted |
+| — | the person restarted the listener | | |
+| 1323 | `fontlab_status`; read | all components (70 %) | as predicted: the restart alone changed nothing |
+| 1324 | C7 `droptemp cppnec3` | all components (85 %) | as predicted |
+| 1325 | C8 `create_glyph cppnexc2`: `font.update()` runs | if H1 repeats, `cppnec2` and `cppnec3` flatten, `cppnec1` and `cppnec4` do not (about 55 %) | **as predicted**: `cppnec2` and `cppnec3` plain shapes, the offset (300, 0) kept; `cppnec1`, `cppnec4` (and `cppnet7`, read as well) components |
+| 1326 | C9 `create_glyph cppnexc3`: a second `font.update()` | no further change (70 %) | as predicted |
+| 1327 | `get_glyph_outline` `cppnec1`–`cppnec4` | as 1326 | as predicted, all `verified`; `source_in_step` true on the two components |
+
+Reading (one run, consistent with 1301–1314): the plain shapes appear at the next `font.update()` that runs, not at the restart nor at a skipped `create_glyph`. A glyph flattened only when, while its temporary layer was active, a `create_glyph` ran with its refresh skipped (`cppnec2`, `cppnet8`) or the listener restarted (`cppnec3`, `cppnet9`, `cppnet10`, `cppnet2`). A temporary layer added and dropped with nothing in between (`cppnec1`, `cppnet7`) and the route run step by step with nothing in between (`cppnet6`) did not flatten at later updates. The cause inside these two events is not isolated ([WATCH-POINTS.md](WATCH-POINTS.md)).
+
+### PB series: the temporary-layer route on a Power Brush target (2026-11-18, listener 0.185 / server 0.72, FontLab 8.9.5 in Demo mode, through Claude Code; probe `/debug/trycomponent` `stage=templayer&brush=yes`, requests sent straight to the listener after the user's go-ahead (build approval of 0.185); the font `Unnamed`, one font open; one run; no File > Save stage, nothing saved)
+
+The brush glyphs were drawn by the person (Font > New Glyph > Create Blank, the Power Brush tool, default brush 50, one stroke, the tab closed afterwards). Every read went through `/glyph/outline` (modern layer only). Hypothesis: the guard's full check (`sync=full`, it reads `glyph.layers` and `glyph.layer`) arms F1, the light check (`sync=light`) does not.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1328 | `fontlab_status` after the listener restart | 0.185 / 0.72 | as predicted |
+| 1329 | the person: `cpppb1`, `cpppb2`, `cpppb3`, one stroke each, tabs closed | — | done, one glyph at a time |
+| 1330 | read all three | one brush shape each (`isComposite` true, not a component) | as predicted: 51, 69 and 51 nodes |
+| 1331–1336 | PB-L: `cpppb2`, `addlayer`, `activate`, `build cppnes1`, `setlayer`, `move`, `removelayer`, `sync=light` | as on a plain target; the brush kept | as predicted: every step `synced` (also `addlayer`), `working_active`, `built`, `temp_layer_set`, `moved`, `component_layer_matches`, `placed_beside` true, marked; the brush shape unchanged beside the new component (69 + 3 nodes) |
+| 1337 | `create_glyph cpppbx1` (`font.update()` ran); read all three | all keep their brush (70 %) | as predicted |
+| 1338–1343 | PB-F: the same route on `cpppb3`, `sync=full` | as PB-L | as predicted; `addlayer` read `at_risk` (as with plain targets), the later steps `synced`; `placed_beside` true, marked |
+| 1344 | `create_glyph cpppbx2`; read all three | **`cpppb3` flattened (75 %)**, the others kept | **not as predicted**: all three still hold their brush |
+| 1345 | added: `create_glyph cpppbx3`, a second `font.update()`; read; `get_glyph_outline cpppb3` | about 50 / 50 for `cpppb3` | all three still brush; `cpppb3` `verified`, the brush element with fractional nodes, the component `source_in_step` true |
+
+Reading (one run): the route places a component beside a Power Brush shape and leaves it unchanged, in both modes. The full check's legacy reads, followed by two `font.update()` calls, did not flatten these GUI-drawn brush glyphs with closed tabs, so the hypothesis is contradicted here; what arms F1 stays open ([WATCH-POINTS.md](WATCH-POINTS.md)).
+
+### NB series: `add_component` on a glyph that is not empty, live (2026-11-18, listener 0.186 / server 0.73, FontLab 8.9.5 in Demo mode, through a NEW Claude Code session with the 0.73 tool description; FontLab had been closed, so `create_font` without a family, one font open, `Unnamed`; prefix `cpq`; one run each; no File > Save stage, nothing saved)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1346 | `fontlab_status` (0.73 / 0.186, no font open); `create_font`; `create_glyph` `cpqs1`, `cpqs2`, `cpqt1`–`cpqt5`; `draw_polygon` `cpqs1` the triangle (100,0) (300,0) (200,300), `cpqs2` the square (0,400)–(100,500), `cpqt1` and `cpqt4` the rectangle (0,0)–(400,300); `add_component cpqt2` `cpqs2` at (300, 0) | every step `verified`, all widths 0 | as predicted; the empty target's reply said `placement: "empty layer"` |
+| 1347 | single form onto a contour: `cpqt1` ← `cpqs1` at (500, 0) | `placement` "temporary layer", `placed`, `verified`, `existing_kept`, width 0 | as predicted |
+| 1348 | single form onto a component: `cpqt2` ← `cpqs1` at (0, 0) | as 1347 | as predicted |
+| — | the person: one Power Brush stroke in `cpqt3` (empty) | — | done; ELEMENTS showed one brush element |
+| 1349 | single form onto a brush: `cpqt3` ← `cpqs2` at (300, 0) | as 1347, the brush kept | as predicted |
+| — | the person: one Power Brush stroke in `cpqt4` (beside the rectangle) | — | done; `Regular` read "2 elements" |
+| 1350 | list form onto a brush with a contour: `cpqt4` ← `cpqs1` (500, 0), `cpqs2` (500, 0), `cpqs1` (800, 0) | as 1347, in list order | as predicted; `elapsed_seconds` 0.004 |
+| 1351a | `draw_polygon cpqt5` the rectangle; the person: LAYERS & MASTERS **+**, Add Layer dialog defaults (current glyph only), OK | — | a second layer `New Layer`, which FontLab made the active one (ELEMENTS empty) |
+| 1351b | the person clicked `Regular` to make it active (see below why) | — | `Regular` active, the rectangle shown |
+| 1351 | `cpqt5` ← `cpqs1` at (500, 0) | refused, nothing changed | as predicted: "a glyph that is not empty needs exactly one layer, the active one (it has ['New Layer', 'Regular'], active 'Regular')"; the text says "nothing was changed" twice |
+| 1352 | `create_glyph cpqx1` (`font.update()` ran); `get_glyph_outline` `cpqt1`–`cpqt5` | all unchanged, the brushes still brush, `verified` | as predicted: every read `verified`, the old elements first, then the components in order, each `source_in_step` true; `cpqt3` and `cpqt4` brushes `is_composite` true, `is_component` false (63 and 33 nodes); `cpqt5` the rectangle only; widths 0 |
+
+`finish_changes`: 19 changes. The code ([glyphbridge_fontlab_mcp_listener.py](../glyphbridge_fontlab_mcp_listener.py) `add_component`) tells empty from not empty by the active layer only, and the empty route does not count layers; 1353 ran that case ([WATCH-POINTS.md](WATCH-POINTS.md)).
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| — | the person clicked `New Layer` in `cpqt5` | — | `New Layer` active, ELEMENTS empty, the grid thumbnail empty |
+| 1353 | `cpqt5` ← `cpqs1` at (500, 0) | `placement` "empty layer", `placed` and `verified` true, the component on `New Layer` (75 %); else a refusal | **partly as predicted**: the empty route ran (`steps_done` recipe … recipe_cleared) and wrote, but `placed` false, failed check `one_component`, though `elements_after` listed one component of `cpqs1` at (500, 0); no mark; `cleanup` empty; nothing restored |
+| 1353a | `get_glyph_outline cpqt5` (`New Layer` active) | only the component | as predicted, but its `component_layer` is **`New Layer`**, which `cpqs1` lacks (as TL 1283); status `verified`, `source_in_step` "unknown" |
+| 1353b | the person clicked `Regular`; read | the rectangle only | as predicted, `verified`; the panel read `New Layer` "1 component"; the grid thumbnail showed the rectangle and the triangle (seen once) |
+
+Reading (one run): a glyph whose active layer is empty beside a full one takes the empty route; the build names the active layer as the source's layer, so the check fails, though under the name `one_component`; the read calls such a glyph `verified`. `finish_changes`: 1 change. `cpqt5`'s component on `New Layer` is left in place. Not run: a failure partway and its restore, the list form's refusals on a non-empty target, two fonts.
+
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 
 | Id | Test | Stage / how | Expected | Status |

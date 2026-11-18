@@ -12,13 +12,13 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [PROJECT.md](PROJECT.md) | goals, scope, non-goals, design rule | 1,000 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | processes, APIs, verification model, tools, layout | 1,600 |
 | [CURRENT-STATUS.md](CURRENT-STATUS.md) | where the project stands and what comes next | 3,000 |
-| [DECISIONS.md](DECISIONS.md) | active decisions with dates and reasons | 3,500 (active part) |
+| [DECISIONS.md](DECISIONS.md) | active decisions with dates and reasons | 4,000 (active part) |
 | [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 1,000 |
-| [CHECKLIST.md](CHECKLIST.md) | open scenarios | 1,500 |
+| [CHECKLIST.md](CHECKLIST.md) | open scenarios | 1,750 |
 
 Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 500; [WATCH-POINTS.md](WATCH-POINTS.md) 2,500; [WHAT-WORKS.md](WHAT-WORKS.md) 3,000.
 
-**Reference totals:** 13,950 words including the root README, and 13,450 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [DECISIONS.md](DECISIONS.md), and before that [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text).
+**Reference totals:** 14,700 words including the root README, and 14,200 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [DECISIONS.md](DECISIONS.md), and before that [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text).
 
 ## Linked files (read when the task needs them; no budget unless noted)
 

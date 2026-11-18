@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.72)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.74)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.72"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.74"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1832,8 +1832,22 @@ def write_glyph_moves(name: str, moves: Any) -> dict:
 
 # ---- v0.66: add_component through POST /glyph/component (listener 0.169; design of the user, DECISIONS.md 2026-11-17) ----
 _COMP_OFFSET_MAX = 10000
-_COMP_CHECK_KEYS = ("one_component", "offset", "ink_box", "recipe_cleared", "auto_layer_off", "source_unchanged", "width_unchanged",
-                    "glyph_count_unchanged")
+_COMP_CHECK_KEYS = ("one_component", "source_layer", "offset", "ink_box", "recipe_cleared", "auto_layer_off", "source_unchanged",
+                    "width_unchanged", "glyph_count_unchanged")
+_COMP_CHECKS_SINCE_187 = ("source_layer",)     # v0.74: listener 0.187 sends it; an older listener's one_component includes it
+
+
+def _comp_checks_ok(checks: dict) -> bool:
+    """v0.74: every single-form check True; a check a listener older than 0.187 does not send is not required."""
+    return all(checks.get(k) is True for k in _COMP_CHECK_KEYS if k in checks or k not in _COMP_CHECKS_SINCE_187)
+
+
+def _comp_refusal(clean: str, reason: str) -> ToolError:
+    """v0.74: the ToolError for an add_component call that changed nothing, saying "nothing was changed" once (the listener's reason
+    ends with it; live 1351 showed it twice)."""
+    tail = ": nothing was changed"
+    text = reason[:-len(tail)] if isinstance(reason, str) and reason.endswith(tail) else reason
+    return ToolError(f"Glyph '{clean}': nothing was changed: {text}")
 _COMP_NOTE = ("The glyph now holds one component of the named glyph at the given offset, read back from FontLab: the component, its "
               "offset and its drawn box are confirmed, FontLab's recipe for it was cleared, and the component glyph, the advance width and "
               "the glyph count are unchanged.")
@@ -1869,11 +1883,14 @@ def write_glyph_component(name: str, component: str, x: Any = 0, y: Any = 0) -> 
         raise ToolError(NO_FONT)
     if data.get("found") is False:
         raise ToolError(f"No glyph named '{clean}' was found.")
+    if data.get("placement") == "temporary layer":      # v0.73: a glyph that is not empty (listener 0.186)
+        return _comp_beside_reply(data, {"name": clean, "component": src, "x": ox, "y": oy}, 1)
     checks = data.get("checks") if isinstance(data.get("checks"), dict) else {}
-    if data.get("placed") is True and data.get("verified") is True and all(checks.get(k) is True for k in _COMP_CHECK_KEYS):
+    if data.get("placed") is True and data.get("verified") is True and _comp_checks_ok(checks):
         result = {"name": clean, "component": src, "x": ox, "y": oy, "placed": True, "verified": True,
                   "advance_width": _tidy_number(data.get("advance_width_after")) if isinstance(data.get("advance_width_after"), (int, float)) else None,
                   "note": _COMP_NOTE}
+        _comp_placement(result, data)
         _comp_width_fields(result, data, False)
         _add_guard_fields(result, data)
         _mark_modified(result, True)
@@ -1881,7 +1898,7 @@ def write_glyph_component(name: str, component: str, x: Any = 0, y: Any = 0) -> 
     changed = data.get("changed")
     reason = data.get("reason") or "the re-read does not confirm the component"
     if changed is not True and changed != "unknown":
-        raise ToolError(f"Glyph '{clean}': nothing was changed: {reason}")
+        raise _comp_refusal(clean, reason)
     elements = data.get("elements_after")
     view = [{"is_component": e.get("is_component"), "component_glyph": e.get("component_glyph"), "matrix": e.get("matrix")}
             for e in elements if isinstance(e, dict)] if isinstance(elements, list) else None
@@ -1889,6 +1906,7 @@ def write_glyph_component(name: str, component: str, x: Any = 0, y: Any = 0) -> 
               "steps_done": [s for s in data.get("steps_done") or [] if isinstance(s, str)],
               "checks": {k: checks.get(k) for k in _COMP_CHECK_KEYS if k in checks}, "elements_after": view,
               "agent_instruction": _COMP_UNCONFIRMED_INSTRUCTION}
+    _comp_placement(result, data)
     if "auto_layer_set_back" in data:                       # listeners 0.169-0.177; since 0.178 it is in cleanup
         result["auto_layer_set_back"] = data["auto_layer_set_back"]
     _comp_width_fields(result, data, "cleanup" in data)
@@ -1960,6 +1978,87 @@ def _comp_after_view(raw: Any) -> Any:
     return out
 
 
+# ---- v0.73: add_component into a glyph that is NOT empty (listener 0.186; the user's design of 2026-11-18, DECISIONS.md) ----
+_COMP_BESIDE_CHECK_KEYS = ("layers", "existing_kept", "components", "contours_held", "auto_layer_and_recipe_unchanged", "sources_unchanged",
+                           "width_unchanged", "glyph_count_unchanged")
+_COMP_BESIDE_NOTE = ("The glyph still holds everything it held before, unchanged and first, and after it the listed components, in order, "
+                     "each at its offset, read back from FontLab: every component, its source and its drawn box are confirmed. The temporary "
+                     "layer FontLab's build needed is gone again, and the advance width, the component glyphs and the glyph count are unchanged.")
+_COMP_RESTORED_INSTRUCTION = (
+    "Placing failed partway (see reason), and the glyph was put back as it was before the call: a re-read confirms it (restore.restored). "
+    "Nothing was placed. Tell the person, in plain words, what failed. Do NOT repeat it on your own: ask the person first.")
+_COMP_NOT_RESTORED_INSTRUCTION = (
+    "Placing did NOT succeed, and the glyph could NOT be confirmed as it was before the call: it may hold some of the components, or a "
+    "temporary layer named gb_temp_component (see restore, layers_after, component_states and components_after). Tell the person, in plain "
+    "words, what happened and what the glyph holds now. Do NOT repair, remove or repeat anything on your own: ask the person first.")
+_COMP_RESTORE_KEYS = ("restored", "components_removed", "working_layer_made_active", "temp_auto_layer_off", "temp_layer_removed",
+                      "width_restored", "error")
+
+
+def _comp_placement(result: dict, data: dict) -> None:
+    """v0.73: pass on placement "empty layer" (listener 0.186) on the empty route; an older listener sends none, so none is added."""
+    if data.get("placement") == "empty layer":
+        result["placement"] = "empty layer"
+
+
+def _comp_beside_reply(data: dict, head: dict, n: int) -> dict:
+    """v0.73: the reply for the temporary-layer route (placement "temporary layer", listener 0.186), both forms. head holds the request's
+    own fields (name and the component or the list). A refusal that changed nothing is a ToolError, as in the empty route."""
+    clean = head["name"]
+    checks = data.get("checks") if isinstance(data.get("checks"), dict) else {}
+    timing = {k: _tidy_number(data[k]) for k in ("build_seconds", "elapsed_seconds") if isinstance(data.get(k), (int, float))}
+    if data.get("placed") is True and data.get("verified") is True and all(checks.get(k) is True for k in _COMP_BESIDE_CHECK_KEYS):
+        result = dict(head, placement="temporary layer", placed=True, verified=True, existing_kept=True,
+                      advance_width=_tidy_number(data.get("advance_width_after")) if isinstance(data.get("advance_width_after"), (int, float)) else None,
+                      note=_COMP_BESIDE_NOTE, timing=timing)
+        if n > _COMP_SOFT_LIMIT:
+            result["untested_size_note"] = _COMP_UNTESTED_NOTE
+        _comp_width_fields(result, data, False)
+        _add_guard_fields(result, data)
+        _mark_modified(result, True)
+        return result
+    changed = data.get("changed")
+    reason = data.get("reason") or "the re-read does not confirm the components"
+    raw_restore = data.get("restore")
+    if changed is not True and changed != "unknown" and not isinstance(raw_restore, dict):
+        raise _comp_refusal(clean, reason)
+    restore = ({k: v for k, v in raw_restore.items() if k in _COMP_RESTORE_KEYS
+                and (isinstance(v, bool) or (isinstance(v, int) and v >= 0) or isinstance(v, str))} if isinstance(raw_restore, dict) else None)
+    if restore is not None and isinstance(restore.get("error"), str):
+        restore["error"] = _clean_font_text(restore["error"])
+    raw_states = data.get("component_states") if isinstance(data.get("component_states"), list) else []
+    result = dict(head, placement="temporary layer", placed=False, verified=False, changed=changed, reason=reason,
+                  steps_done=[s for s in data.get("steps_done") or [] if isinstance(s, str)],
+                  checks={k: checks.get(k) for k in _COMP_BESIDE_CHECK_KEYS if k in checks},
+                  component_states=[{"component": st.get("component"), "x": st.get("x"), "y": st.get("y"),
+                                     "state": st.get("state") if st.get("state") in ("placed", "not reached", "unknown") else "unknown"}
+                                    for st in raw_states if isinstance(st, dict)],
+                  timing=timing)
+    if restore is not None:
+        result["restore"] = restore
+    layers_after = data.get("layers_after")
+    if isinstance(layers_after, list) and all(isinstance(v, str) for v in layers_after):
+        result["layers_after"] = [_clean_font_text(v) for v in layers_after]
+    after = _comp_after_view(data.get("components_after"))
+    if after is not None:
+        result["components_after"] = after
+    restored = restore is not None and restore.get("restored") is True and changed is False
+    result["agent_instruction"] = _COMP_RESTORED_INSTRUCTION if restored else _COMP_NOT_RESTORED_INSTRUCTION
+    if n > _COMP_SOFT_LIMIT:
+        result["untested_size_note"] = _COMP_UNTESTED_NOTE
+    _comp_width_fields(result, data, False)
+    _add_guard_fields(result, data)
+    if changed is True:
+        _mark_modified(result, True)
+    elif restored:
+        result["font_modified"] = False
+    else:
+        _note_change(sure=False)
+        result["font_modified"] = "unknown"
+        result["agent_instruction"] += " " + _SAVE_INSTRUCTION
+    return result
+
+
 def _comp_needs_confirmation(clean: str, n: int) -> dict:
     return {"name": clean, "component_count": n, "placed": False, "changed": False, "needs_confirmation": True,
             "untested_size_note": _COMP_UNTESTED_NOTE,
@@ -2009,12 +2108,15 @@ def write_glyph_components(name: str, components: Any, confirmed: Any = False) -
         raise ToolError(f"No glyph named '{clean}' was found.")
     if data.get("untested_size") is True:
         return _comp_needs_confirmation(clean, n)
+    if data.get("placement") == "temporary layer":      # v0.73: a glyph that is not empty (listener 0.186)
+        return _comp_beside_reply(data, {"name": clean, "component_count": n, "components": entries}, n)
     checks = data.get("checks") if isinstance(data.get("checks"), dict) else {}
     timing = {k: _tidy_number(data[k]) for k in ("build_seconds", "elapsed_seconds") if isinstance(data.get(k), (int, float))}
     if data.get("placed") is True and data.get("verified") is True and all(checks.get(k) is True for k in _COMP_LIST_CHECK_KEYS):
         result = {"name": clean, "component_count": n, "components": entries, "placed": True, "verified": True,
                   "advance_width": _tidy_number(data.get("advance_width_after")) if isinstance(data.get("advance_width_after"), (int, float)) else None,
                   "note": _COMP_LIST_NOTE, "timing": timing}
+        _comp_placement(result, data)
         if n > _COMP_SOFT_LIMIT:
             result["untested_size_note"] = _COMP_UNTESTED_NOTE
         _comp_width_fields(result, data, False)
@@ -2024,7 +2126,7 @@ def write_glyph_components(name: str, components: Any, confirmed: Any = False) -
     changed = data.get("changed")
     reason = data.get("reason") or "the re-read does not confirm the components"
     if changed is not True and changed != "unknown":
-        raise ToolError(f"Glyph '{clean}': nothing was changed: {reason}")
+        raise _comp_refusal(clean, reason)
     raw_states = data.get("component_states") if isinstance(data.get("component_states"), list) else []
     states = [{"component": st.get("component"), "x": st.get("x"), "y": st.get("y"),
                "state": st.get("state") if st.get("state") in _COMP_LIST_STATES else "unknown"} for st in raw_states if isinstance(st, dict)]
@@ -2035,6 +2137,7 @@ def write_glyph_components(name: str, components: Any, confirmed: Any = False) -
                           and (v is True or isinstance(v, str))},
               "component_states": states, "checks": {k: checks.get(k) for k in _COMP_LIST_CHECK_KEYS if k in checks},
               "timing": timing, "agent_instruction": _COMP_LIST_UNCONFIRMED_INSTRUCTION}
+    _comp_placement(result, data)
     after = _comp_after_view(data.get("components_after"))
     if after is not None:
         result["components_after"] = after
@@ -4128,9 +4231,9 @@ def move_nodes(name: str, moves: list[dict[str, Any]], ctx: Context | None = Non
 @_tool()
 def add_component(name: str, component: str | None = None, x: int = 0, y: int = 0, components: list | None = None,
                   confirmed_untested_size: bool = False, ctx: Context | None = None) -> dict[str, Any]:
-    """Place components in the EMPTY glyph `name` of the font currently open in FontLab 8: ONE glyph `component` at offset (x, y), or
-    SEVERAL at once with `components`, a list of {"component": glyph name, "x": whole number, "y": whole number} (x and y default to 0).
-    Give one form or the other, never both.
+    """Place components in the glyph `name` of the font currently open in FontLab 8, an empty glyph or one that already holds contours,
+    components or Power Brush shapes: ONE glyph `component` at offset (x, y), or SEVERAL at once with `components`, a list of
+    {"component": glyph name, "x": whole number, "y": whole number} (x and y default to 0). Give one form or the other, never both.
 
     A component is a live reference: the glyph `name` then draws the component glyph's outline, moved by (x, y) font units (y up), and
     follows later edits of it. x and y must be whole numbers from -10000 to 10000; (0, 0) places a component exactly where its glyph is
@@ -4138,7 +4241,9 @@ def add_component(name: str, component: str | None = None, x: int = 0, y: int = 
     its own component, in list order.
 
     For now, only this is supported (anything else is refused and NOTHING changes):
-      - `name` must exist and be EMPTY (no contour, no component), with its layer (create_glyph gives one in a font with one master);
+      - `name` must exist with exactly ONE layer, the active one (create_glyph gives one in a font with one master; checked for every
+        target since listener 0.187, before only for a glyph that is not empty); if it is not empty, its automatic layer must be off
+        and it must hold only contours, components and Power Brush shapes (needs listener 0.186);
       - every component glyph must exist and hold only plain contours (no component of its own, no Power Brush or other composite shape);
       - the font must have exactly ONE master; no scale, rotation, mirroring or anchors; glyph names must not contain "+";
       - in the list form no component glyph name may contain an underscore ("_"): FontLab's recipe build of several glyphs reads it as
@@ -4156,7 +4261,17 @@ def add_component(name: str, component: str | None = None, x: int = 0, y: int = 
     the glyph count unchanged. The advance width is NOT changed: set it with set_glyph_width if the person wants one. The list form's
     reply gives timing in seconds.
 
-    If the re-read does NOT confirm it (placed: false), the glyph may hold part of it. In the list form placing stops at the first failure;
+    A glyph that is NOT empty (placement: "temporary layer"; an empty one says "empty layer"): FontLab's build would replace what the
+    glyph holds (seen live), so within this one call the tool adds a temporary layer to the glyph, builds the components there, sets
+    their offsets and source layers, adds them to the glyph's own layer after what it holds, and removes the temporary layer again.
+    Success (placed: true, verified: true, existing_kept: true) means everything the glyph held before is unchanged and first, followed by
+    exactly the listed components in order, each at its offset and drawn where expected; the glyph has its one layer again, and the
+    advance width, the component glyphs and the glyph count are unchanged. If this route fails partway, the tool puts the glyph back as
+    it was (it removes the components it added and the temporary layer, and writes the width back) and reads it again: restore.restored
+    true means the glyph is confirmed as before and nothing was placed; otherwise the glyph may hold part of it or the temporary layer
+    (see restore, layers_after, component_states, components_after).
+
+    If the re-read of an EMPTY glyph does NOT confirm it (placed: false), the glyph may hold part of it. In the list form placing stops at the first failure;
     then the automatic layer is switched off, the recipe cleared and the width written back (cleanup says what worked);
     component_states says for each entry: placed, at FontLab's position, left by the build, missing after the build, not reached or
     unknown, and components_after lists what the glyph holds. Nothing else is restored automatically. Tell the person which
@@ -4165,12 +4280,17 @@ def add_component(name: str, component: str | None = None, x: int = 0, y: int = 
     Limits seen in testing: FontLab's Edit > Undo offers nothing to take the component back (seen live once: Undo was greyed out).
     remove_component removes a component again (listener 0.179). In one unexplained run, two components
     placed by FontLab's recipe build later became plain contours with no request to change them; the reply can only confirm the moment of
-    its own call. If it matters, read the glyph again later with get_glyph_outline.
+    its own call. If it matters, read the glyph again later with get_glyph_outline. In research, components also became plain contours
+    when a temporary layer stayed in a glyph while other calls ran (a create_glyph or a listener restart, then FontLab's next display
+    refresh); this tool never leaves one behind on success, and its restore removes it after a failure. A glyph whose empty active layer
+    sat beside a full one was once treated as empty, and the component was placed on that layer naming a layer its source does not have
+    (seen live); listener 0.187 refuses any glyph with more than one layer instead.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
     Needs listener 0.169 (one component) or 0.174 (components; components_after since 0.175; the single form writes the width back
-    since 0.178, and both forms report width_set_by_build, the width FontLab's build had set, when it differed).
+    since 0.178, and both forms report width_set_by_build, the width FontLab's build had set, when it differed); a glyph that is not
+    empty needs listener 0.186 (an older one refuses it and changes nothing); the one-layer rule for every target needs listener 0.187.
     """
     _note_client(ctx)
     if components is not None:
@@ -4212,7 +4332,7 @@ def remove_component(name: str, index: int | None = None, component: str | None 
     glyph holds. Nothing is restored automatically. Tell the person; repair or repeat only with their agreement.
 
     Limits seen in testing: FontLab's Edit > Undo offers nothing to take a removal back (seen live once: Undo was greyed out). To put
-    a component back, add_component places components only into an EMPTY glyph for now.
+    a component back, use add_component (listener 0.186 places components also into a glyph that is not empty).
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.

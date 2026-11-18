@@ -2,11 +2,17 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
-## 2026-11-18: placing components into a glyph that is not empty (research, listener 0.180–0.181)
+## 2026-11-18: `add_component` for a glyph that is not empty (research listener 0.180–0.185; built listener 0.186–0.187 / server 0.73–0.74)
 
-- **Scope: a target holding contours, components or both.** *Reason:* the user's choice.
-- **Not by the recipe build on that glyph:** it replaced the layer's contents (NE 1268, [topics/reading.md](topics/reading.md)).
-- **Routes in this order: a temporary layer in the target glyph; then setting the shapes aside and putting them back; then a component shape made directly. A scratch glyph only if all three fail.** *Reason:* the user's choice; a scratch glyph would need a hidden delete in every call (the F1 risk of `delete_glyph`) and could be left behind by a failure.
+Merged on 2026-11-18 from three entries; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md).
+- **Researched in the user's route order: a temporary layer in the target glyph; then setting the shapes aside and putting them back; then a component shape made directly; a scratch glyph only if all three fail.** *Reason:* FontLab's recipe build on that glyph replaced its contents (NE 1268, [topics/reading.md](topics/reading.md)); a scratch glyph would need a hidden delete in every call (the F1 risk of `delete_glyph`) and could be left behind by a failure. The first route worked (TL 1294–1300).
+- **`add_component` is extended, not joined by a new tool:** an empty target keeps its route, a target with content gets the temporary-layer route inside the same request (`placement`). *Reason:* one tool for agents; run C showed the route is safe only when nothing falls between its steps.
+- **A failure partway restores the glyph fully:** the components the call added are removed with `removeShape`, the temporary layer removed, the width written back, and a re-read confirms (`restore.restored`). *Reason:* `removeShape` is proven exact (RM, RC); a half-built glyph is left to nobody.
+- **A target may hold contours, components and Power Brush shapes; Power Brush was researched first** (listener 0.185, PB 1328–1345). No `inkBox()` is called on a brush shape.
+- **The full sync check for every target, brush targets included.** *Reason:* PB-F kept its brush through two updates; one rule for all writes. F1 is not isolated: a brush flattened in later use reopens this.
+- **Both forms on a target with content,** with the list form's rules (soft limit 30, no underscore names); the list form there live since NB 1350.
+- **Every target, both routes, both forms, needs exactly one layer, the active one; anything else is refused before any change** (0.187 / 0.74). *Reason:* in NB 1353 an empty active layer beside a full one took the empty route, and the component named that layer as its source's. The user chose this rule (A) over requiring only the master layer active (B): it is the rule proven in 1351.
+- *Reason for all:* the user's answers, one question at a time; each build approved as proposed. In the build, the reply field is `placement` (`route` already existed), and each new component names its source's own layer.
 
 ## 2026-11-18: removing components, `remove_component` (listener 0.179 / server 0.72)
 
@@ -25,7 +31,7 @@ Condensed on 2026-11-17 from three entries, all built; full text: [archive/DECIS
 - **Into an existing, empty glyph layer, at whole-unit offsets set after the build; one form per call: a single component (`component`, `x`, `y`) or a `components` list; repeated sources allowed.** *Reason:* only that was proven with the width unchanged (1049); one recipe build placed them all (1110–1177); repeats are separate components, each movable alone (1172–1177).
 - **Soft limit 30** (tested at 2–5, 15 and 30, the sizes between assumed safe): above it the first call changes nothing; the agent tells the person that only up to 30 was tested, asks, and repeats with a confirmation flag after a yes. **No hard ceiling** but the listener's request-body size. *Reason:* the user's rule, with Chinese characters in mind; the ask-first precedent of kerning reads.
 - **The width is read before, written back after, and confirmed.** *Reason:* FontLab set 500 every time (1110–1172).
-- **A failure partway: placing stops, then the auto layer is switched off, the recipe cleared and the width put back, each component and step reported; nothing else is restored.** *Reason:* `autoLayer = False` leaves the glyph editable, not a locked auto layer (1055a); `recipe = ""` clears the leftover recipe (1058); no proven way to remove a component (1090).
+- **A failure partway: placing stops, then the auto layer is switched off, the recipe cleared and the width put back, each component and step reported; nothing else is restored.** *Reason:* `autoLayer = False` leaves the glyph editable, not a locked auto layer (1055a); `recipe = ""` clears the leftover recipe (1058); no proven way to remove a component (1090; since then `remove_component`, 0.179).
 - **With several fonts open, the tool follows the font in front.** *Reason:* the rule of the other write tools ([PROJECT.md](PROJECT.md), goal 5); live with two fonts (1091–1095).
 - **The element reader has no element limit and reports its timing,** replacing both 20-element caps, none with a recorded reason (`_COMPONENT_BOX_MAX`, v0.130; `_TRYSHAPEBOX_MAX_SHAPES`, v0.129). *Reason:* above 20 `source_in_step` was "unknown" (1168); 30 boxes took under 10 ms.
 - **In the list form a source name with an underscore is refused before anything changes; after a failed build each entry's state is matched by source name, and the reply lists what the glyph holds** (0.175 / 0.69). *Reason:* FontLab's recipe reads `a_b` as a ligature of its parts (1234); a placed component was called "not reached" (1200–1208).
@@ -45,13 +51,10 @@ Condensed on 2026-11-17 from three entries; full text: [archive/DECISIONS-ARCHIV
 
 - **AI agents must be able to edit an existing glyph through Glyphbridge: move nodes, add a contour to an existing shape, redraw an outline in place; in the end, every kind of glyph manipulation.** Every edit is verified by a re-read, and the layer guard's refusal is lifted only by a tool built for that edit. *Reason:* the user's requirement; today an agent must delete a glyph and draw it again.
 
-## 2026-11-13 to 2026-11-18: word budgets raised by the user's choice (CHECKLIST.md and DECISIONS.md 3,000 added 2026-11-17, DECISIONS.md 3,500 on 2026-11-18)
+## 2026-11-13 to 2026-11-18: word budgets
 
-Condensed on 2026-11-17 from nine entries; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Current budgets and their history: [MARKDOWN-MAP.md](MARKDOWN-MAP.md).
-- **CURRENT-STATUS.md 2,500, then 2,750, then 3,000; DECISIONS.md 2,500, then 2,800; PROJECT.md 1,000; MARKDOWN-MAP.md 1,000; WATCH-POINTS.md 2,500; WHAT-WORKS.md 2,250, then 2,500, then 3,000 (2026-11-18, at 2,426 words).** Nothing was trimmed or moved for any of them. *Reason:* the user's choice each time.
-- **CHECKLIST.md 1,500 (from 1,400), 2026-11-17,** after its tidy-up (row 85 split from row 83, a status legend) reached 1,411 words; chosen over moving "How to test a scenario" to RUNBOOK.md. *Reason:* the user's choice.
-- **DECISIONS.md 3,000 (from 2,800, the active part), 2026-11-17,** at 2,722 words, before the design of `remove_component` adds its entry; nothing was trimmed or moved. *Reason:* the user's choice.
-- **DECISIONS.md 3,500 (from 3,000, the active part), 2026-11-18,** at 2,984 words; nothing was trimmed or moved. *Reason:* the user's choice.
+Condensed on 2026-11-17 and 2026-11-18; each raise in full, with the file's word count at the time: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Current budgets: [MARKDOWN-MAP.md](MARKDOWN-MAP.md).
+- **Every raise was the user's choice; nothing was trimmed or moved for any of them.** CURRENT-STATUS.md 2,500, 2,750, 3,000; DECISIONS.md 2,500, 2,800, 3,000, 3,500, 4,000 (the active part; 4,000 on 2026-11-18 at 3,326 words, after the tidy-up); PROJECT.md 1,000; MARKDOWN-MAP.md 1,000; WATCH-POINTS.md 2,500; WHAT-WORKS.md 2,250, 2,500, 3,000; CHECKLIST.md 1,500 (chosen over moving "How to test a scenario" to RUNBOOK.md), 1,750.
 
 ## 2026-11-13: a package is told apart by its fgId (listener 0.150 / server 0.62)
 
