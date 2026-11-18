@@ -2,6 +2,8 @@
 
 Watch points that were settled or dropped, one line each, in the order they were recorded. Moved from [WATCH-POINTS.md](../WATCH-POINTS.md) on 2026-11-10 and still added to. A settled fact lives in the file its line names.
 
+- 2026-11-18: "`add_component` judges 'empty' by the active layer only" (NB 1353) settled in part: since listener 0.187 / server 0.74 every target needs exactly one layer, the active one, and `cpqt5` was refused with either layer active, nothing changed (1355, 1356, [LIVE-TESTS.md](../LIVE-TESTS.md)). Its open question, the `verified` read of such a glyph, stays in [WATCH-POINTS.md](../WATCH-POINTS.md).
+
 - 2026-11-17: "A source name with an underscore dropped from a recipe" settled by the approved plan: the likely cause, a recipe of several glyphs reading `a_b` as a ligature of its parts (one run, 1234), is guarded since listener 0.175 / server 0.69, which refuse such a list; run live AC3 1237–1239. What is left open (a second run of 1234; why the single form places such a glyph) is in [topics/reading.md](../topics/reading.md).
 
 - 2026-11-17: "FontLab 8.9.5 against 8.4.2" dropped: 8.4.2 is no longer used ([CURRENT-STATUS.md](../CURRENT-STATUS.md), Environment). No difference was seen in the writes run on 8.9.5 from 2026-11-01 to 2026-11-09 (190–683, [LIVE-TESTS.md](../LIVE-TESTS.md)).

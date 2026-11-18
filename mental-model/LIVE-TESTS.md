@@ -1026,6 +1026,33 @@ Reading (one run): the route places a component beside a Power Brush shape and l
 
 Reading (one run): a glyph whose active layer is empty beside a full one takes the empty route; the build names the active layer as the source's layer, so the check fails, though under the name `one_component`; the read calls such a glyph `verified`. `finish_changes`: 1 change. `cpqt5`'s component on `New Layer` is left in place. Not run: a failure partway and its restore, the list form's refusals on a non-empty target, two fonts.
 
+### NB2 series: the one-layer rule, live (2026-11-18, listener 0.187 / server 0.74, FontLab 8.9.5 in Demo mode, through a NEW Claude Code session after a listener restart and a full Claude Desktop restart, with the 0.74 tool description; the NB font `Unnamed`, one font open; one run each; no File > Save stage, nothing saved)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1354 | `fontlab_status`; `list_glyphs`; `get_glyph_outline cpqt5` (`Regular` active since 1353b) | 0.74 / 0.187; 9 glyphs; the rectangle only, `verified`, width 0 | as predicted |
+| 1355 | `cpqt5` ← `cpqs1` at (500, 0), `Regular` active; read | refused, nothing changed, "nothing was changed" once | as predicted: "Glyph 'cpqt5': nothing was changed: add_component needs a glyph with exactly one layer, the active one (it has ['New Layer', 'Regular'], active 'Regular')"; the rectangle unchanged, `verified` |
+| — | the person clicked `New Layer` in `cpqt5` | — | `New Layer` active, "1 component"; ELEMENTS `cpqs1` Δ=(500,0) |
+| 1356 | the same call, `New Layer` active; read | refused, the same text with "active 'New Layer'" | as predicted; the 1353 component only, `component_layer` `New Layer`, `verified`, `source_in_step` "unknown" |
+| 1357 | `cpqx1` (empty, one layer) ← `cpqs2` at (0, 0) | `placement` "empty layer", `placed`, `verified`, width 0; `width_set_by_build` 500 (a guess) | as predicted, marked, but no `width_set_by_build`: the build left the width at 0, which is `cpqs2`'s advance (as 1254, 1255) |
+| 1358 | `cpqt1` (the rectangle, `cpqs1` (500, 0)) ← `cpqs2` at (800, 0) | `placement` "temporary layer", `placed`, `verified`, `existing_kept`, width 0 | as predicted, marked |
+| 1358a | read `cpqx1`, `cpqt1` | both `verified`, the components naming `Regular` | as predicted: `cpqx1` `cpqs2` at (0, 0); `cpqt1` the rectangle, `cpqs1` (500, 0), `cpqs2` (800, 0), each `source_in_step` true; widths 0 |
+
+Reading (one run): the one-layer rule refuses a glyph with two layers, whichever is active, before any change; one-layer targets, empty and not, still take their routes. `finish_changes`: 2 changes. `cpqt5`'s component on `New Layer` is kept (the user's choice). Not run: the list form under 0.187, the auto-layer refusal, the restore after a failure, two fonts.
+
+### NB3 series: the list form under the one-layer rule, live (2026-11-18, the same session, font and versions as NB2; one run each; no File > Save stage, nothing saved)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1359 | `create_glyph` `cpqx2`, `cpqs_u`; `draw_polygon cpqs_u` the triangle (100,0) (300,0) (200,300); read `cpqt5` (`New Layer` active) | created, layer `Regular`; `verified`; `cpqt5` keeps its component (70 %) | as predicted; `cpqt5` unchanged after two `font.update()` calls with `New Layer` active |
+| 1360 | list form, `cpqx2` (empty, one layer) ← `cpqs1` (0, 0), `cpqs2` (300, 0) | `placement` "empty layer", `placed`, `verified`, width 0 | as predicted; `width_set_by_build` 500, written back to 0 (a build of several glyphs sets 500, as 1110–1172; one glyph, the source's advance, as 1254, 1255, 1357) |
+| 1361 | list form, `cpqx1` (`cpqs2` at (0, 0)) ← `cpqs1` (200, 0), `cpqs1` (600, 0) | `placement` "temporary layer", `placed`, `verified`, `existing_kept`, width 0 | as predicted, the repeated source placed twice |
+| 1362 | list form, `cpqt5` (two layers, `New Layer` active) ← `cpqs1` (0, 0), `cpqs2` (300, 0) | the one-layer refusal, nothing changed | as predicted, the text of 1356 |
+| 1363 | list form, `cpqt1` (one layer, content) ← `cpqs_u` (0, 0), `cpqs2` (0, 0) | the underscore refusal, nothing changed | as predicted; the text still advises the single form "into an empty glyph", though the single form places into a glyph with content since 0.186 (an underscore name there untested) |
+| 1363a | read `cpqx1`, `cpqx2`, `cpqt1`, `cpqt5` | all `verified`; placed or unchanged | as predicted, every component naming `Regular` and `source_in_step` true, but `cpqt5`'s (`New Layer`, "unknown") |
+
+Reading (one run): the list form follows the one-layer rule on both routes; its refusals on a target with content change nothing. `finish_changes`: 5 changes. The auto-layer refusal was skipped (the user's choice: its GUI step is not recorded). Not run: the restore after a failure, two fonts.
+
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 
 | Id | Test | Stage / how | Expected | Status |
