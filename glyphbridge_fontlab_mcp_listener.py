@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.179)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.184)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -193,6 +193,17 @@ Routes (GET unless marked POST):
                           stage=removeshape&target=cpp...&element=I&recursive=0|1: ONE layer.removeShape(<component I>, recursive);
                           stage=clearcomponents&target=cpp...: ONE layer.clearComponents(); on a layer of 1 to 30 components of cpp
                           glyphs, autoLayer off; elements, boxes, outline, width and sources before and after (v0.176)
+                          stage=auto&step=setrecipe|setauto|build|unauto|clearrecipe&nonempty=yes: the same steps on a target that
+                          already holds plain contours and / or components of cpp glyphs; existing_kept compares it with what
+                          step=setrecipe found in this listener run (v0.180)
+                          stage=templayer&target=cpp...&step=addlayer|build|move|removelayer[&recipe=cpp...]: ONE step of the
+                          temporary-layer route (a layer gb_temp_component added to the target, the recipe build there, its
+                          component added to the working layer, the layer removed); its own 10 calls per listener run (v0.181);
+                          step=activate: ONE working_layer.setActive() (v0.182)
+                          stage=fixlayer&target=cpp...&element=I: ONE shapeData.componentLayer = <the target's layer name> on
+                          component I; its own 6 calls per listener run (v0.183)
+                          stage=templayer&step=setlayer: the same assignment on the temporary layer's component, before
+                          step=move; step=droptemp: an EMPTY gb_temp_component left behind removed (v0.184)
     /debug/markswitch     [on=0|1&go=yes]: S1 research (v0.170): without on, reads whether the changed mark (_MARK_CHANGED) is on; with
                           on=0 / on=1 and go=yes, switches it off / on for THIS listener run (a restart switches it on again); no
                           FontLab call is made
@@ -243,7 +254,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.179"
+VERSION = "0.184"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -4394,6 +4405,14 @@ def _trycomp_remove_run(target, stage, element, recursive, base):
 # mind: test 30, with 15 as a middle control): recipes of one to 30 glyphs, element 0 to 29; the probe reads up to 30 ink boxes
 # through its own limit (_TRYSHAPEBOX_MAX_SHAPES = 20 stays for /debug/tryshapebox and add_component); build_seconds times the
 # buildAuto() call, elapsed_seconds each stage=auto / stage=offset request as a whole.
+# v0.180 (the user's choice of 2026-11-18: placing components into a glyph that already holds contours, components or both; research
+# route "build in place"): stage=auto&nonempty=yes, steps setrecipe / setauto / build / unauto / clearrecipe, on a target holding only
+# plain contour shapes (isComponent and isComposite both False) and components of cpp glyphs, at least one element. step=setrecipe
+# records the target's elements (kind, source, source layer, matrix, ink box) and outline for this listener run; every step then
+# reports existing_kept: each recorded element found again (matrix and ink box within 0.001) and the recorded contours still in the
+# outline, in order; existing_missing, new_elements. A build's width change is reported (width_changed_by_build), not a side effect.
+# placed (build): existing_kept and the new elements exactly components of the recipe's glyphs, in order (any matrix: reported).
+# Marked only when that is confirmed (component_placed, component_normal, recipe_cleared) AND existing_kept is true.
 # --------------------------------------------------------------------------
 
 _TRYCOMP_MAX = 6
@@ -4786,9 +4805,61 @@ def _trycomp_auto(*args, **kwargs):
     return _trycomp_timed(_trycomp_auto_run, *args, **kwargs)
 
 
-def _trycomp_auto_run(mod, target, step, parts, base):
+_TRYCOMP_NONEMPTY_STEPS = ("setrecipe", "setauto", "build", "unauto", "clearrecipe")     # v0.180
+_TRYCOMP_BASELINE = {}     # v0.180: target -> what step=setrecipe&nonempty=yes found in it, for THIS listener run only
+
+
+def _trycomp_existing(layer, tel):
+    """v0.180: the elements `tel` of `layer` in a comparable form, one row each in layer order: {"index", "is_component",
+    "component_glyph", "component_layer", "matrix", "ink_box"} (the glyph and layer only for a component), or {"error"}. ONE
+    inkBox() per element, through _tryshapebox_boxes. Read only. Never raises."""
+    rows, why = _tryshapebox_boxes(layer)
+    if rows is None:
+        return {"error": why}
+    if len(rows) != len(tel):
+        return {"error": f"{len(rows)} ink box(es) for {len(tel)} element(s)"}
+    out = []
+    for e, r in zip(tel, rows):
+        box = r.get("ink_box")
+        if not isinstance(box, dict) or "error" in box:
+            return {"error": f"the ink box of element {e.get('index')} could not be read ({(box or {}).get('error') if isinstance(box, dict) else box})"}
+        comp = e.get("is_component") is True
+        out.append({"index": e.get("index"), "is_component": e.get("is_component"),
+                    "component_glyph": e.get("component_glyph") if comp else None,
+                    "component_layer": e.get("component_layer") if comp else None, "matrix": e.get("matrix"), "ink_box": box})
+    return out
+
+
+def _trycomp_same_element(a, b):
+    """v0.180: True when two rows of _trycomp_existing are the same element: kind, source and source layer equal, the matrix and the
+    ink box equal within 0.001."""
+    if any(a.get(k) != b.get(k) for k in ("is_component", "component_glyph", "component_layer")):
+        return False
+    ma, mb = a.get("matrix"), b.get("matrix")
+    if not all(isinstance(m, dict) and all(isinstance(m.get(k), (int, float)) for k in _TRYCOMP_MATRIX_KEYS) for m in (ma, mb)):
+        return False
+    if any(abs(ma[k] - mb[k]) > 0.001 for k in _TRYCOMP_MATRIX_KEYS):
+        return False
+    return _comp_box_at(a.get("ink_box"), b.get("ink_box")) is True
+
+
+def _trycomp_match_existing(base_rows, now_rows):
+    """v0.180: (missing, new): each row of `base_rows` is matched to the first unused equal row of `now_rows`; missing lists the
+    base indices with no match, new the indices of `now_rows` left unmatched."""
+    used, missing = set(), []
+    for i, b in enumerate(base_rows):
+        j = next((j for j, n in enumerate(now_rows) if j not in used and _trycomp_same_element(b, n)), None)
+        if j is None:
+            missing.append(i)
+        else:
+            used.add(j)
+    return missing, [j for j in range(len(now_rows)) if j not in used]
+
+
+def _trycomp_auto_run(mod, target, step, parts, base, nonempty=False):
     """v0.165, stage=auto: ONE step of the layer's own recipe build on an existing, empty target layer (read: nothing changed).
-    Read back as the other stages. Never raises."""
+    v0.180, nonempty=True: the same steps on a target that already holds plain contours and / or components of cpp glyphs; what
+    was there is compared with what step=setrecipe found (existing_kept). Read back as the other stages. Never raises."""
     ctx, refusal = _modern_edit_target(target)
     if ctx is None:
         return dict(base, error=("the target cannot be used: " + str(refusal.get("reason") or refusal) + " (a glyph with no layer is never "
@@ -4806,19 +4877,42 @@ def _trycomp_auto_run(mod, target, step, parts, base):
     base["auto_before"] = auto_before
     leaving = step in ("unauto", "killauto")     # v0.166: on a layer buildAuto() filled (live 1041b)
     clearing = step == "clearrecipe"             # v0.168: on a normal component layer (as after 1042, 1050)
+    existing = None
+    if nonempty:     # v0.180: plain contours and components of cpp glyphs only; a Power Brush or unreadable shape is never touched (F1)
+        if not tel:
+            return dict(base, error=("the target holds no element: nonempty=yes is for a target that already holds contours or "
+                                     "components (send the step without it): nothing was touched"))
+        for e in tel:
+            if e.get("is_component") is True:
+                if not _trycomp_name_ok(e.get("component_glyph")):
+                    return dict(base, error=(f"element {e.get('index')} is a component of {e.get('component_glyph')!r}, not of a cpp "
+                                             "glyph: nothing was touched"))
+            elif e.get("is_component") is not False or e.get("is_composite") is not False:
+                return dict(base, error=(f"element {e.get('index')} is not a plain contour shape (is_component "
+                                         f"{e.get('is_component')!r}, is_composite {e.get('is_composite')!r}): a Power Brush or "
+                                         "unreadable shape is never touched by this probe, nothing was touched"))
+        existing = _trycomp_existing(layer, tel)
+        if isinstance(existing, dict):
+            return dict(base, error=f"the target's elements could not be compared ({existing['error']}): nothing was touched")
+        base["existing_before"] = existing
     if leaving or clearing:
         want_auto = not clearing
         if auto_before.get("auto_layer") is not want_auto:
             return dict(base, error=f"the layer's autoLayer reads {auto_before.get('auto_layer')!r}, not {want_auto}: nothing was touched")
-        names = [e.get("component_glyph") for e in tel]
-        if not tel or any(e.get("is_component") is not True for e in tel) or not all(_trycomp_name_ok(n) for n in names):
-            return dict(base, error="the layer must hold only components of cpp glyphs for this step: nothing was touched")
+        if nonempty:
+            names = [e.get("component_glyph") for e in tel if e.get("is_component") is True]
+            if not names:
+                return dict(base, error="the layer holds no component for this step: nothing was touched")
+        else:
+            names = [e.get("component_glyph") for e in tel]
+            if not tel or any(e.get("is_component") is not True for e in tel) or not all(_trycomp_name_ok(n) for n in names):
+                return dict(base, error="the layer must hold only components of cpp glyphs for this step: nothing was touched")
         if clearing:
             rec = auto_before.get("recipe")
             if not isinstance(rec, str) or rec == "" or rec.startswith("<error"):
                 return dict(base, error=f"the layer's recipe reads {rec!r}: there is no readable recipe to clear, nothing was touched")
-        parts = names
-    elif step != "read" and (len(tel) != 0 or _state_has_components(state)):
+        parts = list(dict.fromkeys(names)) if nonempty else names
+    elif step != "read" and not nonempty and (len(tel) != 0 or _state_has_components(state)):
         return dict(base, error="the target must be empty (no shape, no component) for this step: nothing was touched")
     if step == "build" and auto_before.get("recipe") != "+".join(parts):
         return dict(base, error=f"the layer's recipe reads {auto_before.get('recipe')!r}, not {'+'.join(parts)!r}: buildAuto() was not called")
@@ -4834,6 +4928,8 @@ def _trycomp_auto_run(mod, target, step, parts, base):
     width_before = _trycomp_width(w)
     base["advance_width_before"] = width_before
     base["glyph_count_before"] = _tryedit_glyph_count(font)
+    if nonempty and step == "setrecipe":     # v0.180: the first step of a series records what the target holds
+        _TRYCOMP_BASELINE[target] = {"elements": existing, "contours": before["contours"]}
     step_name, touched = "reading the layer", False
     try:
         if step == "setrecipe":
@@ -4893,10 +4989,36 @@ def _trycomp_auto_run(mod, target, step, parts, base):
     result["step_took_effect"] = ((auto_after == expected_auto) if step in ("setrecipe", "setauto", "clearrecipe") else
                                   (auto_after.get("auto_layer") is False) if leaving else "not applicable")
     unexpected_auto = {k: auto_after.get(k) for k in ("recipe", "auto_layer") if auto_after.get(k) != expected_auto.get(k)}
+    if nonempty:     # v0.180: what the target held at step=setrecipe, found again after this step?
+        bl = _TRYCOMP_BASELINE.get(target)
+        rows2 = (_trycomp_existing(layer2, tel2) if (layer2 is not None and not isinstance(tel2, dict)) else
+                 {"error": "the target's elements could not be read after the step"})
+        result["existing_after"] = rows2
+        if bl is None:
+            result["existing_kept"] = "unknown"
+            result["existing_note"] = ("no step=setrecipe&nonempty=yes on this target in this listener run, so there is nothing to "
+                                       "compare with")
+        elif isinstance(rows2, dict) or "error" in after:
+            result["existing_kept"] = "unknown"
+        else:
+            missing, new = _trycomp_match_existing(bl["elements"], rows2)
+            result["existing_missing"] = [bl["elements"][i] for i in missing]
+            result["new_elements"] = [rows2[j] for j in new]
+            result["existing_contours_in_outline"] = _trycomp_holds(after["contours"], bl["contours"])
+            result["existing_kept"] = bool(not missing and result["existing_contours_in_outline"])
+    width_counts = not (nonempty and step == "build")     # v0.180: a build's width is reported, not counted (FontLab sets it, 1254)
+    if not width_counts:
+        result["width_changed_by_build"] = width_after != width_before
     result["side_effect_detected"] = bool(result["glyph_count_after"] != result["glyph_count_before"] or result["source_changed"]
-                                          or width_after != width_before or unexpected_auto
+                                          or (width_counts and width_after != width_before) or unexpected_auto
                                           or (step != "build" and shape_changed is not False))
-    if step == "build":
+    if step == "build" and nonempty:
+        nw = result.get("new_elements")
+        result["placed"] = ("unknown" if (result.get("existing_kept") == "unknown" or nw is None) else
+                            bool(result["existing_kept"] is True and all(r.get("is_component") is True for r in nw)
+                                 and [r.get("component_glyph") for r in nw] == parts))
+        result["component_placed"] = bool("error" not in result and result["placed"] is True and not result["side_effect_detected"])
+    elif step == "build":
         if isinstance(tel2, dict):
             result["placed"] = "unknown"
         else:
@@ -4917,6 +5039,8 @@ def _trycomp_auto_run(mod, target, step, parts, base):
             result["component_normal"] = bool("error" not in result and result["component_kept"] is True
                                               and auto_after.get("auto_layer") is False and not result["side_effect_detected"])
             confirmed = result["component_normal"]
+        if nonempty and result.get("existing_kept") is not True:     # v0.180: marked only when what was there is still there
+            confirmed = False
         if confirmed:
             _guard_mark(font, target, "trycomponent", result)
         elif shape_changed is not False:
@@ -5158,10 +5282,37 @@ def debug_mark_switch(on, go):
 
 
 def debug_try_component(stage, target, source, go, dx=None, dy=None, recipe=None, nargs=None, pkgmode=None, intmode=None,
-                        widthmode=None, itemsmode=None, step=None, how=None, element=None, recursive=None):
+                        widthmode=None, itemsmode=None, step=None, how=None, element=None, recursive=None, nonempty=None):
     import sys as _sys
-    if stage not in _TRYCOMP_STAGES + _TRYCOMP_REMOVE_STAGES:
-        return {"error": "stage must be one of: " + ", ".join(_TRYCOMP_STAGES + _TRYCOMP_REMOVE_STAGES)}
+    if stage not in _TRYCOMP_STAGES + _TRYCOMP_REMOVE_STAGES + ("templayer", "fixlayer"):
+        return {"error": "stage must be one of: " + ", ".join(_TRYCOMP_STAGES + _TRYCOMP_REMOVE_STAGES + ("templayer", "fixlayer"))}
+    if stage == "fixlayer":     # v0.183: its own parameters, gate and counter
+        if not _trycomp_name_ok(target):
+            return {"error": 'target must start with "cpp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'}
+        for label, raw in (("source", source), ("dx", dx), ("dy", dy), ("recipe", recipe), ("args", nargs), ("pkg", pkgmode),
+                           ("int", intmode), ("width", widthmode), ("items", itemsmode), ("step", step), ("how", how),
+                           ("recursive", recursive), ("nonempty", nonempty)):
+            if raw is not None and str(raw).strip():
+                return {"error": f"stage=fixlayer takes no {label}"}
+        return _trycomp_fixlayer_gate(target, element, go)
+    if stage == "templayer":     # v0.181: its own parameters, gate and counter
+        if not _trycomp_name_ok(target):
+            return {"error": 'target must start with "cpp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'}
+        for label, raw in (("source", source), ("dx", dx), ("dy", dy), ("args", nargs), ("pkg", pkgmode), ("int", intmode),
+                           ("width", widthmode), ("items", itemsmode), ("how", how), ("element", element), ("recursive", recursive),
+                           ("nonempty", nonempty)):
+            if raw is not None and str(raw).strip():
+                return {"error": f"stage=templayer takes no {label}"}
+        return _trycomp_templayer_gate(target, step, recipe, go)
+    on_nonempty = False     # v0.180
+    if nonempty is not None and str(nonempty).strip():
+        if stage != "auto":
+            return {"error": "nonempty is used only by stage=auto"}
+        if str(nonempty).strip() != "yes":
+            return {"error": 'nonempty must be "yes" (the steps on a target that already holds contours or components)'}
+        if str(step or "").strip() not in _TRYCOMP_NONEMPTY_STEPS:
+            return {"error": "nonempty=yes works with step=" + "|".join(_TRYCOMP_NONEMPTY_STEPS) + " only"}
+        on_nonempty = True
     if stage in _TRYCOMP_REMOVE_STAGES:     # v0.176: the remove stages have their own parameters and gate
         if not _trycomp_name_ok(target):
             return {"error": 'target must start with "cpp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'}
@@ -5272,7 +5423,9 @@ def debug_try_component(stage, target, source, go, dx=None, dy=None, recipe=None
             return {"error": "stage=readcomponents reads the target's layer.components once and changes nothing. Add &go=yes to run it."}
         if auto:
             with_recipe = f", recipe {'+'.join(parts)}" if parts else ""
-            return {"error": f"stage=auto&step={step} {_TRYCOMP_AUTO_STEPS[step]}{with_recipe}. Add &go=yes to run it."}
+            on_what = (", on a target that already holds contours and / or components (what it holds is compared with what "
+                       "step=setrecipe found)" if on_nonempty else "")
+            return {"error": f"stage=auto&step={step} {_TRYCOMP_AUTO_STEPS[step]}{with_recipe}{on_what}. Add &go=yes to run it."}
         if gen:
             what = ("asks FontLab's generateGlyph what the recipe gives (it is not asked to change anything)" if stage == "generate" else
                     "asks FontLab's generateGlyph for the recipe and puts what it returns into the target through layer.setGlyphComponents")
@@ -5297,7 +5450,9 @@ def debug_try_component(stage, target, source, go, dx=None, dy=None, recipe=None
                  "max_calls": _TRYCOMP_MAX, "note": _TRYCOMP_NOTE}
         if parts:
             abase["recipe"] = "+".join(parts)
-        return _trycomp_auto(mod, target, step, parts, abase)
+        if on_nonempty:
+            abase["nonempty"] = True
+        return _trycomp_auto(mod, target, step, parts, abase, nonempty=on_nonempty)
     if offset:
         oqt_cls, oqt_src = _trycomp_qtransform_class(mod)
         if oqt_cls is None:
@@ -5472,6 +5627,599 @@ def debug_try_component(stage, target, source, go, dx=None, dy=None, recipe=None
     if result["changed"] is not False:
         _guard_mark(font, target, "trycomponent", result,
                     no_mark=None if result["component_placed"] else "the component was not confirmed")
+    return result
+
+
+# --------------------------------------------------------------------------
+# /debug/trycomponent stage=templayer (v0.181) - RESEARCH for placing a component into a glyph that is not empty (the user's choices of
+# 2026-11-18: scope contours, components or both; the recipe build replaced the layer's contents, NE 1268; route order: a temporary
+# layer in the target glyph first, then "set aside and put back", then a component shape made directly; a scratch glyph only last).
+# Names only (2026-11-18, /debug/classdir): flLayer('title'); flGlyph.addLayer(flLayer[, bool back = false]),
+# removeLayer(flLayer), layers "list(flLayer)"; flLayer.addShape "flShape addShape(flShape)". ONE step per request, go=yes, exactly
+# one font open, one master, its own counter (_TRYCOMP_TL_MAX per listener run):
+#   addlayer     on a target with exactly ONE layer (the active one), autoLayer off, holding 1 or more plain contour shapes and / or
+#                components of cpp glyphs, and no layer named _TL_TEMP_NAME: ONE w.addLayer(flLayer(_TL_TEMP_NAME)). Records the
+#                baseline (working layer's name, elements with ink boxes, contours, width, glyph count) for this listener run.
+#   build        recipe=<one cpp glyph of plain contours>: on the temporary layer only (empty, autoLayer off), the proven sequence
+#                recipe = R, autoLayer = True, buildAuto(), autoLayer = False, recipe = "", each read back; stops at the first failure.
+#   move         ONE working_layer.addShape(<the temporary layer's only shape, a component of a cpp glyph>).
+#   removelayer  ONE w.removeLayer(<the temporary layer>), found by its exact name (never by position).
+#   activate     (v0.182; live TL 1272: addLayer made the new layer the active one) ONE working_layer.setActive(); working_active
+#                needs the working layer active (isActive True, the temporary layer's False) and nothing else changed.
+#   setlayer     (v0.184; live 1283a: the built component names the temporary layer; 1285a: the assignment corrects it) ONE
+#                shapeData.componentLayer = <working layer name> on the temporary layer's only component; temp_layer_set.
+#   droptemp     (v0.184; clean-up of 1272) needs no baseline: a glyph of exactly two layers, gb_temp_component EMPTY: ONE
+#                working_layer.setActive() if the temporary layer is active, then ONE w.removeLayer; temp_dropped. Not marked.
+# Every reply reads back the glyph's layer names and the active one, both layers' elements (kind, source, matrix, ink box), contours,
+# autoLayer / recipe and width, the glyph's width, the source and the glyph count. The working layer is found by the name recorded at
+# addlayer, never by being active. Only removelayer can mark the font, and only when the temporary layer is gone and the working layer
+# holds exactly the baseline plus ONE new component (placed_beside); every other change is synced unmarked.
+# Never called: save, font.update(), killAuto, setGlyphComponents, decomposite; no subscript or iteration of a native object (w.layers,
+# layer.shapes and layer.getContours() are checked to be real lists first).
+# --------------------------------------------------------------------------
+
+_TL_TEMP_NAME = "gb_temp_component"
+_TRYCOMP_TL_MAX = 10
+_TRYCOMP_TL = {"calls": 0}
+_TRYCOMP_TL_BASE = {}     # target -> the baseline recorded by step=addlayer in this listener run
+_TRYCOMP_TL_STEPS = {"addlayer": f"w.addLayer(flLayer({_TL_TEMP_NAME!r})) once, on a target with one layer",
+                     "activate": "working_layer.setActive() once (v0.182: addLayer made the new layer active, TL 1272)",
+                     "build": ("the recipe build on the temporary layer only: recipe = R, autoLayer = True, buildAuto(), autoLayer = False, "
+                               "recipe = \"\", each read back"),
+                     "move": "working_layer.addShape(<the temporary layer's only component>) once",
+                     "removelayer": f"w.removeLayer(<the layer named {_TL_TEMP_NAME!r}>) once",
+                     "setlayer": "shapeData.componentLayer = <the working layer's name> once, on the temporary layer's only component (v0.184)",
+                     "droptemp": (f"clean-up of an EMPTY {_TL_TEMP_NAME!r} left behind: working_layer.setActive() if the temporary layer is "
+                                  "active, then w.removeLayer(<it>), each once (v0.184)")}
+
+
+def _tl_layers(w):
+    """[{"name", "layer"}] of w.layers (a real list), or {"error"}. Read only. Never raises."""
+    layers, err = _tl_call(lambda: w.layers)
+    if err is not None or type(layers) is not list:
+        return {"error": f"w.layers is not a plain list ({err or type(layers).__name__})"}
+    out = []
+    for i, lay in enumerate(layers):
+        nm, err = _tl_call(lambda l=lay: _call0(l, "name"))
+        out.append({"name": nm if (err is None and isinstance(nm, str)) else f"<error: {err or type(nm).__name__}>", "layer": lay})
+    return out
+
+
+def _tl_contours(layer):
+    """The contours of ONE layer object in the _tryedit_snapshot form ([{"closed", "nodes": [{x, y, kind, smooth}]}]), or {"error"}.
+    Only the calls of _read_modern_outline: layer.getContours() as a real list, contour.getNodeAt(i) after a range check."""
+    contours, err = _tl_call(lambda: layer.getContours())
+    if err is not None or type(contours) not in (list, tuple):
+        return {"error": f"layer.getContours() is not a plain list ({err or type(contours).__name__})"}
+    out = []
+    for ci in range(len(contours)):
+        c = contours[ci]
+        closed, err1 = _tl_call(lambda: _call0(c, "closed"))
+        count, err2 = _tl_call(lambda: _call0(c, "nodesCount"))
+        if err1 is not None or err2 is not None or not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            return {"error": f"contour {ci} could not be read ({err1 or err2 or 'nodesCount is not a number'})"}
+        nodes = []
+        for ni in range(count):
+            nd, err = _tl_call(lambda i=ni: c.getNodeAt(i))
+            if err is not None or nd is None:
+                return {"error": f"contour {ci} node {ni}: getNodeAt failed ({err or 'None'})"}
+            rec = {}
+            for label in ("x", "y", "isOn", "isCurve", "smooth"):
+                v, err = _tl_call(lambda a=label: _call0(nd, a))
+                if err is not None:
+                    return {"error": f"contour {ci} node {ni}: {label} could not be read ({err})"}
+                rec[label] = _rm_plain(v)
+            if any(isinstance(rec[k], bool) or not isinstance(rec[k], (int, float)) for k in ("x", "y")):
+                return {"error": f"contour {ci} node {ni}: x / y are not numbers"}
+            nodes.append({"x": float(rec["x"]), "y": float(rec["y"]), "kind": "On" if rec["isOn"] else ("Curve" if rec["isCurve"] else "Off"),
+                          "smooth": rec["smooth"]})
+        out.append({"closed": _rm_plain(closed), "nodes": nodes})
+    return out
+
+
+def _tl_view(layer):
+    """{"elements": _trycomp_existing rows, "contours", "auto", "advance_width"} of ONE layer object; a part that cannot be read is
+    {"error"}. Read only. Never raises."""
+    tel = _trycomp_elements(layer)
+    rows = tel if isinstance(tel, dict) else _trycomp_existing(layer, tel)
+    aw, err = _tl_call(lambda: _call0(layer, "advanceWidth"))
+    return {"elements": rows, "contours": _tl_contours(layer), "auto": _trycomp_auto_state(layer),
+            "advance_width": _num(aw) if (err is None and _num(aw) is not None) else f"<error: {err or type(aw).__name__}>"}
+
+
+def _tl_ok(view):
+    """True when every part of a _tl_view could be read."""
+    return not isinstance(view.get("elements"), dict) and not isinstance(view.get("contours"), dict)
+
+
+def _tl_plain_elements_problem(rows, allow_empty=False):
+    """None, or why the rows are not only plain contour shapes and components of cpp glyphs. Uses the is_composite of
+    _trycomp_elements, kept in a side list by the caller."""
+    if not rows and not allow_empty:
+        return "it holds no element"
+    for r in rows:
+        if r.get("is_component") is True:
+            if not _trycomp_name_ok(r.get("component_glyph")):
+                return f"element {r.get('index')} is a component of {r.get('component_glyph')!r}, not of a cpp glyph"
+        elif r.get("is_component") is not False or r.get("is_composite") is not False:
+            return (f"element {r.get('index')} is not a plain contour shape (is_component {r.get('is_component')!r}, is_composite "
+                    f"{r.get('is_composite')!r}): a Power Brush or unreadable shape is never touched by this probe")
+    return None
+
+
+def _tl_compare(bl, view):
+    """{"missing", "new", "contours_equal", "contours_held"} of a working-layer view against the baseline."""
+    missing, new = _trycomp_match_existing(bl["elements"], view["elements"])
+    return {"missing": [bl["elements"][i] for i in missing], "new": [view["elements"][j] for j in new],
+            "contours_equal": view["contours"] == bl["contours"], "contours_held": _trycomp_holds(view["contours"], bl["contours"])}
+
+
+def _trycomp_templayer_gate(target, step, recipe, go):
+    """v0.181: the parameters, the go gate, the one-font gate and the counter of stage=templayer; then _trycomp_templayer."""
+    import sys as _sys
+    step = str(step or "").strip()
+    if step not in _TRYCOMP_TL_STEPS:
+        return {"error": "stage=templayer needs step=" + "|".join(_TRYCOMP_TL_STEPS)}
+    has_recipe = recipe is not None and str(recipe).strip() != ""
+    src = None
+    if step == "build":
+        src = str(recipe or "").strip()
+        if not _trycomp_name_ok(src):
+            return {"error": 'step=build needs recipe=<one glyph name starting with "cpp"> (4 to 40 characters from A-Z a-z 0-9 . _ -)'}
+        if src == target:
+            return {"error": "the recipe must not name the target"}
+    elif has_recipe:
+        return {"error": f"step={step} takes no recipe"}
+    if go != "yes":
+        what = _TRYCOMP_TL_STEPS[step] + (f", recipe {src}" if src else "")
+        return {"error": f"stage=templayer&step={step}: {what}. Add &go=yes to run it."}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, _pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"stage": "templayer", "step": step, "error": why, "calls_so_far": _TRYCOMP_TL["calls"], "max_calls": _TRYCOMP_TL_MAX}
+    if _TRYCOMP_TL["calls"] >= _TRYCOMP_TL_MAX:
+        return {"stage": "templayer", "step": step, "calls_so_far": _TRYCOMP_TL["calls"], "max_calls": _TRYCOMP_TL_MAX,
+                "error": f"stage=templayer already ran {_TRYCOMP_TL_MAX} times in this listener run; restart the listener to repeat it"}
+    _TRYCOMP_TL["calls"] += 1     # counted BEFORE the glyph is read
+    base = {"stage": "templayer", "step": step, "target": target, "call": _TRYCOMP_TL_STEPS[step], "temp_layer_name": _TL_TEMP_NAME,
+            "calls_so_far": _TRYCOMP_TL["calls"], "max_calls": _TRYCOMP_TL_MAX, "note": _TRYCOMP_NOTE}
+    if src:
+        base["recipe"] = src
+    if step == "droptemp":     # v0.184: needs no baseline
+        return _trycomp_timed(_trycomp_droptemp_run, target, base)
+    return _trycomp_timed(_trycomp_templayer_run, mod, target, step, src, base)
+
+
+def _trycomp_templayer_run(mod, target, step, src, base):
+    """v0.181: ONE step of the temporary-layer route (see the section comment). Read back. Never raises."""
+    ctx, refusal = _modern_edit_target(target)
+    if ctx is None:
+        return dict(base, error="the target cannot be used: " + str(refusal.get("reason") or refusal), refusal=_public_refusal(refusal))
+    w, font = ctx["w"], ctx["font"]
+    problem = _one_master_problem()
+    if problem is not None:
+        return dict(base, error=f"this probe needs a font with one master ({problem}): nothing was touched")
+    layers = _tl_layers(w)
+    if isinstance(layers, dict):
+        return dict(base, error=f"the glyph's layers could not be read ({layers['error']}): nothing was touched")
+    base["layers_before"] = [e["name"] for e in layers]
+    st, active = _tryshape_modern_state(w)
+    active_name = st.get("layer_name")
+    base["active_layer_before"] = active_name
+    temps = [e for e in layers if e["name"] == _TL_TEMP_NAME]
+    bl = _TRYCOMP_TL_BASE.get(target)
+    if step == "addlayer":
+        if len(layers) != 1 or active is None or layers[0]["name"] != active_name:
+            return dict(base, error=(f"step=addlayer needs a glyph with exactly one layer, the active one (it has {len(layers)}: "
+                                     f"{base['layers_before']}, active {active_name!r}): nothing was touched"))
+        working = layers[0]
+    else:
+        if bl is None:
+            return dict(base, error="no step=addlayer on this target in this listener run, so there is no baseline: nothing was touched")
+        found = [e for e in layers if e["name"] == bl["working"]]
+        if len(found) != 1 or len(temps) != 1 or len(layers) != 2:
+            return dict(base, error=(f"the glyph must hold exactly the working layer {bl['working']!r} and one {_TL_TEMP_NAME!r} (it holds "
+                                     f"{base['layers_before']}): nothing was touched"))
+        working = found[0]
+    wl = working["layer"]
+    wtel = _trycomp_elements(wl)
+    if isinstance(wtel, dict):
+        return dict(base, error=f"the working layer's elements could not be read ({wtel['error']}): nothing was touched")
+    wview = _tl_view(wl)
+    base["working_before"] = wview
+    if not _tl_ok(wview):
+        return dict(base, error="the working layer could not be read in full: nothing was touched")
+    flags = [dict(r, is_composite=e.get("is_composite")) for r, e in zip(wview["elements"], wtel)]
+    why = _tl_plain_elements_problem(flags, allow_empty=step != "addlayer")
+    if why is not None:
+        return dict(base, error=f"the working layer: {why}: nothing was touched")
+    if wview["auto"].get("auto_layer") is not False:
+        return dict(base, error=f"the working layer's autoLayer reads {wview['auto'].get('auto_layer')!r}, not False: nothing was touched")
+    tl, tview = None, None
+    if step != "addlayer":
+        tl = temps[0]["layer"]
+        tview = _tl_view(tl)
+        base["temp_before"] = tview
+        if not _tl_ok(tview):
+            return dict(base, error="the temporary layer could not be read in full: nothing was touched")
+        if step not in ("removelayer", "activate"):
+            cmp0 = _tl_compare(bl, wview)
+            if cmp0["missing"] or cmp0["new"] or not cmp0["contours_equal"]:
+                return dict(base, error="the working layer is no longer as recorded at step=addlayer: nothing was touched", working_vs_baseline=cmp0)
+    if step == "build":
+        if tview["elements"] or tview["auto"].get("auto_layer") is not False or tview["auto"].get("recipe") != "":
+            return dict(base, error=("step=build needs the temporary layer empty, autoLayer off and recipe \"\" (it reads "
+                                     f"{len(tview['elements'])} element(s), {tview['auto']}): nothing was touched"))
+    if step in ("move", "setlayer"):
+        te = tview["elements"]
+        if (len(te) != 1 or te[0].get("is_component") is not True or not _trycomp_name_ok(te[0].get("component_glyph"))
+                or tview["auto"].get("auto_layer") is not False):
+            return dict(base, error=(f"step={step} needs the temporary layer to hold exactly one component of a cpp glyph, autoLayer off: "
+                                     "nothing was touched"))
+        if step == "setlayer" and te[0].get("component_layer") == bl["working"]:     # v0.184
+            return dict(base, error=(f"the temporary layer's component already names {bl['working']!r}: there is nothing to set, "
+                                     "nothing was touched"))
+    srcs = [src] if src else [r["component_glyph"] for r in (tview["elements"] if tview else []) if r.get("is_component") is True]
+    src_before = {}
+    for s in srcs:
+        snap = _tryedit_snapshot(s)
+        if "error" in snap:
+            return dict(base, error=f"the source {s!r} could not be read ({snap.get('error')}): nothing was touched")
+        src_before[s] = snap
+    if step == "build":
+        sctx, srefusal = _modern_edit_target(src)
+        sstate, slayer = _tryshape_modern_state(sctx["w"]) if sctx is not None else ({}, None)
+        stel = _trycomp_elements(slayer) if slayer is not None else {"error": "no layer"}
+        if isinstance(stel, dict) or not stel or any(e.get("is_component") is not False or e.get("is_composite") is not False for e in stel):
+            return dict(base, error=f"the source {src!r} must hold only plain contour shapes: nothing was touched")
+    width_before = _trycomp_width(w)
+    base["advance_width_before"] = width_before
+    base["glyph_count_before"] = _tryedit_glyph_count(font)
+    if step == "addlayer":
+        _TRYCOMP_TL_BASE[target] = {"working": working["name"], "elements": wview["elements"], "contours": wview["contours"]}
+        bl = _TRYCOMP_TL_BASE[target]
+    shape_moved = None
+    substeps = []
+    try:
+        if step == "addlayer":
+            cls = getattr(mod, "flLayer", None)
+            if cls is None:
+                return dict(base, error="the fontlab module has no flLayer class: nothing was touched")
+            new_layer = cls(_TL_TEMP_NAME)
+            w.addLayer(new_layer)
+            base["call_returned"] = None
+        elif step == "build":
+            def _sub(label, fn, attr, want):
+                fn()
+                got = _trycomp_auto_state(tl).get(attr)
+                substeps.append({"call": label, "read_back": got, "ok": got == want})
+                return got == want
+            if _sub(f"layer.recipe = {src!r}", lambda: setattr(tl, "recipe", src), "recipe", src) and \
+                    _sub("layer.autoLayer = True", lambda: setattr(tl, "autoLayer", True), "auto_layer", True):
+                ret = tl.buildAuto()
+                ok = ret is True
+                substeps.append({"call": "layer.buildAuto()", "returned": ret if (ret is None or isinstance(ret, (bool, int, float, str)))
+                                 else f"<{type(ret).__name__}>", "ok": ok})
+                if ok and _sub("layer.autoLayer = False", lambda: setattr(tl, "autoLayer", False), "auto_layer", False):
+                    _sub('layer.recipe = ""', lambda: setattr(tl, "recipe", ""), "recipe", "")
+        elif step == "move":
+            shapes, err = _tl_call(lambda: tl.shapes)
+            if err is not None or type(shapes) is not list or len(shapes) != 1:
+                return dict(base, error=f"the temporary layer's shapes are no longer a plain list of one ({err or type(shapes).__name__}): nothing was touched")
+            shape_moved = shapes[0]
+            ret = wl.addShape(shape_moved)
+            base["call_returned"] = ("None" if ret is None else "the same shape object" if ret is shape_moved else f"<{type(ret).__name__}>")
+        elif step == "setlayer":     # v0.184: the source-layer fix of 1285a, before the move
+            shapes, err = _tl_call(lambda: tl.shapes)
+            if err is not None or type(shapes) is not list or len(shapes) != 1:
+                return dict(base, error=f"the temporary layer's shapes are no longer a plain list of one ({err or type(shapes).__name__}): nothing was touched")
+            sd, err = _tl_call(lambda: shapes[0].shapeData)
+            named, err2 = (None, err or "shapeData is None") if (err is not None or sd is None) else _tl_call(lambda: _call0(sd, "componentGlyph"))
+            if err2 is not None or named != tview["elements"][0].get("component_glyph"):
+                return dict(base, error=f"the temporary layer's component could not be checked ({err2 or named!r}): nothing was touched")
+            sd.componentLayer = bl["working"]
+        elif step == "activate":     # v0.182
+            ret = wl.setActive()
+            base["call_returned"] = ret if (ret is None or isinstance(ret, (bool, int, float, str))) else f"<{type(ret).__name__}>"
+        elif step == "removelayer":
+            ret = w.removeLayer(tl)
+            base["call_returned"] = ret if (ret is None or isinstance(ret, (bool, int, float, str))) else f"<{type(ret).__name__}>"
+    except Exception as exc:
+        base["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
+    if substeps:
+        base["substeps"] = substeps
+    result = dict(base)
+    result["display_refreshed"] = _repaint_viewport()
+    layers2 = _tl_layers(w)
+    result["layers_after"] = layers2 if isinstance(layers2, dict) else [e["name"] for e in layers2]
+    st2, _a2 = _tryshape_modern_state(w)
+    result["active_layer_after"] = st2.get("layer_name")
+    result["active_layer_kept"] = st2.get("layer_name") == active_name
+    w2 = [e for e in layers2 if e["name"] == bl["working"]] if not isinstance(layers2, dict) else []
+    t2 = [e for e in layers2 if e["name"] == _TL_TEMP_NAME] if not isinstance(layers2, dict) else []
+    wview2 = _tl_view(w2[0]["layer"]) if len(w2) == 1 else {"error": f"{len(w2)} layer(s) named {bl['working']!r}"}
+    tview2 = _tl_view(t2[0]["layer"]) if len(t2) == 1 else None
+    result["working_after"] = wview2
+    result["temp_after"] = tview2 if tview2 is not None else f"{len(t2)} layer(s) named {_TL_TEMP_NAME!r}"
+    width_after = _trycomp_width(w)
+    result["advance_width_after"] = width_after
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    src_after = {s: _tryedit_snapshot(s) for s in srcs}
+    result["source_changed"] = ("unknown" if any("error" in src_after[s] for s in srcs) else
+                                any(src_after[s]["contours"] != src_before[s]["contours"] for s in srcs))
+    readable = "error" not in wview2 and _tl_ok(wview2) and not isinstance(layers2, dict)
+    cmp2 = _tl_compare(bl, wview2) if readable else None
+    result["working_vs_baseline"] = cmp2 if cmp2 is not None else "unknown"
+    working_kept = cmp2 is not None and not cmp2["missing"] and not cmp2["new"] and cmp2["contours_equal"]
+    one_new = (cmp2 is not None and not cmp2["missing"] and cmp2["contours_held"] and len(cmp2["new"]) == 1
+               and cmp2["new"][0].get("is_component") is True)
+    result["side_effect_detected"] = bool(result["glyph_count_after"] != result["glyph_count_before"] or result["source_changed"] is not False
+                                          or (step != "activate" and not result["active_layer_kept"]))
+    result["width_changed"] = width_after != width_before
+    if step == "setlayer":     # v0.184
+        te0, te2 = tview["elements"][0], (tview2["elements"] if (tview2 is not None and _tl_ok(tview2)) else None)
+        result["temp_component_layer_after"] = te2[0].get("component_layer") if (te2 and len(te2) == 1) else "unknown"
+        result["temp_layer_set"] = bool("error" not in result and te2 is not None and len(te2) == 1
+                                        and te2[0].get("component_layer") == bl["working"]
+                                        and _trycomp_same_element(dict(te2[0], component_layer=None), dict(te0, component_layer=None))
+                                        and working_kept and not result["side_effect_detected"] and not result["width_changed"])
+        changed = True
+    elif step == "activate":     # v0.182: the working layer active, nothing else changed (both layers compared with this step's own before)
+        flags = {}
+        for label, e in (("working", w2[0] if len(w2) == 1 else None), ("temp", t2[0] if len(t2) == 1 else None)):
+            v, err = _tl_call(lambda l=(e or {}).get("layer"): _call0(l, "isActive")) if e is not None else (None, "no such layer")
+            flags[label] = v if (err is None and type(v) is bool) else f"<error: {err or type(v).__name__}>"
+        result["is_active"] = flags
+        def _same(a, b):
+            return (_tl_ok(a) and _tl_ok(b) and a["contours"] == b["contours"] and a["auto"] == b["auto"]
+                    and not any(_trycomp_match_existing(a["elements"], b["elements"])))
+        result["layers_unchanged"] = (not isinstance(layers2, dict) and [e["name"] for e in layers2] == base["layers_before"]
+                                      and readable and tview2 is not None and _same(wview, wview2) and _same(tview, tview2))
+        result["working_active"] = bool("error" not in result and result["active_layer_after"] == bl["working"]
+                                        and flags["working"] is True and flags["temp"] is False and result["layers_unchanged"]
+                                        and not result["side_effect_detected"] and not result["width_changed"])
+        changed = True
+    elif step == "addlayer":
+        temp_ok = tview2 is not None and _tl_ok(tview2) and not tview2["elements"] and not tview2["contours"]
+        result["layer_added"] = bool("error" not in result and len(t2) == 1 and len(layers2) == 2 and temp_ok and working_kept
+                                     and not result["side_effect_detected"])
+        changed = isinstance(layers2, dict) or len(layers2) != len(layers) or not working_kept
+    elif step == "build":
+        te2 = tview2["elements"] if (tview2 is not None and _tl_ok(tview2)) else None
+        result["temp_component"] = te2
+        result["built"] = bool("error" not in result and substeps and all(s.get("ok") for s in substeps) and len(substeps) == 5
+                               and te2 is not None and len(te2) == 1 and te2[0].get("is_component") is True
+                               and te2[0].get("component_glyph") == src and working_kept and not result["side_effect_detected"])
+        changed = True
+    elif step == "move":
+        moved_row = tview["elements"][0]
+        result["new_in_working"] = cmp2["new"] if cmp2 is not None else "unknown"
+        result["same_as_temp_component"] = bool(one_new and _trycomp_same_element(dict(cmp2["new"][0], index=None), dict(moved_row, index=None)))
+        result["temp_still_holds_it"] = ("unknown" if tview2 is None or not _tl_ok(tview2) else
+                                         len(tview2["elements"]) == 1 and _trycomp_same_element(tview2["elements"][0], moved_row))
+        result["moved"] = bool("error" not in result and result["same_as_temp_component"] and not result["side_effect_detected"])
+        # v0.183: live 1283a / 1283b: the component built on the temporary layer names that layer as its source layer
+        result["component_layer_matches"] = bool(one_new and cmp2["new"][0].get("component_layer") == bl["working"])
+        changed = True
+    else:
+        result["temp_layer_gone"] = not isinstance(layers2, dict) and len(t2) == 0 and len(layers2) == 1
+        result["layer_removed"] = bool("error" not in result and result["temp_layer_gone"] and not result["side_effect_detected"])
+        before_new = _tl_compare(bl, wview)["new"]
+        result["component_survived"] = ("not applicable (no new component before the call)" if len(before_new) != 1 else
+                                        bool(one_new and _trycomp_same_element(dict(cmp2["new"][0], index=None), dict(before_new[0], index=None))))
+        result["component_layer_matches"] = bool(one_new and cmp2["new"][0].get("component_layer") == bl["working"])     # v0.183
+        result["placed_beside"] = bool(result["layer_removed"] and result["component_survived"] is True
+                                       and result["component_layer_matches"])
+        changed = True
+    if changed:
+        if step == "removelayer" and result["placed_beside"]:
+            _guard_mark(font, target, "trycomponent", result)
+            _TRYCOMP_TL_BASE.pop(target, None)
+        else:
+            _guard_mark(font, target, "trycomponent", result,
+                        no_mark=("a research step: the font is marked only after step=removelayer leaves the baseline plus one "
+                                 "new component" if step != "removelayer" else "the end state was not confirmed"))
+    return result
+
+
+def _trycomp_droptemp_run(target, base):
+    """v0.184, stage=templayer&step=droptemp: remove an EMPTY gb_temp_component left behind (live 1272). Never raises."""
+    ctx, refusal = _modern_edit_target(target)
+    if ctx is None:
+        return dict(base, error="the target cannot be used: " + str(refusal.get("reason") or refusal), refusal=_public_refusal(refusal))
+    w, font = ctx["w"], ctx["font"]
+    problem = _one_master_problem()
+    if problem is not None:
+        return dict(base, error=f"this probe needs a font with one master ({problem}): nothing was touched")
+    layers = _tl_layers(w)
+    if isinstance(layers, dict):
+        return dict(base, error=f"the glyph's layers could not be read ({layers['error']}): nothing was touched")
+    base["layers_before"] = [e["name"] for e in layers]
+    temps = [e for e in layers if e["name"] == _TL_TEMP_NAME]
+    others = [e for e in layers if e["name"] != _TL_TEMP_NAME]
+    if len(layers) != 2 or len(temps) != 1 or len(others) != 1:
+        return dict(base, error=(f"step=droptemp needs a glyph of exactly two layers, one of them {_TL_TEMP_NAME!r} (it has "
+                                 f"{base['layers_before']}): nothing was touched"))
+    tl, wl, wname = temps[0]["layer"], others[0]["layer"], others[0]["name"]
+    tview = _tl_view(tl)
+    base["temp_before"] = tview
+    if not _tl_ok(tview) or tview["elements"] or tview["contours"]:
+        return dict(base, error=f"the layer {_TL_TEMP_NAME!r} is not known to be empty: it is never removed then, nothing was touched")
+    wtel = _trycomp_elements(wl)
+    wview = _tl_view(wl)
+    base["working_before"] = wview
+    if isinstance(wtel, dict) or not _tl_ok(wview):
+        return dict(base, error="the other layer could not be read in full: nothing was touched")
+    why = _tl_plain_elements_problem([dict(r, is_composite=e.get("is_composite")) for r, e in zip(wview["elements"], wtel)], allow_empty=True)
+    if why is not None:
+        return dict(base, error=f"the other layer: {why}: nothing was touched")
+    st, _a = _tryshape_modern_state(w)
+    active_name = st.get("layer_name")
+    base["active_layer_before"] = active_name
+    width_before = _trycomp_width(w)
+    base["advance_width_before"] = width_before
+    base["glyph_count_before"] = _tryedit_glyph_count(font)
+    calls = []
+    try:
+        go_on = True
+        if active_name == _TL_TEMP_NAME:
+            ret = wl.setActive()
+            st1, _a1 = _tryshape_modern_state(w)
+            go_on = st1.get("layer_name") == wname
+            calls.append({"call": "working_layer.setActive()", "returned": ret if (ret is None or isinstance(ret, (bool, int, float, str)))
+                          else f"<{type(ret).__name__}>", "active_after": st1.get("layer_name"), "ok": go_on})
+        if go_on:
+            ret = w.removeLayer(tl)
+            calls.append({"call": f"w.removeLayer(<{_TL_TEMP_NAME}>)", "returned": ret if (ret is None or isinstance(ret, (bool, int, float, str)))
+                          else f"<{type(ret).__name__}>"})
+    except Exception as exc:
+        base["error"] = f"droptemp failed: {type(exc).__name__}: {exc}"
+    base["calls"] = calls
+    result = dict(base)
+    result["display_refreshed"] = _repaint_viewport()
+    layers2 = _tl_layers(w)
+    result["layers_after"] = layers2 if isinstance(layers2, dict) else [e["name"] for e in layers2]
+    st2, _a2 = _tryshape_modern_state(w)
+    result["active_layer_after"] = st2.get("layer_name")
+    w2 = [e for e in layers2 if e["name"] == wname] if not isinstance(layers2, dict) else []
+    wview2 = _tl_view(w2[0]["layer"]) if len(w2) == 1 else {"error": f"{len(w2)} layer(s) named {wname!r}"}
+    result["working_after"] = wview2
+    result["advance_width_after"] = _trycomp_width(w)
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    kept = ("error" not in wview2 and _tl_ok(wview2) and wview2["contours"] == wview["contours"]
+            and not any(_trycomp_match_existing(wview["elements"], wview2["elements"])))
+    result["working_kept"] = bool(kept)
+    result["temp_dropped"] = bool("error" not in result and result["layers_after"] == [wname] and result["active_layer_after"] == wname
+                                  and kept and result["advance_width_after"] == width_before
+                                  and result["glyph_count_after"] == result["glyph_count_before"])
+    if calls:
+        _guard_mark(font, target, "trycomponent", result, no_mark="a clean-up step of the research probe")
+    return result
+
+
+# --------------------------------------------------------------------------
+# /debug/trycomponent stage=fixlayer (v0.183) - RESEARCH: can a component's source-layer name be set? Live 1283a / 1283b: a component
+# built on the temporary layer names that layer ("gb_temp_component") as its source layer, which its source glyph does not have; FontLab
+# draws it all the same (1284). Names only: flShapeData.componentLayer, documented as "string" (no setter listed).
+# stage=fixlayer&target=cpp...&element=I, go=yes, exactly one font open, one master, its own counter (_TRYCOMP_FL_MAX per listener
+# run), on a target with exactly ONE layer (the active one), autoLayer off, holding only plain contour shapes and components of cpp
+# glyphs, whose element I is a component of a cpp glyph naming a source layer OTHER than the target's layer name: ONE
+# shape.shapeData.componentLayer = <the target's layer name>. Read back: every element (kind, source, source layer, matrix, ink box),
+# the outline, the width, the source glyph and the glyph count. layer_set: element I names the target's layer, and nothing else
+# changed (its source, matrix and ink box, every other element, the outline, width, source, glyph count). Marked only then.
+# --------------------------------------------------------------------------
+
+_TRYCOMP_FL_MAX = 6
+_TRYCOMP_FL = {"calls": 0}
+
+
+def _trycomp_fixlayer_gate(target, element, go):
+    """v0.183: the parameters, the go gate, the one-font gate and the counter of stage=fixlayer; then _trycomp_fixlayer_run."""
+    import sys as _sys
+    if element is None or not str(element).strip():
+        return {"error": "stage=fixlayer needs element=I, the position of the component in the target (0 = the first)"}
+    elem, err = _tryedit_int(element, "element", 0, _TRYCOMP_SEVERAL_MAX - 1)
+    if err is not None:
+        return {"error": err}
+    if go != "yes":
+        return {"error": (f"stage=fixlayer sets shapeData.componentLayer of component {elem} of the target to the target's own layer "
+                          "name, once. Add &go=yes to run it.")}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, _pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"stage": "fixlayer", "error": why, "calls_so_far": _TRYCOMP_FL["calls"], "max_calls": _TRYCOMP_FL_MAX}
+    if _TRYCOMP_FL["calls"] >= _TRYCOMP_FL_MAX:
+        return {"stage": "fixlayer", "calls_so_far": _TRYCOMP_FL["calls"], "max_calls": _TRYCOMP_FL_MAX,
+                "error": f"stage=fixlayer already ran {_TRYCOMP_FL_MAX} times in this listener run; restart the listener to repeat it"}
+    _TRYCOMP_FL["calls"] += 1     # counted BEFORE the glyph is read
+    base = {"stage": "fixlayer", "target": target, "element": elem, "call": "shape.shapeData.componentLayer = <the target's layer name>",
+            "calls_so_far": _TRYCOMP_FL["calls"], "max_calls": _TRYCOMP_FL_MAX, "note": _TRYCOMP_NOTE}
+    return _trycomp_timed(_trycomp_fixlayer_run, target, elem, base)
+
+
+def _trycomp_fixlayer_run(target, elem, base):
+    """v0.183: ONE shapeData.componentLayer assignment (see the section comment). Read back. Never raises."""
+    ctx, refusal = _modern_edit_target(target)
+    if ctx is None:
+        return dict(base, error="the target cannot be used: " + str(refusal.get("reason") or refusal), refusal=_public_refusal(refusal))
+    w, font = ctx["w"], ctx["font"]
+    problem = _one_master_problem()
+    if problem is not None:
+        return dict(base, error=f"this probe needs a font with one master ({problem}): nothing was touched")
+    layers = _tl_layers(w)
+    if isinstance(layers, dict):
+        return dict(base, error=f"the glyph's layers could not be read ({layers['error']}): nothing was touched")
+    st, active = _tryshape_modern_state(w)
+    name = st.get("layer_name")
+    base["layers"] = [e["name"] for e in layers]
+    if len(layers) != 1 or active is None or layers[0]["name"] != name:
+        return dict(base, error=(f"stage=fixlayer needs a glyph with exactly one layer, the active one (it has {base['layers']}, active "
+                                 f"{name!r}): nothing was touched"))
+    wl = layers[0]["layer"]
+    tel = _trycomp_elements(wl)
+    if isinstance(tel, dict):
+        return dict(base, error=f"the target's elements could not be read ({tel['error']}): nothing was touched")
+    view = _tl_view(wl)
+    base["target_before"] = view
+    if not _tl_ok(view):
+        return dict(base, error="the target could not be read in full: nothing was touched")
+    rows = view["elements"]
+    why = _tl_plain_elements_problem([dict(r, is_composite=e.get("is_composite")) for r, e in zip(rows, tel)])
+    if why is not None:
+        return dict(base, error=f"the target: {why}: nothing was touched")
+    if view["auto"].get("auto_layer") is not False:
+        return dict(base, error=f"the target's autoLayer reads {view['auto'].get('auto_layer')!r}, not False: nothing was touched")
+    if elem >= len(rows):
+        return dict(base, error=f"element {elem} does not exist: the target holds {len(rows)} elements: nothing was touched")
+    row = rows[elem]
+    if row.get("is_component") is not True:
+        return dict(base, error=f"element {elem} is not a component: nothing was touched")
+    base["component_layer_before"] = row.get("component_layer")
+    if row.get("component_layer") == name:
+        return dict(base, error=f"element {elem} already names the layer {name!r}: there is nothing to set, nothing was touched")
+    src = row["component_glyph"]
+    src_before = _tryedit_snapshot(src)
+    if "error" in src_before:
+        return dict(base, error=f"the source {src!r} could not be read ({src_before['error']}): nothing was touched")
+    width_before = _trycomp_width(w)
+    base["advance_width_before"] = width_before
+    base["glyph_count_before"] = _tryedit_glyph_count(font)
+    shapes, err = _tl_call(lambda: wl.shapes)
+    if err is not None or type(shapes) is not list or len(shapes) != len(rows):
+        return dict(base, error=f"the target's layer.shapes is no longer a plain list of {len(rows)}: nothing was touched")
+    sd, err = _tl_call(lambda: shapes[elem].shapeData)
+    named, err2 = (None, err or "shapeData is None") if (err is not None or sd is None) else _tl_call(lambda: _call0(sd, "componentGlyph"))
+    if err2 is not None or named != src:
+        return dict(base, error=(f"the shape at position {elem} names {named!r}, not {src!r} as read before: nothing was touched"
+                                 if err2 is None else f"the shape at position {elem} could not be checked ({err2}): nothing was touched"))
+    try:
+        sd.componentLayer = name
+    except Exception as exc:
+        base["error"] = f"shapeData.componentLayer = {name!r} failed: {type(exc).__name__}: {exc}"
+    result = dict(base)
+    result["layer_name"] = name
+    result["display_refreshed"] = _repaint_viewport()
+    layers2 = _tl_layers(w)
+    view2 = (_tl_view(layers2[0]["layer"]) if (not isinstance(layers2, dict) and len(layers2) == 1)
+             else {"error": "the glyph no longer has exactly one layer"})
+    result["target_after"] = view2
+    result["advance_width_after"] = _trycomp_width(w)
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    src_after = _tryedit_snapshot(src)
+    result["source_changed"] = "unknown" if "error" in src_after else src_after["contours"] != src_before["contours"]
+    ok = "error" not in view2 and _tl_ok(view2) and len(view2["elements"]) == len(rows)
+    rows2 = view2["elements"] if ok else None
+    result["component_layer_after"] = rows2[elem].get("component_layer") if ok else "unknown"
+    result["component_kept"] = bool(ok and _trycomp_same_element(dict(rows2[elem], component_layer=None), dict(row, component_layer=None)))
+    result["others_kept"] = bool(ok and all(_trycomp_same_element(rows2[i], rows[i]) for i in range(len(rows)) if i != elem))
+    result["outline_kept"] = bool(ok and view2["contours"] == view["contours"])
+    result["side_effect_detected"] = bool(result["glyph_count_after"] != result["glyph_count_before"] or result["source_changed"] is not False
+                                          or result["advance_width_after"] != width_before or view2.get("auto") != view["auto"])
+    result["layer_set"] = bool("error" not in result and result["component_layer_after"] == name and result["component_kept"]
+                               and result["others_kept"] and result["outline_kept"] and not result["side_effect_detected"])
+    changed = not ok or rows2 != rows or view2["contours"] != view["contours"]
+    if changed:
+        _guard_mark(font, target, "trycomponent", result, no_mark=None if result["layer_set"] else "the new source layer was not confirmed")
     return result
 
 
@@ -12278,7 +13026,8 @@ def _route(method, full_path, body=b""):
                                                                 (query.get("pkg") or [None])[0], (query.get("int") or [None])[0],
                                                                 (query.get("width") or [None])[0], (query.get("items") or [None])[0],
                                                                 (query.get("step") or [None])[0], (query.get("how") or [None])[0],
-                                                                (query.get("element") or [None])[0], (query.get("recursive") or [None])[0]))
+                                                                (query.get("element") or [None])[0], (query.get("recursive") or [None])[0],
+                                                                (query.get("nonempty") or [None])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

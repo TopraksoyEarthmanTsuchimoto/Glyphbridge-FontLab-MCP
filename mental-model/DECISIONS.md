@@ -2,6 +2,12 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-18: placing components into a glyph that is not empty (research, listener 0.180–0.181)
+
+- **Scope: a target holding contours, components or both.** *Reason:* the user's choice.
+- **Not by the recipe build on that glyph:** it replaced the layer's contents (NE 1268, [topics/reading.md](topics/reading.md)).
+- **Routes in this order: a temporary layer in the target glyph; then setting the shapes aside and putting them back; then a component shape made directly. A scratch glyph only if all three fail.** *Reason:* the user's choice; a scratch glyph would need a hidden delete in every call (the F1 risk of `delete_glyph`) and could be left behind by a failure.
+
 ## 2026-11-18: removing components, `remove_component` (listener 0.179 / server 0.72)
 
 - **A component is named by its index in `get_glyph_outline`'s element list, with the source and offset expected there; any mismatch refuses the whole call before anything changes.** *Reason:* a stale read becomes a refusal, as with `move_nodes`' `from`; two copies of one source at one place stay apart.

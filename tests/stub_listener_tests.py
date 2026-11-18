@@ -9004,6 +9004,419 @@ print("2510 spies over the cases:", TC_FORBIDDEN, "| static scan:",
 print("2510a route documented:", "POST /glyph/component/remove" in src, "| dispatched:", 'if path == "/glyph/component/remove":' in src,
       "| mark title:", ns["_MARK_TITLES"].get("remove_component"), "| guard kind full:", "remove_component" in ns["_GUARD_FULL_KINDS"],
       "| activity kind:", ns["_ACT_WRITES"].get("/glyph/component/remove"))
+
+# ---- v0.180: stage=auto&nonempty=yes (research for placing components into a glyph that already holds contours, components or both;
+# the user's choice of 2026-11-18, route "build in place"). The build fake of v0.165 adds to what the layer holds; build_replaces makes
+# it clear the layer first, build_moves_existing moves the first element by 5 units.
+print("\n==== v0.180 /debug/trycomponent stage=auto&nonempty=yes ====")
+def _tc_build180(s):
+    m = TC["mode"]
+    if m.get("build_replaces"): s._shapes = []
+    r = _tc_build165(s)
+    if m.get("build_moves_existing") and s._shapes: s._shapes[0]._tx = TCQT(1, 0, 0, 1, s._shapes[0]._tx.dx() + 5, s._shapes[0]._tx.dy())
+    return r
+TCLayer.buildAuto = _tc_build180
+NK = ("nonempty", "step_took_effect", "outline_changed", "existing_kept", "existing_contours_in_outline", "placed", "component_placed",
+      "component_kept", "component_normal", "recipe_cleared", "width_changed_by_build", "side_effect_detected", "existing_note", "error",
+      "calls_so_far")
+QN = QA + "&nonempty=yes"
+def _nk_rows(rows):
+    if not isinstance(rows, list): return rows
+    return [(r.get("is_component"), r.get("component_glyph"), None if not isinstance(r.get("matrix"), dict) or "error" in r["matrix"]
+             else (r["matrix"].get("dx"), r["matrix"].get("dy"))) for r in rows]
+def nks(shapes, mode=None, auto=False, recipe="", clear_baseline=True):
+    tc_gen_setup(mode=dict({"gen_list": 1}, **(mode or {}))); _tc_src3()
+    if clear_baseline: ns["_TRYCOMP_BASELINE"].clear()
+    lay = P72["layers"]["cpp1"]
+    lay.__dict__["_recipe"] = recipe; lay.__dict__["_auto"] = auto
+    lay._shapes = shapes()
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, 3)]); TS["cpp1"].width = 0.0
+def nk_legacy(nodes, width=0.0):     # the legacy view as FontLab would show it after the build
+    TS["cpp1"] = TsGlyph("cpp1", [TsLayer(1, nodes)]); TS["cpp1"].width = width
+def nk(tag, q, keys=NK):
+    d = tc(tag, QN + q, keys=keys)
+    print("      before:", _nk_rows(d.get("existing_before")), "| missing:", _nk_rows(d.get("existing_missing")), "| new:",
+          _nk_rows(d.get("new_elements")), "| auto_after:", d.get("auto_after"), "| mark:", d.get("fontlab_changed_mark"))
+    return d
+_contour = lambda: TCShape([te_contour(TE_SQ)])
+nks(lambda: [_contour()])
+tc("2520a nonempty with stage=offset     ", QC + "stage=offset&target=cpp1&how=assign&dx=5&dy=0&nonempty=yes&go=yes")
+tc("2520b nonempty=Yes                   ", QA + "&step=setrecipe&recipe=cppsrc&nonempty=Yes&go=yes")
+tc("2520c nonempty with step=read        ", QA + "&step=read&nonempty=yes&go=yes")
+tc("2520d nonempty with step=killauto    ", QA + "&step=killauto&nonempty=yes&go=yes")
+tc("2520e shown before go                ", QN + "&step=setrecipe&recipe=cppsrc")
+for tag, shapes, mode in (("2520f an empty target               ", lambda: [], None),
+                          ("2520g a Power Brush shape           ", lambda: [_contour(), TCShape([te_contour(TE_SQ)], composite=True)], None),
+                          ("2520h a component of a non-cpp glyph ", lambda: [_contour(), TCShape([te_contour(TE_SQ)], component="A")], None),
+                          ("2520i an ink box unreadable         ", lambda: [_contour()], {"box_raises": 1})):
+    nks(shapes, mode=mode); nk(tag, "&step=setrecipe&recipe=cppsrc&go=yes")
+print("2520j  no recipe set in the refusals:", [x for x in TC["calls"] if isinstance(x, tuple) and x[0] in ("recipe=", "autoLayer=")])
+tc("2520k without nonempty a contour is still refused", QA + "&step=setrecipe&recipe=cppsrc&go=yes")
+# a contour, the component added beside it: the whole series in one listener run
+nks(lambda: [_contour()])
+nk("2521a contour: setrecipe            ", "&step=setrecipe&recipe=cppsrc&go=yes")
+print("      baseline recorded:", _nk_rows(ns["_TRYCOMP_BASELINE"].get("cpp1", {}).get("elements")))
+nk("2521b contour: setauto              ", "&step=setauto&go=yes")
+nk_legacy(7)
+nk("2521c contour: build, kept          ", "&step=build&recipe=cppsrc&go=yes")
+nk("2521d contour: unauto               ", "&step=unauto&go=yes")
+nk("2521e contour: clearrecipe          ", "&step=clearrecipe&go=yes")
+# the build replaces what was there
+nks(lambda: [_contour()], mode={"build_replaces": 1})
+nk("2522a replaces: setrecipe           ", "&step=setrecipe&recipe=cppsrc&go=yes")
+nk("2522b replaces: setauto             ", "&step=setauto&go=yes")
+nk("2522c replaces: build, contour gone ", "&step=build&recipe=cppsrc&go=yes")
+nk("2522d replaces: unauto, not marked  ", "&step=unauto&go=yes")
+# a component, then a contour and a component with the existing one moved by the build
+nks(lambda: [_tc_comp("cppsrc2", -200, 0)])
+nk("2523a component: setrecipe          ", "&step=setrecipe&recipe=cppsrc&go=yes")
+nk("2523b component: setauto            ", "&step=setauto&go=yes")
+nk_legacy(7)
+nk("2523c component: build, kept        ", "&step=build&recipe=cppsrc&go=yes")
+nks(lambda: [_contour(), _tc_comp("cppsrc2", -200, 0)], mode={"build_moves_existing": 1})
+nk("2524a mixed: setrecipe              ", "&step=setrecipe&recipe=cppsrc&go=yes")
+nk("2524b mixed: setauto                ", "&step=setauto&go=yes")
+nk("2524c mixed: build moves the contour", "&step=build&recipe=cppsrc&go=yes")
+# the width FontLab sets is reported, not counted; no baseline; a recipe naming the existing component too
+nks(lambda: [_contour()], mode={"build_width": 1}, auto=True, recipe="cppsrc")
+ns["_TRYCOMP_BASELINE"]["cpp1"] = {"elements": ns["_trycomp_existing"](P72["layers"]["cpp1"], ns["_trycomp_elements"](P72["layers"]["cpp1"])),
+                                   "contours": ns["_tryedit_snapshot"]("cpp1")["contours"]}
+nk_legacy(7, 250.0)
+d = nk("2525 build sets the width 250      ", "&step=build&recipe=cppsrc&go=yes")
+print("      widths:", d.get("advance_width_before"), d.get("advance_width_after"))
+nks(lambda: [_contour()], auto=True, recipe="cppsrc")
+nk("2526 build with no baseline         ", "&step=build&recipe=cppsrc&go=yes")
+nks(lambda: [_tc_comp("cppsrc2", -200, 0)], auto=True, recipe="cppsrc2+cppsrc", clear_baseline=False)
+ns["_TRYCOMP_BASELINE"]["cpp1"] = {"elements": ns["_trycomp_existing"](P72["layers"]["cpp1"], ns["_trycomp_elements"](P72["layers"]["cpp1"])),
+                                   "contours": ns["_tryedit_snapshot"]("cpp1")["contours"]}
+nk_legacy(11)
+nk("2527 recipe names the existing too  ", "&step=build&recipe=cppsrc2%2Bcppsrc&go=yes")
+nks(lambda: [_contour(), _tc_comp("cppsrc2", -200, 0)], auto=True, recipe="cppsrc")
+nk("2528 unauto with a contour present  ", "&step=unauto&go=yes")
+nks(lambda: [_contour(), _tc_comp("cppsrc2", -200, 0)], auto=True, recipe="cppsrc")
+tc("2528a the same without nonempty      ", QA + "&step=unauto&go=yes")
+_src180 = "\n".join(l for l in src[src.index("def _trycomp_auto_state("):src.index("def debug_try_component(")].split("\n") if not l.lstrip().startswith("#"))
+print("2529 spies over the cases:", TC_FORBIDDEN, "| static scan:",
+      _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addShape|addComponent|clearComponents|removeShape|replaceShape)\s*\(|font\.update", _src180),
+      "| baseline written once:", _src180.count("_TRYCOMP_BASELINE[target] ="), "| only at setrecipe:", 'if nonempty and step == "setrecipe":' in _src180,
+      "| route documented:", "&nonempty=yes: the same steps on a target" in src, "| dispatched:", '(query.get("nonempty") or [None])[0]' in src)
+
+# ---- v0.181: stage=templayer (research: a temporary layer in the target glyph; the user's route order of 2026-11-18). The modern glyph
+# fake gains layers (the working layer plus P72["extra"]), addLayer and removeLayer; flLayer(title) makes an empty TCLayer. Modes:
+# add_activates (the new layer becomes active), addlayer_raises / _ignored / _touches, layers_tuple, removelayer_raises / _ignored,
+# remove_takes_shapes (removing the layer also removes its shape objects from the working layer: a shared object), addshape_moves
+# (addShape takes the shape off the temporary layer), build_working (the build also adds a shape to the working layer).
+print("\n==== v0.181 /debug/trycomponent stage=templayer ====")
+_p72_active = P72Mod.__dict__["activeLayer"]
+def _tl_active_fake(s):
+    chosen = P72.get("active_of", {}).get(s.name)          # v0.182: set by the setActive fake
+    if chosen is not None and any(chosen is l for l in _tl_layers_fake(s)): return chosen
+    ex = P72.get("extra", {}).get(s.name) or []
+    if TC["mode"].get("add_activates") and ex: return ex[-1]
+    return _p72_active.fget(s)
+def _tl_layers_fake(s):
+    main = P72["layers"].get(s.name)
+    out = ([main] if main is not None else []) + list(P72.get("extra", {}).get(s.name) or [])
+    return tuple(out) if TC["mode"].get("layers_tuple") else out
+def _tl_add_fake(s, layer, back=False):
+    TC["calls"].append(("addLayer", layer.name))
+    m = TC["mode"]
+    if m.get("addlayer_raises"): raise RuntimeError("addLayer boom")
+    if m.get("addlayer_ignored"): return None
+    if m.get("addlayer_touches"): P72["layers"][s.name]._shapes.append(TCShape([te_contour(TE_TRI)]))
+    P72.setdefault("extra", {}).setdefault(s.name, []).append(layer)
+    return None
+def _tl_remove_fake(s, layer):
+    TC["calls"].append(("removeLayer", layer.name))
+    m = TC["mode"]
+    if m.get("removelayer_raises"): raise RuntimeError("removeLayer boom")
+    if m.get("removelayer_ignored"): return None
+    P72["extra"][s.name] = [l for l in P72.get("extra", {}).get(s.name) or [] if l is not layer]
+    if m.get("remove_takes_shapes"):
+        main = P72["layers"][s.name]; main._shapes = [sh for sh in main._shapes if all(sh is not t for t in layer._shapes)]
+    return None
+P72Mod.activeLayer = property(_tl_active_fake); P72Mod.layers = property(_tl_layers_fake)
+P72Mod.addLayer = _tl_add_fake; P72Mod.removeLayer = _tl_remove_fake
+class TCTempLayer(TCLayer):
+    def __init__(s, title): TC["calls"].append(("flLayer", title)); TCLayer.__init__(s, title, [], None)
+TCLayer.advanceWidth = property(lambda s: P72["widths"].get(s._glyph, 0.0))
+_tl_saved = [(m, getattr(m, "flLayer", None)) for m in _tf_mods]
+for _m in _tf_mods: _m.flLayer = TCTempLayer
+def _tc_build181(s):
+    r = _tc_build180(s)
+    if TC["mode"].get("build_working"): P72["layers"]["cpp1"]._shapes.append(TCShape([te_contour(TE_TRI)]))
+    return r
+TCLayer.buildAuto = _tc_build181
+_tc_add_orig = TCLayer.addShape
+def _tc_add181(s, shape):
+    r = _tc_add_orig(s, shape)
+    if TC["mode"].get("addshape_moves"):
+        for l in P72.get("extra", {}).get("cpp1") or []: l._shapes = [x for x in l._shapes if x is not shape]
+    return r
+TCLayer.addShape = _tc_add181
+QT = QC + "stage=templayer&target=cpp1"
+TLK = ("layers_before", "layers_after", "active_layer_after", "active_layer_kept", "layer_added", "built", "moved", "same_as_temp_component",
+       "temp_still_holds_it", "layer_removed", "temp_layer_gone", "component_survived", "placed_beside", "width_changed", "side_effect_detected",
+       "error", "calls_so_far")
+def tls(shapes, mode=None, auto=False, legacy=4, extra=None):
+    tc_gen_setup(mode=dict({"gen_list": 1}, **(mode or {}))); _tc_src3()
+    ns["_TRYCOMP_TL_BASE"].clear(); ns["_TRYCOMP_TL"]["calls"] = 0; P72["extra"] = {"cpp1": list(extra or [])}; P72["active_of"] = {}
+    if "_TRYCOMP_FL" in ns: ns["_TRYCOMP_FL"]["calls"] = 0     # v0.183
+    lay = P72["layers"]["cpp1"]; lay.__dict__["_recipe"] = ""; lay.__dict__["_auto"] = auto; lay._shapes = shapes()
+    nk_legacy(legacy)
+def tl(tag, q, keys=TLK):
+    d = tc(tag, QT + q, keys=keys)
+    wa, ta = d.get("working_after"), d.get("temp_after")
+    print("      working:", _nk_rows(wa.get("elements")) if isinstance(wa, dict) else wa, "| temp:",
+          _nk_rows(ta.get("elements")) if isinstance(ta, dict) else ta, "| substeps:", [(x["call"], x["ok"]) for x in d.get("substeps") or []],
+          "| mark:", d.get("fontlab_changed_mark"))
+    return d
+def tl_series(tag, shapes, mode=None, legacy_end=7, steps=("addlayer", "build", "move", "removelayer"), recipe="cppsrc"):
+    tls(shapes, mode=mode)
+    out = {}
+    for st in steps:
+        if st == "move": nk_legacy(legacy_end)
+        out[st] = tl(f"{tag} {st:<12}", f"&step={st}" + (f"&recipe={recipe}" if st == "build" else "") + "&go=yes")
+    return out
+tls(lambda: [_contour()])
+for tag, q in (("2530a no step                       ", "&go=yes"),
+               ("2530b step=make                     ", "&step=make&go=yes"),
+               ("2530c addlayer with a recipe        ", "&step=addlayer&recipe=cppsrc&go=yes"),
+               ("2530d build without a recipe        ", "&step=build&go=yes"),
+               ("2530e build, recipe of two          ", "&step=build&recipe=cppsrc%2Bcppsrc2&go=yes"),
+               ("2530f build, recipe names the target ", "&step=build&recipe=cpp1&go=yes"),
+               ("2530g with nonempty                 ", "&step=addlayer&nonempty=yes&go=yes"),
+               ("2530h with element                  ", "&step=move&element=0&go=yes"),
+               ("2530i shown before go               ", "&step=addlayer"),
+               ("2530j build shown before go         ", "&step=build&recipe=cppsrc")):
+    tc(tag, QT + q)
+tc("2530k target without the prefix     ", QC + "stage=templayer&target=A&step=addlayer&go=yes")
+for tag, kw in (("2531a an empty target               ", dict(shapes=lambda: [])),
+                ("2531b a Power Brush shape           ", dict(shapes=lambda: [_contour(), TCShape([te_contour(TE_SQ)], composite=True)])),
+                ("2531c a component of a non-cpp glyph ", dict(shapes=lambda: [_contour(), TCShape([te_contour(TE_SQ)], component="A")])),
+                ("2531d autoLayer on                  ", dict(shapes=lambda: [_contour()], auto=True)),
+                ("2531e a second layer already        ", dict(shapes=lambda: [_contour()], extra=[TCTempLayer("other")])),
+                ("2531f w.layers not a list           ", dict(shapes=lambda: [_contour()], mode={"layers_tuple": 1})),
+                ("2531g two masters                   ", dict(shapes=lambda: [_contour()], mode={"masters": 2})),
+                ("2531h an ink box unreadable         ", dict(shapes=lambda: [_contour()], mode={"box_raises": 1}))):
+    tls(**kw); tl(tag, "&step=addlayer&go=yes")
+tls(lambda: [_contour()])
+for st, q in (("build", "&recipe=cppsrc"), ("move", ""), ("removelayer", "")):
+    tl(f"2531i {st} with no baseline     ", f"&step={st}{q}&go=yes")
+print("2531j  no layer call in the refusals:", [x for x in TC["calls"] if isinstance(x, tuple) and x[0] in ("addLayer", "removeLayer", "flLayer", "recipe=")])
+r = tl_series("2532 contour:", lambda: [_contour()])
+print("      final working contours held, new:", r["removelayer"].get("working_vs_baseline", {}).get("contours_held"),
+      _nk_rows(r["removelayer"].get("working_vs_baseline", {}).get("new")), "| baseline cleared:", "cpp1" not in ns["_TRYCOMP_TL_BASE"])
+tl_series("2533 component:", lambda: [_tc_comp("cppsrc2", -200, 0)], legacy_end=7)
+tl_series("2534 mixed:", lambda: [_contour(), _tc_comp("cppsrc2", -200, 0)], legacy_end=11)
+tl_series("2535 shared object lost at removeLayer:", lambda: [_contour()], mode={"remove_takes_shapes": 1})
+tl_series("2536 addShape moves it:", lambda: [_contour()], mode={"addshape_moves": 1})
+tl_series("2537 addLayer makes it active:", lambda: [_contour()], mode={"add_activates": 1}, steps=("addlayer",))
+for tag, mode in (("2538a addLayer raises                ", {"addlayer_raises": 1}), ("2538b addLayer ignored               ", {"addlayer_ignored": 1}),
+                  ("2538c addLayer touches the working layer", {"addlayer_touches": 1})):
+    tl_series(tag, lambda: [_contour()], mode=mode, steps=("addlayer",))
+for tag, mode in (("2539a buildAuto returns False         ", {"build_false": 1}), ("2539b the recipe is ignored           ", {"recipe_ignored": 1}),
+                  ("2539c the build hits the working layer", {"build_working": 1}), ("2539d buildAuto raises               ", {"build_raises": 1}),
+                  ("2539e the build sets the width        ", {"build_width": 1})):
+    tl_series(tag, lambda: [_contour()], mode=mode, steps=("addlayer", "build"))
+tl_series("2540a addShape raises                 ", lambda: [_contour()], mode={"add_raises": 1}, steps=("addlayer", "build", "move"))
+tl_series("2540b removeLayer raises              ", lambda: [_contour()], mode={"removelayer_raises": 1})
+tl_series("2540c removeLayer ignored             ", lambda: [_contour()], mode={"removelayer_ignored": 1})
+tl_series("2540d clean-up: removelayer after addlayer", lambda: [_contour()], steps=("addlayer", "removelayer"))
+tls(lambda: [_contour()]); tl("2541a addlayer                ", "&step=addlayer&go=yes")
+P72["layers"]["cpp1"]._shapes.append(TCShape([te_contour(TE_TRI)]))
+tl("2541b the working layer changed: build refused", "&step=build&recipe=cppsrc&go=yes")
+tls(lambda: [_contour()]); tl("2541c addlayer                ", "&step=addlayer&go=yes")
+tl("2541d move on an empty temporary layer", "&step=move&go=yes")
+tl("2541e build, the recipe names the target", "&step=build&recipe=cpp1&go=yes")
+P72["layers"]["cppsrc2"]._shapes = [_tc_comp("cppsrc")]
+tl("2541f build with a source holding a component", "&step=build&recipe=cppsrc2&go=yes")
+tls(lambda: [_contour()])
+for _i in range(10): call(QT + "&step=addlayer&go=yes")
+tc("2542 the limit: call 11 is refused  ", QT + "&step=addlayer&go=yes")
+_src181 = "\n".join(l for l in src[src.index("# /debug/trycomponent stage=templayer (v0.181)"):src.index("# /debug/tryshape (v0.52)")].split("\n")
+                    if not l.lstrip().startswith("#"))
+print("2543 spies over the cases:", TC_FORBIDDEN, "| static scan:",
+      _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addComponent|clearComponents|removeShape|replaceShape|killAuto|decomposite)\s*\(|font\.update", _src181),
+      "| one call each:", [len(_re83.findall(p, _src181)) for p in (r"(?m)^\s+w\.addLayer\(", r"(?m)^\s+ret = w\.removeLayer\(", r"(?m)^\s+ret = wl\.addShape\(", r"(?m)^\s+ret = tl\.buildAuto\(\)")],
+      "| baseline written once:", _src181.count("_TRYCOMP_TL_BASE[target] ="), "| marked only at removelayer:",
+      'if step == "removelayer" and result["placed_beside"]:' in _src181,
+      "| counter before the read:", _src181.index('_TRYCOMP_TL["calls"] += 1') < _src181.index("return _trycomp_timed(_trycomp_templayer_run"),
+      "| route documented:", "stage=templayer&target=cpp...&step=addlayer|build|move|removelayer" in src)
+# ---- v0.182: step=activate (live TL 1272: addLayer made the new layer the active one). TCLayer gains setActive (it makes the layer the
+# active one of cpp1) and isActive; modes setactive_raises / _ignored / _touches (adds a contour to the layer), isactive_raises.
+print("\n==== v0.182 /debug/trycomponent stage=templayer&step=activate ====")
+def _tc_set_active(s):
+    TC["calls"].append(("setActive", s.name))
+    m = TC["mode"]
+    if m.get("setactive_raises"): raise RuntimeError("setActive boom")
+    if m.get("setactive_touches"): s._shapes.append(TCShape([te_contour(TE_TRI)]))
+    if m.get("setactive_ignored"): return None
+    P72.setdefault("active_of", {})["cpp1"] = s
+    return None
+def _tc_is_active(s):
+    if TC["mode"].get("isactive_raises"): raise RuntimeError("isActive boom")
+    if TC["mode"].get("isactive_lies"): return s.name != "gb_temp_component"     # disagrees with the glyph's activeLayer
+    return _tl_active_fake(P72Mod(TS["cpp1"], None)) is s
+TCLayer.setActive = _tc_set_active; TCLayer.isActive = _tc_is_active
+TLK2 = ("active_layer_before", "active_layer_after", "is_active", "layers_unchanged", "working_active", "layer_added", "built", "moved",
+        "temp_still_holds_it", "component_survived", "placed_beside", "side_effect_detected", "error", "calls_so_far")
+tls(lambda: [_contour()])
+tl("2544a activate with a recipe         ", "&step=activate&recipe=cppsrc&go=yes", keys=TLK2)
+tl("2544b activate with no baseline      ", "&step=activate&go=yes", keys=TLK2)
+tc("2544c activate shown before go       ", QT + "&step=activate")
+def tl_series2(tag, shapes, mode=None, steps=("addlayer", "activate", "build", "move", "removelayer"), legacy_end=7):
+    tls(shapes, mode=mode)
+    for st in steps:
+        if st == "move": nk_legacy(legacy_end)
+        tl(f"{tag} {st:<12}", f"&step={st}" + ("&recipe=cppsrc" if st == "build" else "") + "&go=yes", keys=TLK2)
+tl_series2("2545 addLayer activates, contour:", lambda: [_contour()], mode={"add_activates": 1})
+tl_series2("2546 addLayer activates, component:", lambda: [_tc_comp("cppsrc2", -200, 0)], mode={"add_activates": 1})
+tl_series2("2547 already active:", lambda: [_contour()], steps=("addlayer", "activate"))
+for tag, mode in (("2548a setActive raises              ", {"setactive_raises": 1}), ("2548b setActive ignored             ", {"setactive_ignored": 1}),
+                  ("2548c setActive adds to the layer    ", {"setactive_touches": 1}), ("2548d isActive raises               ", {"isactive_raises": 1}),
+                  ("2548e ignored, isActive disagrees    ", {"setactive_ignored": 1, "isactive_lies": 1})):
+    tl_series2(tag, lambda: [_contour()], mode=dict(mode, add_activates=1), steps=("addlayer", "activate"))
+_src182 = "\n".join(l for l in src[src.index("# /debug/trycomponent stage=templayer (v0.181)"):src.index("# /debug/tryshape (v0.52)")].split("\n")
+                    if not l.lstrip().startswith("#"))
+print("2549 one setActive call:", len(_re83.findall(r"(?m)^\s+ret = wl\.setActive\(\)", _src182)), "| no updateActiveLayer:", "updateActiveLayer" not in _src182,
+      "| route documented:", "step=activate: ONE working_layer.setActive() (v0.182)" in src)
+# ---- v0.183: stage=fixlayer, and component_layer_matches in stage=templayer (live 1283a / 1283b: the built component names the temporary
+# layer). TCShapeData.componentLayer becomes a property that can be set; build_names_layer makes the build fake name the layer it built
+# on. Modes: cl_raises, cl_ignored, cl_moves (the component's offset moves by 5), cl_touches_source.
+print("\n==== v0.183 /debug/trycomponent stage=fixlayer; templayer component_layer_matches ====")
+_tcsd_layer_orig = TCShapeData.__dict__["componentLayer"]
+def _sd_get_layer(s): return s.__dict__.get("_layer", "test_font" if s._glyph else "")
+def _sd_set_layer(s, v):
+    TC["calls"].append(("componentLayer=", v))
+    m = TC["mode"]
+    if m.get("cl_raises"): raise AttributeError("can't set attribute")
+    if m.get("cl_ignored"): return
+    s.__dict__["_layer"] = v
+    if m.get("cl_moves") and s.__dict__.get("_shape") is not None:
+        sh = s.__dict__["_shape"]; sh._tx = TCQT(1, 0, 0, 1, sh._tx.dx() + 5, sh._tx.dy())
+    if m.get("cl_touches_source"): TCSRC["cppsrc"]._contours[0].rows[0]["x"] += 1.0
+TCShapeData.componentLayer = property(_sd_get_layer, _sd_set_layer)
+def _tc_build183(s):
+    r = _tc_build181(s)
+    if TC["mode"].get("build_names_layer"):
+        for sh in s._shapes:
+            if sh._component and "_layer" not in sh.shapeData.__dict__:
+                sh.shapeData.__dict__["_layer"] = s.name; sh.shapeData.__dict__["_shape"] = sh     # v0.184: cl_moves reaches it
+    return r
+TCLayer.buildAuto = _tc_build183
+def _tc_tmpcomp(name="cppsrc", layer="gb_temp_component"):
+    sh = _tc_comp(name); sh.shapeData.__dict__["_layer"] = layer; sh.shapeData.__dict__["_shape"] = sh; return sh
+QF = QC + "stage=fixlayer&target=cpp1"
+FLK = ("layers", "component_layer_before", "component_layer_after", "component_kept", "others_kept", "outline_kept", "side_effect_detected",
+       "layer_set", "error", "calls_so_far")
+def fl(tag, q, keys=FLK):
+    d = tc(tag, QF + q, keys=keys)
+    ta = d.get("target_after")
+    print("      after:", [(r.get("is_component"), r.get("component_glyph"), r.get("component_layer")) for r in ta["elements"]]
+          if isinstance(ta, dict) and isinstance(ta.get("elements"), list) else ta, "| mark:", d.get("fontlab_changed_mark"))
+    return d
+tls(lambda: [_contour(), _tc_tmpcomp()], legacy=7)
+for tag, q in (("2550a no element                    ", "&go=yes"), ("2550b element is text              ", "&element=one&go=yes"),
+               ("2550c with a step                   ", "&element=1&step=move&go=yes"), ("2550d shown before go             ", "&element=1")):
+    fl(tag, q)
+tc("2550e target without the prefix     ", QC + "stage=fixlayer&target=A&element=0&go=yes")
+for tag, kw, q in (("2551a the element is a contour      ", {}, "&element=0&go=yes"),
+                   ("2551b element 2 of two              ", {}, "&element=2&go=yes"),
+                   ("2551c already names the layer       ", dict(shapes=lambda: [_contour(), _tc_comp("cppsrc")]), "&element=1&go=yes"),
+                   ("2551d a second layer                ", dict(extra=[TCTempLayer("other")]), "&element=1&go=yes"),
+                   ("2551e autoLayer on                  ", dict(auto=True), "&element=1&go=yes"),
+                   ("2551f a Power Brush shape           ", dict(shapes=lambda: [TCShape([te_contour(TE_SQ)], composite=True), _tc_tmpcomp()]), "&element=1&go=yes"),
+                   ("2551g a component of a non-cpp glyph ", dict(shapes=lambda: [TCShape([te_contour(TE_SQ)], component="A"), _tc_tmpcomp()]), "&element=1&go=yes")):
+    tls(kw.get("shapes", lambda: [_contour(), _tc_tmpcomp()]), auto=kw.get("auto", False), extra=kw.get("extra"), legacy=7)
+    fl(tag, q)
+print("2551h  no componentLayer= in the refusals:", [x for x in TC["calls"] if isinstance(x, tuple) and x[0] == "componentLayer="])
+tls(lambda: [_contour(), _tc_tmpcomp()], legacy=7); fl("2552 contour + a temp-layer component", "&element=1&go=yes")
+tls(lambda: [_tc_comp("cppsrc2", -200, 0), _tc_tmpcomp()], legacy=7); fl("2552a component + a temp-layer component", "&element=1&go=yes")
+for tag, mode in (("2553a the assignment raises          ", {"cl_raises": 1}), ("2553b the assignment is ignored      ", {"cl_ignored": 1}),
+                  ("2553c the component moves           ", {"cl_moves": 1}), ("2553d the source changes            ", {"cl_touches_source": 1})):
+    tls(lambda: [_contour(), _tc_tmpcomp()], mode=mode, legacy=7); fl(tag, "&element=1&go=yes")
+tls(lambda: [_contour(), _tc_tmpcomp()], legacy=7)
+for _i in range(6): call(QF + "&element=1&go=yes")
+tc("2554 the limit: call 7 is refused   ", QF + "&element=1&go=yes")
+TLK3 = ("moved", "component_layer_matches", "layer_removed", "component_survived", "placed_beside", "error")
+tls(lambda: [_contour()], mode={"build_names_layer": 1, "add_activates": 1})
+for st in ("addlayer", "activate", "build", "move", "removelayer"):
+    if st == "move": nk_legacy(7)
+    tl(f"2555 build names its layer: {st:<12}", f"&step={st}" + ("&recipe=cppsrc" if st == "build" else "") + "&go=yes", keys=TLK3)
+_src183 = "\n".join(l for l in src[src.index("# /debug/trycomponent stage=fixlayer (v0.183)"):src.index("# /debug/tryshape (v0.52)")].split("\n")
+                    if not l.lstrip().startswith("#"))
+print("2556 static scan:", _re83.findall(r"\.(?:update|save\w*|setGlyphComponents|addShape|removeShape|addLayer|removeLayer|buildAuto|killAuto)\s*\(|font\.update", _src183),
+      "| one assignment:", len(_re83.findall(r"(?m)^\s+sd\.componentLayer = name$", _src183)),
+      "| route documented:", "stage=fixlayer&target=cpp...&element=I: ONE shapeData.componentLayer" in src,
+      "| placed_beside needs the layer:", 'and result["component_layer_matches"])' in src)
+# ---- v0.184: stage=templayer step=setlayer (the source-layer fix before the move) and step=droptemp (clean-up of an empty temporary
+# layer left behind). The v0.183 fakes stay: componentLayer can be set; build_names_layer names the layer the build ran on.
+print("\n==== v0.184 /debug/trycomponent stage=templayer: setlayer, droptemp ====")
+TLK4 = ("active_layer_after", "temp_component_layer_after", "temp_layer_set", "moved", "component_layer_matches", "component_survived",
+        "placed_beside", "layers_after", "calls", "working_kept", "temp_dropped", "side_effect_detected", "error", "calls_so_far")
+def tl4(tag, q):
+    d = tl(tag, q, keys=TLK4)
+    return d
+tls(lambda: [_contour()])
+tl4("2560a setlayer with no baseline     ", "&step=setlayer&go=yes")
+tc("2560b setlayer with a recipe        ", QT + "&step=setlayer&recipe=cppsrc&go=yes")
+tc("2560c droptemp with a recipe        ", QT + "&step=droptemp&recipe=cppsrc&go=yes")
+tc("2560d droptemp shown before go      ", QT + "&step=droptemp")
+def tl_route(tag, mode, steps=("addlayer", "activate", "build", "setlayer", "move", "removelayer"), shapes=None):
+    tls(shapes or (lambda: [_contour()]), mode=dict({"build_names_layer": 1, "add_activates": 1}, **(mode or {})))
+    for st in steps:
+        if st == "move": nk_legacy(7)
+        tl4(f"{tag} {st:<12}", f"&step={st}" + ("&recipe=cppsrc" if st == "build" else "") + "&go=yes")
+tl_route("2561 the full route, contour:", {})
+tl_route("2561a the full route, component:", {}, shapes=lambda: [_tc_comp("cppsrc2", -200, 0)])
+tl_route("2562a setlayer on an empty temporary layer:", {}, steps=("addlayer", "activate", "setlayer"))
+tl_route("2562b setlayer, already the working layer:", {"build_names_layer": 0}, steps=("addlayer", "activate", "build", "setlayer"))
+for tag, mode in (("2562c the assignment raises:", {"cl_raises": 1}), ("2562d the assignment is ignored:", {"cl_ignored": 1}),
+                  ("2562e the component moves:", {"cl_moves": 1})):
+    tl_route(tag, mode, steps=("addlayer", "activate", "build", "setlayer"))
+def dt(tag, mode=None, extra=None, shapes=None, active_temp=True):
+    tls(shapes or (lambda: [_tc_comp("cppsrc2", -200, 0)]), mode=dict({"add_activates": 1} if active_temp else {}, **(mode or {})),
+        extra=extra if extra is not None else [TCTempLayer("gb_temp_component")], legacy=4)
+    d = tl4(tag, "&step=droptemp&go=yes")
+    print("      layer calls:", [x for x in TC["calls"] if isinstance(x, tuple) and x[0] in ("setActive", "removeLayer")])
+    return d
+dt("2563 droptemp, the temporary layer active")
+dt("2563a droptemp, the working layer active ", active_temp=False)
+dt("2563b droptemp, an empty working layer   ", shapes=lambda: [])
+def _nonempty_temp():
+    t = TCTempLayer("gb_temp_component"); t._shapes = [_tc_comp("cppsrc")]; return [t]
+for tag, kw in (("2564a the temporary layer holds a component", dict(extra=_nonempty_temp())),
+                ("2564b one layer only                      ", dict(extra=[])),
+                ("2564c three layers                        ", dict(extra=[TCTempLayer("gb_temp_component"), TCTempLayer("other")])),
+                ("2564d the other layer is not named        ", dict(extra=[TCTempLayer("other")])),
+                ("2564e a Power Brush shape in the other    ", dict(shapes=lambda: [TCShape([te_contour(TE_SQ)], composite=True)])),
+                ("2564f setActive ignored: no removeLayer   ", dict(mode={"setactive_ignored": 1})),
+                ("2564g setActive raises                    ", dict(mode={"setactive_raises": 1})),
+                ("2564h removeLayer raises                  ", dict(mode={"removelayer_raises": 1})),
+                ("2564i removeLayer ignored                 ", dict(mode={"removelayer_ignored": 1})),
+                ("2564j setActive adds to the working layer ", dict(mode={"setactive_touches": 1}))):
+    dt(tag, **kw)
+_src184 = "\n".join(l for l in src[src.index("# /debug/trycomponent stage=templayer (v0.181)"):src.index("# /debug/tryshape (v0.52)")].split("\n")
+                    if not l.lstrip().startswith("#"))
+print("2565 one setlayer assignment:", len(_re83.findall(r'(?m)^\s+sd\.componentLayer = bl\["working"\]$', _src184)),
+      "| removeLayer statements (removelayer, droptemp):", len(_re83.findall(r"(?m)^\s+ret = w\.removeLayer\(tl\)$", _src184)),
+      "| droptemp refuses a non-empty layer:", 'if not _tl_ok(tview) or tview["elements"] or tview["contours"]:' in _src184,
+      "| route documented:", "step=droptemp: an EMPTY gb_temp_component left behind removed (v0.184)" in src)
+TCShapeData.componentLayer = _tcsd_layer_orig
+TCLayer.buildAuto = _tc_build181
+del TCLayer.setActive; del TCLayer.isActive
+TCLayer.addShape = _tc_add_orig
+del TCLayer.advanceWidth
+for _m, _v in _tl_saved:
+    if _v is None:
+        if hasattr(_m, "flLayer"): delattr(_m, "flLayer")
+    else:
+        _m.flLayer = _v
+P72Mod.activeLayer = _p72_active
+for _a in ("layers", "addLayer", "removeLayer"):
+    if _a in P72Mod.__dict__: delattr(P72Mod, _a)
+TCLayer.buildAuto = _tc_build165
 del TCShape.contoursCount
 TCLayer.removeShape = _tc_remove_shape
 P72Mod.advanceWidth = _p72_adv

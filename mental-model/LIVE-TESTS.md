@@ -890,6 +890,53 @@ Not reached live: the per-entry states after a dropped entry and `components_aft
 | 1264b | the person clicked the `Unnamed` tab; the same call | `removed` in `Unnamed Regular`, `fonts_open` 2, the switch noted | as predicted |
 | 1264c | `finish_changes` | one reminder | 26 changes, one reminder |
 
+### NE series: the recipe build on a glyph that is not empty (2026-11-18, listener 0.180 / server 0.72, FontLab 8.9.5 in Demo mode, through Claude Code; probe `/debug/trycomponent` `stage=auto&nonempty=yes`, requests sent straight to the listener after the user's go-ahead; a new font `Unnamed`; one run each; no File > Save stage, nothing saved)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1265 | `fontlab_status` | 0.180 / 0.72 | as predicted; no font open |
+| 1265a | setup: `create_font` (`Unnamed`); `create_glyph` `cppnes1`, `cppnet1`, `cppnes2`, `cppnet2`, `cppnet3`; `draw_polygon` `cppnes1` the triangle (100,0) (300,0) (200,300), `cppnes2` the square (0,400)–(100,500), `cppnet1` the rectangle (500,0)–(700,200); `add_component` `cppnes2` at (300, 0) into `cppnet2` and `cppnet3` | every step `verified` | as predicted; every width 0 |
+| 1265b | the gate without `go` | the step described, nothing changed | as predicted |
+| 1266 | `cppnet1` (one contour), `setrecipe` `cppnes1` | recipe set, outline unchanged, `existing_kept` true | as predicted |
+| 1267 | `setauto` | `autoLayer` true; nothing built yet (as 1041a), the other candidate a rebuild | as predicted: nothing built, `existing_kept` true |
+| 1268 | `build` | A (about 60 %): the layer rebuilt from the recipe alone, the rectangle lost; B: the component added beside it | **A**: `buildAuto()` returned True; the layer holds one shape, a component of `cppnes1` at identity (ink 100…300 × 0…300); the rectangle is gone (`existing_missing`, `existing_kept` false, `placed` false); width 0, sources and glyph count unchanged; synced, not marked |
+| 1269 | `unauto` | `autoLayer` false, elements as after 1268 | as predicted; `component_normal` true, `existing_kept` false, not marked |
+| 1270 | `clearrecipe` | recipe `""`, elements unchanged | as predicted; `recipe_cleared` true, not marked |
+
+### TL series: a temporary layer in the target glyph (2026-11-18, listener 0.181 / server 0.72, FontLab 8.9.5 in Demo mode, through Claude Code; probe `/debug/trycomponent` `stage=templayer`, requests sent straight to the listener after the user's go-ahead; the font `Unnamed` of NE; one run each; no File > Save stage, nothing saved)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1271 | `fontlab_status` | 0.181 / 0.72, `Unnamed` open | as predicted |
+| 1271a | setup: `create_glyph cppnet4`, `draw_polygon` the rectangle (500,0)–(700,200) | `verified` | as predicted; the gate text of `stage=templayer` shown without `go` |
+| 1272 | `cppnet2` (one component of `cppnes2` at (300, 0)), `addlayer` | about 65 %: the layer added, Regular stays active; the alternative: the new layer becomes active | **the alternative**: layers `Regular`, `gb_temp_component`; the active layer is now `gb_temp_component` (empty, autoLayer off, recipe `""`); `Regular` unchanged (the component, its ink box (300…400 × 400…500), contours); width, source and glyph count unchanged; `layer_added` false only because the active layer changed; sync verdict `at_risk` (most likely the check compares the legacy view with the now empty active layer; not isolated); not marked. The series stopped here, as agreed |
+| 1273 | after the listener restart (0.182): `fontlab_status` | 0.182 / 0.72, `Unnamed` open | as predicted |
+| 1273a | `create_glyph cppnet5` (not a test of the probe: the setup for the next series) | created with its layer `Regular` | **created without a layer**: `layer_note` "the glyphs of this font have different layer names (['Regular', 'gb_temp_component'])": the temporary layer left in `cppnet2` (1272) stops `create_glyph` from choosing the new glyph's layer name; not marked. So a temporary layer left behind affects other tools. `cppnet5` is not used; Glyph > Add Component must not be used on it (the crash of 612–619) |
+| 1274 | `cppnet4` (the rectangle (500,0)–(700,200)), `addlayer` | as 1272: added, the new layer active | as predicted (as 1272): `gb_temp_component` added and active, `Regular` unchanged, sync `at_risk`, not marked |
+| 1275 | `activate` | about 70 %: `Regular` active, `isActive` agrees, nothing else changed | as predicted: `Regular` active, `is_active` working True / temp False, `layers_unchanged`, `working_active` true; sync `synced` |
+| 1276 | `build` `cppnes1` | about 60 %: five sub-calls ok, one component on the temporary layer | as predicted: every sub-call read back as set, `buildAuto()` True; the temporary layer holds one component of `cppnes1` at identity (ink 100…300 × 0…300); `Regular`, widths, source, glyph count unchanged; `built` true |
+| 1277 | `move` | `Regular` gains it; the temporary layer still holds it (about 55 %) | as predicted: `Regular` holds the rectangle and the component, the temporary layer still holds it; `addShape` returned an `flShape` (not the Python object passed); `moved` true |
+| 1278 | `removelayer` | about 50 / 50: the component survives or goes with the layer | **survives**: only `Regular` left, active; the rectangle and the component as before; `placed_beside` true; marked, synced |
+| 1279–1283 | `cppnet3` (a component of `cppnes2` at (300, 0)): `addlayer`, `activate`, `build`, `move`, `removelayer` | as for `cppnet4` | as predicted, step for step: the new layer active after 1279, `working_active` true (1280), `built` (1281), `moved` with the temporary layer still holding it (1282), `placed_beside` true, marked (1283) |
+| 1283a | `get_glyph_outline cppnet4` | `verified`: the rectangle and a component of `cppnes1` on layer `Regular` | `verified` (ink 100…700 × 0…300, FontLab's box), the rectangle and the triangle as drawn; **but the component names `component_layer` `gb_temp_component`**, a layer `cppnes1` does not have; `source_in_step` `"unknown"` for that reason. The probe's checks compared the moved component with the one on the temporary layer, which named the same layer, so they did not catch it |
+| 1284 | the person opened `cppnet4` in a glyph window (screenshot, nothing clicked in the glyph) | FontLab shows two elements; perhaps a warning or the layer name for the component | LAYERS & MASTERS: only `Regular`, "1 cpn., 1 el."; ELEMENTS: a component row `cppnes1` with the padlock and reference badge **4** (uses plus one: `cppnet1`, `cppnet3`, `cppnet4`, as in the Elements-badge watch point), and the rectangle, 4/4 nodes; the triangle drawn grey at (100,0)–(300,0)–(200,300), the rectangle at (500,0)–(700,200); no warning, and the panel shows no source-layer name, so this view cannot tell `gb_temp_component` from `Regular` |
+| 1285 | after the listener restart (0.183): `fontlab_status`; the gate text of `stage=fixlayer` | 0.183 / 0.72 | as predicted |
+| 1285a | `fixlayer` `cppnet4`, element 1 (`cppnes1`, naming `gb_temp_component`) | A (about 55 %): set, nothing else changed; B: refused or not read back | **A**: `componentLayer` reads `Regular`; the component's source, matrix and ink box (100…300 × 0…300), the rectangle, the outline, width, source and glyph count unchanged; `layer_set` true; marked, synced; 0.008 s |
+| 1286 | `get_glyph_outline cppnet4` | `verified`, layer `Regular`, `source_in_step` true | as predicted |
+| 1287 | `fixlayer` `cppnet3`, element 1 | as 1285a | as predicted: `layer_set` true; `cppnes2` at (300, 0) unchanged; marked |
+| 1288 | `get_glyph_outline cppnet3` | as 1286 | as predicted: both components on `Regular`, `source_in_step` true each, `verified` |
+| 1289 | control: `fixlayer` `cppnet3`, element 0 (`cppnes2`, already `Regular`) | refused, nothing changed | as predicted: "already names the layer 'Regular'" |
+| 1290 | after the listener restart (0.184): `fontlab_status`, the gate texts; `droptemp` `cppnet2` | about 80 %: `setActive()`, then the layer removed, its component unchanged | as predicted for the layer: `setActive()` made `Regular` active, `removeLayer` left only `Regular`, active; `working_kept`, `temp_dropped` true; not marked (a clean-up step). **But the element `droptemp` found in `Regular` was already a plain shape** (`is_component` false, offset (300, 0)), not the component of `cppnes2` it held after 1272 |
+| 1291 | `get_glyph_outline cppnet2` | `verified`, one component of `cppnes2` at (300, 0) | `verified`, the square (300…400 × 400…500), **one plain shape**, `is_component` false, its transform (300, 0) kept: the component had become contours between 1272 and 1290 ([WATCH-POINTS.md](WATCH-POINTS.md), the second occurrence) |
+| 1292 | `create_glyph cppnet6` | `layer_created` `Regular` again | as predicted: the font's layers agree again |
+| 1293 | `draw_polygon cppnet6`, the rectangle (500,0)–(700,200) | `verified` | as predicted |
+| 1294–1296 | `cppnet6`: `addlayer`, `activate`, `build` `cppnes1` | as 1274–1276 | as predicted: the new layer active, then `Regular` again; `built` true |
+| 1297 | `setlayer` | about 75 %: `temp_layer_set` true | as predicted: the component on the temporary layer names `Regular`, nothing else changed |
+| 1298 | `move` | `moved`, `component_layer_matches` true | as predicted |
+| 1299 | `removelayer` | `placed_beside` true, marked | **as predicted: the first full pass of the route**; only `Regular`, active; the rectangle and the component; marked, synced |
+| 1300 | `get_glyph_outline cppnet6` (and `cppnet1` as a check) | `verified`, the component on `Regular`, `source_in_step` true | as predicted; `cppnet1`'s recipe-built component is still a component |
+| 1283b | `get_glyph_outline cppnet3` | as 1283a | `verified` (ink 100…400 × 0…500); `cppnes2` at (300, 0) on `Regular`, `source_in_step` true; the new `cppnes1` component names `gb_temp_component`, as in 1283a |
+
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 
 | Id | Test | Stage / how | Expected | Status |

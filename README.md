@@ -29,7 +29,7 @@ What an agent can do today: read glyph outlines, widths, sidebearings, Unicode v
      }
    }
    ```
-5. Fully quit Claude Desktop (including the tray icon) and start it again.
+5. Fully quit Claude Desktop (**including the tray icon**) and start it again.
 
 ## Install on macOS (not tested yet)
 
@@ -55,6 +55,6 @@ The listener has to be started again every time FontLab starts. It only accepts 
 ## Trouble?
 
 - "Cannot reach the Glyphbridge listener": start the listener (step 2 above).
-- Tools missing in Claude: check the config path and restart Claude Desktop fully, sometimes twice.
+- Tools missing in Claude: check the config path, then fully quit Claude Desktop (**including the tray icon**) and start it again. If tools are still missing or show old descriptions after that, quit and start it a second time.
 
 Developer documentation: [mental-model/README.md](mental-model/README.md).
