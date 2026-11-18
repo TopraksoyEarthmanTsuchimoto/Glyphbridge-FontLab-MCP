@@ -12,8 +12,11 @@ Make sure you have these installed on your computer:
 - Claude Desktop, or ChatGPT Desktop, or another MCP client that can start a local (stdio) server
 
 ## Install on Windows (tested)
-Option 1 - Open the AI agent of your choice and type "Tell me how to install and use https://github.com/TopraksoyEarthmanTsuchimoto/Glyphbridge-FontLab-MCP on this computer"
-Option 2 - Do these manually:
+
+**Option 1:** open the AI agent of your choice and type *"Tell me how to install and use https://github.com/TopraksoyEarthmanTsuchimoto/Glyphbridge-FontLab-MCP on this computer"*.
+
+**Option 2:** do these steps by hand:
+
 1. Download or clone this repository, for example to `Documents\GitHub\Glyphbridge-FontLab-MCP` (You can use the green "< > Code" button and Download ZIP).
 2. Open PowerShell in that folder and create the server's own Python environment:
    ```
@@ -33,14 +36,18 @@ Option 2 - Do these manually:
    ```
 5. Fully quit Claude Desktop (**including the tray icon**) and start it again.
 
-**ChatGPT Desktop instead of Claude Desktop (steps 4 and 5):** open `%USERPROFILE%\.codex\config.toml` in a text editor, keep a backup, and add this block at the end of the file, outside any other section, using your own folder path:
-   ```toml
-   [mcp_servers.glyphbridge-fontlab]
-   command = "C:\\path\\to\\Glyphbridge-FontLab-MCP\\venv\\Scripts\\python.exe"
-   args = ["C:\\path\\to\\Glyphbridge-FontLab-MCP\\glyphbridge_mcp_server.py"]
-   cwd = "C:\\path\\to\\Glyphbridge-FontLab-MCP"
-   ```
-   Then fully quit ChatGPT Desktop (**including the tray icon**) and start it again. Use **Work** or **Codex** mode: a plain chat has no Glyphbridge tools and offers to continue in Work mode. Approve each tool when asked. ChatGPT's Settings > Add-ons > MCP servers route is not tested.
+### ChatGPT Desktop instead of Claude Desktop (steps 4 and 5)
+
+Open `%USERPROFILE%\.codex\config.toml` in a text editor, keep a backup, and add this block at the end of the file, outside any other section, using your own folder path:
+
+```toml
+[mcp_servers.glyphbridge-fontlab]
+command = "C:\\path\\to\\Glyphbridge-FontLab-MCP\\venv\\Scripts\\python.exe"
+args = ["C:\\path\\to\\Glyphbridge-FontLab-MCP\\glyphbridge_mcp_server.py"]
+cwd = "C:\\path\\to\\Glyphbridge-FontLab-MCP"
+```
+
+Then fully quit ChatGPT Desktop (**including the tray icon**) and start it again. Use **Work** or **Codex** mode: a plain chat has no Glyphbridge tools and offers to continue in Work mode. Approve each tool when asked. ChatGPT's Settings > Add-ons > MCP servers route is not tested.
 
 ## Install on macOS (not tested yet)
 
