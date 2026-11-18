@@ -46,6 +46,7 @@ Open **Settings > Developer > Edit Config** and add this inside the file's top-l
 ### ChatGPT Desktop
 
 Note that there is also ChatGPT's Settings > Add-ons > MCP servers route that may work instead of copying and pasting the following. You may try whichever you like.
+
 If you are OK with copying and pasting then open `%USERPROFILE%\.codex\config.toml` in a text editor, keep a backup, and add this block at the end of the file, outside any other section:
 
 ```toml
