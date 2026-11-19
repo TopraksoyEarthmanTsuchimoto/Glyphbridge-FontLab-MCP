@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.187)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.190)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -127,6 +127,11 @@ Routes (GET unless marked POST):
                                 table by path (v0.112)
     POST /kerning/pairs         {"pairs": [[left, right], ...]} or {"text": "..."}: the same for large
                                 reads (body read up to 1,000,000 bytes)
+    /kerning/groups?groups=a,b&glyphs=c,d  or  ?all=yes[&confirmed=yes]
+    POST /kerning/groups        {"groups": [...], "glyphs": [...]} or {"all_groups": true[, "confirmed_large_read": true]}
+                                (v0.190): the current master's kerning groups with side, members and id, from ONE
+                                groups.items() cross-checked with ONE getAllGroups() (confirmed); kerning groups only;
+                                more than 250 groups in an all-groups read need confirmed
 
   Debug probes that only read (development only; not used by the MCP server)
     /debug/font, /debug/glyph?name=X       everything the font / one glyph object exposes
@@ -165,8 +170,10 @@ Routes (GET unless marked POST):
                           with get() before and after; glyph names only, no group of that name, |N| <= upm; 10 per listener run (v0.122)
     /debug/trykernrefresh stage=container|update|changed: ONE flPackage.kerningContainer(), then fontlab.Update(container) or
                           container.changed(); flags and table size before and after; 6 per listener run (v0.123)
-    /debug/trykerngroups  stage=all|modes&contains=a,b,c or stage=glyph&name=N: kerning group members and sides
-                          (getAllGroups(), the master's groups.values(), a glyph's kerningLeft / kerningRight), 10 per listener run
+    /debug/trykerngroups  stage=all|modes|tuples|items&contains=a,b,c or stage=glyph&name=N: kerning group members and sides
+                          (getAllGroups(), the master's groups.values(), a glyph's kerningLeft / kerningRight), 10 per listener run;
+                          stage=tuples (v0.188) reads the values() entries as plain tuples, nothing in them called;
+                          stage=items (v0.189) the same for groups.items(): (name, (members, side))
     /debug/features       stage=tags: font.features.keys(); stage=size&tag=T: has_key(T), get_feature(T), only the SIZE of that
                           feature's code is returned; stage=shape&tag=T: line counts by kind and the first 300 characters;
                           stage=lines&tag=T&contains=a,b,c: only the lines naming those names (v0.108); exactly one font open,
@@ -262,7 +269,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.187"
+VERSION = "0.190"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -4041,6 +4048,222 @@ def get_kerning_pairs(pairs=None, text=None):
             "master": master, "master_count": len(masters), "units_per_em": upm, "count": len(wanted), "errors": sum(1 for e in wanted if "error" in e), "table_size": len_before,
             "side_effect_detected": (len_before != len_after) if (len_before is not None and len_after is not None) else None,
             "results": wanted}
+
+
+# --------------------------------------------------------------------------
+# /kerning/groups (v0.190, P1.6) - READ ONLY: the kerning groups of the current master, with their members and sides. The user's design
+# of 2026-11-19 (DECISIONS.md): a tool of its own; named groups or glyphs, or every group (approval above 250 groups); members always
+# included; kerning groups only (OpenType classes and Glyph tags are not); every read cross-checked with getAllGroups(); an unknown
+# name is an error for that name only. Exactly two FontLab calls per request (KG 1364-1375, topics/kerning.md section 9.10):
+#   ONE flPackage.kerning(master).groups.items()  ->  [(name, (members, side))]  side KernLeft | KernRight | KernBothSide
+#   ONE flPackage.getAllGroups()                  ->  [(kernGroup, name, id, mark, members)]  (OpenType classes: kernGroup False)
+# A group is confirmed when both name it with the same members (order aside) and the flag is True. Only real lists and tuples are
+# looked into (exact types); nothing in an entry is called; the table's and the container's sizes are read before and after.
+# --------------------------------------------------------------------------
+
+_KGR_SIDES = {"KernLeft": "left", "KernRight": "right", "KernBothSide": "both"}
+_KGR_CONFIRM_ABOVE = 250     # more groups than this in an all-groups read need confirmed_large_read (the user's rule of 2026-10-27)
+
+
+def _kgr_seq(value):
+    """True only for a real Python list or tuple (exact type): a native object is never iterated."""
+    return type(value) in (list, tuple)
+
+
+def _kgr_names(value):
+    """A real list or tuple of glyph names as a plain list, or None when it is not one or holds anything but text."""
+    if not _kgr_seq(value):
+        return None
+    names = [n for n in value if type(n) is str]
+    return names if len(names) == len(value) else None
+
+
+def _kgr_from_items(container):
+    """({name: {"side", "fontlab_side", "members"}}, duplicate names, malformed count, None) or (None, None, None, error text), from
+    ONE items() on the master's kerning groups."""
+    try:
+        items_of = container.items
+        if not callable(items_of):
+            return None, None, None, "the kerning groups' items is not callable"
+        entries = items_of()
+    except Exception as exc:
+        return None, None, None, f"the kerning groups' items() failed ({type(exc).__name__}: {exc})"
+    if not _kgr_seq(entries):
+        return None, None, None, f"the kerning groups' items() returned a {type(entries).__name__}, not a list"
+    found, twice, malformed = {}, set(), 0
+    for entry in entries:
+        if not _kgr_seq(entry) or len(entry) != 2 or type(entry[0]) is not str or not _kgr_seq(entry[1]) or len(entry[1]) != 2:
+            malformed += 1
+            continue
+        name, (members, mode) = entry[0], entry[1]
+        names = _kgr_names(members)
+        if names is None or type(mode) is not str:
+            malformed += 1
+            continue
+        if name in found:
+            twice.add(name)
+        found[name] = {"side": _KGR_SIDES.get(mode, "unknown"), "fontlab_side": mode, "members": names}
+    return found, twice, malformed, None
+
+
+def _kgr_from_class_list(pkg):
+    """({name: {"id", "members"}} of the KERNING groups, duplicate names, {names of other classes}, None) or (None, None, None, error
+    text), from ONE getAllGroups() of the package."""
+    try:
+        getter = pkg.getAllGroups
+        if not callable(getter):
+            return None, None, None, "flPackage.getAllGroups is not callable"
+        groups = getter()
+    except Exception as exc:
+        return None, None, None, f"flPackage.getAllGroups() failed ({type(exc).__name__}: {exc})"
+    if not _kgr_seq(groups):
+        return None, None, None, f"flPackage.getAllGroups() returned a {type(groups).__name__}, not a list"
+    found, twice, other = {}, set(), set()
+    for entry in groups:
+        if not _kgr_seq(entry) or len(entry) != 5:
+            continue
+        flag, name, gid, _mark, members = entry
+        if type(name) is not str:
+            continue
+        if flag is not True:
+            other.add(name)
+            continue
+        if name in found:
+            twice.add(name)
+        found[name] = {"id": gid if type(gid) is int else None, "members": _kgr_names(members)}
+    return found, twice, other, None
+
+
+def _kgr_group(name, from_items, from_list, cross_error, twice=frozenset()):
+    """One group's entry: its facts from items(), its id from the class list, and whether both sources agree (confirmed). A name
+    that either source lists twice is never confirmed."""
+    a, b = from_items.get(name), (from_list or {}).get(name)
+    entry = {"name": name}
+    if a is not None:
+        entry.update(side=a["side"], fontlab_side=a["fontlab_side"], members=a["members"], member_count=len(a["members"]))
+    elif b is not None and b["members"] is not None:
+        entry.update(side="unknown", fontlab_side=None, members=b["members"], member_count=len(b["members"]))
+    entry["id"] = b["id"] if b is not None else None
+    if cross_error is not None:
+        entry.update(confirmed=False, mismatch="the class list could not be read, so this group could not be cross-checked")
+    elif name in twice:
+        entry.update(confirmed=False, mismatch="FontLab lists this group name twice, so which entry is meant is not known")
+    elif a is None:
+        entry.update(confirmed=False, mismatch="FontLab's class list names this kerning group, but the master's kerning groups do not hold it")
+    elif b is None:
+        entry.update(confirmed=False, mismatch="the master's kerning groups hold this group, but FontLab's class list does not name it as a kerning group")
+    elif b["members"] is None or sorted(b["members"]) != sorted(a["members"]):
+        entry.update(confirmed=False, mismatch="the two sources list different members", class_list_members=b["members"])
+    elif a["side"] == "unknown":
+        entry.update(confirmed=False, mismatch=f"the side {a['fontlab_side']!r} is not one this listener knows")
+    else:
+        entry["confirmed"] = True
+    return entry
+
+
+def get_kerning_groups(groups=None, glyphs=None, all_groups=False, confirmed=False):
+    """v0.190 - READ-ONLY kerning groups of the current master's kerning table of the current font, matched as /kerning/pairs matches
+    it (_kern_table_target). Either all_groups alone, or names in groups and / or glyphs (A-Z a-z 0-9 . _ -, 1 to 63 characters).
+    groups: each named kerning group with side, members, id, confirmed. glyphs: each named glyph's kerning groups with their sides.
+    all_groups: every kerning group; more than _KGR_CONFIRM_ABOVE need confirmed, otherwise only the count comes back. An unknown
+    name is an error for that name only. OpenType classes and Glyph tags are not kerning groups: a name of one says so."""
+    groups = [] if groups is None else groups        # never a truth test: that would call len() on whatever was passed
+    glyphs = [] if glyphs is None else glyphs
+    if type(all_groups) is not bool or type(confirmed) is not bool:
+        return _kern_bad("all_groups and confirmed must be true or false")
+    if not _kgr_seq(groups) or not _kgr_seq(glyphs):
+        return _kern_bad("groups and glyphs must be lists of names")
+    if all_groups and (groups or glyphs):
+        return _kern_bad("all_groups stands alone: give either all_groups, or groups and / or glyphs")
+    if not all_groups and not groups and not glyphs:
+        return _kern_bad("give all_groups, or at least one name in groups or glyphs")
+    for kind, names in (("group", groups), ("glyph", glyphs)):
+        for n in names:
+            if not _kern_name_ok(n):
+                return _kern_bad(f"{kind} name {n!r} must be 1 to 63 characters from A-Z a-z 0-9 . _ -")
+    groups = list(dict.fromkeys(groups))
+    glyphs = list(dict.fromkeys(glyphs))
+    count = None
+    try:
+        counter = getattr(fl, "CountFonts", None)
+        if callable(counter):
+            got = counter()
+            if isinstance(got, int) and not isinstance(got, bool):
+                count = got
+    except Exception:
+        count = None
+    if count == 0:
+        return {"open": False}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    _note_request_font(font, count)
+    if count is None or count < 1:
+        return {"open": True, "error": "the number of open fonts could not be read as a positive number, so the kerning groups cannot be "
+                                       "matched to the current font"}
+    target, why = _kern_table_target(font, count)
+    if target is None:
+        return {"open": True, "error": why}
+    pkg, masters, master, kerning, by_name = target["pkg"], target["masters"], target["master"], target["kerning"], target["by_name"]
+    try:
+        container = kerning.groups
+    except Exception as exc:
+        return {"open": True, "error": f"the kerning groups of master {master!r} are not reachable: {type(exc).__name__}: {exc}"}
+    if callable(container):
+        return {"open": True, "error": "the master's kerning groups attribute is callable; it was not called"}
+    len_before, groups_before = _kern_len(kerning), _kern_len(container)
+    from_items, items_twice, malformed, items_error = _kgr_from_items(container)
+    from_list, list_twice, other_classes, list_error = _kgr_from_class_list(pkg)
+    len_after, groups_after = _kern_len(kerning), _kern_len(container)
+    side_effect = None
+    if None not in (len_before, len_after, groups_before, groups_after):
+        side_effect = len_before != len_after or groups_before != groups_after
+    out = {"open": True, "fonts_open": count, "matched_by": target["matched_by"], "family_name": _kern_family(font), "master": master,
+           "master_count": len(masters), "table_size": len_before, "side_effect_detected": side_effect}
+    if items_error is not None:
+        out["error"] = f"the kerning groups could not be read: {items_error}"
+        return out
+    names_all = list(from_items) + [n for n in (from_list or {}) if n not in from_items]
+    twice = items_twice | (list_twice or set())
+    out.update(group_count=len(names_all), cross_check="done" if list_error is None else f"failed: {list_error}",
+               malformed_entries=malformed, duplicate_names=sorted(twice))
+    if all_groups:
+        out["mode"] = "all"
+        if len(names_all) > _KGR_CONFIRM_ABOVE and not confirmed:
+            out["needs_confirmation"] = True
+            return out
+        out["groups"] = [_kgr_group(n, from_items, from_list, list_error, twice) for n in names_all]
+        out["glyphs"] = []
+    else:
+        out["mode"] = "named"
+        listed = []
+        for n in groups:
+            if n in from_items or n in (from_list or {}):
+                listed.append(_kgr_group(n, from_items, from_list, list_error, twice))
+            elif n in (other_classes or set()):
+                listed.append({"name": n, "error": f"{n!r} is a class but not a kerning group (an OpenType class or a tag): this tool reads kerning groups only"})
+            else:
+                listed.append({"name": n, "error": f"no kerning group named {n!r} in the current master of this font"})
+        out["groups"] = listed
+        found = []
+        for g in glyphs:
+            if g not in by_name:
+                found.append({"name": g, "error": f"no glyph named {g!r}"})
+                continue
+            holders = []
+            for n in names_all:
+                a, b = from_items.get(n), (from_list or {}).get(n)
+                if (a is not None and g in a["members"]) or (b is not None and b["members"] is not None and g in b["members"]):
+                    e = _kgr_group(n, from_items, from_list, list_error, twice)
+                    holders.append({"group": n, "side": e.get("side", "unknown"), "confirmed": e["confirmed"]})
+            item = {"name": g, "kerning_groups": holders}
+            if not holders:
+                item["note"] = "in no kerning group on either side"
+            found.append(item)
+        out["glyphs"] = found
+    out["errors"] = sum(1 for e in out["groups"] + out["glyphs"] if "error" in e)
+    out["member_names"] = sum(e.get("member_count", 0) for e in out["groups"])
+    return out
 
 
 def _other_glyphs_with_unicode(font, name, codepoint):
@@ -11660,16 +11883,27 @@ def debug_try_shapebox(stage, name, go):
 #                                groups.values(). Only when that returns a real list or tuple: the seven fgGroup members of the first
 #                                entry and of the entries whose name equals a token, each read as an attribute; a callable is
 #                                reported and NEVER called
+#   stage=tuples&contains=a,b,c  (v0.188, P1.6) the same reads as stage=modes, ONE groups.values(), but for the plain tuples it
+#                                returned in test 199: only when the answer is a real list or tuple (exact type), the shapes of all
+#                                entries (type and length), the first entry and the entries holding a token as a text field or as a
+#                                text item of a list field, each field as a plain value, a real list or tuple by its length and up to
+#                                _TRYKERNGROUPS_ITEMS items, and any other object by its type name only: nothing in an entry is called
+#   stage=items&contains=a,b,c   (v0.189, P1.6) as stage=tuples, but ONE groups.items() instead of values(), documented (test 1373)
+#                                as list(tuple('groupName', tuple(list('glyphName'), mode))); a token also matches one level deeper
+#                                (a member inside the (members, mode) field)
 #   stage=glyph&name=N           the legacy glyph's kerningLeft and kerningRight, read as attributes (a callable is never called);
 #                                hypothesis: they are group ids (section 8p: Arial's 'o' has kerningRight 84)
 # len() of the master's kerning table is read before and after in stages all and modes (side_effect_detected). Never called, ever:
-# keys, items, asDict, has_key, clear, remove, rename, findGroup, deleteGroups, autoKern, and any subscript of a native object.
+# keys, asDict, has_key, clear, remove, rename, findGroup, deleteGroups, autoKern, and any subscript of a native object (items:
+# only in stage=items, since v0.189).
 # --------------------------------------------------------------------------
 
 _TRYKERNGROUPS = {"calls": 0}
 _TRYKERNGROUPS_MAX = 10
-_TRYKERNGROUPS_STAGES = ("all", "modes", "glyph")
+_TRYKERNGROUPS_STAGES = ("all", "modes", "tuples", "items", "glyph")
 _TRYKERNGROUPS_SHOWN = 20
+_TRYKERNGROUPS_FIELDS = 8            # v0.188 stage=tuples: at most this many fields of one entry are described
+_TRYKERNGROUPS_ITEMS = 50            # v0.188 stage=tuples: at most this many items of one list field are shown
 _TRYKERNGROUPS_MEMBERS = ("name", "mode", "isLeft", "isRight", "isBoth", "isFeaGroup", "id")
 
 
@@ -11734,13 +11968,97 @@ def _trykerngroups_modes(entries, tokens):
     return out
 
 
+def _trykerngroups_real_seq(value):
+    """v0.188: True only for a real Python list or tuple (the exact type): a native object is never iterated."""
+    return type(value) in (list, tuple)
+
+
+def _trykerngroups_plain_list(seq, cap):
+    """v0.188: up to cap elements of a real list or tuple, each as a plain value or by its type name."""
+    shown = []
+    for item in seq:
+        if len(shown) >= cap:
+            break
+        shown.append(_tryfont_plain(item))
+    return shown
+
+
+def _trykerngroups_field(value):
+    """v0.188: one field of a values() entry, for the report. A plain value passes through; a real list or tuple gives its type,
+    length and up to _TRYKERNGROUPS_ITEMS elements (a real list or tuple inside by its type, length, cut and, since v0.189, up to
+    _TRYKERNGROUPS_ITEMS plain elements, the members of a name pair; before, 10; anything else plain or by its type name); any other
+    object by its type name only. Nothing is called."""
+    if not _trykerngroups_real_seq(value):
+        return _tryfont_plain(value)
+    shown = []
+    for item in value:
+        if len(shown) >= _TRYKERNGROUPS_ITEMS:
+            break
+        if _trykerngroups_real_seq(item):
+            shown.append({"type": type(item).__name__, "length": len(item), "values": _trykerngroups_plain_list(item, _TRYKERNGROUPS_ITEMS),
+                          "cut": len(item) > _TRYKERNGROUPS_ITEMS})
+        else:
+            shown.append(_tryfont_plain(item))
+    return {"type": type(value).__name__, "length": len(value), "values": shown, "cut": len(value) > _TRYKERNGROUPS_ITEMS}
+
+
+def _trykerngroups_entry(entry):
+    """v0.188: one values() entry: a real list or tuple by its type, length and up to _TRYKERNGROUPS_FIELDS fields; anything else
+    by its type and plain value (a native object by its type name only)."""
+    if not _trykerngroups_real_seq(entry):
+        return {"type": type(entry).__name__, "value": _tryfont_plain(entry)}
+    fields = []
+    for value in entry:
+        if len(fields) >= _TRYKERNGROUPS_FIELDS:
+            break
+        fields.append(_trykerngroups_field(value))
+    return {"type": type(entry).__name__, "length": len(entry), "fields": fields, "cut": len(entry) > _TRYKERNGROUPS_FIELDS}
+
+
+def _trykerngroups_texts(value, depth=0, max_depth=2):
+    """v0.188: the texts of an entry, for matching tokens: the entry itself if it is text, its text fields, and the text elements of
+    its real list or tuple fields; nothing deeper, and nothing inside a native object. v0.189: max_depth 3 (the name-pairs stage)
+    also looks one level deeper, into a real list or tuple inside a field: the members in (name, (members, side))."""
+    if isinstance(value, str):
+        return {value}
+    if depth >= max_depth or not _trykerngroups_real_seq(value):
+        return set()
+    found = set()
+    for item in value:
+        found |= _trykerngroups_texts(item, depth + 1, max_depth)
+    return found
+
+
+def _trykerngroups_tuples(entries, tokens, max_depth=2, kind="values"):
+    """v0.188: the answer of values() (v0.189: or of the other dictionary call, kind) on the master's kerning groups, read as plain
+    data: the shapes of all entries, the first entry, and the entries holding a token (at most _TRYKERNGROUPS_SHOWN shown), matched
+    to max_depth. Only a real list or tuple is looked into."""
+    if not _trykerngroups_real_seq(entries):
+        return {kind + "_type": type(entries).__name__,
+                "note_tuples" if kind == "values" else "note_" + kind: "not a real list or tuple, so nothing in it was read"}
+    wanted = set(tokens)
+    out = {kind + "_type": type(entries).__name__, "count": len(entries)}
+    shapes, matched, n_matched = {}, [], 0
+    for position, entry in enumerate(entries):
+        shape = type(entry).__name__ + (f"/{len(entry)}" if _trykerngroups_real_seq(entry) else "")
+        shapes[shape] = shapes.get(shape, 0) + 1
+        if position == 0:
+            out["first_entry"] = _trykerngroups_entry(entry)
+        if wanted & _trykerngroups_texts(entry, 0, max_depth):
+            n_matched += 1
+            if len(matched) < _TRYKERNGROUPS_SHOWN:
+                matched.append(dict(_trykerngroups_entry(entry), position=position))
+    out.update(shapes=shapes, matched=n_matched, entries=matched, cut=n_matched > _TRYKERNGROUPS_SHOWN)
+    return out
+
+
 def debug_try_kern_groups(stage, contains, name, go):
     import sys as _sys
     if go != "yes":
-        return {"error": "this probe calls flPackage.getAllGroups() or the master's kerning groups' values(), or reads two attributes of one "
+        return {"error": "this probe calls flPackage.getAllGroups() or the master's kerning groups' values() or items(), or reads two attributes of one "
                          "glyph; add &go=yes to run it", "calls_so_far": _TRYKERNGROUPS["calls"], "max_calls": _TRYKERNGROUPS_MAX}
     if stage not in _TRYKERNGROUPS_STAGES:
-        return {"error": 'stage must be "all", "modes" or "glyph"'}
+        return {"error": 'stage must be "all", "modes", "tuples", "items" or "glyph"'}
     if not isinstance(contains, (list, tuple)):
         return {"error": "contains must be a list of names"}
     if stage == "glyph":
@@ -11816,14 +12134,19 @@ def debug_try_kern_groups(stage, contains, name, go):
                 else:
                     groups_len_before = _trypkgkern_len(container)
                     try:
-                        values_of = container.values
-                        if not callable(values_of):
-                            raise TypeError("values is not callable")
-                        entries = values_of()
+                        entries_of = container.items if stage == "items" else container.values     # v0.189: stage=items
+                        if not callable(entries_of):
+                            raise TypeError(("items" if stage == "items" else "values") + " is not callable")
+                        entries = entries_of()
                     except Exception as exc:
                         out["call_error"] = f"{type(exc).__name__}: {exc}"
                     else:
-                        out.update(_trykerngroups_modes(entries, contains))
+                        if stage == "modes":
+                            out.update(_trykerngroups_modes(entries, contains))
+                        elif stage == "items":
+                            out.update(_trykerngroups_tuples(entries, contains, 3, "items"))
+                        else:
+                            out.update(_trykerngroups_tuples(entries, contains, 2, "values"))
                     groups_len_after = _trypkgkern_len(container)
                     out.update(groups_len_before=groups_len_before, groups_len_after=groups_len_after,
                                groups_side_effect_detected=(groups_len_before != groups_len_after)
@@ -13558,6 +13881,23 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
+        if path == "/kerning/groups":        # v0.190 (P1.6): ?groups=a,b&glyphs=c,d or ?all=yes[&confirmed=yes]
+            flags = {}
+            for key in ("all", "confirmed"):
+                raw = (query.get(key) or [None])[0]
+                if raw not in (None, "yes"):
+                    return _build_response(400, {"error": f'"{key}" must be "yes" or left out'})
+                flags[key] = raw == "yes"
+            try:
+                result = get_kerning_groups([n.strip() for n in (query.get("groups") or [""])[0].split(",") if n.strip()],
+                                            [n.strip() for n in (query.get("glyphs") or [""])[0].split(",") if n.strip()],
+                                            flags["all"], flags["confirmed"])
+                if "bad_request" in result:
+                    return _build_response(400, {"error": result["bad_request"]})
+                return _build_response(200, result)
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
         if path == "/shutdown":
             return _build_response(200, {"status": "shutting down"})
 
@@ -13576,6 +13916,23 @@ def _route(method, full_path, body=b""):
                 return _build_response(400, {"error": '"pairs" must be a list of [left, right] lists and "text" must be a string'})
             try:
                 result = get_kerning_pairs(body_pairs, body_text)
+                if "bad_request" in result:
+                    return _build_response(400, {"error": result["bad_request"]})
+                return _build_response(200, result)
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/kerning/groups":        # v0.190 (P1.6)
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            if not isinstance(payload, dict) or set(payload) - {"groups", "glyphs", "all_groups", "confirmed_large_read"}:
+                return _build_response(400, {"error": 'the body must be a JSON object with "groups" and / or "glyphs" (lists of names), or '
+                                                      '"all_groups": true, optionally "confirmed_large_read", and nothing else'})
+            try:
+                result = get_kerning_groups(payload.get("groups"), payload.get("glyphs"), payload.get("all_groups", False),
+                                            payload.get("confirmed_large_read", False))
                 if "bad_request" in result:
                     return _build_response(400, {"error": result["bad_request"]})
                 return _build_response(200, result)
@@ -13988,7 +14345,7 @@ _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/wid
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
               "/font/current": "font info", "/font/notdef": ".notdef check", "/font/notdef/warn": ".notdef check",
-              "/font/nonempty": "empty-glyph scan", "/kerning/pairs": "kerning"}
+              "/font/nonempty": "empty-glyph scan", "/kerning/pairs": "kerning", "/kerning/groups": "kerning groups"}
 _ACT_SILENT = ("/health", "/version", "/shutdown")
 
 

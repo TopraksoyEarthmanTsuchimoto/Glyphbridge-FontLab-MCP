@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.74)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.75)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.74"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.75"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1167,6 +1167,187 @@ def read_kerning(pairs: Any = None, text: Any = None, confirmed_large_read: Any 
     if data.get("side_effect_detected") is True:
         reply["side_effect_detected"] = True
         instruction += " WARNING: the size of the kerning table changed while reading, which a read must never do. Tell the person and do not trust further kerning edits until they have looked."
+    reply["agent_instruction"] = instruction
+    return reply
+
+
+_KGR_SIDES = ("left", "right", "both", "unknown")
+_KGR_INSTRUCTION = (
+    "These are the kerning groups (FontLab's kerning classes) of the current master (master names it), read from FontLab: side 'left' means the "
+    "group's glyphs are kerned as the LEFT glyph of a pair (FontLab's Kerning Left), 'right' as the RIGHT glyph (Kerning Right), 'both' on either "
+    "side (Kerning both); fontlab_side gives FontLab's own word. 'confirmed' true means two FontLab sources agree on the group (the master's "
+    "kerning groups and FontLab's class list, which also gives the id). A group with confirmed false is NOT settled: report it with its "
+    "mismatch (and class_list_members when given) and never pick one version yourself. An entry with an 'error' was not read; a glyph whose "
+    "kerning_groups list is empty is in no kerning group on either side, which is a fact, not an error. OpenType classes and Glyph tags are "
+    "not kerning groups and are not read by this tool. Other masters are not covered."
+)
+
+
+def _kgr_name_list(value: Any, label: str) -> list:
+    """A list of names, stripped and checked, or a ToolError (before anything is sent)."""
+    if value is None:
+        return []
+    if not isinstance(value, (list, tuple)):
+        raise ToolError(f"{label} must be a list of names.")
+    clean = []
+    for n in value:
+        if not isinstance(n, str) or not _KERN_NAME_RE.match(n.strip() or "!"):
+            raise ToolError(f"Every name in {label} must be 1 to 63 characters from A-Z a-z 0-9 . _ - (got {n!r}).")
+        clean.append(n.strip())
+    return list(dict.fromkeys(clean))
+
+
+def _kgr_text(value: Any, limit: int = 600) -> Any:
+    return value[:limit] if isinstance(value, str) and value else None
+
+
+def _kgr_plain_names(value: Any) -> Any:
+    if not isinstance(value, list) or not all(isinstance(n, str) and n and n.isprintable() and len(n) <= 200 for n in value):
+        return None
+    return value
+
+
+def _kgr_group_entry(raw: Any, expected: Any) -> dict:
+    """One listener group entry as a clean, type-checked entry; anything unusable becomes an error entry."""
+    out: dict = {"name": expected} if expected is not None else {}
+    if not isinstance(raw, dict):
+        out["error"] = "the listener's answer for this group was unusable, so it was not read"
+        return out
+    name = raw.get("name")
+    if not isinstance(name, str) or not name.isprintable() or not 1 <= len(name) <= 200 or (expected is not None and name != expected):
+        out["error"] = "the listener answered for a different or unnamed group, so it was not read"
+        return out
+    out["name"] = name
+    if _kgr_text(raw.get("error")):
+        out["error"] = _kgr_text(raw["error"])
+        return out
+    members = _kgr_plain_names(raw.get("members"))
+    side = raw.get("side")
+    confirmed = raw.get("confirmed")
+    if members is None or side not in _KGR_SIDES or not isinstance(confirmed, bool):
+        out["error"] = "the listener's answer for this group carried no usable members, side or confirmation, so it was not read"
+        return out
+    out.update(side=side, fontlab_side=_kgr_text(raw.get("fontlab_side"), 60), members=members, member_count=len(members))
+    gid = raw.get("id")
+    out["id"] = gid if isinstance(gid, int) and not isinstance(gid, bool) else None
+    out["confirmed"] = confirmed and side != "unknown"
+    if not out["confirmed"]:
+        out["mismatch"] = (_kgr_text(raw.get("mismatch")) or ("FontLab gave a side this tool does not know (fontlab_side)" if side == "unknown"
+                                                              else "the listener did not say why this group is not confirmed"))
+        other = _kgr_plain_names(raw.get("class_list_members"))
+        if other is not None:
+            out["class_list_members"] = other
+    return out
+
+
+def _kgr_glyph_entry(raw: Any, expected: str) -> dict:
+    out: dict = {"name": expected}
+    if not isinstance(raw, dict) or raw.get("name") != expected:
+        out["error"] = "the listener's answer for this glyph was unusable or for another glyph, so it was not read"
+        return out
+    if _kgr_text(raw.get("error")):
+        out["error"] = _kgr_text(raw["error"])
+        return out
+    holders = raw.get("kerning_groups")
+    if not isinstance(holders, list):
+        out["error"] = "the listener's answer for this glyph carried no list of kerning groups, so it was not read"
+        return out
+    clean = []
+    for h in holders:
+        if (not isinstance(h, dict) or not isinstance(h.get("group"), str) or not h["group"].isprintable() or not 1 <= len(h["group"]) <= 200
+                or h.get("side") not in _KGR_SIDES or not isinstance(h.get("confirmed"), bool)):
+            out["error"] = "the listener's answer for this glyph named a kerning group in an unusable form, so it was not read"
+            return out
+        clean.append({"group": h["group"], "side": h["side"], "confirmed": h["confirmed"] and h["side"] != "unknown"})
+    out["kerning_groups"] = clean
+    if not clean:
+        out["note"] = "in no kerning group on either side"
+    return out
+
+
+def read_kerning_groups(groups: Any = None, glyphs: Any = None, all_groups: Any = None, confirmed_large_read: Any = None) -> dict:
+    """v0.75 (listener 0.190, P1.6): the current master's kerning groups through POST /kerning/groups."""
+    for label, flag in (("all_groups", all_groups), ("confirmed_large_read", confirmed_large_read)):
+        if flag is not None and not isinstance(flag, bool):
+            raise ToolError(f"{label} must be true or false (or left out).")
+    group_names = _kgr_name_list(groups, "groups")
+    glyph_names = _kgr_name_list(glyphs, "glyphs")
+    if all_groups is True and (group_names or glyph_names):
+        raise ToolError("Give either all_groups=true alone, or names in groups and / or glyphs, not both.")
+    if all_groups is not True and not group_names and not glyph_names:
+        raise ToolError("Give all_groups=true, or at least one name in groups (kerning group names) or glyphs (glyph names).")
+    named = len(group_names) + len(glyph_names)
+    if named > _KERN_CONFIRM_ABOVE and confirmed_large_read is not True:
+        raise ToolError(
+            f"This request names {named} groups and glyphs, more than the {_KERN_CONFIRM_ABOVE} threshold, and nothing was read. "
+            "Do NOT repeat the call yet. A large read costs many tokens: tell the person how many you want to read and why, and ask whether they approve. "
+            "Only after they have said yes, call get_kerning_groups again with the same arguments and confirmed_large_read=true. Never set that flag without the person's approval.")
+    _require_listener((0, 190), "get_kerning_groups")
+    payload: dict = {"all_groups": True} if all_groups is True else {"groups": group_names, "glyphs": glyph_names}
+    if confirmed_large_read is True:
+        payload["confirmed_large_read"] = True
+    data = _call_listener_post("/kerning/groups", payload, timeout=max(TIMEOUT_SECONDS, 5.0 + named / 50.0, 10.0 if all_groups else 0.0))
+    if not data.get("open"):
+        raise ToolError(NO_FONT)
+    if isinstance(data.get("error"), str) and data["error"]:
+        reason = data["error"][:600].rstrip()
+        raise ToolError(f"Kerning groups could not be read: {reason}" + ("" if reason.endswith((".", "!", "?")) else "."))
+    count = data.get("group_count")
+    count = count if isinstance(count, int) and not isinstance(count, bool) and count >= 0 else None
+    if all_groups is True and data.get("needs_confirmation") is True:
+        raise ToolError(
+            f"The current master has {count if count is not None else 'more than ' + str(_KERN_CONFIRM_ABOVE)} kerning groups, more than the "
+            f"{_KERN_CONFIRM_ABOVE}-group threshold, and their members were not read. Do NOT repeat the call yet. Tell the person how many groups there are, "
+            "that listing them all with their members costs many tokens, and ask whether they approve. Only after they have said yes, call get_kerning_groups "
+            "again with all_groups=true and confirmed_large_read=true. Never set that flag without the person's approval.")
+    raw_groups, raw_glyphs = data.get("groups"), data.get("glyphs")
+    if (not isinstance(raw_groups, list) or not isinstance(raw_glyphs, list)
+            or (all_groups is not True and (len(raw_groups) != len(group_names) or len(raw_glyphs) != len(glyph_names)))
+            or (all_groups is True and raw_glyphs)):
+        raise ToolError("Kerning groups could not be read: the listener's answer did not match the request. Nothing was changed.")
+    if all_groups is True:
+        clean_groups = [_kgr_group_entry(r, None) for r in raw_groups]
+        large = len(clean_groups) > _KERN_CONFIRM_ABOVE
+    else:
+        clean_groups = [_kgr_group_entry(r, e) for r, e in zip(raw_groups, group_names)]
+        large = named > _KERN_CONFIRM_ABOVE
+    clean_glyphs = [_kgr_glyph_entry(r, e) for r, e in zip(raw_glyphs, glyph_names)]
+    fonts_open, matched_by, family = data.get("fonts_open"), data.get("matched_by"), data.get("family_name")
+    master, master_count, size = data.get("master"), data.get("master_count"), data.get("table_size")
+    cross = data.get("cross_check")
+    reply = {"mode": "all" if all_groups is True else "named",
+             "fonts_open": fonts_open if isinstance(fonts_open, int) and not isinstance(fonts_open, bool) and fonts_open >= 1 else None,
+             "matched_by": matched_by if matched_by in ("only font", "path") else None,
+             "family_name": family if isinstance(family, str) and 1 <= len(family) <= 63 and family.isprintable() else None,
+             "master": master if isinstance(master, str) and 1 <= len(master) <= 63 and master.isprintable() else None,
+             "master_count": master_count if isinstance(master_count, int) and not isinstance(master_count, bool) and master_count >= 1 else None,
+             "group_count": count,
+             "cross_check": "done" if cross == "done" else (_kgr_text(cross) or "unknown"),
+             "groups": clean_groups, "glyphs": clean_glyphs,
+             "errors": sum(1 for e in clean_groups + clean_glyphs if "error" in e),
+             "unconfirmed": sum(1 for e in clean_groups if e.get("confirmed") is False),
+             "member_names": sum(e.get("member_count", 0) for e in clean_groups)}
+    instruction = _KGR_INSTRUCTION
+    if large:
+        reply["large_read_confirmed"] = True
+    if reply["cross_check"] != "done":
+        instruction += " The cross-check with FontLab's class list did not run (cross_check says why), so no group is confirmed: say so."
+    if reply["group_count"] == 0:
+        instruction += " group_count is 0: the current master has no kerning groups at all."
+    for key in ("malformed_entries", "duplicate_names"):
+        got = data.get(key)
+        if (key == "malformed_entries" and isinstance(got, int) and not isinstance(got, bool) and got > 0) or (key == "duplicate_names" and _kgr_plain_names(got)):
+            reply[key] = got
+            instruction += f" FontLab's answer had {key.replace('_', ' ')} ({got}): tell the person that some groups may be missing or doubtful."
+    if reply["fonts_open"] is not None and reply["fonts_open"] > 1:
+        which = f" ({reply['family_name']})" if reply["family_name"] else ""
+        instruction += (f" {reply['fonts_open']} fonts are open in FontLab; this was read from the current one, the font whose window is in front{which}, "
+                        "matched to its kerning table by its file path. Say which font when you report the groups.")
+    if reply["master_count"] is not None and reply["master_count"] > 1:
+        instruction += f" This font has {reply['master_count']} masters; only the current one was read. Say so when you report the groups."
+    if data.get("side_effect_detected") is True:
+        reply["side_effect_detected"] = True
+        instruction += " WARNING: the size of the kerning table or of its groups changed while reading, which a read must never do. Tell the person."
     reply["agent_instruction"] = instruction
     return reply
 
@@ -4042,6 +4223,28 @@ def get_kerning(pairs: list[list[str]] | None = None, text: str | None = None, c
     """
     _note_client(ctx)
     return _with_font(read_kerning, pairs, text, confirmed_large_read)
+
+
+@_tool()
+def get_kerning_groups(groups: list[str] | None = None, glyphs: list[str] | None = None, all_groups: bool | None = None,
+                       confirmed_large_read: bool | None = None, ctx: Context | None = None) -> dict[str, Any]:
+    """Read the kerning groups (FontLab's kerning classes) of the font currently open in FontLab 8: which glyphs each group holds,
+    and on which side it kerns. Reading changes nothing.
+
+    Give groups (kerning group names) and / or glyphs (glyph names), or all_groups=true alone to list every kerning group. Each group
+    comes with its side ('left': its glyphs are kerned as the LEFT glyph of a pair, FontLab's Kerning Left; 'right': as the RIGHT glyph;
+    'both'), its members, its id and 'confirmed'. Each glyph comes with the kerning groups that hold it and their sides; an empty list
+    means it is in no kerning group, which is a fact, not an error. A name that does not exist is an 'error' for that name only.
+    Every read is cross-checked between two FontLab sources: a group with confirmed false is not settled; report its mismatch, never
+    pick a version yourself. Read only what the task needs. There is no upper limit, but more than 250 kerning groups in an all_groups
+    read, or more than 250 names in one call, is refused until the PERSON has approved it: say how many and why, ask, and only after a
+    yes repeat the call with confirmed_large_read=true. Never set confirmed_large_read=true on your own.
+    Kerning groups only: OpenType classes and Glyph tags are not read by this tool. It reads the current master of the current font,
+    the one whose window is in front; with several fonts open it refuses when that font cannot be matched to its kerning table (for
+    example a new, unsaved font). Other masters are not covered. Needs listener v0.190.
+    """
+    _note_client(ctx)
+    return _with_font(read_kerning_groups, groups, glyphs, all_groups, confirmed_large_read)
 
 
 @_tool()

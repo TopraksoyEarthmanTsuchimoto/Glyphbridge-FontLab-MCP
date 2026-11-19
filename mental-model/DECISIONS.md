@@ -2,6 +2,16 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-19: kerning group membership, `get_kerning_groups` (P1.6; research listener 0.188–0.189; built listener 0.190 / server 0.75)
+
+- **The side comes from the modern `items()` of the master's kerning groups (route C), not from the legacy `kerningLeft` / `kerningRight` nor from `values()` matched by members.** *Reason:* the user's choice; one modern call gives name, members and side (KG 1373–1375, [topics/kerning.md](topics/kerning.md) §9.10).
+- **A read tool of its own; `get_kerning` stays unchanged.** *Reason:* separate reply shapes and limits; `get_kerning` is live-proven.
+- **Every kerning group may be listed; above 250 groups only after the person's approval** (`confirmed_large_read`, the rule of 2026-10-27). **The full list includes members.**
+- **Kerning groups only.** OpenType classes and Glyph tags are not read by this tool. **Glyphbridge must eventually work with OpenType classes too, through a tool of their own** ([ROADMAP.md](ROADMAP.md) P1.7).
+- **Every read is cross-checked with `getAllGroups()`;** a group whose sources disagree is reported with both versions, never settled by the tool.
+- **An unknown name is an error for that name only;** the other names are read, and a glyph in no kerning group gets a plain note.
+- *Reason for the rest:* the user's answers, one question at a time; the font and master matching follow `get_kerning`.
+
 ## 2026-11-18: every AI app is treated equally
 
 The docs name AI apps side by side, never one "instead of" another. Shared steps are written for "your AI app", and each app gets a section of the same rank ([README.md](../README.md)). Apps may be listed in an order, but none is presented as the default. Reason: the user's choice, after ChatGPT Desktop joined Claude Desktop as a tested client.

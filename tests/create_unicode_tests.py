@@ -1344,7 +1344,7 @@ print("19dm refusal text mentions       :", all(w in k19(okreply(many(251)), pai
 
 print("--- the tool")
 tool_src = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
-_body = tool_src[tool_src.index("_KERN_NAME_RE = "):tool_src.index("def write_glyph_sidebearings(")]
+_body = tool_src[tool_src.index("_KERN_NAME_RE = "):tool_src.index("_KGR_SIDES = ")]     # v0.75: get_kerning_groups has its own checks (46v)
 import re as _re19
 print("19ci static scan                 : posts present", "_call_listener_post" in _body, "| change tracking", bool(_re19.search(r"_note_change|_mark_modified|_CHANGES|finish_changes", _body)),
       "| save", bool(_re19.search(r"\.save\(|save\(", _body)), "| GET listener calls", len(_re19.findall(r"_call_listener\(", _body)), "| requires 0.104", '_require_listener((0, 104), "get_kerning")' in _body, "| posts to the listener", len(_re19.findall(r"_call_listener_post\(", _body)))
@@ -3019,6 +3019,102 @@ print("45g description:", "exactly ONE layer, the active one" in srv.add_compone
       "| remove_component's refusal untouched:", "raise _comp_refusal(" not in _inspect.getsource(srv.write_glyph_remove_components),
       "| _comp_refusal in add_component's three refusals:", sum(_inspect.getsource(f).count("raise _comp_refusal(clean, reason)")
                                                                  for f in (srv.write_glyph_component, srv._comp_beside_reply, srv.write_glyph_components)))
+
+# ---- server v0.75 (listener 0.190, P1.6): get_kerning_groups through POST /kerning/groups (faked listener replies)
+print("\n==== 46 get_kerning_groups (server 0.75) ====")
+K46 = {"version": "0.190", "reply": None, "posts": []}
+def _k46_get(path):
+    if path == "/version":
+        return {"version": K46["version"]}
+    raise AssertionError("unexpected GET " + path)
+def _k46_post(path, payload, timeout=0):
+    K46["posts"].append((path, payload, round(timeout, 2)))
+    r = K46["reply"]
+    if isinstance(r, Exception): raise r
+    return r
+srv._call_listener, srv._call_listener_post = _k46_get, _k46_post
+G46 = {"name": "kgtL", "side": "left", "fontlab_side": "KernLeft", "members": ["kgt1", "kgt2"], "member_count": 2, "id": 5121, "confirmed": True}
+GB46 = {"name": "kgtB", "side": "both", "fontlab_side": "KernBothSide", "members": ["kgt5", "kgt6"], "member_count": 2, "id": 5123, "confirmed": True}
+def ok46(groups=(), glyphs=(), **extra):
+    return dict({"open": True, "fonts_open": 1, "matched_by": "only font", "family_name": "Unnamed", "master": "Regular", "master_count": 1,
+                 "table_size": 0, "side_effect_detected": False, "group_count": 3, "cross_check": "done", "malformed_entries": 0, "duplicate_names": [],
+                 "mode": "named", "groups": None if groups is None else list(groups), "glyphs": None if glyphs is None else list(glyphs)}, **extra)
+def k46(label, reply, version="0.190", show=None, **call):
+    K46["reply"] = reply; K46["version"] = version; K46["posts"] = []
+    srv._reset_change_tracking()
+    try:
+        r = srv.read_kerning_groups(**call)
+    except srv.ToolError as e:
+        print(label, ":", "ToolError: " + str(e)[:300], "| posts", K46["posts"]); return None
+    head = {k: v for k, v in r.items() if k not in ("groups", "glyphs", "agent_instruction")} if show is None else {k: r.get(k) for k in show}
+    print(label, ":", head, "| posts", K46["posts"])
+    for e in r["groups"] + r["glyphs"]: print("       ", e)
+    return r
+r = k46("46a groups and glyphs             ", ok46([G46, {"name": "kgtX", "error": "no kerning group named 'kgtX' in the current master of this font"}],
+        [{"name": "kgt5", "kerning_groups": [{"group": "kgtB", "side": "both", "confirmed": True}]}, {"name": "kgt7", "kerning_groups": [], "note": "x"}]),
+        groups=["kgtL", " kgtX "], glyphs=["kgt5", "kgt7"])
+print("46a2 instruction                   :", "never pick one version yourself" in r["agent_instruction"], "OpenType classes and Glyph tags" in r["agent_instruction"],
+      "'left' means the group's glyphs are kerned as the LEFT glyph" in r["agent_instruction"])
+k46("46b all, three groups             ", ok46([G46, GB46, dict(G46, name="kgtR", side="right", fontlab_side="KernRight", members=["kgt3", "kgt4"], id=5122)], mode="all"), all_groups=True)
+k46("46c all with a name: refused      ", None, all_groups=True, groups=["kgtL"])
+k46("46d nothing asked: refused        ", None)
+k46("46e all_groups false alone        ", None, all_groups=False)
+for _lab, _kw in (("46f a bad name                    ", dict(groups=["kgt L"])), ("46f2 a name not text             ", dict(glyphs=[5])),
+                  ("46f3 groups a string             ", dict(groups="kgtL")), ("46f4 all_groups 'yes'            ", dict(all_groups="yes")),
+                  ("46f5 confirmed 1                 ", dict(groups=["kgtL"], confirmed_large_read=1)), ("46f6 64 characters              ", dict(glyphs=["x" * 64]))):
+    k46(_lab, None, **_kw)
+k46("46g duplicates folded             ", ok46([G46], []), groups=["kgtL", "kgtL"], show=("mode", "errors"))
+k46("46h 251 names: refused            ", None, glyphs=["g%03d" % i for i in range(251)])
+K46["reply"] = ok46([], [{"name": "g%03d" % i, "kerning_groups": []} for i in range(250)]); K46["posts"] = []
+_r = srv.read_kerning_groups(glyphs=["g%03d" % i for i in range(250)])
+print("46h3 exactly 250 names, no flag   :", len(_r["glyphs"]), _r.get("large_read_confirmed"), "| flag sent", K46["posts"][0][1].get("confirmed_large_read"))
+K46["reply"] = ok46([], [{"name": "g%03d" % i, "kerning_groups": []} for i in range(251)]); K46["posts"] = []
+_r = srv.read_kerning_groups(glyphs=["g%03d" % i for i in range(251)], confirmed_large_read=True)
+print("46h2 251 names confirmed          :", _r.get("large_read_confirmed"), len(_r["glyphs"]), _r["errors"], "| timeout", K46["posts"][0][2],
+      "| flag sent", K46["posts"][0][1].get("confirmed_large_read"))
+k46("46i all, needs confirmation       ", ok46(None, None, mode="all", group_count=300, needs_confirmation=True), all_groups=True)
+k46("46i2 needs confirmation, no count ", ok46(None, None, mode="all", group_count="x", needs_confirmation=True), all_groups=True)
+K46["reply"] = ok46([dict(G46, name="g%03d" % i) for i in range(251)], mode="all", group_count=251); K46["posts"] = []
+_r = srv.read_kerning_groups(all_groups=True, confirmed_large_read=True)
+print("46j all, 251 confirmed            :", _r.get("large_read_confirmed"), _r["group_count"], _r["member_names"], _r["unconfirmed"], "| payload",
+      K46["posts"][0][1], "| timeout", K46["posts"][0][2])
+k46("46k an older listener             ", ok46([G46]), version="0.189", groups=["kgtL"])
+k46("46l no font                       ", {"open": False}, groups=["kgtL"])
+k46("46m a listener error              ", {"open": True, "error": "2 fonts are open and the current font could not be matched to its kerning table: x"}, groups=["kgtL"])
+k46("46n answer of the wrong length    ", ok46([G46, G46]), groups=["kgtL"])
+k46("46n2 glyphs in an all answer      ", ok46([G46], [{"name": "kgt1", "kerning_groups": []}], mode="all"), all_groups=True)
+k46("46n3 groups not a list            ", ok46(None), groups=["kgtL"])
+k46("46o unconfirmed, two versions     ", ok46([dict(G46, confirmed=False, mismatch="the two sources list different members", class_list_members=["kgt1"])]),
+    groups=["kgtL"], show=("unconfirmed", "errors"))
+k46("46o2 unconfirmed, no reason       ", ok46([dict(G46, confirmed=False)]), groups=["kgtL"], show=("unconfirmed",))
+k46("46o3 side unknown, said confirmed ", ok46([dict(G46, side="unknown", fontlab_side="KernTop")]), groups=["kgtL"], show=("unconfirmed",))
+for _lab, _g in (("46p another name                  ", dict(G46, name="kgtR")), ("46p2 members not names           ", dict(G46, members=["kgt1", 5])),
+                 ("46p3 a side outside the list     ", dict(G46, side="top")), ("46p4 confirmed missing           ", {k: v for k, v in G46.items() if k != "confirmed"}),
+                 ("46p5 not a dict                  ", "kgtL"), ("46p6 an id that is a bool        ", dict(G46, id=True)), ("46p7 unknown keys dropped        ", dict(G46, evil="x"))):
+    k46(_lab, ok46([_g]), groups=["kgtL"], show=("errors",))
+for _lab, _g in (("46q glyph: another name           ", {"name": "kgt9", "kerning_groups": []}), ("46q2 glyph: no list              ", {"name": "kgt5"}),
+                 ("46q3 glyph: a bad holder         ", {"name": "kgt5", "kerning_groups": [{"group": "kgtB", "side": "up", "confirmed": True}]}),
+                 ("46q4 glyph: an error             ", {"name": "kgt5", "error": "no glyph named 'kgt5'"}),
+                 ("46q5 glyph: unknown side         ", {"name": "kgt5", "kerning_groups": [{"group": "kgtB", "side": "unknown", "confirmed": True}]})):
+    k46(_lab, ok46([], [_g]), glyphs=["kgt5"], show=("errors",))
+k46("46r all: an unprintable name      ", ok46([dict(G46, name="kg\x00t")], mode="all"), all_groups=True, show=("errors",))
+for _lab, _extra in (("46s cross-check failed            ", dict(cross_check="failed: flPackage.getAllGroups() failed (RuntimeError: x)")),
+                     ("46s2 no groups at all            ", dict(group_count=0)), ("46s3 malformed and duplicates    ", dict(malformed_entries=2, duplicate_names=["kgtL"])),
+                     ("46s4 two fonts                   ", dict(fonts_open=2, matched_by="path")), ("46s5 two masters                 ", dict(master_count=2)),
+                     ("46s6 a side effect               ", dict(side_effect_detected=True)),
+                     ("46s7 odd header values          ", dict(fonts_open=True, matched_by="x", family_name="a" * 64, master=5, group_count=-1, malformed_entries=True, duplicate_names=[5]))):
+    K46["reply"] = ok46([G46], **_extra); K46["version"] = "0.190"; K46["posts"] = []
+    _r = srv.read_kerning_groups(groups=["kgtL"])
+    print(_lab, ":", {k: _r.get(k) for k in ("cross_check", "group_count", "fonts_open", "matched_by", "family_name", "master", "master_count", "malformed_entries",
+                                             "duplicate_names", "side_effect_detected")}, "| instruction", _r["agent_instruction"][len(srv._KGR_INSTRUCTION):][:260])
+_doc46 = srv.get_kerning_groups.__doc__
+print("46t tool description              :", "Needs listener v0.190" in _doc46, "Kerning groups only" in _doc46, "Never set confirmed_large_read=true on your own" in _doc46,
+      "is a fact, not an error" in _doc46, "pick a version yourself" in _doc46)
+K46["reply"] = ok46([G46]); K46["posts"] = []
+print("46u wrapper equals read            :", srv.get_kerning_groups(groups=["kgtL"]) == srv.read_kerning_groups(groups=["kgtL"]))
+_body46 = _inspect.getsource(srv.read_kerning_groups)
+print("46v pure read                      : note_change", "_note_change" in _body46, "| mark", "_mark_modified" in _body46, "| write post", "_write_post" in _body46,
+      "| requires 0.190", '_require_listener((0, 190), "get_kerning_groups")' in _body46, "| one POST", _body46.count("_call_listener_post("))
 
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 srv._reset_change_tracking()

@@ -3280,7 +3280,7 @@ def _kp_boom(pairs, text): raise RuntimeError("probe boom")
 ns["get_kerning_pairs"] = _kp_boom; kpc("1177 function raises: HTTP 500   ", "/kerning/pairs?pairs=A:V"); ns["get_kerning_pairs"] = _kp_real
 kp_setup(); [call("/kerning/pairs?pairs=A:V") for _ in range(60)]; c, d = call("/kerning/pairs?pairs=A:V"); print("1178 no per-run cap: 61st request  :", c, d.get("results"))
 print("1179 spy over all cases          : forbidden members touched:", KP["forbidden"], "| every member touched anywhere:", sorted(KP["all_touched"]))
-_kp_src = src[src.index("def _kern_class_id("):src.index("def _other_glyphs_with_unicode(")]
+_kp_src = src[src.index("def _kern_class_id("):src.index("# /kerning/groups (v0.190, P1.6)")]     # v0.190: the groups read has its own scan (2631)
 _kp_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _kp_src).splitlines())
 _kp_body = _re83.sub(r'(?s)"""(.*?)"""', '', _kp_code)
 print("1180 static scan                 : kerning members used:", sorted(set(_re83.findall(r"kerning\.(\w+)", _kp_body))), "| getter( calls:", len(_re83.findall(r"\bgetter\(", _kp_body)),
@@ -3962,7 +3962,10 @@ def kg_build():
     groups_len = c.get("groups_len", 2)
     if c.get("groups_len_after") is not None:
         groups_len = _kg_len_seq(groups_len, c["groups_len_after"])
-    container = c.get("groups", KGSpy("groups", ("values",), {"values": c.get("values_attr", _kg_track("values", values))}, groups_len))
+    items = c.get("items", lambda: [("kgtL", (["kgt1", "kgt2"], "KernLeft")), ("kgtB", (["kgt5", "kgt6"], "KernBothSide")),
+                                    ("kgtR", (["kgt3", "kgt4"], "KernRight"))])      # v0.189: the shape documented in test 1373
+    container = c.get("groups", KGSpy("groups", ("values", "items"), {"values": c.get("values_attr", _kg_track("values", values)),
+                                                                      "items": c.get("items_attr", _kg_track("items", items))}, groups_len))
     k_len = c.get("kerning_len", 2)
     if c.get("kerning_len_after") is not None:
         k_len = _kg_len_seq(k_len, c["kerning_len_after"])
@@ -4076,12 +4079,223 @@ _kg_src = src[src.index("_TRYKERNGROUPS = {"):src.index("# /debug/features (v0.1
 _kg_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _kg_src).splitlines())
 print("1409 static scan                 : method calls:", sorted(set(_re83.findall(r"\b(\w+\.\w+)\(", _kg_code))),
       "| subscripts:", sorted(set(_re83.findall(r"\b(\w+)\[", _kg_code))),
-      "| forbidden names:", _re83.findall(r"\b(?:keys|items|asDict|has_key|clear|remove|rename|findGroup|deleteGroups|autoKern|save\w*|update)\b", _kg_code.replace("out.update(", "")),
-      "| getter( / values_of( / kerning_of( calls:", [len(_re83.findall(r"\b" + f + r"\(", _kg_code)) for f in ("getter", "values_of", "kerning_of")],
+      "| forbidden names:", _re83.findall(r"\b(?:keys|asDict|has_key|clear|remove|rename|findGroup|deleteGroups|autoKern|save\w*|update)\b", _kg_code.replace("out.update(", "")),
+      "| items only as container.items (v0.189):", _re83.findall(r"[\w.]*\bitems\b\(?", _kg_code),
+      "| getter( / entries_of( / kerning_of( calls:", [len(_re83.findall(r"\b" + f + r"\(", _kg_code)) for f in ("getter", "entries_of", "kerning_of")],
       "| counted before the first native call:", _kg_code.index('_TRYKERNGROUPS[""] += 1') < _kg_code.index("_trykerngroups_attr(glyph"),
       _kg_code.rindex('_TRYKERNGROUPS[""] += 1') < _kg_code.index("kerning_of(current)"), "| scanned chars > 5000:", len(_kg_src) > 5000)
 print("1410 gate, cap, route, docstring  :", "go != \"yes\"" in _kg_src, "| max requests", ns["_TRYKERNGROUPS_MAX"], "| shown", ns["_TRYKERNGROUPS_SHOWN"],
       "| route registered once:", src.count('path == "/debug/trykerngroups"') == 1, "| listed in the module docstring:", "/debug/trykerngroups" in src[:src.index('"""', 3)])
+# ---- v0.188 (P1.6): stage=tuples reads the values() entries of the master's kerning groups as plain data (test 199: plain tuples)
+print("\n==== v0.188 /debug/trykerngroups stage=tuples ====")
+KG["forbidden"].clear(); KG["all"].clear()
+_KGT = "/debug/trykerngroups?stage=tuples&contains=kc1A,kc1rgt&go=yes"
+class _KGList(list): pass
+class _KGTuple(tuple): pass
+_KG_T_DEFAULT = lambda: [("kc1A", (["kc1A", "kc1B"], "KernLeftGroupMode")), ("kc1rgt", (["kc1C", "kc1D"], "KernRightGroupMode")),
+                         ("fea1", (["x"], "FeaClassGroupMode"))]
+kg_setup(values=_KG_T_DEFAULT); c, d = kgc("2585 tuples, two names           ", _KGT)
+print("2585b note present                 :", "nothing is changed or saved" in d.get("note", ""))
+kg_setup(values=lambda: [(["kc1A", "kc1B"], "KernLeftGroupMode", 8704), (["kc1C"], "KernRightGroupMode", 8709)])
+kgc("2586 tuples, a member matches    ", "/debug/trykerngroups?stage=tuples&contains=kc1B&go=yes", keys=("count", "shapes", "matched", "entries"))
+kg_setup(values=lambda: [(KGSpy("group", (), {}), ["kc1A"], KGSpy("pair", (), {}, 2))])
+kgc("2587 tuples, native fields       ", _KGT, keys=("first_entry", "matched", "entries"))
+kg_setup(values=lambda: [KGSpy("group", (), {}), KGSpy("group", (), {})])
+kgc("2588 tuples, native entries      ", _KGT, keys=("count", "shapes", "first_entry", "matched"))
+kg_setup(values=lambda: KGSpy("valuesresult", (), {}, 2)); kgc("2589 tuples, values not a list   ", _KGT, keys=("values_type", "note_tuples", "count", "entries"))
+kg_setup(values=lambda: _KGList([("kc1A", 1)])); kgc("2589b tuples, a list subclass    ", _KGT, keys=("values_type", "note_tuples", "count"))
+kg_setup(values=lambda: [_KGTuple(("kc1A", 1)), ["kc1A", _KGList(["kc1A"])]])
+kgc("2589c tuples, subclass entries   ", "/debug/trykerngroups?stage=tuples&contains=kc1A&go=yes", keys=("shapes", "first_entry", "matched", "entries"))
+kg_setup(values=lambda: [("kc1A", i) for i in range(25)]); kgc("2590 tuples, 25 matches: cut     ", _KGT, keys=("count", "shapes", "matched", "cut"))
+print("2590b shown, positions             :", [e["position"] for e in call(_KGT)[1]["entries"]])
+kg_setup(values=lambda: [("kc1A", ["m%02d" % i for i in range(60)], 1, 2, 3, 4, 5, 6, 7, 8)])
+c, d = kgc("2591 tuples, 60 items, 10 fields ", _KGT, keys=("shapes", "matched"))
+_kg_e = d["entries"][0]
+print("2591b entry                        : length", _kg_e["length"], "fields", len(_kg_e["fields"]), "cut", _kg_e["cut"],
+      "| field 1:", _kg_e["fields"][1]["type"], _kg_e["fields"][1]["length"], len(_kg_e["fields"][1]["values"]), _kg_e["fields"][1]["cut"],
+      _kg_e["fields"][1]["values"][:3], "| last field shown:", _kg_e["fields"][-1])
+kg_setup(values=lambda: [("kc1A", i) for i in range(20)]); kgc("2590c tuples, exactly 20: no cut   ", _KGT, keys=("matched", "cut"))
+kg_setup(values=lambda: [("kc1A", ["m%02d" % i for i in range(50)], 1, 2, 3, 4, 5, 6)])
+_kg_e = call(_KGT)[1]["entries"][0]
+print("2591c exactly 8 fields, 50 elements: length", _kg_e["length"], "fields", len(_kg_e["fields"]), "cut", _kg_e["cut"],
+      "| field 1:", _kg_e["fields"][1]["length"], len(_kg_e["fields"][1]["values"]), _kg_e["fields"][1]["cut"])
+kg_setup(values=lambda: [("g1", [("kc1A",)]), ("g2", [["kc1A"]])])
+kgc("2592b tuples, a token too deep   ", "/debug/trykerngroups?stage=tuples&contains=kc1A&go=yes", keys=("count", "matched", "entries"))
+kg_setup(values=lambda: [("g1", [("kc1A", True)] + [list(range(15))], ([KGSpy("member", (), {})], "deep"))])
+kgc("2592 tuples, nested sequences    ", "/debug/trykerngroups?stage=tuples&contains=kc1A,deep&go=yes", keys=("matched", "entries"))
+kg_setup(values=lambda: []); kgc("2593 tuples, empty list          ", _KGT, keys=("count", "shapes", "first_entry", "matched", "entries", "cut"))
+kg_setup(values=lambda: [("a", 1), ("b", 1, 2), "kc1A", 5, None]); kgc("2594 tuples, mixed shapes        ", _KGT, keys=("count", "shapes", "first_entry", "matched", "entries"))
+kg_setup(values=RuntimeError("values boom")); kgc("2595 tuples, values raises       ", _KGT, keys=("call_error", "groups_len_before", "groups_len_after", "side_effect_detected"))
+kg_setup(values=_KG_T_DEFAULT, groups_len_after=4, kerning_len_after=3)
+kgc("2596 tuples, lengths change      ", _KGT, keys=("groups_len_before", "groups_len_after", "groups_side_effect_detected", "kerning_len_before",
+                                                     "kerning_len_after", "side_effect_detected"))
+kg_setup(values=_KG_T_DEFAULT); kgc("2597 tuples with name: refused   ", "/debug/trykerngroups?stage=tuples&contains=kc1A&name=kc1A&go=yes")
+kg_setup(values=_KG_T_DEFAULT); kgc("2597b tuples, no contains       ", "/debug/trykerngroups?stage=tuples&go=yes")
+kg_setup(values=_KG_T_DEFAULT); kgc("2597c tuples, no go: nothing runs", "/debug/trykerngroups?stage=tuples&contains=kc1A")
+kg_setup(values=_KG_T_DEFAULT, calls=10); kgc("2598 tuples refused at the cap   ", _KGT)
+kg_setup(values=_KG_T_DEFAULT, count=2); kgc("2598b tuples, two fonts open     ", _KGT)
+print("2599 spy over the tuples cases    : forbidden:", KG["forbidden"], "| members touched anywhere:", sorted(KG["all"]))
+print("2599b stages and caps             :", ns["_TRYKERNGROUPS_STAGES"], ns["_TRYKERNGROUPS_FIELDS"], ns["_TRYKERNGROUPS_ITEMS"],
+      "| stage=tuples in the module docstring:", "stage=tuples (v0.188)" in src[:src.index('"""', 3)])
+# ---- v0.189 (P1.6): stage=items reads groups.items(), documented (test 1373) as list(tuple('groupName', tuple(list('glyphName'), mode)))
+print("\n==== v0.189 /debug/trykerngroups stage=items ====")
+KG["forbidden"].clear(); KG["all"].clear()
+_KGI = "/debug/trykerngroups?stage=items&contains=kgtL,kgtR&go=yes"
+kg_setup(); c, d = kgc("2600 items, two group names      ", _KGI)
+print("2600b note present                 :", "nothing is changed or saved" in d.get("note", ""))
+kg_setup(); kgc("2601 items, a member matches     ", "/debug/trykerngroups?stage=items&contains=kgt5&go=yes", keys=("count", "shapes", "matched", "entries"))
+kg_setup(items=lambda: [("g1", (["x", ["kgt9"]], "KernLeft")), ("g2", (["kgt9"], "KernRight"))])
+kgc("2601b items, a token too deep    ", "/debug/trykerngroups?stage=items&contains=kgt9&go=yes", keys=("count", "matched", "entries"))
+kg_setup(values=lambda: [("g1", (["kgt5"], "KernLeft"))])
+kgc("2601c tuples keeps its depth     ", "/debug/trykerngroups?stage=tuples&contains=kgt5&go=yes", keys=("count", "matched"))
+kg_setup(items=lambda: KGSpy("itemsresult", (), {}, 3)); kgc("2602 items, not a list           ", _KGI, keys=("items_type", "note_items", "values_type", "count", "entries"))
+kg_setup(items=lambda: _KGList([("kgtL", (["kgt1"], "KernLeft"))])); kgc("2602b items, a list subclass     ", _KGI, keys=("items_type", "note_items", "count"))
+kg_setup(items_attr=5); kgc("2603 items, not callable         ", _KGI, keys=("call_error", "groups_len_before", "groups_len_after", "side_effect_detected"))
+kg_setup(items=RuntimeError("items boom")); kgc("2604 items, raises               ", _KGI, keys=("call_error", "groups_len_before", "groups_len_after", "side_effect_detected"))
+kg_setup(items=lambda: [(KGSpy("name", (), {}), (["kgtL"], KGSpy("mode", (), {}))), KGSpy("entry", (), {})])
+kgc("2605 items, native parts         ", _KGI, keys=("count", "shapes", "first_entry", "matched", "entries"))
+kg_setup(items=lambda: [("kgtL", (["m%02d" % i for i in range(60)], "KernLeft")), ("kgtR", (["n%02d" % i for i in range(50)], "KernRight"))])
+_kg_i = call(_KGI)[1]["entries"]
+print("2605b items, 60 and 50 members     :", [(e["fields"][0], e["fields"][1]["values"][0]["length"], len(e["fields"][1]["values"][0]["values"]),
+                                                 e["fields"][1]["values"][0]["cut"], e["fields"][1]["values"][0]["values"][-1]) for e in _kg_i])
+kg_setup(groups_len_after=4, kerning_len_after=3)
+kgc("2606 items, lengths change       ", _KGI, keys=("groups_len_before", "groups_len_after", "groups_side_effect_detected", "kerning_len_before",
+                                                     "kerning_len_after", "side_effect_detected"))
+kg_setup(); kgc("2607 items with name: refused    ", "/debug/trykerngroups?stage=items&contains=kgtL&name=kgt1&go=yes")
+kg_setup(); kgc("2607b items, no go: nothing runs ", "/debug/trykerngroups?stage=items&contains=kgtL")
+kg_setup(calls=10); kgc("2607c items refused at the cap    ", _KGI)
+kg_setup(count=2); kgc("2607d items, two fonts open      ", _KGI)
+kg_setup(); call("/debug/trykerngroups?stage=tuples&contains=kgt1&go=yes"); print("2608 tuples calls values only     :", KG["calls"])
+kg_setup(); call(_KGI); print("2608b items calls items only      :", KG["calls"])
+print("2609 spy over the items cases     : forbidden:", KG["forbidden"], "| members touched anywhere:", sorted(KG["all"]))
+print("2609b stages                      :", ns["_TRYKERNGROUPS_STAGES"], "| stage=items in the module docstring:", "stage=items (v0.189)" in src[:src.index('"""', 3)])
+
+# ================= v0.190 (P1.6): GET / POST /kerning/groups, the product read of kerning groups (allow-list spies) =================
+print("\n==== v0.190 /kerning/groups ====")
+KG["forbidden"].clear(); KG["all"].clear()
+_KR_ITEMS = [("kgtL", (["kgt1", "kgt2"], "KernLeft")), ("kgtB", (["kgt5", "kgt6"], "KernBothSide")), ("kgtR", (["kgt3", "kgt4"], "KernRight"))]
+_KR_ALL = [(True, "kgtL", 5121, 0, ["kgt1", "kgt2"]), (True, "kgtR", 5122, 0, ["kgt3", "kgt4"]), (True, "kgtB", 5123, 0, ["kgt5", "kgt6"]),
+           (False, "kgtF", 5125, 0, ["kgt7", "kgt8"])]
+KR = {"cfg": {}}
+def kr_build():
+    c = KR["cfg"]
+    glen = c.get("groups_len", 3)
+    if c.get("groups_len_after") is not None: glen = _kg_len_seq(glen, c["groups_len_after"])
+    klen = c.get("kerning_len", 0)
+    if c.get("kerning_len_after") is not None: klen = _kg_len_seq(klen, c["kerning_len_after"])
+    container = c.get("groups", KGSpy("groups", ("items",), {"items": c.get("items_attr", _kg_track("items", c.get("items", lambda: list(_KR_ITEMS))))}, glen))
+    kerning = KGSpy("kerning", ("groups", "get"), {"groups": container, "get": lambda *a: None}, klen)
+    pkg = KGSpy("package", ("isNull", "masters", "master", "kerning", "getAllGroups", "path"),
+                {"isNull": lambda: False, "masters": c.get("masters", ["Regular"]), "master": "Regular", "path": c.get("pkg_path", "C:/x/kg.vfc"),
+                 "kerning": _kg_track("kerning", kerning), "getAllGroups": c.get("getall_attr", _kg_track("getAllGroups", c.get("getall", list(_KR_ALL))))})
+    names = c.get("glyph_names", ["kgt%d" % i for i in range(1, 9)])
+    glyphs = [KGSpy("glyph", ("name",), {"name": n}) for n in names]
+    info = KGSpy("info", ("familyName", "styleName"), {"familyName": "Unnamed", "styleName": "Regular"})
+    font = KGSpy("font", ("glyphs", "info", "path"), {"glyphs": glyphs, "info": info, "path": c.get("font_path", "C:/x/kg.vfc")})
+    return pkg, font
+def kr_setup(**cfg):
+    KR["cfg"] = dict(cfg); KG["cfg"] = dict(cfg); KG["calls"].clear()       # KG["cfg"]: KGWorkspace.packages() reads "packages" there
+    KG["pkg"], font = kr_build()
+    count = cfg.get("count", 1)
+    for _m in _tf_mods:
+        _m.flWorkspace = KGWorkspace
+        _m.CountFonts = (lambda: count)
+        _m.CurrentFont = (lambda: None) if cfg.get("cur") == "none" else (lambda: font)
+def krc(tag, path, keys=None):
+    c, d = call(path)
+    shown = d if keys is None else {k: d.get(k) for k in keys}
+    print(tag, ":", c, shown, "| calls", [x[0] for x in KG["calls"]])
+    return c, d
+def krp(tag, payload, keys=None, raw=False):
+    body = payload if raw else json.dumps(payload).encode("utf-8")
+    r = ns["_route"]("POST", "/kerning/groups", body); h, _, b = r.partition(b"\r\n\r\n")
+    c, d = h.split(b"\r\n")[0].decode()[9:12], json.loads(b)
+    shown = d if keys is None else {k: d.get(k) for k in keys}
+    print(tag, ":", c, shown, "| calls", [x[0] for x in KG["calls"]])
+    return c, d
+_KRG = ("groups", "glyphs", "errors", "member_names")
+kr_setup(); krc("2610 GET all                      ", "/kerning/groups?all=yes")
+kr_setup(); krc("2611 GET named groups, unknown    ", "/kerning/groups?groups=kgtL,kgtX,kgtF", keys=_KRG)
+kr_setup(); krc("2612 GET glyphs                   ", "/kerning/groups?glyphs=kgt5,kgt7,Q", keys=_KRG)
+kr_setup(); krc("2613 GET both, duplicates folded  ", "/kerning/groups?groups=kgtR,kgtR&glyphs=kgt1", keys=_KRG + ("mode",))
+kr_setup(); krp("2614 POST named                   ", {"groups": ["kgtB"], "glyphs": ["kgt3"]}, keys=_KRG + ("mode", "cross_check"))
+kr_setup(); krp("2614b POST all                    ", {"all_groups": True}, keys=("mode", "group_count", "member_names", "errors"))
+for _tag, _q in (("2615 no names                     ", "/kerning/groups"), ("2615b all with names             ", "/kerning/groups?all=yes&groups=kgtL"),
+                 ("2615c all=no                      ", "/kerning/groups?all=no"), ("2615d confirmed=1               ", "/kerning/groups?all=yes&confirmed=1"),
+                 ("2615e bad name                    ", "/kerning/groups?groups=kgt%20L"), ("2615f 64 characters             ", "/kerning/groups?glyphs=" + "x" * 64)):
+    kr_setup(); krc(_tag, _q)
+for _tag, _p in (("2616 POST extra key               ", {"groups": ["kgtL"], "evil": 1}), ("2616b POST not an object         ", ["kgtL"]),
+                 ("2616c POST groups a string        ", {"groups": "kgtL"}), ("2616d POST all_groups 1           ", {"all_groups": 1}),
+                 ("2616e POST confirmed 'yes'        ", {"all_groups": True, "confirmed_large_read": "yes"}), ("2616f POST a name not text       ", {"glyphs": [5]}),
+                 ("2616g POST empty object           ", {})):
+    kr_setup(); krp(_tag, _p)
+kr_setup(); krp("2616h POST invalid JSON           ", b"{nope", raw=True)
+kr_setup(); krp("2616i POST not UTF-8              ", b'{"groups": ["\xff"]}', raw=True)
+# the cross-check
+kr_setup(getall=[(True, "kgtL", 5121, 0, ["kgt2", "kgt1"]), (True, "kgtR", 5122, 0, ["kgt3"]), (True, "kgtZ", 9, 0, ["kgt8"])])
+krc("2617 members differ, order aside, list-only group", "/kerning/groups?all=yes", keys=("groups", "group_count", "member_names"))
+kr_setup(getall=RuntimeError("list boom")); krc("2618 class list fails           ", "/kerning/groups?groups=kgtL&glyphs=kgt1", keys=("cross_check",) + _KRG)
+kr_setup(getall_attr=5); krc("2618b class list not callable   ", "/kerning/groups?groups=kgtL", keys=("cross_check", "groups"))
+kr_setup(getall=KGSpy("allresult", (), {}, 3)); krc("2618c class list not a list    ", "/kerning/groups?groups=kgtL", keys=("cross_check", "groups"))
+kr_setup(getall=[(True, "kgtL", 5121, 0, ["kgt1", "kgt2"]), (True, "kgtL", 5130, 0, ["kgt1", "kgt2"]), (True, "kgtR", "x", 0, KGSpy("m", (), {})),
+                 "junk", (True, 7, 1, 0, []), (True, "kgtB", 5123, 0, ["kgt5", "kgt6"])])
+krc("2619 class list oddities        ", "/kerning/groups?all=yes", keys=("groups", "duplicate_names"))
+kr_setup(items=lambda: [("kgtL", (["kgt1", "kgt2"], "KernTop")), ("kgtL", (["kgt1", "kgt2"], "KernLeft")), ("kgtB", ["kgt5"]), "junk",
+                        ("kgtR", (["kgt3", KGSpy("m", (), {})], "KernRight")), ("kgtR", (["kgt3"], 5)), _KGTuple(("kgtX", (["a"], "KernLeft"))),
+                        ("kgtB", (_KGList(["kgt5"]), "KernBothSide"))])
+krc("2620 items oddities             ", "/kerning/groups?all=yes", keys=("groups", "group_count", "malformed_entries", "duplicate_names"))
+kr_setup(items=lambda: [("kgtL", KGSpy("pair", (), {}, 2)), ("kgtB", _KGTuple((["kgt5", "kgt6"], "KernBothSide"))), ("kgtR", (["kgt3", "kgt4"], "KernRight"))],
+         getall=[(True, "kgtL", 5121, 0), (True, "kgtB", 5123, 0, ["kgt5", "kgt6"], "x"), (True, "kgtR", 5122, 0, ["kgt3", "kgt4"])])
+krc("2620c a native pair, a tuple subclass, entries of 4 and 6", "/kerning/groups?all=yes", keys=("groups", "group_count", "malformed_entries"))
+kr_setup(items=lambda: [("kgtL", (["kgt1", "kgt2"], "KernTop"))], getall=[(True, "kgtL", 5121, 0, ["kgt1", "kgt2"])])
+krc("2620b an unknown side           ", "/kerning/groups?groups=kgtL&glyphs=kgt1", keys=_KRG)
+# items() failures: the whole read refused, with the sizes
+kr_setup(items=RuntimeError("items boom")); krc("2621 items raises               ", "/kerning/groups?groups=kgtL")
+kr_setup(items_attr=5); krc("2621b items not callable        ", "/kerning/groups?groups=kgtL", keys=("error",))
+kr_setup(items=lambda: KGSpy("itemsresult", (), {}, 3)); krc("2621c items not a list          ", "/kerning/groups?groups=kgtL", keys=("error",))
+kr_setup(items=lambda: _KGList(_KR_ITEMS)); krc("2621d items a list subclass     ", "/kerning/groups?groups=kgtL", keys=("error",))
+kr_setup(groups=RuntimeError("groups boom")); krc("2622 groups attribute raises    ", "/kerning/groups?groups=kgtL", keys=("error",))
+kr_setup(groups=_kg_track("groups()", [])); krc("2622b groups attribute callable ", "/kerning/groups?groups=kgtL", keys=("error",))
+kr_setup(groups_len_after=4); krc("2623 groups size changes        ", "/kerning/groups?groups=kgtL", keys=("side_effect_detected", "table_size"))
+kr_setup(kerning_len_after=1); krc("2623b table size changes        ", "/kerning/groups?groups=kgtL", keys=("side_effect_detected", "table_size"))
+kr_setup(groups_len=RuntimeError("len boom")); krc("2623c a size unreadable          ", "/kerning/groups?groups=kgtL", keys=("side_effect_detected",))
+# empty, threshold
+kr_setup(items=lambda: [], getall=[], groups_len=0); krc("2624 no groups at all           ", "/kerning/groups?all=yes", keys=("group_count", "groups", "member_names", "errors"))
+kr_setup(items=lambda: [], getall=[], groups_len=0); krc("2624b no groups, a glyph         ", "/kerning/groups?glyphs=kgt1", keys=("glyphs",))
+_kr251 = [("g%03d" % i, (["kgt1"], "KernLeft")) for i in range(251)]
+_kr251all = [(True, "g%03d" % i, i, 0, ["kgt1"]) for i in range(251)]
+kr_setup(items=lambda: list(_kr251), getall=list(_kr251all)); krc("2625 251 groups: confirmation    ", "/kerning/groups?all=yes", keys=("group_count", "needs_confirmation", "groups", "mode"))
+kr_setup(items=lambda: list(_kr251), getall=list(_kr251all)); c, d = call("/kerning/groups?all=yes&confirmed=yes")
+print("2625b 251 confirmed               :", c, len(d["groups"]), d["member_names"], d.get("needs_confirmation"), all(e["confirmed"] for e in d["groups"]))
+kr_setup(items=lambda: _kr251[:250], getall=_kr251all[:250]); c, d = call("/kerning/groups?all=yes")
+print("2625c exactly 250, no flag        :", c, len(d["groups"]), d.get("needs_confirmation"))
+kr_setup(items=lambda: list(_kr251), getall=list(_kr251all)); c, d = call("/kerning/groups?glyphs=kgt1")
+print("2625d named: no threshold here    :", c, len(d["glyphs"][0]["kerning_groups"]), d.get("needs_confirmation"))
+# fonts and gates
+for _tag, _over in (("2626 no font open                ", dict(count=0)), ("2626b CurrentFont None          ", dict(cur="none")),
+                    ("2626c two fonts, paths agree     ", dict(count=2)), ("2626d two fonts, paths differ    ", dict(count=2, pkg_path="C:/x/other.vfc")),
+                    ("2626e two fonts, unsaved         ", dict(count=2, font_path="", pkg_path="")), ("2626f two packages, one font    ", dict(packages=2))):
+    kr_setup(**_over); krc(_tag, "/kerning/groups?groups=kgtL", keys=("open", "error", "fonts_open", "matched_by", "groups"))
+kr_setup(masters=["Regular", "Bold"]); krc("2627 two masters                ", "/kerning/groups?groups=kgtL", keys=("master", "master_count"))
+kr_setup(glyph_names=["kgt1", "kgt1", "kgt2"]); krc("2627b a glyph name twice         ", "/kerning/groups?glyphs=kgt1", keys=("glyphs",))
+kr_setup(); _kr_real = ns["get_kerning_groups"]
+ns["get_kerning_groups"] = lambda *a: (_ for _ in ()).throw(RuntimeError("route boom")); krc("2628 function raises: HTTP 500  ", "/kerning/groups?groups=kgtL")
+krp("2628b POST function raises: 500 ", {"groups": ["kgtL"]}); ns["get_kerning_groups"] = _kr_real
+for _tag, _args in (("2629 direct: all_groups 'yes'    ", (None, None, "yes", False)), ("2629b direct: groups a string    ", ("kgtL", None, False, False)),
+                    ("2629c direct: native list        ", (KGSpy("names", (), {}), None, False, False))):
+    kr_setup(); print(_tag, ":", ns["get_kerning_groups"](*_args), "| calls", KG["calls"])
+kr_setup()
+for _p in ("/kerning/groups?all=yes", "/kerning/groups?groups=kgtL,kgtF&glyphs=kgt5"): call(_p)
+print("2630 spy over the route cases     : forbidden:", KG["forbidden"], "| members touched anywhere:", sorted(KG["all"]))
+_kr_src = src[src.index("# /kerning/groups (v0.190, P1.6)"):src.index("def _other_glyphs_with_unicode")]
+_kr_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _kr_src).splitlines())
+print("2631 static scan                  : method calls:", sorted(set(_re83.findall(r"\b(\w+\.\w+)\(", _kr_code))),
+      "| forbidden members:", _re83.findall(r"\.(?:keys|values|asDict|has_key|clear|remove|rename|set|save\w*|update|addGroup|deleteGroup\w*|autoKern)\b",
+                                            _kr_code.replace("out.update(", "").replace("entry.update(", "")),
+      "| items( / getter( calls:", [len(_re83.findall(r"\b" + f + r"\(", _kr_code)) for f in ("items_of", "getter")],
+      "| subscripts:", sorted(set(_re83.findall(r"\b(\w+)\[", _kr_code))), "| scanned chars > 5000:", len(_kr_src) > 5000)
+print("2632 route, docstring, activity    :", src.count('path == "/kerning/groups"') == 2, "/kerning/groups" in src[:src.index('"""', 3)],
+      ns["_ACT_READS"].get("/kerning/groups"), "| threshold", ns["_KGR_CONFIRM_ABOVE"], "| sides", ns["_KGR_SIDES"])
 for _m, _a, _v in _kg_saved:
     if _v is None:
         if hasattr(_m, _a): delattr(_m, _a)
