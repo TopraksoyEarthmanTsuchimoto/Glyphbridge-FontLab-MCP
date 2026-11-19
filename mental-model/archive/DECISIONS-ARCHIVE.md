@@ -118,8 +118,25 @@ Condensed on 2026-11-17 from three entries, all built; full text: [archive/DECIS
 
 ## Budget history (moved from MARKDOWN-MAP on 2026-11-17)
 
-The budget history as MARKDOWN-MAP.md held it, moved unchanged except for the link paths. Later changes: [DECISIONS.md](../DECISIONS.md).
+The budget history as MARKDOWN-MAP.md held it, moved unchanged except for the link paths. Later changes: [DECISIONS.md](../DECISIONS.md) until 2026-11-20; since then the section "Budget changes since 2026-11-13" at the end of this file.
 
 Not core, but budgeted: the root [README.md](../../README.md), the end-user install guide, has a budget of 500, and [WATCH-POINTS.md](../WATCH-POINTS.md) a budget of 2,500 (2026-11-03, raised from 750 to 950 and then to 1,250 the same day, [archive/DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md); 2026-11-04, raised to 1,500, the same archive; 2026-11-09, raised to 1,800, the same archive, and then to 2,200, [archive/DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md); 2026-11-14, raised to 2,500, [DECISIONS.md](../DECISIONS.md)). [WHAT-WORKS.md](../WHAT-WORKS.md) has a budget of 2,500 (2026-11-09, 1,500, [archive/DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md); 2026-11-10, raised to 1,700, the same archive; 2026-11-12, raised to 2,000, the same archive; 2026-11-17, raised to 2,250 and then to 2,500, [DECISIONS.md](../DECISIONS.md)).
 
 **Reference totals:** 13,450 words including the root README, and 12,950 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. On 2026-11-01, CLAUDE.md (200) was added, CHECKLIST.md was raised from 1,000 to 1,300 and CURRENT-STATUS.md from 800 to 1,250. On 2026-11-03, CURRENT-STATUS.md was raised to 1,350 and DECISIONS.md from 1,200 to 1,350, then to 1,450 and 1,700 (those entries are in [archive/DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md)). On 2026-11-04, CURRENT-STATUS.md was raised to 1,600 and then 1,800, DECISIONS.md to 1,900 and then 2,000, and CHECKLIST.md to 1,400 ([archive/DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md)). On 2026-11-09, CURRENT-STATUS.md was raised to 2,000 and DECISIONS.md to 2,200 ([archive/DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md)). On 2026-11-12, CURRENT-STATUS.md was raised to 2,200 ([archive/DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md)). On 2026-11-13, CURRENT-STATUS.md was raised to 2,500 ([DECISIONS.md](../DECISIONS.md)). On 2026-11-14, PROJECT.md was raised from 850 to 1,000 and MARKDOWN-MAP.md from 900 to 1,000, then DECISIONS.md from 2,200 to 2,500 ([DECISIONS.md](../DECISIONS.md)). On 2026-11-17, DECISIONS.md was raised from 2,500 to 2,800, then CURRENT-STATUS.md from 2,500 to 2,750 and later to 3,000, and CHECKLIST.md from 1,400 to 1,500, and DECISIONS.md from 2,800 to 3,000 ([DECISIONS.md](../DECISIONS.md)).
+
+## Budget changes since 2026-11-13
+
+Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
+
+### 2026-11-20: CODEX.md budget 350
+
+A new startup core file at its first budget; the file's own decision stays in [DECISIONS.md](../DECISIONS.md) ("CODEX.md, notes for Codex only"). Reference totals then 15,400 and 14,700.
+
+### 2026-11-20: AGENTS.md budget 950 → 1,100
+
+The user's choice, at 1,054 words, over moving the "Commands" section to RUNBOOK.md. *Reason:* AGENTS.md gained general rules from a review of another agent's session and from Claude's private memory; it is the one file every agent loads, so its rules stay in it.
+
+### 2026-11-13 to 2026-11-18: word budgets
+
+Condensed on 2026-11-17 and 2026-11-18; each raise in full, with the file's word count at the time: [archive/DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md). Current budgets: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
+- **Every raise was the user's choice; nothing was trimmed or moved for any of them.** CURRENT-STATUS.md 2,500, 2,750, 3,000; DECISIONS.md 2,500, 2,800, 3,000, 3,500, 4,000 (the active part; 4,000 on 2026-11-18 at 3,326 words, after the tidy-up); PROJECT.md 1,000; MARKDOWN-MAP.md 1,000; WATCH-POINTS.md 2,500; WHAT-WORKS.md 2,250, 2,500, 3,000; CHECKLIST.md 1,500 (chosen over moving "How to test a scenario" to RUNBOOK.md), 1,750; root README.md 600 (2026-11-18 at 494 words, chosen over moving the macOS section, to make room for the ChatGPT Desktop install step), 700 (the same day at 595 words, so that every AI app gets an equal install section).

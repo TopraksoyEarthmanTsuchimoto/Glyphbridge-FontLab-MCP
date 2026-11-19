@@ -1151,7 +1151,48 @@ Reading (one run): the product tool removes a glyph : glyph exception over a cla
 | **T7** | Multi-layer / multi-master glyph: which layer `Update` and the reader address (P1.3) | a font with two masters or layers | names-only probes first | OPEN |
 | **T8** | Quadratic (TrueType) font: `Update`, the reader, `draw_path` meaningful? (P2.3; real quadratic data can be READ from Arial opened from the system) | Arial from the system, read-only first | `Off` runs read; `unverified` expected for quadratic | OPEN |
 | **T9** | Save and reopen after API work, including a NEW font from `flPackage()` and an auto-synced glyph: do shapes, widths, sidebearings and layer survive? (test 135 and all File > Save tests) | the person saves a COPY | everything survives | **run on a font made with File > New Font: 707–712, plain tool-made glyphs survive exactly, a Power Brush glyph's nodes change at load ([topics/reading.md](topics/reading.md) §8p); open contours survive exactly: 755–764; a font made by `flPackage()`: the same, 772–778; KW 557–560 for kerning; save tests by preference only, with the user's agreement ([DECISIONS.md](DECISIONS.md))** |
-| **T10** | Older live checks still open (P3): `create_glyph('uni00e8')` shows the lowercase-hex warning; `.notdef` items (explicit `check_notdef` through Claude, the `missing` dialog on a throwaway font, a timed-out write while a dialog is open (checklist 19), a wait between 90 and 120 s); `set_glyph_width` on a glyph whose layer exists but is inactive (checklist 44) | per checklist rows 18, 19, 20, 44 | as in the checklist | OPEN, cheap |
+| **T10** | Older live checks still open (P3): `create_glyph('uni00e8')` shows the lowercase-hex warning; `.notdef` items (explicit `check_notdef` through Claude, the `missing` dialog on a throwaway font, a timed-out write while a dialog is open (checklist 19), a wait between 90 and 120 s); `set_glyph_width` on a glyph whose layer exists but is inactive (checklist 44) | per checklist rows 18, 19, 20, 44 | as in the checklist | PARTLY 2026-11-19: checklist #20 done live 1403; the other T10 checks remain open |
 | **T11** | Rotation and mirroring transforms on real data (checklist 12c / 12d / 12e, 13, 14): with v0.88 the margin comparison also has to hold for them | reference glyphs built by the person with the Element tool | `margins_agree: true`, `verified` | PARTLY: rotation of components `verified`, 765–771 (RT series); mirroring, combined, Power Brush OPEN |
 | **T12** | After P0.2 is built: with NO font open every tool answers `open: false` (no placeholder `Paper` font); stub tests with a faked `CountFonts()` first | restart FontLab, no font open | `open: false` everywhere | PARTLY 2026-11-02 (listener 0.105, server 0.34), test 227: Arial closed in a running FontLab: `fontlab_status` `font_open: false`, `get_glyph_width A` and `create_glyph kn6A` refused with "no font is open"; OUTPUT `reads: no font open: font info 1, width 1` and `REFUSED create kn6A: no font is open`. Test 244 (2026-11-03, listener 0.110): a freshly started FontLab, every read route `open: false` (K13). Open: delete, sidebearings, Unicode and drawing live (stub only) |
 | **T13** | LAST block (user decision): big glyphs: time of `Update` on 180 / 990 nodes against the 5 s tool timeout; near-cap (1980 nodes) request, 2001-node refusal, real timings with `Measure-Command`, the outline route on 1000+ nodes (needs P2.4), a real large glyph (checklist 17, 42) | disposable font | see the LAST block | POSTPONED to the very end |
+
+### T10 follow-up: lowercase-hex glyph name (checklist #20, 2026-11-19)
+
+**1403** (`fontlab_status`): listener reachable, no font open; connected server 0.76, listener 0.192. **Setup:** `create_font` made an unsaved `Unnamed Regular` font, one master (`Regular`), one glyph (`.notdef`), FontLab 8.9.5 Demo mode. No File > Save stage.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1403 | `create_glyph('uni00e8')` | created, glyph count 1 → 2, FontLab assigns U+00E8 (232), `name_warnings` recommends `uni00E8`; new layer `Regular` | all as expected: `created: true`, `unicode: 232`, `unicode_status: assigned`, `unicode_assigned_by_fontlab: true`, `layer_created: Regular`, `layer_name_source: package master`, synced; warning: “The name uses lowercase hex digits; the naming convention requires UPPERCASE (use 'uni00E8'). FontLab maps lowercase hex anyway (seen live: 'uni00e8' -> 232), but other tools may not.” The GUI Unicode display was not separately checked |
+| 1403 | `finish_changes` | one package reminder; nothing saved | `changes_in_package: 2` (font creation and glyph creation), 0 uncertain; save reminder returned and shown in chat |
+
+The "Predicted" column was filled in after the run: no prediction was stated in chat beforehand. Read it as the behaviour expected from the code, not as a prediction tested by this run.
+
+Reading (one run): the lowercase-hex warning appears and FontLab assigns 232 to `uni00e8`. The test font remains unsaved and disposable.
+
+### Checklist #38 follow-up: `draw_polygon` rounding report (2026-11-19)
+
+**1404** (`fontlab_status`): `Unnamed Regular`, one font open, one master; connected server 0.76, listener 0.192. The existing disposable font from 1403 was unsaved and held `.notdef` and `uni00e8`. A fresh prefix `r38a` was used. FontLab 8.9.5 Demo mode; no File > Save stage.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1404 | `create_glyph('r38a')`; `draw_polygon('r38a', [[10.2,20.2],[110.7,20.2],[110.7,220.7],[10.2,220.7]])` | glyph count 2 → 3; eight changed coordinates reported; verified outline `(10,20)`, `(111,20)`, `(111,221)`, `(10,221)` | all as expected: `drawn: true`, `verified: true`, 4 points, 1 contour, 1 shape, 4 nodes, `coordinates_rounded` contained the eight requested/used values and `rounding_note` stated Rule B; readback metrics left 10, ink width 101; synced. The editor panel was not separately inspected |
+| 1404 | `finish_changes` | one package reminder; nothing saved | `changes_in_package: 2`, 0 uncertain; save reminder returned and shown in chat |
+
+The "Predicted" column was filled in after the run: no prediction was stated in chat beforehand. Read it as the behaviour expected from the code, not as a prediction tested by this run.
+
+Reading (one run): the reply reports every fractional coordinate that changed and the outline verifies at the rounded positions. The disposable font remains unsaved.
+
+### Checklist #16: an empty glyph against the layerless `.notdef` (2026-11-19)
+
+**Setup:** `fontlab_status`: no font open; server 0.77, listener 0.192, FontLab 8.9.5 Demo mode. The user opened Arial Regular from the system (4,652 glyphs; `.notdef` index 0, `_001`, `_002`, `space` index 3), then made a font with File > New Font (`Unnamed Regular`, `.notdef` only, so no `space` there). Instrument: `GET /glyph/outline?name=X&modern=no` (read-only, ungated): a glyph with no layer answers `layer_name: null`, `layer_count: 0`; one with a layer names it. No glyph was clicked before the API reads; nothing was written or saved; no File > Save stage. Each prediction was written in chat before its read; FontLab's OUTPUT panel logged each read (`reads: outline 1`).
+
+| # | Font in front | Glyph | Predicted | Result |
+|---|---|---|---|---|
+| 1405 | Unnamed | `.notdef` (zero-layer control) | `layer_name: null`, `layer_count: 0`, 0 nodes | as predicted; `component_count: 0` |
+| 1406 | Arial | `.notdef` (has-a-layer control) | a named layer, 8 nodes, 2 contours | as predicted: `Regular`, 8 nodes, 2 contours (the squares (256,0)–(1280,1280) and (288,32)–(1248,1248)) |
+| 1407 | Arial | `space` (the question) | `Regular`, 0 nodes | as predicted: `Regular`, 0 nodes, 0 shapes, 0 components, width 569 |
+| 1408 | Unnamed | `.notdef` again, after the user selected it in the Font window | still no layer | as predicted: `layer_count: 0`; the Layers & Masters panel listed no row |
+
+GUI (after the reads): with Arial's `space` selected, the Layers & Masters panel listed one row, `Regular`; the status bar showed width 569 and `#0020`. The layerless `.notdef` was shown with width 250.
+
+Reading (one run): Arial's empty `space` has one empty layer; it is not layerless like the empty `.notdef` of a font made with File > New Font. The Layers panel agrees with the API in both cases, and selecting a glyph in the Font window does not create a layer. Not run: an empty glyph made by FontLab other than `.notdef` (for example Font > New Glyph… in a new font), other imported fonts.

@@ -47,9 +47,8 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 15, 40, 51 | A real designed letter (Arial `O`, `S`, `g`, `eacute`), read-only | TODO (P1.5), under about 150 nodes each |
 | 4 | Back To PS Curves round trip | TODO |
 | 5 | The "To Line" route itself (straight polygons already read back) | PARTLY |
-| 16 | Other empty glyphs (e.g. `space`): zero layers like `.notdef`? | TODO |
+| 16 | Other empty glyphs (e.g. `space`): zero layers like `.notdef`? | PARTLY: Arial's `space` has one empty layer (`Regular`, 0 nodes), unlike the layerless `.notdef` of a File > New Font font; API and Layers panel agree (1405–1408, one run). Open: an empty glyph made by FontLab other than `.notdef`, other imported fonts |
 | 18 | `.notdef` remainders: explicit `check_notdef` through Claude, a drawn `.notdef`, the `missing` dialog, waits of 90–120 s and over 120 s | PARTLY: a drawn `.notdef`: `draw_path`, 3 contours, layer created, verified (926, one run) |
-| 20 | `create_glyph('uni00e8')` shows the lowercase-hex warning in its v0.17 wording | TODO (T10) |
 
 ## Writing gaps
 
@@ -64,7 +63,6 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 43 | `draw_path` in a quadratic font | TODO, low (T8) |
 | 44 | `set_glyph_width` with an existing but inactive layer | TODO (T10), stub-tested |
 | 19 | A write that times out while a dialog is open: applied after OK? | TODO (T10) |
-| 38 | `draw_polygon` rounding report, live | TODO |
 | 39 | Smooth gate leftovers: very short handles, zero-length handle on a non-smooth node | optional (P2.5) |
 | 36 | The layer guard's own refusal path | stub-only. Accepted: not worth more live effort |
 

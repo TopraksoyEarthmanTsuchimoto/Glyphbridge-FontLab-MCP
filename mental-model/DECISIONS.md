@@ -2,6 +2,12 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+**Budget changes are not recorded here** (the user's choice of 2026-11-20, unlike HOW-TO-GET-ORGANIZED.md): each one, with its date and reason, goes to "Budget history" in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md); current values are in [MARKDOWN-MAP.md](MARKDOWN-MAP.md). *Reason:* a budget's history is not an active decision, and its rules are in [AGENTS.md](../AGENTS.md).
+
+## 2026-11-20: CODEX.md, notes for Codex only
+
+A root file beside CLAUDE.md, named in AGENTS.md's startup line. *Reason:* Codex loads only one instruction file per folder (AGENTS.md here) and has no import syntax, per its documentation; named CODEX.md after the agent, not the app. Rules for every agent stay in AGENTS.md.
+
 ## 2026-11-19: removing kerning pairs, `remove_kerning` (research listener 0.191, KD 1380–1390, KDC 1391–1397; built listener 0.192 / server 0.76)
 
 - **A tool of its own; `set_kerning` stays unchanged.** *Reason:* removing is a different act from setting a value; a separate name keeps an agent from removing a pair by passing 0; `set_kerning` is live-proven.
@@ -76,11 +82,6 @@ Condensed on 2026-11-17 from three entries; full text: [archive/DECISIONS-ARCHIV
 ## 2026-11-14: editing existing glyphs
 
 - **AI agents must be able to edit an existing glyph through Glyphbridge: move nodes, add a contour to an existing shape, redraw an outline in place; in the end, every kind of glyph manipulation.** Every edit is verified by a re-read, and the layer guard's refusal is lifted only by a tool built for that edit. *Reason:* the user's requirement; today an agent must delete a glyph and draw it again.
-
-## 2026-11-13 to 2026-11-18: word budgets
-
-Condensed on 2026-11-17 and 2026-11-18; each raise in full, with the file's word count at the time: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Current budgets: [MARKDOWN-MAP.md](MARKDOWN-MAP.md).
-- **Every raise was the user's choice; nothing was trimmed or moved for any of them.** CURRENT-STATUS.md 2,500, 2,750, 3,000; DECISIONS.md 2,500, 2,800, 3,000, 3,500, 4,000 (the active part; 4,000 on 2026-11-18 at 3,326 words, after the tidy-up); PROJECT.md 1,000; MARKDOWN-MAP.md 1,000; WATCH-POINTS.md 2,500; WHAT-WORKS.md 2,250, 2,500, 3,000; CHECKLIST.md 1,500 (chosen over moving "How to test a scenario" to RUNBOOK.md), 1,750; root README.md 600 (2026-11-18 at 494 words, chosen over moving the macOS section, to make room for the ChatGPT Desktop install step), 700 (the same day at 595 words, so that every AI app gets an equal install section).
 
 ## 2026-11-13: a package is told apart by its fgId (listener 0.150 / server 0.62)
 

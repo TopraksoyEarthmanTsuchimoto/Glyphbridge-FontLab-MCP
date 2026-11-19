@@ -2,6 +2,8 @@
 
 Rows closed since the v11 matrix, moved from [CHECKLIST.md](../CHECKLIST.md) on 2026-11-06, newest first. Each row's scenario is in [scenarios-checklist-v11.md](scenarios-checklist-v11.md); the evidence is in the topic files and [LIVE-TESTS.md](../LIVE-TESTS.md). When a row is closed, add its date, number and tests here.
 
+Closed on 2026-11-19: row 20 (lowercase-hex warning, live 1403), row 38 (`draw_polygon` rounding report, live 1404).
+
 Moved on 2026-11-11: row 84 (FontLab's changed icon after a kerning write) to [RUNBOOK.md](../RUNBOOK.md) §13 as the standing retest 3g; blue at once since listener 0.136 / server 0.56 (748–753).
 
 Closed on 2026-11-10: row 32 (save and reopen after tool-drawn geometry, tests 707–712; on a font made with File > New Font, one master).

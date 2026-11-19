@@ -47,12 +47,14 @@ points to `check_notdef`.
 - **Long wait:** with the dialog left open for 90 s the tool call stayed pending and Claude answered only after the click. So
   Claude Desktop's own tool-call limit is at least 90 s (its exact value is unknown); the server gives up at 120 s by design (the
   automatic check then reports `check_failed`; that path has not been seen live).
+- **An empty glyph is not always layerless** (1405–1408, 2026-11-19, one run): Arial's `space` has one empty layer (`Regular`, 0 nodes),
+  while the empty `.notdef` of a File > New Font font has none; the legacy outline read (`modern=no`) and the Layers panel agree. Selecting the glyph did not add a layer.
 - **Blocking:** with the dialog open, `GET /health` timed out after 5 s: the listener serves nothing during a dialog (no re-entrancy, so no stacked dialogs).
 
 **Not yet verified on real FontLab:** the explicit `check_notdef` tool and `get_glyph_outline(".notdef")` through Claude Desktop
 (restart the listener first, which resets the once-per-font memory); a wait between 90 and 120 s and one beyond 120 s (the server
-then gives up); a font with a drawn `.notdef` through Claude Desktop (no dialog expected; follows from the GET result); the `missing` dialog (stub-tested only; do not delete `.notdef` from a font that matters); whether other glyphs with
-no outline (e.g. `space`) also have 0 layers (the outline route now answers `node_count` 0 for any zero-layer glyph); multi-layer
+then gives up); a font with a drawn `.notdef` through Claude Desktop (no dialog expected; follows from the GET result); the `missing` dialog (stub-tested only; do not delete `.notdef` from a font that matters); whether empty glyphs
+made by FontLab other than `.notdef` have 0 layers (Arial's `space` has one, above; the outline route answers `node_count` 0 for any zero-layer glyph); multi-layer
 `.notdef`; `hasBody()`; whether a WRITE that timed out while a dialog was open is still executed after the click (the request waits in the
 listener's socket queue; untested, which is why the timeout message says to check the state before repeating a change). One related observation from the v0.51 session:
 after a Claude Desktop restart, a `create_glyph` call and then a read-only `list_glyphs` call each got no answer for 4 minutes (an unanswered Allow prompt was the likely cause); the font was

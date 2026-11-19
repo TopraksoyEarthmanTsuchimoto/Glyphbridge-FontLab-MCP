@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.76)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.77)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.76"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.77"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1430,9 +1430,10 @@ _KERN_SET_INSTRUCTION = (
     "Each pair marked set was written as a glyph : glyph entry in the current master's kerning table (master names it) and verified "
     "by re-reading it. 'before' is the value FontLab applied before, with its source; 'after' is the value now. exception_over_class "
     "true means the pair had a class value before: the new entry is an exception for these two glyphs only. Tell the person these "
-    "facts about kerning written this way: {panel} {save} (3) Edit > Undo cannot take it back; to revert, call set_kerning again with the "
-    "'before' value.{lag} A pair that had no entry (source 'none') cannot be removed again: setting it to 0 leaves an explicit zero "
-    "entry. Other masters, classes and feature-based kerning were not changed."
+    "facts about kerning written this way: {panel} {save} (3) Edit > Undo cannot take it back; to revert, if 'before' was a glyph : glyph "
+    "entry call set_kerning again with that value; if it was 'none' or a class value, call remove_kerning to remove the new glyph : glyph "
+    "entry and restore the prior state.{lag} Setting a pair to 0 leaves an explicit zero entry; remove_kerning removes the glyph : glyph entry. "
+    "Other masters, classes and feature-based kerning were not changed."
 )
 
 
@@ -4440,7 +4441,9 @@ def set_kerning(pairs: list[list[Any]], confirmed_large_write: bool | None = Non
     reply says which applies. Unsaved they are lost when the font is closed. Since
     listener 0.134 the reply's fontlab_changed_mark says that FontLab was told of the change; with an older listener, or when the
     reply has save_question_note, FontLab asks no save question for them, so they are lost silently.
-    Edit > Undo cannot take them back (to revert, set the 'before' value again). It changes the current font, the one whose window is in front; with several fonts
+    Edit > Undo cannot take them back. To revert: if 'before' was a glyph : glyph entry, call set_kerning again with that value;
+    if it was 'none' or a class value, call remove_kerning to remove the new glyph : glyph entry and restore the prior state.
+    Setting a pair to 0 leaves an explicit zero entry. It changes the current font, the one whose window is in front; with several fonts
     open it refuses when that font cannot be matched to its kerning table (for example a new, unsaved font). Other masters,
     classes and feature-based kerning are not changed. Needs listener v0.124.
 

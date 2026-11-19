@@ -26,7 +26,7 @@ at most 63 characters). Not probed: quotes, backslash, `[ ] { } < > , ; ? ^ |` a
 gives advice that fits (accented letter -> `eacute` / `uni00E9`; spaces -> `_` or `-`; punctuation -> leave out). The listener check `created_under_other_names` stays as a safety net (live: the error then says
 that FontLab DID create a glyph, under which name). When a single-character or `uniXXXX` / `uXXXX` name comes back unencoded, the listener scans for holders (the server passes `scan_unicode`) and the
 instruction tells the agent to ask the person, not to set it. For a plain multi-character name that comes back unencoded (it may be an Adobe Glyph List name FontLab skipped, e.g. `eacute`) the instruction
-warns about the skip rule. Lowercase-hex names get a hint (convention says UPPERCASE; FontLab maps them anyway; other tools may not).
+warns about the skip rule. Lowercase-hex names get a hint (convention says UPPERCASE; FontLab maps them anyway; other tools may not). Seen live in its full wording: `create_glyph('uni00e8')` returned the hint naming `uni00E8`, and FontLab assigned 232 (1403, 2026-11-19; one run, one master, Demo mode).
 
 **Not tested / open:** secondary codepoints (`glyph.unicodes`; the scan reads only the primary `glyph.unicode`); standard Adobe Glyph List names that FontLab does not map at all (the server cannot tell them
 from non-standard names); the stripped-character set beyond the list above; an older listener with a newer server (decided: no practical benefit; the `compatibility_note` and the `unknown` /

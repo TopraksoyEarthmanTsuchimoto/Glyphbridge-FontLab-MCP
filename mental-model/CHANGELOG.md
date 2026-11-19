@@ -4,6 +4,11 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Server v0.77 (2026-11-19): corrected `set_kerning` revert guidance
+
+- Server: the `set_kerning` agent guidance now explains when to use `set_kerning` versus `remove_kerning` to restore the prior glyph : glyph state, including an underlying class value; the `set_kerning` tool description gives the same advice. The server only reports the state the listener confirms.
+- No listener or FontLab API behavior changed. This guidance correction was not tested in real FontLab.
+
 ## Listener v0.192 / server v0.76 (2026-11-19): `remove_kerning`, removing glyph : glyph kerning pairs
 
 **The design of the user's six answers of 2026-11-19 ([DECISIONS.md](DECISIONS.md)), built as approved.** Not yet run live. Research: KD 1380–1390, KDC 1391–1397 ([topics/kerning.md](topics/kerning.md) §16).
