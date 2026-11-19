@@ -1116,6 +1116,18 @@ Reading (one run each): `remove` deletes exactly one glyph : glyph entry in both
 
 Reading (one run): removing a glyph : glyph exception takes out only that entry, and FontLab then applies the class value again; the panel shows the class row after the refresh. Probe calls: 5 of 10. The font `Unnamed` holds `kd1L`, `kd1R`, `kd1S` (boxes, width 500), the class `kdcL` {kd1L, kd1S} and the class pair `kdcL : kd1R` -80.
 
+### RK series: `remove_kerning` live (2026-11-19, listener 0.192 / server 0.76, FontLab 8.9.5 in Demo mode, through a NEW Claude Code session with the 0.76 tool description; the KD font `Unnamed`, one font open, one master; one run each; no File > Save stage, nothing saved)
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1398 | `fontlab_status`; `get_kerning` `kd1L:kd1R`, `kd1S:kd1R`, `kd1R:kd1L`; `get_kerning_groups` `kdcL` | -80 `class : glyph` (`kdcL`) twice, `none`, `table_size` 1; `kdcL` left {kd1L, kd1S} | as predicted (the exception had gone in 1395); `kdcL` id 5130, `confirmed` |
+| 1399 | setup: `set_kerning` `kd1L:kd1R` -50 | before -80 `class : glyph`, after -50 `glyph : glyph`, `exception_over_class`, table 1 → 2, mark and refresh | as predicted; mark via `kd1L` |
+| 1400 | `remove_kerning` `kd1L:kd1R`, `kd1S:kd1R`, `kd1R:kd1L` | the first `removed`, -50 `glyph : glyph` → -80 `class : glyph`, `class_value_applies`; the second `no entry`, its note naming `kdcL` -80; the third `no entry`, a plain note; table 2 → 1; mark and refresh | as predicted: `removed_count` 1, `no_entry_count` 2; mark via `kd1L`, `glyph_has_changes` true; refresh called |
+| 1401 | `get_kerning` the same three pairs | -80, -80 `class : glyph`, `none`, `table_size` 1 | as predicted |
+| 1402 | the user's screenshot: KERNING panel, kerning bar, OUTPUT, the font tab | only the class row; the removed row gone at once; the changed icon blue | the panel `kdcL` (2) `kd1R` -80, footer 1; the bar `kdcL -80 kd1R`; OUTPUT `kerning remove 3 pairs: 1 removed, 2 had no entry (verified)`. The tab icon looked changed, but 1399 had already marked the font, so this says nothing about a removal alone |
+
+Reading (one run): the product tool removes a glyph : glyph exception over a class, reports the class value that applies again, reports pairs with no entry without stopping the others, and the KERNING panel follows at once. Not checked: the save question for a removal alone (needs a save to clear the mark first; not possible in Demo mode), Edit > Undo, other masters, several fonts, the 250-pair approval (stub only). The font `Unnamed` holds `kd1L`, `kd1R`, `kd1S` (boxes, width 500), the class `kdcL` {kd1L, kd1S} and the class pair `kdcL : kd1R` -80, as after 1397.
+
 ### T-series (after the K-series unless the user chooses otherwise; the commands A2 / A3 are in [RUNBOOK.md](RUNBOOK.md): T3 ran as tests 256–258, T4 as 145a–c and 259)
 
 | Id | Test | Stage / how | Expected | Status |
