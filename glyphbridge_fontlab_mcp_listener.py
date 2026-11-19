@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.190)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.192)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -120,6 +120,11 @@ Routes (GET unless marked POST):
                                 lists such pairs only after save and reopen; since v0.134 a write that changed an entry makes
                                 one notification through a glyph of a changed pair (fontlab_changed_mark); since v0.136 it also
                                 asks FontLab to refresh the KERNING panel (fontlab_panel_refresh)
+    POST /kerning/remove        {"pairs": [[left, right], ...]} (v0.192): removes glyph : glyph entries of the current master's
+                                table, remove(((left, False), (right, False))), each verified by re-reading (the entry gone,
+                                len() one lower); a pair with no such entry is "no entry" and the request goes on; all checks
+                                before the first removal; stops at the first pair not confirmed; then the mark and the panel
+                                refresh of /kerning/set
     /kerning/pairs?pairs=A:V,T:o  or  ?text=AVATAR
                                 FontLab's effective kerning per pair from the current master's table
                                 (v0.104), class kerning included; source says which kind of entry
@@ -168,6 +173,8 @@ Routes (GET unless marked POST):
                           &mode=flags&flags=FF|FT|TF|TT asks get(((a, flag), (b, flag))); a side flagged T may name a class
     /debug/trysetkern     WRITES: a=A&b=B&value=N&form=tuple|flags: ONE set() of one glyph pair on flPackage.kerning(master),
                           with get() before and after; glyph names only, no group of that name, |N| <= upm; 10 per listener run (v0.122)
+    /debug/trydelkern     WRITES: a=A&b=B&form=tuple|flags: ONE remove() of one glyph pair on flPackage.kerning(master), with get()
+                          and len() before and after; glyph names only, no group of that name; no mark, no refresh; 10 per run (v0.191)
     /debug/trykernrefresh stage=container|update|changed: ONE flPackage.kerningContainer(), then fontlab.Update(container) or
                           container.changed(); flags and table size before and after; 6 per listener run (v0.123)
     /debug/trykerngroups  stage=all|modes|tuples|items&contains=a,b,c or stage=glyph&name=N: kerning group members and sides
@@ -269,7 +276,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.190"
+VERSION = "0.192"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -4430,6 +4437,124 @@ def set_kerning_pairs(pairs):
             "set_count": sum(1 for e in results if e.get("set") is True), "stopped": stopped,
             "table_size_before": len_before, "table_size_after": len_after,
             "table_size_as_expected": (len_after - len_before == new_entries) if None not in (len_before, len_after, new_entries) else None,
+            "results": results, "fontlab_changed_mark": mark, "fontlab_panel_refresh": refresh}
+
+
+def remove_kerning_pairs(pairs):
+    """v0.192 - REMOVES glyph : glyph kerning entries from the current master's table of the current font (the design of 2026-11-19,
+    DECISIONS.md; research KD 1380-1390, KDC 1391-1397, topics/kerning.md section 16). pairs: a list of [left, right], glyph names only,
+    each pair once. Every check runs before the first removal, and a failed one refuses the whole request with nothing removed: the font
+    and its table are matched as /kerning/pairs matches them (_kern_table_target), both names are glyphs of the font, and remove is
+    reachable. Then per pair, in order: the effective value before (_kern_effective) and the exact glyph : glyph entry. No such entry:
+    "no entry", nothing called, and the request goes on (the class and value that still apply are in 'before'). Otherwise ONE
+    remove(((left, False), (right, False))) - the flags form names both sides as glyphs (defect B); its return value says nothing about
+    the outcome (True for the tuple form, None for this one, 1387 against 1390) and is ignored - then the exact entry, len() and the
+    effective value again. A pair is "removed" only when the call raised nothing, the exact entry reads None and len() dropped by exactly
+    one; class_value_applies says that a class value applies after it (KDC 1396). The first pair not confirmed stops the request; the
+    pairs after it are "not attempted". Kerning members used: get, remove (one per pair with an entry) and len(); never set, clear,
+    setPlainPairs, add*, delete*, rename*, scale or a whole-table read; no Update(), font.update() or save. After a removal that changed
+    the table: the mark (_mark_font_changed_after_kerning) and the panel refresh (_refresh_kerning_panel), as set_kerning_pairs; the panel
+    keeps a removed row without the refresh (1385, 1386). Edit > Undo is not known to take it back."""
+    if not isinstance(pairs, list) or not pairs:
+        return _kern_bad('"pairs" must be a non-empty list of [left, right]')
+    wanted, seen = [], set()
+    for i, item in enumerate(pairs):
+        if not isinstance(item, list) or len(item) != 2 or not _kern_name_ok(item[0]) or not _kern_name_ok(item[1]):
+            return _kern_bad(f"pair {i + 1} must be [left, right] with two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -")
+        if (item[0], item[1]) in seen:
+            return _kern_bad(f"pair {i + 1} ({item[0]}:{item[1]}) is asked more than once in this request")
+        seen.add((item[0], item[1]))
+        wanted.append((item[0], item[1]))
+    count = None
+    try:
+        counter = getattr(fl, "CountFonts", None)
+        if callable(counter):
+            got = counter()
+            if isinstance(got, int) and not isinstance(got, bool):
+                count = got
+    except Exception:
+        count = None
+    if count == 0:
+        return {"open": False}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    _note_request_font(font, count)
+    if count is None or count < 1:
+        return {"open": True, "error": "the number of open fonts could not be read as a positive number, so the kerning table cannot be "
+                                       "matched to the current font; nothing was removed"}
+    target, why = _kern_table_target(font, count)
+    if target is None:
+        return {"open": True, "error": f"{why}; nothing was removed"}
+    pkg, master, kerning, getter, by_name = target["pkg"], target["master"], target["kerning"], target["getter"], target["by_name"]
+    missing = sorted(set(nm for a, b in wanted for nm in (a, b) if nm not in by_name))
+    if missing:
+        return {"open": True, "error": "no glyph named " + ", ".join(repr(m) for m in missing) + " in the current font; nothing was removed"}
+    try:
+        remover = kerning.remove
+    except Exception as exc:
+        return {"open": True, "error": f"the kerning table's remove is not reachable ({type(exc).__name__}: {exc}); nothing was removed"}
+    if not callable(remover):
+        return {"open": True, "error": "the kerning table's remove is not callable; nothing was removed"}
+    groups = {}
+    len_before = _kern_len(kerning)
+    results, stopped = [], False
+    for left, right in wanted:
+        entry = {"left": left, "right": right}
+        results.append(entry)
+        if stopped:
+            entry["status"] = "not attempted"
+            continue
+        key = ((left, False), (right, False))
+        before = _kern_effective(getter, by_name, pkg, groups, left, right)
+        exact_before, err_before = _kern_exact(getter, key)
+        entry["before"] = before
+        if "error" in before or err_before is not None:
+            entry.update(status="failed", removed=False, changed=False,
+                         reason="the value before could not be read, so nothing was removed for this pair: " + (before.get("error") or err_before))
+            stopped = True
+            continue
+        if exact_before is None:
+            entry.update(status="no entry", removed=False, changed=False)
+            continue
+        size_before = _kern_len(kerning)
+        call_error = None
+        try:
+            remover(key)
+        except Exception as exc:
+            call_error = f"{type(exc).__name__}: {exc}"
+        exact_after, err_after = _kern_exact(getter, key)
+        size_after = _kern_len(kerning)
+        after = _kern_effective(getter, by_name, pkg, groups, left, right)
+        entry["after"] = after
+        ok = (call_error is None and err_after is None and exact_after is None
+              and type(size_before) is int and type(size_after) is int and size_after == size_before - 1)
+        entry.update(status="removed" if ok else "failed", removed=ok, changed=None if err_after is not None else exact_after != exact_before,
+                     class_value_applies=after.get("source") in _KERN_CLASS_SOURCES)
+        if call_error is not None:
+            entry["call_error"] = call_error
+        if not ok:
+            if call_error is not None:
+                why = f"kerning.remove raised {call_error}"
+            elif err_after is not None:
+                why = f"the entry could not be read back: {err_after}"
+            elif exact_after is not None:
+                why = f"the entry still reads {exact_after!r} after removing it"
+            elif type(size_before) is not int or type(size_after) is not int:
+                why = "the size of the kerning table could not be read, so the removal of exactly one entry could not be confirmed"
+            else:
+                why = f"the kerning table went from {size_before} to {size_after} entries, not one fewer"
+            entry["reason"] = why
+            stopped = True
+    len_after = _kern_len(kerning)
+    removed_count = sum(1 for e in results if e.get("removed") is True)
+    mark = _mark_font_changed_after_kerning(font, results)
+    refresh = _refresh_kerning_panel(pkg, results)      # after the mark, as in set_kerning_pairs
+    return {"open": True, "fonts_open": count, "matched_by": target["matched_by"], "family_name": _kern_family(font), "master": master,
+            "master_count": len(target["masters"]), "count": len(results), "removed_count": removed_count,
+            "no_entry_count": sum(1 for e in results if e.get("status") == "no entry"), "stopped": stopped,
+            "table_size_before": len_before, "table_size_after": len_after,
+            "table_size_as_expected": (len_before - len_after == removed_count) if None not in (len_before, len_after) else None,
             "results": results, "fontlab_changed_mark": mark, "fontlab_panel_refresh": refresh}
 
 
@@ -12610,6 +12735,110 @@ def debug_try_set_kern(a, b, value, form, go):
 
 
 # --------------------------------------------------------------------------
+# /debug/trydelkern (v0.191) - RESEARCH, WRITES: can one kerning pair be removed through the API? Names-only test 1380: fgKerning.remove
+# has no docstring; get and set are documented as taking an fgKerningObjectPair or a tuple('name1', 'name2'). GATED (go=yes); the same
+# one-font gate, name checks, group-name refusal (defect B) and master reading as /debug/trysetkern; at most _TRYDELKERN_MAX requests per
+# listener run, counted BEFORE the first kerning call. Calls: pkg.masters, pkg.master, pkg.getAllGroups() once, pkg.kerning(current
+# master) once, on that table len() and get(((a, False), (b, False))) before and after, and remove(key) ONCE:
+#   &form=tuple    remove((a, b))
+#   &form=flags    remove(((a, False), (b, False))), the form get and set accept (186-188, 564)
+# remove is not called when the read before it failed. 'removed' is true only when remove raised nothing, the entry was a number
+# before, reads None after, and len() dropped by exactly 1. Not called, ever: set, clear, setPlainPairs, add*, delete*, rename*, scale,
+# asDict, getPlainPairs*, items, keys, values, has_key, groups, font.update(), glyph.update(), fontlab.Update(), the mark
+# (notifyChangesApplied) and the panel refresh (notifyPackageContentUpdated); no save.
+# --------------------------------------------------------------------------
+
+_TRYDELKERN = {"calls": 0}
+_TRYDELKERN_MAX = 10
+_TRYDELKERN_FORMS = ("tuple", "flags")
+
+
+def debug_try_del_kern(a, b, form, go):
+    import sys as _sys
+    if go != "yes":
+        return {"error": "this probe WRITES: it removes one kerning pair, flPackage.kerning(master).remove(key) ONCE, with get() before and "
+                         "after; add &go=yes to run it", "calls_so_far": _TRYDELKERN["calls"], "max_calls": _TRYDELKERN_MAX}
+    for label, nm in (("a", a), ("b", b)):
+        if not _kern_name_ok(nm):
+            return {"error": f"{label} must be 1 to 63 characters from A-Z a-z 0-9 . _ -"}
+    if form not in _TRYDELKERN_FORMS:
+        return {"error": 'form must be "tuple" (remove((a, b))) or "flags" (remove(((a, False), (b, False))))'}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"error": why, "calls_so_far": _TRYDELKERN["calls"], "max_calls": _TRYDELKERN_MAX}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    names = set(str(g.name) for g in font.glyphs)
+    missing = [nm for nm in (a, b) if nm not in names]
+    if missing:
+        return {"open": True, "error": "no glyph with this name in the current font: " + ", ".join(repr(m) for m in missing),
+                "calls_so_far": _TRYDELKERN["calls"]}
+    masters, err = _pkg_get(pkg, "masters")
+    if err is not None:
+        return {"open": True, "error": err, "calls_so_far": _TRYDELKERN["calls"]}
+    if not isinstance(masters, (list, tuple)) or not all(isinstance(m, str) for m in masters):
+        return {"open": True, "error": f"the package's masters are not a plain list of names ({type(masters).__name__}); nothing was called",
+                "calls_so_far": _TRYDELKERN["calls"]}
+    current, err = _pkg_get(pkg, "master")
+    if not isinstance(current, str) or current not in masters:
+        return {"open": True, "error": "the package's current master could not be read as one of its masters" + (f" ({err})" if err else ""),
+                "masters": list(masters), "calls_so_far": _TRYDELKERN["calls"]}
+    if _TRYDELKERN["calls"] >= _TRYDELKERN_MAX:
+        return {"open": True, "error": f"the limit of {_TRYDELKERN_MAX} requests per listener run is used up; restart the listener to continue",
+                "calls_so_far": _TRYDELKERN["calls"], "max_calls": _TRYDELKERN_MAX}
+    groups, err = _trysetkern_group_names(pkg)
+    if err is not None:
+        return {"open": True, "error": err + "; nothing was removed", "calls_so_far": _TRYDELKERN["calls"]}
+    clash = [nm for nm in (a, b) if nm in groups]
+    if clash:
+        return {"open": True, "error": "a group of the font has the same name as " + ", ".join(repr(c) for c in clash)
+                + " (defect B: a plain name pair may then mean the group); nothing was removed", "calls_so_far": _TRYDELKERN["calls"]}
+    try:
+        kerning_of = pkg.kerning
+    except Exception as exc:
+        return {"open": True, "error": f"flPackage.kerning not reachable: {type(exc).__name__}: {exc}", "calls_so_far": _TRYDELKERN["calls"]}
+    if not callable(kerning_of):
+        return {"open": True, "error": "flPackage.kerning is not callable", "calls_so_far": _TRYDELKERN["calls"]}
+    _TRYDELKERN["calls"] += 1        # counted BEFORE the first kerning call: whatever happens, it is on record
+    try:
+        kerning = kerning_of(current)
+    except Exception as exc:
+        return {"open": True, "error": f"flPackage.kerning(master) failed: {type(exc).__name__}: {exc}", "master_used": current,
+                "calls_so_far": _TRYDELKERN["calls"], "max_calls": _TRYDELKERN_MAX}
+    exact = ((a, False), (b, False))
+    before = _trypkgkern_get(kerning, exact)
+    key, key_text = ((a, b), "(a, b)") if form == "tuple" else (exact, "((a, False), (b, False))")
+    returned, remove_error, remove_called = None, None, False
+    if before["call_error"] is not None:
+        remove_error = "not called: the read before it failed, so the result could not be checked"
+    else:
+        try:
+            remover = kerning.remove
+            if not callable(remover):
+                raise TypeError("remove is not callable")
+            remove_called = True
+            returned = remover(key)
+        except Exception as exc:
+            remove_error = f"{type(exc).__name__}: {exc}"
+    after = _trypkgkern_get(kerning, exact)
+    len_before, len_after = before["len_before"], after["len_after"]
+    removed = (remove_error is None and before["value"] is not None and after["call_error"] is None and after["value_type"] == "NoneType"
+               and type(len_before) is int and type(len_after) is int and len_after == len_before - 1)
+    return {"open": True, "a": a, "b": b, "form": form, "master_used": current, "masters": list(masters),
+            "call": f"flPackage.kerning(master).remove({key_text})", "remove_called": remove_called, "remove_error": remove_error,
+            "remove_returned_type": type(returned).__name__, "remove_returned": _tryfont_plain(returned),
+            "exact_before": {k: before[k] for k in ("call_error", "value_type", "value")},
+            "exact_after": {k: after[k] for k in ("call_error", "value_type", "value")},
+            "removed": removed, "len_before": len_before, "len_after": len_after,
+            "table_size_changed": (len_before != len_after) if (len_before is not None and len_after is not None) else None,
+            "calls_so_far": _TRYDELKERN["calls"], "max_calls": _TRYDELKERN_MAX,
+            "note": "RESEARCH: the font in memory may have changed. Compare with FontLab's KERNING panel and a text line; the font is not "
+                    "marked as changed and the panel is not asked to refresh; nothing is saved by Glyphbridge"}
+
+
+# --------------------------------------------------------------------------
 # /debug/trykernrefresh (v0.123) - RESEARCH: can the KERNING panel be made to show a pair written by /debug/trysetkern? Live 544-551:
 # FontLab applies such a pair in a text line, but the panel lists only pairs made in the GUI, also after it was reopened. Names-only
 # test 552: fontlab.Update is documented as "Update object and it's visual representations ... Update([fgGlyph|fgFont|flObject
@@ -13797,6 +14026,13 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
+        if path == "/debug/trydelkern":
+            try:
+                return _build_response(200, debug_try_del_kern((query.get("a") or [""])[0], (query.get("b") or [""])[0],
+                                                               (query.get("form") or ["tuple"])[0], (query.get("go") or [""])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
         if path == "/debug/trykernrefresh":
             try:
                 return _build_response(200, debug_try_kern_refresh((query.get("stage") or [""])[0], (query.get("go") or [""])[0]))
@@ -13948,6 +14184,21 @@ def _route(method, full_path, body=b""):
                 return _build_response(400, {"error": 'the body must be a JSON object with "pairs" (a list of [left, right, value]) and nothing else'})
             try:
                 result = set_kerning_pairs(payload["pairs"])
+                if "bad_request" in result:
+                    return _build_response(400, {"error": result["bad_request"]})
+                return _build_response(200, result)
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/kerning/remove":
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            if not isinstance(payload, dict) or set(payload) != {"pairs"}:
+                return _build_response(400, {"error": 'the body must be a JSON object with "pairs" (a list of [left, right]) and nothing else'})
+            try:
+                result = remove_kerning_pairs(payload["pairs"])
                 if "bad_request" in result:
                     return _build_response(400, {"error": result["bad_request"]})
                 return _build_response(200, result)
@@ -14340,7 +14591,7 @@ _ACT = {"kind": None, "shown": 0, "more": 0, "reads": {}, "no_font": {}, "kern_p
 
 _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/width": "width",
                "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/glyph/polygon": "draw",
-               "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning", "/font/create": "create font",
+               "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning", "/kerning/remove": "kerning remove", "/font/create": "create font",
                "/glyph/move": "move", "/glyph/component": "component", "/glyph/component/remove": "remove component"}
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
@@ -14452,6 +14703,8 @@ def _act_describe_write(path, payload, code, reply):
     kind = _ACT_WRITES[path]
     if kind == "kerning":
         return _act_describe_kerning(payload, code, reply)
+    if kind == "kerning remove":
+        return _act_describe_kerning_remove(payload, code, reply)
     if kind == "create font":
         return _act_describe_font(payload, code, reply)
     name = payload.get("name") if isinstance(payload, dict) else None
@@ -14574,6 +14827,37 @@ def _act_describe_kerning(payload, code, reply):
     failed = next((e for e in results if e.get("status") == "failed"), None)
     where = f", stopped at {_act_text(str(failed.get('left')) + ':' + str(failed.get('right')))}: {_act_text(failed.get('reason') or 'not confirmed by the re-read')}" if failed else ""
     return f"NOT DONE {head}: {len(done)} set{where}", False
+
+
+def _act_describe_kerning_remove(payload, code, reply):
+    """(line, collapsible) for one /kerning/remove request (v0.192): one pair is named with its values, more are counted."""
+    pairs = payload.get("pairs") if isinstance(payload, dict) else None
+    n = len(pairs) if isinstance(pairs, list) else None
+    head = f"kerning remove {n} pair{'' if n == 1 else 's'}" if n is not None else "kerning remove ?"
+    if code != 200 or not isinstance(reply, dict):
+        error = reply.get("error") if isinstance(reply, dict) else None
+        return f"{'REFUSED' if code == 400 else 'FAILED'} {head}: {_act_text(error or f'HTTP {code}')}", False
+    if reply.get("open") is False:
+        return f"REFUSED {head}: no font is open", False
+    if reply.get("error"):
+        return f"REFUSED {head}: {_act_text(reply['error'])}", False
+    results = [e for e in reply.get("results") or [] if isinstance(e, dict)] if isinstance(reply.get("results"), list) else []
+    done = [e for e in results if e.get("removed") is True]
+    none = [e for e in results if e.get("status") == "no entry"]
+    if results and len(done) + len(none) == len(results):
+        if len(results) == 1:
+            e = results[0]
+            pair = _act_text(f"{e.get('left')}:{e.get('right')}")
+            if e.get("status") == "no entry":
+                return f"kerning remove {pair}: no glyph : glyph entry, nothing removed", True
+            before = e.get("before") if isinstance(e.get("before"), dict) else {}
+            after = e.get("after") if isinstance(e.get("after"), dict) else {}
+            return f"kerning remove {pair}: {_act_num(before.get('value'))} -> {_act_num(after.get('value'))} (verified)", True
+        extra = f", {len(none)} had no entry" if none else ""
+        return f"{head}: {len(done)} removed{extra} (verified)", True
+    failed = next((e for e in results if e.get("status") == "failed"), None)
+    where = f", stopped at {_act_text(str(failed.get('left')) + ':' + str(failed.get('right')))}: {_act_text(failed.get('reason') or 'not confirmed by the re-read')}" if failed else ""
+    return f"NOT DONE {head}: {len(done)} removed{where}", False
 
 
 _ACTIVITY_NOTE_MAX = 400     # v0.146: longest note line of /font/create (its notes are whole sentences for the person)

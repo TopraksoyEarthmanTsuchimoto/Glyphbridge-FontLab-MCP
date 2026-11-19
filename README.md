@@ -4,6 +4,8 @@ Lets AI agents read and edit fonts open in **FontLab 8** through the Model Conte
 
 What an agent can do today: read glyph outlines, widths, sidebearings, Unicode values and kerning pairs; create and delete glyphs; set widths, sidebearings, codepoints and kerning between two glyphs; draw straight and cubic outlines, closed or open; move nodes of an existing outline; place components; create a new font. **Glyphbridge never saves your font.** You save it yourself (File menu or Ctrl+S).
 
+License: [LICENSE](LICENSE).
+
 ## Requirements
 
 Make sure you have these installed on your computer:

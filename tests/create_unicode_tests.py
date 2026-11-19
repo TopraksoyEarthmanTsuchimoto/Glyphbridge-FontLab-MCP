@@ -1839,7 +1839,7 @@ r = k27(srv.OutcomeUnknown("The FontLab listener did not answer /kerning/set wit
 r = k27(srv.ToolError("Cannot reach the listener"), pairs=[["A", "B", -60]]); row27("27w2 listener not reachable      ", r)
 print("--- the tool")
 _src27 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
-_body27 = _src27[_src27.index("_KERN_SET_INSTRUCTION = ("):_src27.index("def _check_polygon_points(")]
+_body27 = _src27[_src27.index("_KERN_SET_INSTRUCTION = ("):_src27.index("# v0.76 (listener 0.192): remove_kerning")]
 print("27x static scan                  : posts", _re19.findall(r'_write_post\("([^"]+)"', _body27), "| direct posts", len(_re19.findall(r"_call_listener_post\(", _body27)),
       "| GETs", len(_re19.findall(r"_call_listener\(", _body27)), "| save", bool(_re19.search(r"\.save\(|save\(", _body27)), "| requires 0.124", '_require_listener((0, 124), "set_kerning")' in _body27,
       "| read scan (19ci) ends before it:", _src27.index("def write_glyph_sidebearings(") < _src27.index("_KERN_SET_INSTRUCTION = ("))
@@ -3115,6 +3115,117 @@ print("46u wrapper equals read            :", srv.get_kerning_groups(groups=["kg
 _body46 = _inspect.getsource(srv.read_kerning_groups)
 print("46v pure read                      : note_change", "_note_change" in _body46, "| mark", "_mark_modified" in _body46, "| write post", "_write_post" in _body46,
       "| requires 0.190", '_require_listener((0, 190), "get_kerning_groups")' in _body46, "| one POST", _body46.count("_call_listener_post("))
+
+# ==== 47. server 0.76: remove_kerning removes glyph : glyph entries through POST /kerning/remove (listener 0.192; faked listener replies) ====
+print("\n==== 47. server 0.76: remove_kerning (faked listener replies) ====")
+_save47 = (srv._call_listener, srv._call_listener_post)
+K47 = {"version": "0.192", "reply": None, "paths": [], "posts": []}
+def _k47_get(path):
+    K47["paths"].append(path)
+    if path == "/version":
+        v = K47["version"]
+        if isinstance(v, Exception): raise v
+        return {"version": v}
+    raise AssertionError("unexpected GET " + path)
+def _k47_post(path, payload, timeout=0):
+    K47["posts"].append((path, payload, timeout))
+    r = K47["reply"]
+    if isinstance(r, Exception): raise r
+    return r
+srv._call_listener, srv._call_listener_post = _k47_get, _k47_post
+def k47(reply=None, version="0.192", **call):
+    K47["reply"] = reply; K47["version"] = version; K47["paths"].clear(); K47["posts"] = []
+    srv._reset_change_tracking()
+    try:
+        return srv.remove_kerning_write(**call)
+    except srv.ToolError as e:
+        return "ToolError: " + str(e)
+def k47sent(): return [(p, pl) for p, pl, _t in K47["posts"]]
+def k47chg(): return (srv._CHANGES["package"], srv._CHANGES["package_unsure"])
+def okrm(left, right, before=None, after=None):
+    after = after or side(0, "none")
+    return {"left": left, "right": right, "before": before or side(-60.0), "after": after, "status": "removed", "removed": True, "changed": True,
+            "class_value_applies": after.get("source") in ("glyph : class", "class : glyph", "class : class")}
+def noent(left, right, before=None):
+    return {"left": left, "right": right, "before": before or side(0, "none"), "status": "no entry", "removed": False, "changed": False}
+def rmreply(results, **extra):
+    return dict({"open": True, "fonts_open": 1, "matched_by": "only font", "family_name": "Kern Test", "master": "Regular", "master_count": 1,
+                 "count": len(results), "removed_count": sum(1 for e in results if e.get("removed") is True),
+                 "no_entry_count": sum(1 for e in results if e.get("status") == "no entry"), "stopped": False,
+                 "table_size_before": 3, "table_size_after": 2, "table_size_as_expected": True, "results": results,
+                 "fontlab_changed_mark": {"called": True, "via_glyph": "A", "glyph_has_changes": True}, "fontlab_panel_refresh": {"called": True}}, **extra)
+def row47(label, r):
+    if isinstance(r, str): print(label, ":", r[:420], "| changes", k47chg()); return
+    print(label, ":", {k: v for k, v in r.items() if k not in ("results", "agent_instruction")}, "| changes", k47chg())
+    for e in r["results"]: print("       ", e)
+_kdc = side(-80.0, "class : glyph", left_class="kdcL")
+r = k47(rmreply([okrm("kd1L", "kd1R")]), pairs=[[" kd1L ", "kd1R"]]); row47("47a one pair removed            ", r)
+print("47b request                      :", k47sent(), "| timeout", K47["posts"][0][2], "| GETs", K47["paths"])
+print("47c instruction                  :", r["agent_instruction"])
+r = k47(rmreply([okrm("kd1L", "kd1R", before=side(-50.0), after=_kdc)]), pairs=[["kd1L", "kd1R"]]); row47("47d an exception over a class    ", r)
+r = k47(rmreply([noent("A", "B"), noent("A", "W", before=side(-76.0, "glyph : class", right_class="W")),
+                 noent("Aacute", "W.c2sc", before=side(-76.0, "class : class", left_class="Aring", right_class="W"))], removed_count=0, table_size_after=3,
+                fontlab_changed_mark={"called": False, "reason": "no kerning entry is known to have changed"}, fontlab_panel_refresh={"called": False, "reason": "no kerning entry is known to have changed"}),
+        pairs=[["A", "B"], ["A", "W"], ["Aacute", "W.c2sc"]]); row47("47e three pairs with no entry    ", r)
+print("47e2 instruction                 :", r["agent_instruction"])
+r = k47(rmreply([okrm("A", "V", before=side(-152.0)), noent("A", "B"), okrm("T", "o", before=side(-227.0))], table_size_after=1), pairs=[["A", "V"], ["A", "B"], ["T", "o"]])
+row47("47f removed, no entry, removed   ", r)
+r = k47(rmreply([okrm("A", "V")], fontlab_changed_mark={"called": False, "reason": "the changed mark is switched off in the listener"}, fontlab_panel_refresh={"called": False, "reason": "off"}), pairs=[["A", "V"]])
+print("47g no mark, no refresh          :", r["agent_instruction"][r["agent_instruction"].index("(1)"):r["agent_instruction"].index("(3)")])
+print("--- refused before anything is sent")
+for _lbl, _kw in (("47h pairs not a list          ", dict(pairs="A:V")), ("47h2 pairs empty               ", dict(pairs=[])), ("47h3 an item of three          ", dict(pairs=[["A", "V", 0]])),
+                  ("47h4 a bad name                ", dict(pairs=[["A V", "W"]])), ("47h5 an empty name             ", dict(pairs=[["  ", "W"]])), ("47h6 a pair twice (stripped)   ", dict(pairs=[["A", "V"], [" A", "V "]])),
+                  ("47h7 flag not a bool           ", dict(pairs=[["A", "V"]], confirmed_large_write="yes")), ("47h8 a name not a string       ", dict(pairs=[[5, "V"]]))):
+    r = k47(rmreply([]), **_kw); print(_lbl, ":", r[:220], "| sent", k47sent(), "| GETs", K47["paths"], "| changes", k47chg())
+_big47 = [[f"g{i}", "V"] for i in range(251)]
+r = k47(rmreply([]), pairs=_big47); print("47i 251 pairs, no approval       :", r[:170], "| sent", len(k47sent()))
+print("47i2 refusal text mentions       :", all(w in r for w in ("remove 251 kerning pairs", "250-pair threshold", "nothing was changed", "ask whether they approve", "remove_kerning again", "confirmed_large_write=true", "Never set that flag")))
+r = k47(rmreply([okrm(a, b) for a, b in _big47]), pairs=_big47, confirmed_large_write=True); print("47i3 251 pairs, approved         :", r.get("removed_count"), r.get("large_write_confirmed"), "| timeout", K47["posts"][0][2])
+r = k47(rmreply([okrm(a, b) for a, b in _big47[:250]]), pairs=_big47[:250]); print("47i4 250 pairs need no approval  :", r.get("removed_count"), "large_write_confirmed" in r)
+r = k47(rmreply([okrm("A", "V")]), version="0.191", pairs=[["A", "V"]]); print("47j listener 0.191              :", r[:170], "| sent", k47sent())
+print("--- the listener's answer")
+r = k47({"open": False}, pairs=[["A", "V"]]); row47("47k no font open                 ", r)
+r = k47({"open": True, "error": "no glyph named 'Q' in the current font; nothing was removed"}, pairs=[["Q", "V"]]); row47("47l listener refuses             ", r)
+r = k47({"open": True, "error": "the kerning table's remove is not callable"}, pairs=[["A", "V"]]); row47("47l2 refusal without the tail   ", r)
+r = k47(rmreply([okrm("A", "V")]), pairs=[["A", "V"], ["T", "o"]]); row47("47m answer has too few results   ", r)
+_rmfail = {"left": "T", "right": "o", "before": side(-227.0), "after": side(-227.0), "status": "failed", "removed": False, "changed": False,
+           "class_value_applies": False, "call_error": "RuntimeError: remove boom", "reason": "kerning.remove raised RuntimeError: remove boom"}
+r = k47(rmreply([okrm("A", "V"), _rmfail, {"left": "V", "right": "A", "status": "not attempted"}], stopped=True), pairs=[["A", "V"], ["T", "o"], ["V", "A"]])
+row47("47n stopped at pair 2 of 3       ", r)
+r = k47(rmreply([_rmfail, {"left": "V", "right": "A", "status": "not attempted"}], stopped=True), pairs=[["T", "o"], ["V", "A"]]); row47("47o first pair failed, unchanged ", r)
+_rmunk = dict(_rmfail, changed=None, after={"error": "kerning.get raised RuntimeError: boom"}, reason="the entry could not be read back: boom"); _rmunk.pop("call_error")
+r = k47(rmreply([_rmunk], stopped=True), pairs=[["T", "o"]]); row47("47p read back failed: unknown    ", r)
+_rmtwo = dict(_rmfail, changed=True, after=side(0, "none"), reason="the kerning table went from 3 to 1 entries, not one fewer"); _rmtwo.pop("call_error")
+r = k47(rmreply([_rmtwo], stopped=True), pairs=[["T", "o"]]); row47("47q gone, but two entries went    ", r)
+_lie47 = okrm("A", "V"); _lie47["after"] = side(-60.0)
+r = k47(rmreply([_lie47]), pairs=[["A", "V"]]); row47("47r removed true, entry answers   ", r)
+_lie47b = okrm("A", "V"); _lie47b["changed"] = "yes"
+r = k47(rmreply([_lie47b]), pairs=[["A", "V"]]); row47("47r2 changed not a bool          ", r)
+_lie47c = noent("A", "V", before=side(-152.0))
+r = k47(rmreply([_lie47c]), pairs=[["A", "V"]]); row47("47r3 'no entry' with a glyph pair ", r)
+_lie47d = dict(noent("A", "B"), after=side(0, "none"))
+r = k47(rmreply([_lie47d]), pairs=[["A", "B"]]); row47("47r4 'no entry' with an after     ", r)
+r = k47(rmreply([okrm("T", "o")]), pairs=[["A", "V"]]); row47("47s answered for another pair     ", r)
+r = k47(rmreply([okrm("A", "V")], table_size_as_expected=False), pairs=[["A", "V"]]); row47("47t table shrank unexpectedly     ", r)
+print("47t2 warning in the instruction  :", "WARNING" in r["agent_instruction"] and "shrank" in r["agent_instruction"])
+r = k47(rmreply([okrm("A", "V")], fonts_open=2, matched_by="path", master_count=3, master="Bold"), pairs=[["A", "V"]]); row47("47u two fonts, three masters      ", r)
+print("47u2 notes                       :", "2 fonts are open" in r["agent_instruction"], "(Kern Test)" in r["agent_instruction"], "3 masters" in r["agent_instruction"])
+r = k47(srv.OutcomeUnknown("The FontLab listener did not answer /kerning/remove within 5s."), pairs=[["A", "V"]]); row47("47v timeout: outcome unknown     ", r)
+print("--- the tool")
+_src47 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
+_body47 = _src47[_src47.index("# v0.76 (listener 0.192): remove_kerning"):_src47.index("def _check_polygon_points(")]
+print("47w static scan                  : posts", _re19.findall(r'_write_post\("([^"]+)"', _body47), "| direct posts", len(_re19.findall(r"_call_listener_post\(", _body47)),
+      "| GETs", len(_re19.findall(r"_call_listener\(", _body47)), "| save", bool(_re19.search(r"\.save\(|save\(", _body47)), "| requires 0.192", '_require_listener((0, 192), "remove_kerning")' in _body47)
+_d47 = " ".join((srv.remove_kerning.__doc__ or "").split())
+_need47 = ("[left, right]", "class (group) names cannot be used", "class kerning is never removed", "not the same as setting 0", "class_value_applies", "'no entry'",
+           "verified by re-reading", "'before'", "More than 250", "Never set confirmed_large_write=true on your own", "fontlab_changed_mark", "fontlab_panel_refresh",
+           "Edit > Undo", "set_kerning with its 'before'", "whose window is in front", "Needs listener v0.192", "NEVER saves", "finish_changes ONCE")
+print("47x docstring key phrases        :", [w for w in _need47 if w not in _d47] == [], "| missing", [w for w in _need47 if w not in _d47], "| save shortcut filled in:", "SAVE_KEYS" not in _d47)
+K47["reply"] = rmreply([okrm("A", "V")]); K47["version"] = "0.192"
+srv._reset_change_tracking(); _w47 = srv.remove_kerning(pairs=[["A", "V"]]); srv._reset_change_tracking(); _d47r = srv.remove_kerning_write(pairs=[["A", "V"]])
+print("47y wrapper equals the function  :", {k: v for k, v in _w47.items() if k not in ("font", "fonts_open")} == {k: v for k, v in _d47r.items() if k not in ("font", "fonts_open")})
+srv._call_listener, srv._call_listener_post = _save47
+srv._reset_change_tracking()
 
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 srv._reset_change_tracking()

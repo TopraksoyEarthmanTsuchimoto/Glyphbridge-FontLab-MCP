@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.75)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.76)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.75"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.76"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1578,6 +1578,180 @@ def write_kerning(pairs: Any, confirmed_large_write: Any = None) -> dict:
     if data.get("table_size_as_expected") is False:
         reply["table_size_unexpected"] = True
         instruction += (" WARNING: the kerning table grew by a different number of entries than the pairs that were new. "
+                        "Tell the person and do not make further kerning edits until they have looked.")
+    if large:
+        reply["large_write_confirmed"] = True
+    reply["agent_instruction"] = instruction
+    _mark_modified(reply, changed)
+    return reply
+
+
+# v0.76 (listener 0.192): remove_kerning, the design of 2026-11-19 (DECISIONS.md; research KD 1380-1390, KDC 1391-1397)
+_KERN_RM_PANEL_ASKED = ("(1) FontLab no longer applies the removed entries, and it was asked to refresh its KERNING panel (fontlab_panel_refresh). If the "
+                        "panel still lists a removed pair, switching to another open font and back (with one font open: File > New Font, then back to "
+                        "this font's tab; the new font can be closed without saving) or saving and reopening the font makes it drop it.")
+_KERN_RM_PANEL_STALE = ("(1) FontLab no longer applies the removed entries, but its KERNING panel may still list them until the person switches to another "
+                        "open font and back (with one font open: File > New Font, then back to this font's tab; the new font can be closed without "
+                        "saving) or saves and reopens the font.")
+_KERN_RM_PANEL_NO_CHANGE = "(1) Nothing was removed, so FontLab was not asked to refresh its KERNING panel."
+_KERN_RM_MARKED = ("(2) FontLab was told that the font changed, through one glyph of a removed pair, whose content did not change (fontlab_changed_mark, "
+                   "via_glyph); the removal is still lost if the font is closed without saving.")
+_KERN_RM_NOT_MARKED = "(2) FontLab does not count it as a change: closing the font asks no save question and loses the removal silently."
+_KERN_RM_INSTRUCTION = (
+    "Each pair marked removed had a glyph : glyph entry in the current master's kerning table (master names it); the entry was removed and "
+    "the removal verified by re-reading it (the entry is gone and the table holds one entry fewer). 'before' is the value FontLab applied "
+    "before, with its source; 'after' is the value FontLab applies now, with its source. class_value_applies true means a kerning class "
+    "still kerns the pair: it now kerns at that class value, NOT at 0; say so. A pair marked 'no entry' had no glyph : glyph entry, so "
+    "nothing was removed for it; its note says whether a class still kerns it (this tool never removes class kerning). Tell the person "
+    "these facts: {panel} {save} (3) Edit > Undo is not known to bring a removed pair back; to restore one, call set_kerning with its "
+    "'before' value. Other masters, classes and feature-based kerning were not changed."
+)
+
+
+def _kern_rm_items(pairs: Any) -> list:
+    """The pairs as a clean list of (left, right), or a ToolError (before anything is sent)."""
+    if not isinstance(pairs, (list, tuple)) or len(pairs) < 1:
+        raise ToolError("pairs must be a list of at least one [left, right] item, for example [[\"A\", \"V\"]].")
+    clean, seen = [], set()
+    for i, item in enumerate(pairs):
+        if (not isinstance(item, (list, tuple)) or len(item) != 2
+                or not all(isinstance(n, str) and _KERN_NAME_RE.match(n.strip() or "!") for n in item)):
+            raise ToolError(f"pair {i + 1} must be [left, right]: two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - "
+                            f"(got {item!r}). Class (group) names cannot be used. Nothing was changed.")
+        left, right = item[0].strip(), item[1].strip()
+        if (left, right) in seen:
+            raise ToolError(f"pair {i + 1} ({left}:{right}) is given more than once; give each pair once. Nothing was changed.")
+        seen.add((left, right))
+        clean.append((left, right))
+    return clean
+
+
+def _kern_rm_note(before: dict) -> str:
+    """The note of a pair with no glyph : glyph entry: what still kerns it, from its checked 'before' value."""
+    source = before.get("source") if isinstance(before, dict) else None
+    if source in ("glyph : class", "class : glyph", "class : class"):
+        classes = " and ".join(before[k] for k in ("left_class", "right_class") if isinstance(before.get(k), str))
+        return (f"no glyph : glyph entry, so nothing was removed; FontLab applies {before.get('value')} to this pair from the {source} entry "
+                f"({classes}), which this tool does not remove")
+    if source == "none":
+        return "no glyph : glyph entry and no class kerns this pair, so there was nothing to remove"
+    return "no glyph : glyph entry, so nothing was removed"
+
+
+def remove_kerning_write(pairs: Any, confirmed_large_write: Any = None) -> dict:
+    if confirmed_large_write is not None and not isinstance(confirmed_large_write, bool):
+        raise ToolError("confirmed_large_write must be true or false (or left out).")
+    wanted = _kern_rm_items(pairs)
+    large = len(wanted) > _KERN_CONFIRM_ABOVE
+    if large and confirmed_large_write is not True:
+        raise ToolError(
+            f"This request would remove {len(wanted)} kerning pairs, more than the {_KERN_CONFIRM_ABOVE}-pair threshold, and nothing was changed. "
+            "Do NOT repeat the call yet. Tell the person how many pairs you want to remove and why, and ask whether they approve. "
+            "Only after they have said yes, call remove_kerning again with the same arguments and confirmed_large_write=true. Never set that flag without the person's approval.")
+    _require_listener((0, 192), "remove_kerning")
+    data = _write_post("/kerning/remove", {"pairs": [[a, b] for a, b in wanted]}, timeout=max(TIMEOUT_SECONDS, 5.0 + len(wanted) / 25.0))
+    if not data.get("open"):
+        raise ToolError(NO_FONT)
+    if isinstance(data.get("error"), str) and data["error"]:
+        refusal = data["error"][:600].rstrip(" .")
+        raise ToolError(f"Kerning was NOT removed: {refusal}." + ("" if refusal.endswith("nothing was removed") else " Nothing was changed."))
+    raw_results = data.get("results")
+    if not isinstance(raw_results, list) or len(raw_results) != len(wanted):
+        _note_change(sure=False)
+        raise ToolError(f"The listener's answer to remove_kerning did not match the request, so it is not known which pairs were removed. {_UNSURE_NOTE}")
+    results, changed, unsure = [], False, False
+    for raw, (left, right) in zip(raw_results, wanted):
+        raw = raw if isinstance(raw, dict) else {}
+        entry = {"left": left, "right": right}
+        if raw.get("left") != left or raw.get("right") != right:
+            unsure = True
+            entry.update(status="unknown", reason="the listener answered for a different pair, so whether this pair was removed is not known")
+            results.append(entry)
+            continue
+        status = raw.get("status")
+        if status == "not attempted":
+            entry["status"] = status
+            results.append(entry)
+            continue
+        if "before" in raw:
+            entry["before"] = _kern_set_side(raw.get("before"), left, right)
+        if "after" in raw:
+            entry["after"] = _kern_set_side(raw.get("after"), left, right)
+        before, after = entry.get("before"), entry.get("after")
+        if (status == "no entry" and raw.get("removed") is False and raw.get("changed") is False and "after" not in raw
+                and isinstance(before, dict) and "error" not in before and before.get("source") != "glyph : glyph"):
+            entry.update(status="no entry", changed=False, note=_kern_rm_note(before))
+            results.append(entry)
+            continue
+        verified = (raw.get("removed") is True and status == "removed" and raw.get("changed") is True
+                    and isinstance(after, dict) and "error" not in after and after.get("source") != "glyph : glyph")
+        entry["status"] = "removed" if verified else "failed"
+        entry["changed"] = raw.get("changed") if raw.get("changed") in (True, False) else None
+        if verified and after.get("source") in ("glyph : class", "class : glyph", "class : class"):
+            entry["class_value_applies"] = True
+        if not verified:
+            reason = raw.get("reason")
+            entry["reason"] = reason[:600] if isinstance(reason, str) and reason else "the listener did not confirm this removal by re-reading it"
+            if isinstance(raw.get("call_error"), str):
+                entry["call_error"] = raw["call_error"][:300]
+        if entry["changed"] is True:
+            changed = True
+        elif entry["changed"] is None and "after" in raw:
+            unsure = True
+        results.append(entry)
+    removed_count = sum(1 for e in results if e["status"] == "removed")
+    no_entry_count = sum(1 for e in results if e["status"] == "no entry")
+    master, master_count = data.get("master"), data.get("master_count")
+    fonts_open, family, matched_by = data.get("fonts_open"), data.get("family_name"), data.get("matched_by")
+    size_before, size_after = data.get("table_size_before"), data.get("table_size_after")
+    reply = {"fonts_open": fonts_open if isinstance(fonts_open, int) and not isinstance(fonts_open, bool) and fonts_open >= 1 else None,
+             "matched_by": matched_by if matched_by in ("only font", "path") else None,
+             "family_name": family if isinstance(family, str) and 1 <= len(family) <= 63 and family.isprintable() else None,
+             "master": master if isinstance(master, str) and 1 <= len(master) <= 63 and master.isprintable() else None,
+             "master_count": master_count if isinstance(master_count, int) and not isinstance(master_count, bool) and master_count >= 1 else None,
+             "count": len(results), "removed_count": removed_count, "no_entry_count": no_entry_count,
+             "table_size_before": size_before if isinstance(size_before, int) and not isinstance(size_before, bool) else None,
+             "table_size_after": size_after if isinstance(size_after, int) and not isinstance(size_after, bool) else None,
+             "results": results}
+    if unsure:
+        _note_change(sure=False)
+    if removed_count + no_entry_count < len(results):
+        done = ", ".join(f"{e['left']}:{e['right']}" for e in results if e["status"] == "removed") or "none"
+        failed = next((e for e in results if e["status"] in ("failed", "unknown")), None)
+        holds = ""
+        if failed and isinstance(failed.get("after"), dict) and "value" in failed["after"]:
+            holds = f"; FontLab now applies {failed['after']['value']} ({failed['after'].get('source')})"
+        where = f" It stopped at {failed['left']}:{failed['right']}: {failed.get('reason')}{holds}." if failed else ""
+        skipped = sum(1 for e in results if e["status"] == "not attempted")
+        tail = f" {skipped} pair(s) after it were not attempted." if skipped else ""
+        if changed:
+            _note_change()
+            raise ToolError(f"Kerning was removed for {removed_count} of {len(results)} pairs (removed: {done}).{where}{tail} Check the pairs with "
+                            f"get_kerning. {_CHANGED_BY_ERROR_NOTE}")
+        raise ToolError(f"Kerning was NOT removed for all pairs (removed: {done}).{where}{tail}" + (f" {_UNSURE_NOTE}" if unsure else " Nothing was changed."))
+    _add_guard_fields(reply, data)
+    mark = reply.get("fontlab_changed_mark")
+    marked = isinstance(mark, dict) and mark.get("called") is True and not mark.get("call_error")
+    point2 = _KERN_RM_MARKED if marked else (_KERN_RM_NOT_MARKED if changed else _KERN_NO_CHANGE)
+    panel = data.get("fontlab_panel_refresh")
+    if isinstance(panel, dict) and isinstance(panel.get("called"), bool):
+        reply["fontlab_panel_refresh"] = {"called": panel["called"]}
+        for key in ("reason", "call_error"):
+            if isinstance(panel.get(key), str) and panel[key]:
+                reply["fontlab_panel_refresh"][key] = panel[key]
+    forwarded = reply.get("fontlab_panel_refresh")
+    refreshed = isinstance(forwarded, dict) and forwarded.get("called") is True and not forwarded.get("call_error")
+    point1 = _KERN_RM_PANEL_ASKED if refreshed else (_KERN_RM_PANEL_STALE if changed else _KERN_RM_PANEL_NO_CHANGE)
+    instruction = _KERN_RM_INSTRUCTION.replace("{panel}", point1).replace("{save}", point2)
+    if reply["fonts_open"] is not None and reply["fonts_open"] > 1:
+        which = f" ({reply['family_name']})" if reply["family_name"] else ""
+        instruction += (f" {reply['fonts_open']} fonts are open in FontLab; this changed the current one, the font whose window is in front{which}, "
+                        "matched to its kerning table by its file path. Say which font when you report it.")
+    if reply["master_count"] is not None and reply["master_count"] > 1:
+        instruction += f" This font has {reply['master_count']} masters; only the current one was changed. Say so."
+    if data.get("table_size_as_expected") is False:
+        reply["table_size_unexpected"] = True
+        instruction += (" WARNING: the kerning table shrank by a different number of entries than the pairs that were removed. "
                         "Tell the person and do not make further kerning edits until they have looked.")
     if large:
         reply["large_write_confirmed"] = True
@@ -4276,6 +4450,33 @@ def set_kerning(pairs: list[list[Any]], confirmed_large_write: bool | None = Non
     """
     _note_client(ctx)
     return _with_font(write_kerning, pairs, confirmed_large_write)
+
+
+@_tool()
+def remove_kerning(pairs: list[list[Any]], confirmed_large_write: bool | None = None, ctx: Context | None = None) -> dict[str, Any]:
+    """Remove kerning pairs from the font currently open in FontLab 8: pairs is a list of [left, right] such as [["A", "V"], ["T", "o"]],
+    two glyph names each.
+
+    Each pair's glyph : glyph entry is removed from the current master's kerning table; class (group) names cannot be used, and class
+    kerning is never removed. Removing is not the same as setting 0: set_kerning with 0 keeps an explicit zero entry, this tool takes
+    the entry away. When a kerning class also kerns the pair, the pair then kerns at that class value, not at 0 (class_value_applies):
+    tell the person. A pair with no glyph : glyph entry is reported as 'no entry' with a note (nothing to remove; a class may still kern
+    it), and the other pairs go on. Every check runs before the first change, and every removal is verified by re-reading it; the reply
+    gives 'before' (the value FontLab applied, with its source) and 'after'. If a removal cannot be confirmed the tool stops there and
+    says which pairs were removed. Read the pairs first with get_kerning when the task depends on their current values. More than 250
+    pairs in one call is refused until the PERSON has approved it: ask them, and only after a yes repeat the call with
+    confirmed_large_write=true. Never set confirmed_large_write=true on your own.
+    After a removal FontLab is told that the font changed (fontlab_changed_mark) and asked to refresh its KERNING panel
+    (fontlab_panel_refresh). Edit > Undo is not known to bring a removed pair back: to restore one, call set_kerning with its 'before'
+    value. It changes the current font, the one whose window is in front; with several fonts open it refuses when that font cannot be
+    matched to its kerning table (for example a new, unsaved font). Other masters and feature-based kerning are not changed. Needs listener v0.192.
+
+    Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
+    (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
+    after each step: call finish_changes ONCE when the whole task package is finished.
+    """
+    _note_client(ctx)
+    return _with_font(remove_kerning_write, pairs, confirmed_large_write)
 
 
 @_tool()

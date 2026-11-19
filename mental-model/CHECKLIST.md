@@ -20,6 +20,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | # | Scenario | Status |
 |---|---|---|
 | 81 | Write a kerning pair (KW) | PARTLY: glyph : glyph pairs set, re-read and saved (544–577); marked, so FontLab asks on close, since 0.134 / 0.54 (718–721); shown in the KERNING panel at once since 0.136 / 0.56 (738–748); Edit > Undo does not cover it (563). Open: the panel refresh on a font with thousands of pairs (untimed), an exception over a class on a real font, writes with several saved fonts, multi-master ([topics/kerning.md](topics/kerning.md) §13, §14) |
+| 86 | Remove glyph : glyph kerning pairs (`remove_kerning`) | PARTLY: the research probe removed a pair in both forms and an exception over a class (KD 1381–1390, KDC 1391–1397); the product tool is built in listener 0.192 / server 0.76. Open: product-tool live checks from 1398, including a no-entry case, class fallback, panel refresh and changed icon; the save question for a removal alone, Edit > Undo, other masters and several fonts ([topics/kerning.md](topics/kerning.md) §16) |
 
 ## Sync, fonts and agent level
 

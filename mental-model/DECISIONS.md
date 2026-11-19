@@ -2,6 +2,27 @@
 
 Active decisions only, newest first. Each entry gives the date, the decision and the reason. Superseded or no longer relevant entries move to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Where the chat-era record gives no exact day, the entry says so.
 
+## 2026-11-19: removing kerning pairs, `remove_kerning` (research listener 0.191, KD 1380–1390, KDC 1391–1397; built listener 0.192 / server 0.76)
+
+- **A tool of its own; `set_kerning` stays unchanged.** *Reason:* removing is a different act from setting a value; a separate name keeps an agent from removing a pair by passing 0; `set_kerning` is live-proven.
+- **A pair with no glyph : glyph entry gets a note, not an error; the other pairs go on.** When a class gives the pair its value, the note names the class and the value that still applies.
+- **A glyph : glyph exception over a class may be removed; the reply reports the class value that applies again** (`class_value_applies`). *Reason:* KDC 1395–1397 ([topics/kerning.md](topics/kerning.md) §16): only the exception went, the class value applied again, the panel showed the class row.
+- **More than 250 pairs need the person's approval** (`confirmed_large_write`), as `set_kerning`.
+- **The first removal that cannot be confirmed stops the request;** the pairs before it are reported removed, the rest `not attempted`, as `set_kerning`.
+- **The call is `remove(((left, False), (right, False)))`; its return value is ignored, only the re-read counts** (the entry `None` after, `len()` one lower). *Reason:* defect B; the return value follows the form, not the outcome (1387, 1390).
+- **After a removal that changed the table: the mark (`notifyChangesApplied`) and the panel refresh (`notifyPackageContentUpdated`), as `set_kerning`;** no change, no calls. The mark for a removal alone is untested (Demo mode).
+- *Reason for the rest:* the user's answers, one question at a time.
+
+## 2026-11-19: Glyphbridge Community Source-Available License
+
+- **Glyphbridge uses custom source-available terms, not an OSI open-source license.** Eligible users are individuals acting on their own behalf, schools and non-profits of any size, and organizations with fewer than 10 people (owners, employees, and regular freelancers; not customers or one-time suppliers). Larger organizations other than schools and non-profits need a separate license. Eligible commercial use is free; Glyphbridge itself cannot be sold, while users may sell work made using it.
+- **Free copies and modified forks may be shared under the unchanged license,** with the copyright notice retained, changes identified, and no claim that a fork is official. Modified forks may be public, but use rights remain limited to eligible users. Unmodified copies may not be re-hosted as separate downloads; direct people to the official installation page.
+- **The effect of an eligible organization's later growth is intentionally unspecified.** The four URL placeholders remain for now, and the values section is non-binding. License text: [LICENSE](../LICENSE). *Reason:* the user's stated access and sharing goals.
+
+## 2026-11-19: the author's name in LICENSE
+
+The rule against personal data in live files ([AGENTS.md](../AGENTS.md)) gets one exception: the author's name as the copyright holder in the LICENSE file. Nothing else personal goes there or anywhere else (no e-mail address, user name or path). Reason: a license needs a named copyright holder; the user's choice before adding LICENSE.
+
 ## 2026-11-19: kerning group membership, `get_kerning_groups` (P1.6; research listener 0.188–0.189; built listener 0.190 / server 0.75)
 
 - **The side comes from the modern `items()` of the master's kerning groups (route C), not from the legacy `kerningLeft` / `kerningRight` nor from `values()` matched by members.** *Reason:* the user's choice; one modern call gives name, members and side (KG 1373–1375, [topics/kerning.md](topics/kerning.md) §9.10).
@@ -40,16 +61,7 @@ Merged on 2026-11-18 from three entries; full text: [archive/DECISIONS-ARCHIVE.m
 
 ## 2026-11-17: placing components, `add_component` (listener 0.169–0.175 / server 0.66–0.69)
 
-Condensed on 2026-11-17 from three entries, all built; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md).
-- **The modern route: FontLab's recipe build (`recipe`, `autoLayer = True`, `buildAuto()`, `autoLayer = False`); the legacy `fgComponent` route is not probed.** *Reason:* the user asked whether legacy was the only way; the modern route worked (1041b–1042b, [topics/reading.md](topics/reading.md)) and the modern-API-first decision applies. Revisit only if it cannot do what a tool needs.
-- **Into an existing, empty glyph layer, at whole-unit offsets set after the build; one form per call: a single component (`component`, `x`, `y`) or a `components` list; repeated sources allowed.** *Reason:* only that was proven with the width unchanged (1049); one recipe build placed them all (1110–1177); repeats are separate components, each movable alone (1172–1177).
-- **Soft limit 30** (tested at 2–5, 15 and 30, the sizes between assumed safe): above it the first call changes nothing; the agent tells the person that only up to 30 was tested, asks, and repeats with a confirmation flag after a yes. **No hard ceiling** but the listener's request-body size. *Reason:* the user's rule, with Chinese characters in mind; the ask-first precedent of kerning reads.
-- **The width is read before, written back after, and confirmed.** *Reason:* FontLab set 500 every time (1110–1172).
-- **A failure partway: placing stops, then the auto layer is switched off, the recipe cleared and the width put back, each component and step reported; nothing else is restored.** *Reason:* `autoLayer = False` leaves the glyph editable, not a locked auto layer (1055a); `recipe = ""` clears the leftover recipe (1058); no proven way to remove a component (1090; since then `remove_component`, 0.179).
-- **With several fonts open, the tool follows the font in front.** *Reason:* the rule of the other write tools ([PROJECT.md](PROJECT.md), goal 5); live with two fonts (1091–1095).
-- **The element reader has no element limit and reports its timing,** replacing both 20-element caps, none with a recorded reason (`_COMPONENT_BOX_MAX`, v0.130; `_TRYSHAPEBOX_MAX_SHAPES`, v0.129). *Reason:* above 20 `source_in_step` was "unknown" (1168); 30 boxes took under 10 ms.
-- **In the list form a source name with an underscore is refused before anything changes; after a failed build each entry's state is matched by source name, and the reply lists what the glyph holds** (0.175 / 0.69). *Reason:* FontLab's recipe reads `a_b` as a ligature of its parts (1234); a placed component was called "not reached" (1200–1208).
-- *Reason for all but the first:* the user's answers, one question at a time.
+Moved to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) on 2026-11-19 (budget), still in force: FontLab's recipe build (`recipe`, `autoLayer`, `buildAuto()`) at whole-unit offsets; one component or a `components` list; soft limit 30 with the person's approval above it; the width read before, written back and confirmed; underscore names refused in a list.
 
 ## 2026-11-15: `move_nodes`, the first edit tool (listener 0.153–0.154 / server 0.63–0.65)
 

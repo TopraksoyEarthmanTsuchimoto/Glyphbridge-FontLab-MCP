@@ -5448,7 +5448,7 @@ class SKKern:
     def __getattribute__(self, n):
         if not n.startswith("_"):
             SK["k_all"].add(n)
-            if n in _SK_K_FORBIDDEN:
+            if n in SK["cfg"].get("k_forbid", _SK_K_FORBIDDEN):
                 SK["k_forbidden"].append(n)
                 raise SystemExit("FORBIDDEN kerning member touched: " + n)
         return object.__getattribute__(self, n)
@@ -5458,6 +5458,7 @@ class SKKern:
     def get(self, key):
         SK["gets"].append(key)
         if SK["cfg"].get("get") == "raise": raise RuntimeError("get boom")
+        if SK["cfg"].get("get") == "raise_after_remove" and SK.get("removes"): raise RuntimeError("get boom after remove")
         return self._table.get(_sk_pair(key))
     def set(self, key, value):
         SK["sets"].append((key, type(value).__name__, value))
@@ -5466,6 +5467,16 @@ class SKKern:
         if m == "ignore": return 0
         self._table[_sk_pair(key)] = value
         return 1
+    def remove(self, key):
+        SK.setdefault("removes", []).append(key)
+        m = SK["cfg"].get("remove")
+        if m == "raise": raise TypeError("Argument type must be fgKerningObjectPair!")
+        if m == "pop_then_raise": self._table.pop(_sk_pair(key), None); raise RuntimeError("remove boom after removing")
+        if m == "ignore": return None
+        if m == "zero": self._table[_sk_pair(key)] = 0.0; return None
+        if m == "two": self._table.pop(_sk_pair(key), None); self._table.pop(next(iter(self._table), None), None); return True
+        self._table.pop(_sk_pair(key), None)
+        return None
 class SKPackage:
     def __getattribute__(self, n):
         if not n.startswith("_"):
@@ -5567,7 +5578,7 @@ sk_setup()
 for _p in (_SKQ, _SKQ + "&go=yes", _SKQ + "&form=flags&go=yes"): call(_p)
 print("1709 spy over all cases          : forbidden package members:", SK["pkg_forbidden"], "| package members touched anywhere:", sorted(SK["pkg_all"]),
       "| forbidden kerning members:", SK["k_forbidden"], "| kerning members touched anywhere:", sorted(SK["k_all"]))
-_sk_src = src[src.index("_TRYSETKERN = {"):src.index("# /debug/trykernrefresh (v0.123)")]
+_sk_src = src[src.index("_TRYSETKERN = {"):src.index("# /debug/trydelkern (v0.191)")]
 _sk_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _sk_src).splitlines())
 print("1710 static scan                 : pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _sk_code))), "| kerning members used:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _sk_code))),
       "| setter( calls:", len(_re83.findall(r"\bsetter\(", _sk_code)), "| kerning_of( calls:", len(_re83.findall(r"\bkerning_of\(", _sk_code)),
@@ -5577,6 +5588,71 @@ print("1710 static scan                 : pkg members used:", sorted(set(_re83.f
       "| scanned chars > 3000:", len(_sk_src) > 3000)
 print("1711 gate, cap, route, docstring  :", "go != \"yes\"" in _sk_src, "| max requests", ns["_TRYSETKERN_MAX"], "| route registered once:", src.count('path == "/debug/trysetkern"') == 1,
       "| listed in the module docstring:", "/debug/trysetkern" in src[:src.index('"""', 3)])
+ns["_TRYSETKERN"]["calls"] = 0
+
+# ================= v0.191: /debug/trydelkern (gated research probe that WRITES: flPackage.kerning(master).remove(key) once) =================
+print("\n==== v0.191 /debug/trydelkern ====")
+_DK_K_FORBIDDEN = tuple(n for n in _FK_FORBIDDEN if n != "remove")
+def dk_setup(calls=0, **cfg):
+    sk_setup(k_forbid=_DK_K_FORBIDDEN, **cfg)
+    SK["removes"] = []
+    ns["_TRYDELKERN"]["calls"] = calls
+def dkc(tag, path, keys=None):
+    c, d = call(path)
+    shown = {k: v for k, v in d.items() if k != "note"} if keys is None else {k: d.get(k) for k in keys}
+    print(tag, ":", c, shown, "| kerning() args", SK["kerning_args"], "| removes", SK["removes"], "| sets", SK["sets"], "| getAllGroups calls", SK["groups_calls"])
+    return c, d
+_DKT = {("ks1L", "ks1R"): -100.0, ("ks1R", "ks1L"): 20.0}
+_DKQ = "/debug/trydelkern?a=ks1L&b=ks1R"
+_DKR = ("remove_called", "remove_error", "remove_returned", "exact_before", "exact_after", "removed", "len_before", "len_after", "table_size_changed", "calls_so_far")
+dk_setup(table=_DKT); dkc("2633 no go: nothing runs        ", _DKQ)
+dk_setup(table=_DKT); dkc("2634 go=maybe: nothing runs     ", _DKQ + "&go=maybe")
+dk_setup(table=_DKT); c, d = dkc("2635 tuple form, existing pair  ", _DKQ + "&go=yes")
+print("2635b note: may change, no mark, no save:", "may have changed" in d.get("note", "") and "not marked" in d.get("note", "") and "nothing is saved" in d.get("note", ""))
+dk_setup(table=_DKT); dkc("2636 flags form, existing pair  ", _DKQ + "&form=flags&go=yes", keys=("call",) + _DKR)
+dk_setup(table=_DKT); dkc("2637 pair with no entry          ", "/debug/trydelkern?a=ks1L&b=ks1S&form=flags&go=yes", keys=_DKR)
+dk_setup(table=_DKT, remove="raise"); dkc("2638 remove raises (counted)    ", _DKQ + "&go=yes", keys=_DKR)
+dk_setup(table=_DKT, remove="pop_then_raise"); dkc("2638b remove raises after removing", _DKQ + "&go=yes", keys=_DKR)
+dk_setup(table=_DKT, get="raise_after_remove"); dkc("2638c read after remove fails  ", _DKQ + "&go=yes", keys=_DKR)
+dk_setup(table=_DKT, remove="ignore"); dkc("2639 remove changes nothing     ", _DKQ + "&go=yes", keys=_DKR)
+dk_setup(table=_DKT, remove="zero"); dkc("2640 remove leaves a 0 entry    ", _DKQ + "&go=yes", keys=_DKR)
+dk_setup(table={**_DKT, ("ks1S", "ks1S"): 5.0}, remove="two"); dkc("2641 remove takes two entries   ", _DKQ + "&go=yes", keys=_DKR)
+dk_setup(table=_DKT, get="raise"); dkc("2642 get raises: remove not called", _DKQ + "&go=yes", keys=_DKR)
+dk_setup(table=_DKT, len_raises=True); dkc("2643 len raises: not removed    ", _DKQ + "&go=yes", keys=_DKR)
+dk_setup(table=_DKT); dkc("2644 bad form                   ", _DKQ + "&form=plain&go=yes")
+for bad in ("", "A:V", "x" * 64):
+    dk_setup(table=_DKT); dkc(f"2645 bad name b {bad[:12]!r:14}", "/debug/trydelkern?a=ks1L&b=" + bad + "&go=yes")
+dk_setup(table=_DKT); dkc("2646 unknown glyph            ", "/debug/trydelkern?a=Q&b=ks1R&go=yes")
+dk_setup(table=_DKT, groups=[_SKG("ks1R")]); dkc("2647 b is also a group: refused", _DKQ + "&go=yes")
+dk_setup(table=_DKT, groups=[[False, "ks1L", 3, 0, ["ks1L"]]]); dkc("2648 a names a non-kerning group", _DKQ + "&go=yes")
+dk_setup(table=_DKT, groups=[_SKG("ks1grp")]); dkc("2649 other group: allowed      ", _DKQ + "&go=yes", keys=("removed", "calls_so_far"))
+for tag, over in (("2650 getAllGroups raises ", dict(groups="raise")), ("2650 getAllGroups a dict", dict(groups={"ks1R": 1}))):
+    dk_setup(table=_DKT, **over); dkc(tag, _DKQ + "&go=yes")
+dk_setup(table=_DKT, masters=["Regular", 5]); dkc("2651 masters not all names    ", _DKQ + "&go=yes")
+dk_setup(table=_DKT, master="Ghost"); dkc("2652 current master unlisted  ", _DKQ + "&go=yes")
+dk_setup(table=_DKT, kerning_call="raise"); dkc("2653 kerning() raises (counted)", _DKQ + "&go=yes")
+for tag, over in (("2654 no font open        ", dict(count=0)), ("2655 two fonts open      ", dict(count=2)), ("2656 two packages        ", dict(packages=2))):
+    dk_setup(table=_DKT, **over); dkc(tag, _DKQ + "&go=yes")
+dk_setup(calls=9, table=_DKT); dkc("2657 request 10 allowed       ", _DKQ + "&go=yes", keys=("removed", "calls_so_far", "max_calls"))
+SK["kerning_args"].clear(); SK["removes"].clear(); SK["groups_calls"] = 0; dkc("2658 request 11 refused       ", _DKQ + "&go=yes")
+dk_setup(table=_DKT); _dk_real = ns["debug_try_del_kern"]
+ns["debug_try_del_kern"] = _pk_boom; dkc("2659 probe raises: HTTP 500    ", _DKQ + "&go=yes"); ns["debug_try_del_kern"] = _dk_real
+dk_setup(table=_DKT)
+SK["pkg_all"].clear(); SK["k_all"].clear(); SK["pkg_forbidden"].clear(); SK["k_forbidden"].clear()
+for _p in (_DKQ, _DKQ + "&go=yes", "/debug/trydelkern?a=ks1R&b=ks1L&form=flags&go=yes", "/debug/trydelkern?a=ks1L&b=ks1S&go=yes"): call(_p)
+print("2660 spy over all cases          : forbidden package members:", SK["pkg_forbidden"], "| package members touched anywhere:", sorted(SK["pkg_all"]),
+      "| forbidden kerning members:", SK["k_forbidden"], "| kerning members touched anywhere:", sorted(SK["k_all"]), "| sets", SK["sets"])
+_dk_src = src[src.index("_TRYDELKERN = {"):src.index("# /debug/trykernrefresh (v0.123)")]
+_dk_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _dk_src).splitlines())
+print("2661 static scan                 : pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _dk_code))), "| kerning members used:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _dk_code))),
+      "| remover( calls:", len(_re83.findall(r"\bremover\(", _dk_code)), "| kerning_of( calls:", len(_re83.findall(r"\bkerning_of\(", _dk_code)),
+      "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|Update\w*|add\w*|clear\w*|keys|values|items|has_key|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|setPlain\w*|scale|rename\w*|autoKern|findGroup|set|notify\w*)\(", _dk_code),
+      "| subscripts on other objects:", [s for s in _re83.findall(r"\b(\w+)\[", _dk_code) if s not in ("_TRYDELKERN", "before", "after")],
+      "| counter raised before the first kerning call:", _dk_code.index('_TRYDELKERN[""] += 1') < _dk_code.index("kerning_of(current)") < _dk_code.index("remover(key"),
+      "| scanned chars > 3000:", len(_dk_src) > 3000)
+print("2662 gate, cap, route, docstring  :", "go != \"yes\"" in _dk_src, "| max requests", ns["_TRYDELKERN_MAX"], "| route registered once:", src.count('path == "/debug/trydelkern"') == 1,
+      "| listed in the module docstring:", "/debug/trydelkern" in src[:src.index('"""', 3)])
+ns["_TRYDELKERN"]["calls"] = 0
 for _m, _a, _v in _sk_saved:
     if _v is None:
         if hasattr(_m, _a): delattr(_m, _a)
@@ -5926,6 +6002,161 @@ ks_al("2045 no font open:", {"pairs": [["A", "V", -10]]}, 200, {"open": False})
 ks_al("2046 HTTP 500:", {"pairs": [["A", "V", -10]]}, 500, {"error": "RuntimeError: boom"})
 ks_al("2047 body unreadable:", b"\xff", 400, {"error": "request body was not valid JSON"})
 for k, v in _ks_al_saved.items(): ns[k] = v
+ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+
+# ================= v0.192: POST /kerning/remove (removes glyph : glyph entries with the flags key; verified by re-reading; spies) =================
+print("\n==== v0.192 POST /kerning/remove ====")
+# The /kerning/pairs fakes (KP, KPFont, the glyph list and _KP_TABLE) with a table that can REMOVE: KRKern allows remove and nothing
+# else that writes; every remove key must be the flags form ((a, False), (b, False)).
+KR = {"removed": set(), "extra": {}, "removes": [], "mode": None, "after_get": None, "drop": 0}
+_KR_FORBIDDEN = tuple(n for n in _KP_FORBIDDEN if n != "remove")
+class KRKern(KPKern):
+    def __getattribute__(self, n):
+        if not n.startswith("__"):
+            KP["touched"].append(n); KP["all_touched"].add(n)
+            if n in _KR_FORBIDDEN:
+                KP["forbidden"].append(n)
+                raise SystemExit("FORBIDDEN kerning member touched: " + n)
+            if n == "remove" and KR["mode"] == "not_callable": return 9
+            if n == "remove" and KR["mode"] == "no_attr": raise AttributeError("remove is missing")
+        return object.__getattribute__(self, n)
+    def __len__(self):
+        if KP["len_raises"]: raise RuntimeError("len boom")
+        return KP["len"] + len(KR["extra"]) - len(KR["removed"]) - KR["drop"]
+    def get(self, pair):
+        if pair in KR["removed"]:
+            KP["gets"].append(pair)
+            if KR["after_get"] == "raise": raise RuntimeError("get boom after remove")
+            return None
+        if pair in KR["extra"]:
+            KP["gets"].append(pair); return KR["extra"][pair]
+        return KPKern.get(self, pair)
+    def remove(self, key):
+        KR["removes"].append(key)
+        flagged = (isinstance(key, tuple) and len(key) == 2 and all(isinstance(p, tuple) and len(p) == 2 and p[1] is False for p in key))
+        if not flagged:
+            KP["forbidden"].append("remove with key " + repr(key)); KP["ever"].append("remove key " + repr(key)); return True
+        m = KR["mode"]
+        if isinstance(m, dict): m = m.get((key[0][0], key[1][0]))
+        if m == "raise": raise RuntimeError("remove boom")
+        if m == "ignore": return None
+        if m == "other": KR["drop"] += 1; return None      # another entry went, this one stays: the size alone would look right
+        if m == "zero": KR["extra"][key] = 0.0; KR["drop"] += 1; return None     # the entry stays, now 0: the table keeps its size
+        KR["removed"].add(key)
+        if key in KR["extra"]: KR["removed"].discard(key); del KR["extra"][key]
+        if m == "two": KR["drop"] += 1
+        if m == "raise_after": raise RuntimeError("remove boom after removing")
+        return None
+def kr_setup(mode=None, extra=None, after_get=None, **cfg):
+    kp_setup(kern_factory=KRKern, **cfg)
+    KR.update(removed=set(), extra=dict(extra or {}), removes=[], mode=mode, after_get=after_get, drop=0)
+def krp(tag, payload, raw=False):
+    body = payload if raw else json.dumps(payload).encode("utf-8")
+    r = ns["_route"]("POST", "/kerning/remove", body); h, _, b = r.partition(b"\r\n\r\n")
+    c, d = h.split(b"\r\n")[0].decode()[9:12], json.loads(b)
+    print(tag, ":", c, {k: v for k, v in d.items() if k != "results"}, "| remove calls", KR["removes"], "| forbidden", list(KP["forbidden"]))
+    for r_ in d.get("results") or []:
+        print("      ", r_)
+    return c, d
+_kr_cf = getattr(fl, "CountFonts", None); _kr_cur = fl.CurrentFont; _kr_ws = getattr(fl, "flWorkspace", None)
+KP["ever"].clear()
+_kr_exc = {(("Aacute", False), ("Tbar.c2sc", False)): -50.0}
+kr_setup(); krp("2700 one pair removed            ", {"pairs": [["A", "V"]]})
+kr_setup(); krp("2701 two pairs removed           ", {"pairs": [["A", "V"], ["T", "o"]]})
+kr_setup(extra=_kr_exc); krp("2702 an exception over a class   ", {"pairs": [["Aacute", "Tbar.c2sc"]]})
+kr_setup(); krp("2703 no entry, nothing kerns     ", {"pairs": [["A", "B"]]})
+kr_setup(); krp("2704 no entry, a class kerns     ", {"pairs": [["Aacute", "Wgrave.c2sc"]]})
+kr_setup(); krp("2705 removed, no entry, removed  ", {"pairs": [["A", "V"], ["A", "B"], ["T", "o"]]})
+kr_setup(); krp("2706 defect B: glyph Aring       ", {"pairs": [["Aring", "W.c2sc"]]})
+kr_setup(count=2); krp("2707 two fonts, matched by path  ", {"pairs": [["A", "V"]]})
+print("--- refused before any removal (remove calls must stay empty)")
+kr_setup(); krp("2710 unknown glyphs              ", {"pairs": [["A", "V"], ["Q", "V"], ["A", "Zz"]]})
+for _tag, _p in (("2711 pairs empty                ", []), ("2711b pairs not a list         ", {"A": "V"}), ("2711c an item of three         ", [["A", "V", 0]]),
+                 ("2711d an item of one           ", [["A"]]), ("2711e a name with a space       ", [["A B", "V"]]), ("2711f a name not text          ", [[5, "V"]]),
+                 ("2711g a pair twice              ", [["A", "V"], ["T", "o"], ["A", "V"]]), ("2711h a string item            ", ["A:V"])):
+    kr_setup(); krp(_tag, {"pairs": _p})
+kr_setup(); krp("2712 another key in the body    ", {"pairs": [["A", "V"]], "go": "yes"})
+kr_setup(); krp("2712b no pairs key              ", {"pair": [["A", "V"]]})
+kr_setup(); krp("2712c body not JSON              ", b"pairs=A:V", raw=True)
+kr_setup(); krp("2712d body empty                 ", b"", raw=True)
+kr_setup(count=0); krp("2713 no font open (CountFonts 0)  ", {"pairs": [["A", "V"]]})
+kr_setup(cur=None); krp("2713b CurrentFont None          ", {"pairs": [["A", "V"]]})
+kr_setup(count=None); krp("2713c CountFonts gives None     ", {"pairs": [["A", "V"]]})
+kr_setup(count=2, pkg_path="C:/fonts/other.vfc"); krp("2714 two fonts, paths differ     ", {"pairs": [["A", "V"]]})
+kr_setup(master="Ghost"); krp("2715 current master unlisted     ", {"pairs": [["A", "V"]]})
+kr_setup(mode="not_callable"); krp("2716 remove not callable         ", {"pairs": [["A", "V"]]})
+kr_setup(mode="no_attr"); krp("2716b remove missing            ", {"pairs": [["A", "V"]]})
+print("--- failures while removing: the request stops at the first pair not confirmed")
+kr_setup(ids={"T": (RuntimeError("left boom"), 0)}); krp("2720 value before unreadable     ", {"pairs": [["A", "V"], ["T", "o"], ["V", "A"]]})
+kr_setup(mode={("T", "o"): "raise"}); krp("2721 remove raises on pair 2 of 3", {"pairs": [["A", "V"], ["T", "o"], ["V", "A"]]})
+kr_setup(mode="ignore"); krp("2722 remove does nothing         ", {"pairs": [["A", "V"]]})
+kr_setup(mode="zero"); krp("2723 remove leaves a zero        ", {"pairs": [["A", "V"]]})
+kr_setup(mode="other"); krp("2723b another entry went instead ", {"pairs": [["A", "V"]]})
+kr_setup(mode="two"); krp("2724 two entries went            ", {"pairs": [["A", "V"], ["T", "o"]]})
+kr_setup(mode="raise_after"); krp("2725 removed, then raises        ", {"pairs": [["A", "V"], ["T", "o"]]})
+kr_setup(after_get="raise"); krp("2726 read back raises            ", {"pairs": [["A", "V"]]})
+KP["len_raises"] = False; kr_setup(); KP["len_raises"] = True; krp("2727 len() raises               ", {"pairs": [["A", "V"]]})
+print("2730 spy over the remove cases    : forbidden members touched:", [f for f in KP["ever"]], "| plain remove keys: none above")
+_kr_real = ns["remove_kerning_pairs"]
+def _kr_boom(pairs): raise RuntimeError("remove boom in the route")
+ns["remove_kerning_pairs"] = _kr_boom; kr_setup(); krp("2731 function raises: HTTP 500   ", {"pairs": [["A", "V"]]}); ns["remove_kerning_pairs"] = _kr_real
+def kr_seq(tag, payload, **setup):
+    kr_setup(**setup); SEQ = []
+    _keep = {k: ns[k] for k in ("_mark_font_changed_after_kerning", "_refresh_kerning_panel")}
+    ns["_mark_font_changed_after_kerning"] = lambda f, results: SEQ.append(("mark", [(e["left"], e.get("changed"), e.get("status")) for e in results])) or {"called": True, "via_glyph": "spy"}
+    ns["_refresh_kerning_panel"] = lambda pkg, results: SEQ.append(("refresh", type(pkg).__name__)) or {"called": True}
+    r = ns["_route"]("POST", "/kerning/remove", json.dumps(payload).encode("utf-8")); h, _, b = r.partition(b"\r\n\r\n")
+    ns.update(_keep)
+    d = json.loads(b)
+    print(tag, ":", h.split(b"\r\n")[0].decode()[9:12], "| mark", d.get("fontlab_changed_mark", "<no field>"), "| refresh", d.get("fontlab_panel_refresh", "<no field>"), "| order", SEQ)
+kr_seq("2732 a removal: mark, then refresh", {"pairs": [["A", "V"]]})
+kr_seq("2732b no entry: results go in     ", {"pairs": [["A", "B"]]})
+kr_seq("2732c stopped partway             ", {"pairs": [["A", "V"], ["T", "o"]]}, mode={("T", "o"): "ignore"})
+kr_seq("2732d refused: no calls           ", {"pairs": [["A", "nope"]]})
+kr_setup(); KP["cfg"]["kern_factory"] = KRKern
+_mk_keep = ns["_MARK_CHANGED"]; ns["_MARK_CHANGED"] = False; ns["_REFRESH_KERNING_PANEL"], _rf_keep = False, ns["_REFRESH_KERNING_PANEL"]
+krp("2733 mark and refresh switched off", {"pairs": [["A", "V"]]})
+ns["_MARK_CHANGED"] = _mk_keep; ns["_REFRESH_KERNING_PANEL"] = _rf_keep
+print("2734 GET /kerning/remove          :", call("/kerning/remove?pairs=A:V"))
+_kr_src = src[src.index("def remove_kerning_pairs("):src.index("\ndef ", src.index("def remove_kerning_pairs(") + 10)]
+_kr_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _kr_src).splitlines())
+_kr_body = _re83.sub(r'(?s)"""(.*?)"""', '', _kr_code)
+print("2735 static scan                  : kerning members used:", sorted(set(_re83.findall(r"kerning\.(\w+)", _kr_body))), "| remover( calls:", len(_re83.findall(r"\bremover\(", _kr_body)),
+      "| getter( calls:", len(_re83.findall(r"\bgetter\(", _kr_body)), "| remove keys:", sorted(set(_re83.findall(r"remover\((\w+)", _kr_body))),
+      "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|set|remove\w*|update\w*|add\w*|clear\w*|keys|values|items|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|setPlain\w*|scale|rename\w*)\(", _kr_body.replace("entry.update(", "").replace("seen.add(", "")),
+      "| Update(:", "Update(" in _kr_body, "| font members:", sorted(set(_re83.findall(r"\bfont\.(\w+)", _kr_body))), "| pkg members:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _kr_body))),
+      "| scanned chars > 4000:", len(_kr_src) > 4000)
+print("2736 the key is the flags form    :", "key = ((left, False), (right, False))" in _kr_src, "| route registered once:", src.count('if path == "/kerning/remove":') == 1,
+      "| write log kind:", ns["_ACT_WRITES"].get("/kerning/remove"), "| in the module docstring:", "POST /kerning/remove" in src[:src.index('"""', 3)])
+fl.CurrentFont = _kr_cur
+if _kr_cf is not None: fl.CountFonts = _kr_cf
+elif hasattr(fl, "CountFonts"): delattr(fl, "CountFonts")
+if _kr_ws is not None: fl.flWorkspace = _kr_ws
+elif hasattr(fl, "flWorkspace"): delattr(fl, "flWorkspace")
+KP["len_raises"] = False
+
+print("--- the activity log line of /kerning/remove")
+_kr_al_saved = {k: ns[k] for k in ("_now_hms", "_clock", "_ACTIVITY_LOG")}
+ns["_now_hms"] = lambda: "12:00:00"; ns["_clock"] = lambda: 1000.0
+def kr_al(tag, body, code, reply):
+    print(tag)
+    ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
+    raw = json.dumps(body).encode() if isinstance(body, (dict, list)) else (body or b"")
+    ns["_activity_note"]("POST", "/kerning/remove", raw, ns["_build_response"](code, reply), "claude-code")
+    ns["_act_flush"]()
+_kr_one = {"left": "kd1L", "right": "kd1R", "before": {"value": -50.0, "kerned": True, "source": "glyph : glyph"},
+           "after": {"value": -80.0, "kerned": True, "source": "class : glyph", "left_class": "kdcL"}, "status": "removed", "removed": True, "changed": True}
+_kr_none = {"left": "A", "right": "B", "before": {"value": 0, "kerned": False, "source": "none"}, "status": "no entry", "removed": False, "changed": False}
+kr_al("2740 one pair, verified:", {"pairs": [["kd1L", "kd1R"]]}, 200, {"open": True, "results": [_kr_one]})
+kr_al("2741 one pair, no entry:", {"pairs": [["A", "B"]]}, 200, {"open": True, "results": [_kr_none]})
+kr_al("2742 three pairs, one with no entry:", {"pairs": [["a", "b"], ["A", "B"], ["e", "f"]]}, 200, {"open": True, "results": [_kr_one, _kr_none, _kr_one]})
+kr_al("2743 stopped at pair 2:", {"pairs": [["a", "b"], ["T", "o"], ["e", "f"]]}, 200,
+      {"open": True, "results": [_kr_one, {"left": "T", "right": "o", "status": "failed", "removed": False, "reason": "kerning.remove raised RuntimeError: remove boom"}, {"left": "e", "right": "f", "status": "not attempted"}]})
+kr_al("2744 refused by the listener:", {"pairs": [["A", "Q"]]}, 200, {"open": True, "error": "no glyph named 'Q' in the current font; nothing was removed"})
+kr_al("2745 bad request:", {"pairs": []}, 400, {"error": '"pairs" must be a non-empty list of [left, right]'})
+kr_al("2746 no font open:", {"pairs": [["A", "V"]]}, 200, {"open": False})
+kr_al("2747 HTTP 500:", {"pairs": [["A", "V"]]}, 500, {"error": "RuntimeError: boom"})
+for k, v in _kr_al_saved.items(): ns[k] = v
 ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
 
 # ================= v0.125: /debug/tryopen (gated research probe for P2.1: ONE open contour, never closed, detached or drawn) =================
@@ -6603,7 +6834,7 @@ mkd_setup(); ns["_mark_font_changed"] = _mk_boom
 print("2288 a failure never raises      :", ns["_mark_font_changed_after_kerning"]("F", [_ke("a", "b")]))
 mkd_setup()
 print("2289 not a list of dicts         :", ns["_mark_font_changed_after_kerning"]("F", [5]))
-print("2290 the kerning title, one route:", ns["_MARK_TITLES"].get("kerning"), "|", src.count("_mark_font_changed_after_kerning(font, results)"), "| the delete keeps its own target rule:", '_mark_through_first(font, candidates, "delete")' in src)
+print("2290 the kerning title, two routes:", ns["_MARK_TITLES"].get("kerning"), "|", src.count("_mark_font_changed_after_kerning(font, results)"), "| the delete keeps its own target rule:", '_mark_through_first(font, candidates, "delete")' in src)
 # v0.136: one notifyPackageContentUpdated(fgId) after a kerning write that changed an entry (live 738, 741-743 are the reason; stubs only)
 MKR = []; _rk_forbid = []
 def _mkr(*a):
@@ -6640,7 +6871,7 @@ rk("2291s no flItems                  ", [_ke("a", "b")], items=False)
 _rk_sw = ns["_REFRESH_KERNING_PANEL"]; ns["_REFRESH_KERNING_PANEL"] = False
 rk("2291t switched off                ", [_ke("a", "b")]); ns["_REFRESH_KERNING_PANEL"] = _rk_sw
 rk("2291u not a list of dicts         ", [5])
-print("2291v the call in the source      :", src.count("items.notifyPackageContentUpdated(pid)") == 1, "| switch on:", _rk_sw is True, "| the route asks once:", src.count("refresh = _refresh_kerning_panel(pkg, results)") == 1,
+print("2291v the call in the source      :", src.count("items.notifyPackageContentUpdated(pid)") == 1, "| switch on:", _rk_sw is True, "| the two kerning routes ask once each:", src.count("refresh = _refresh_kerning_panel(pkg, results)") == 2,
       "| the mark first:", src.index("mark = _mark_font_changed_after_kerning(font, results)") < src.index("refresh = _refresh_kerning_panel(pkg, results)"))
 del MKItems.notifyPackageContentUpdated
 print("2253 the call in the source        :", src.count("items.notifyChangesApplied(_MARK_TITLES[how], w, False)") == 1, "| switch on:", ns["_MARK_CHANGED"] is True or _mk_ns["_MARK_CHANGED"] is True)

@@ -1,0 +1,109 @@
+GLYPHBRIDGE FONTLAB MCP
+COMMUNITY SOURCE-AVAILABLE LICENSE
+
+Copyright © 2026 Manheart Earthman.
+
+By using, copying, modifying, or sharing Glyphbridge under this license, you
+agree to these terms.
+
+1. DEFINITIONS
+
+“Glyphbridge” means the original software, source code, scripts, tests, and
+documentation in this repository that are owned by the Licensor and offered
+under this license. It does not include third-party software or materials,
+FontLab, or fonts and other data that a user processes with Glyphbridge.
+Those items remain subject to their own terms.
+
+“Organization” means a business, institution, or other organized group on whose
+behalf a person uses Glyphbridge.
+
+“People” in an Organization means its owners, employees, and individuals who
+regularly work for it as freelancers. Customers and one-time suppliers are not
+counted.
+
+“Eligible User” means:
+(a) an individual using Glyphbridge on their own behalf and not on behalf of
+    an Organization; or
+(b) a school or non-profit organization, regardless of size; or
+(c) an Organization with fewer than 10 People.
+
+“Licensor” means Manheart Earthman (also known by other names listed at
+{{NAMES_URL}}).
+
+2. LICENSE GRANT
+
+If you are an Eligible User, the Licensor grants you a worldwide, royalty-free,
+non-exclusive license to install, run, study, copy, and modify Glyphbridge and
+to make modified versions for your own permitted use. Commercial use is allowed
+for Eligible Users.
+
+This license does not grant rights to use the Licensor’s name or trademarks
+except to identify Glyphbridge and describe your use of it accurately.
+
+3. SHARING COPIES AND FORKS
+
+You may share copies and modified forks of Glyphbridge at no charge, provided
+that you:
+
+(a) include this license file and the copyright notice with each copy;
+(b) keep this license file unchanged;
+(c) clearly identify changes you made; and
+(d) do not present a fork or modified version as an official Glyphbridge
+    release.
+
+You may publish a modified fork, but this does not grant permission to use
+Glyphbridge to people who are not Eligible Users.
+
+Do not re-post or host an unmodified copy of Glyphbridge as a separate
+download. Direct people who want Glyphbridge to the official installation page:
+{{INSTALLATION_URL}}
+
+4. RESTRICTIONS
+
+You may not sell Glyphbridge, a copy of Glyphbridge, or access to Glyphbridge,
+whether by itself or as a separately priced item. You may not sublicense it.
+You may sell your own work created using Glyphbridge, and you may charge for
+services or support, provided you are not charging for Glyphbridge itself.
+
+An Organization with 10 or more People that is not a school or non-profit
+organization is not an Eligible User and receives no permission under this
+license. Such an Organization needs a separate Large Organization License.
+To request one, use {{CONTACT_URL}}.
+
+5. DISCLAIMER
+
+Glyphbridge is provided “as is”, without warranty of any kind, express or
+implied, including warranties of merchantability, fitness for a particular
+purpose, and non-infringement.
+
+To the maximum extent permitted by law, the Licensor will not be liable for
+any claim, loss, or other liability arising from Glyphbridge or its use.
+
+6. COPYRIGHT AND CONTACT
+
+Copyright © 2026 Manheart Earthman.
+
+Manheart Earthman is known by other names in different regions and languages.
+See {{NAMES_URL}}.
+
+For a Large Organization License or other inquiries, use the contact page:
+{{CONTACT_URL}}
+
+7. PRINCIPLES AND EXPECTATIONS (NON-BINDING)
+
+This section states the values behind this free license. It is not a condition
+of the license.
+
+The Licensor expects Glyphbridge to be used only for harmless purposes or in
+benign contexts; expects users to respect good people who embody chastity,
+charity, and sincerity; and expects users to make a genuine effort to help
+kind people fairly, without favoritism based on race, location, or native
+language.
+
+The Licensor would appreciate it if users honored these expectations.
+Please do not depart from them even though that is not by itself a violation
+of this license.
+
+Donations are welcome but are never a license fee. A donation does not replace
+the separate Large Organization License required by Section 4. If you would
+like to donate now then please see {{DONATION_URL}}.

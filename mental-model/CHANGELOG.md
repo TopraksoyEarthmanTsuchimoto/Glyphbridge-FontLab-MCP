@@ -4,6 +4,19 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.192 / server v0.76 (2026-11-19): `remove_kerning`, removing glyph : glyph kerning pairs
+
+**The design of the user's six answers of 2026-11-19 ([DECISIONS.md](DECISIONS.md)), built as approved.** Not yet run live. Research: KD 1380–1390, KDC 1391–1397 ([topics/kerning.md](topics/kerning.md) §16).
+- Listener: POST `/kerning/remove` (`{"pairs": [[left, right], ...]}`): every check before the first removal; per pair the effective value and the exact glyph : glyph entry; a pair with no such entry is `no entry`, nothing called, and the request goes on; otherwise ONE `remove(((left, False), (right, False)))`, its return value ignored; `removed` only when the entry reads `None` and `len()` dropped by exactly one; `class_value_applies`; the first pair not confirmed stops the request (the rest `not attempted`); then the mark and the panel refresh of `/kerning/set`; in the activity log as "kerning remove". The probe `/debug/trydelkern` stays.
+- Server: the 24th tool `remove_kerning(pairs, confirmed_large_write)`, needs listener 0.192; pairs checked before sending; more than 250 pairs refused until the person approves; `no entry` becomes a note naming any class that still kerns the pair; a removal is verified only when 'after' no longer comes from a glyph : glyph entry; `agent_instruction` on the class value that applies again (not 0), the panel, the mark, Edit > Undo and how to restore a pair with `set_kerning`.
+- Tests: `stub_listener_tests.py` 5077 → 5172 lines (2700–2747, 2723b; 2290 and 2291v now count two kerning routes); `create_unicode_tests.py` 1555 → 1612 (section 47; 27x's scan ends where the new code starts; the tool count 23 → 24). Mutation run: 31 of 31 caught (17 listener, 14 server), after one case was added for the first run's survivor (another entry removed in place of the asked one, 2723b).
+
+## Listener v0.191 (2026-11-19, server unchanged at v0.75): research probe `/debug/trydelkern`, removing one kerning pair
+
+**The research build approved on 2026-11-19, after the names-only test 1380** (`fgKerning.remove` has no docstring). Run live KD 1381–1390 ([LIVE-TESTS.md](LIVE-TESTS.md)). Facts: [topics/kerning.md](topics/kerning.md) §16.
+- Listener: `/debug/trydelkern?a=A&b=B&form=tuple|flags&go=yes`: the gates of `/debug/trysetkern` (exactly one font open, glyph names that no group carries, the current master; 10 requests per listener run, counted before the first kerning call); `flPackage.kerning(master)` once; the exact entry and `len()` before; ONE `remove((a, b))` or `remove(((a, False), (b, False)))`, not called when the read before failed; the entry and `len()` after. `removed` is true only when `remove` raised nothing, the entry was a number before, reads `None` after, and `len()` dropped by exactly 1. No mark, no panel refresh, no save.
+- Tests: `stub_listener_tests.py` 5039 → 5077 lines (2633–2662, 2638b, 2638c; 1710's scan now ends where the new probe starts); `create_unicode_tests.py` only its version line. Mutation run: 12 of 12 caught, after two cases were added for the first run's survivors (`remove` raising after it removed; the read after it failing).
+
 ## Listener v0.190 / server v0.75 (2026-11-19): `get_kerning_groups`, the kerning groups of the current master (P1.6)
 
 **The design of the user's six answers of 2026-11-19 ([DECISIONS.md](DECISIONS.md)), built as approved.** Not yet run live. Facts: [topics/kerning.md](topics/kerning.md) §15; routes and fields: [topics/server-and-endpoints.md](topics/server-and-endpoints.md).

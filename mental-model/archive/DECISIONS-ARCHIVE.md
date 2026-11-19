@@ -98,6 +98,24 @@ Superseded decisions, and decisions no longer relevant to current work. Active d
 | v8–v11 | Scripts were developed and tested in Claude's sandbox (`/bin/sh`, no process substitution). | Plain-chat tooling. | 2026-11-01: tests run locally with the repository venv (PowerShell / Git Bash). |
 | v9 | Test 136a will be run in a new chat; other work may come first. | | v10: superseded by tests 139a / 139b and 142. |
 
+## Moved on 2026-11-19 (budget), still in force
+
+The entry below was moved from [DECISIONS.md](../DECISIONS.md) to keep it within its budget; it is not superseded, and a short pointer stays there.
+
+### 2026-11-17: placing components, `add_component` (listener 0.169–0.175 / server 0.66–0.69)
+
+Condensed on 2026-11-17 from three entries, all built; full text: [archive/DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md).
+- **The modern route: FontLab's recipe build (`recipe`, `autoLayer = True`, `buildAuto()`, `autoLayer = False`); the legacy `fgComponent` route is not probed.** *Reason:* the user asked whether legacy was the only way; the modern route worked (1041b–1042b, [topics/reading.md](../topics/reading.md)) and the modern-API-first decision applies. Revisit only if it cannot do what a tool needs.
+- **Into an existing, empty glyph layer, at whole-unit offsets set after the build; one form per call: a single component (`component`, `x`, `y`) or a `components` list; repeated sources allowed.** *Reason:* only that was proven with the width unchanged (1049); one recipe build placed them all (1110–1177); repeats are separate components, each movable alone (1172–1177).
+- **Soft limit 30** (tested at 2–5, 15 and 30, the sizes between assumed safe): above it the first call changes nothing; the agent tells the person that only up to 30 was tested, asks, and repeats with a confirmation flag after a yes. **No hard ceiling** but the listener's request-body size. *Reason:* the user's rule, with Chinese characters in mind; the ask-first precedent of kerning reads.
+- **The width is read before, written back after, and confirmed.** *Reason:* FontLab set 500 every time (1110–1172).
+- **A failure partway: placing stops, then the auto layer is switched off, the recipe cleared and the width put back, each component and step reported; nothing else is restored.** *Reason:* `autoLayer = False` leaves the glyph editable, not a locked auto layer (1055a); `recipe = ""` clears the leftover recipe (1058); no proven way to remove a component (1090; since then `remove_component`, 0.179).
+- **With several fonts open, the tool follows the font in front.** *Reason:* the rule of the other write tools ([PROJECT.md](../PROJECT.md), goal 5); live with two fonts (1091–1095).
+- **The element reader has no element limit and reports its timing,** replacing both 20-element caps, none with a recorded reason (`_COMPONENT_BOX_MAX`, v0.130; `_TRYSHAPEBOX_MAX_SHAPES`, v0.129). *Reason:* above 20 `source_in_step` was "unknown" (1168); 30 boxes took under 10 ms.
+- **In the list form a source name with an underscore is refused before anything changes; after a failed build each entry's state is matched by source name, and the reply lists what the glyph holds** (0.175 / 0.69). *Reason:* FontLab's recipe reads `a_b` as a ligature of its parts (1234); a placed component was called "not reached" (1200–1208).
+- *Reason for all but the first:* the user's answers, one question at a time.
+
+
 ## Budget history (moved from MARKDOWN-MAP on 2026-11-17)
 
 The budget history as MARKDOWN-MAP.md held it, moved unchanged except for the link paths. Later changes: [DECISIONS.md](../DECISIONS.md).

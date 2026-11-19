@@ -35,10 +35,10 @@ Scope and non-goals: [PROJECT.md](PROJECT.md).
 
 ## Status at a glance
 
-Current releases: **listener 0.190 and server 0.75**, on Windows 11 with FontLab 8.9.5, tested on fonts with one master.
+Current releases: **listener 0.192 and server 0.76**, on Windows 11 with FontLab 8.9.5, tested on fonts with one master.
 
-- **Proven in FontLab:** reading outlines and element transforms; writing widths, sidebearings and new contours (open ones included) into an empty glyph; moving nodes in an existing outline; making a new font; reading kerning and writing kerning between two glyphs; placing components, also beside what a glyph already holds, and removing them.
-- **Partly proven:** components (other transforms are open), work with several fonts open, and reading kerning groups (built, live checks open).
+- **Proven in FontLab:** reading outlines and element transforms; writing widths, sidebearings and new contours (open ones included) into an empty glyph; moving nodes in an existing outline; making a new font; reading kerning and kerning groups, and writing kerning between two glyphs; placing components, also beside what a glyph already holds, and removing them.
+- **Partly proven:** components (other transforms are open), work with several fonts open, and removing kerning pairs (built, live checks open).
 - **Not covered yet:** fonts with several masters, writing class kerning.
 - **Known limit:** FontLab's Edit > Undo does not take back a tool's edit.
 
