@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.78)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.79)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.78"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.79"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1676,6 +1676,8 @@ def write_kerning(pairs: Any, confirmed_large_write: Any = None) -> dict:
                    .replace("{lag}", _KERN_ICON_LAG if marked and _ICON_MAY_LAG_KERNING else ""))
     if any("kind" in e for e in results):        # v0.78: a request with a kerning class side
         instruction = (instruction.replace("was written as a glyph : glyph entry", "was written as an entry of its kind (glyph : glyph unless 'kind' says otherwise)")
+                       .replace("to revert, if 'before' was", "to revert a glyph pair, if 'before' was")        # v0.79: 'before' of a class pair is its sample's (CK 1421)
+                       .replace("entry and restore the prior state.", "entry and restore the prior state; a class pair: see below.")
                        .replace("Other masters, classes and feature-based kerning were not changed.", "Other masters, other kerning entries and feature-based kerning were not changed.")
                        + _KERN_SET_CLASS_NOTE)
     if any("note" in e for e in results):
@@ -1893,6 +1895,9 @@ def remove_kerning_write(pairs: Any, confirmed_large_write: Any = None) -> dict:
     instruction = _KERN_RM_INSTRUCTION.replace("{panel}", point1).replace("{save}", point2)
     if any("kind" in e for e in results):        # v0.78: a request with a kerning class side
         instruction = (instruction.replace("had a glyph : glyph entry", "had an entry of its kind (glyph : glyph unless 'kind' says otherwise)")
+                       .replace("had no glyph : glyph entry, so", "had no entry of its kind, so")        # v0.79: CK 1430
+                       .replace("to restore one, call set_kerning with its 'before' value.",
+                                "to restore a glyph pair, call set_kerning with its 'before' value; a class pair: see below.")        # v0.79: CK 1429
                        .replace("(this tool never removes class kerning)", "(class kerning is removed only for a pair written with '@')")
                        .replace("Other masters, classes and feature-based kerning were not changed.", "Other masters, other kerning entries and feature-based kerning were not changed.")
                        + _KERN_RM_CLASS_NOTE)

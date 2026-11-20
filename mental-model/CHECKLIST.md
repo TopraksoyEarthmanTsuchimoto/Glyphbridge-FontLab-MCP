@@ -21,7 +21,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 |---|---|---|
 | 81 | Write a kerning pair (KW) | PARTLY: glyph : glyph pairs set, re-read and saved (544–577); marked, so FontLab asks on close, since 0.134 / 0.54 (718–721); shown in the KERNING panel at once since 0.136 / 0.56 (738–748); Edit > Undo does not cover it (563). Open: the panel refresh on a font with thousands of pairs (untimed), an exception over a class on a real font, writes with several saved fonts, multi-master ([topics/kerning.md](topics/kerning.md) §13, §14) |
 | 86 | Remove glyph : glyph kerning pairs (`remove_kerning`) | PARTLY: the research probe removed a pair in both forms and an exception over a class (KD 1381–1390, KDC 1391–1397); the product tool (listener 0.192 / server 0.76) live RK 1398–1402: an exception over a class with its class value again, two no-entry cases, the panel at once. Open: the save question for a removal alone, Edit > Undo, other masters and several fonts ([topics/kerning.md](topics/kerning.md) §16) |
-| 87 | Write and remove class kerning entries | PARTLY, by probe only (listener 0.193): class : class, glyph : class, class : glyph and a Kerning both class set, applied on screen, and a class entry removed (CW 1409–1417). Open: the product tool, the mark for a class write alone, Edit > Undo, other masters, several fonts ([topics/kerning.md](topics/kerning.md) §17) |
+| 87 | Write and remove class kerning entries | PARTLY: by probe (listener 0.193), each kind set, applied on screen, and removed (CW 1409–1417); the product tools (0.194 / 0.78) live CK 1420–1432a. Open: the mark for a class write alone, Edit > Undo, other masters, several fonts ([topics/kerning.md](topics/kerning.md) §17) |
 
 ## Sync, fonts and agent level
 

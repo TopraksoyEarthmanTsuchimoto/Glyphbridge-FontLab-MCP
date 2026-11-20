@@ -6381,6 +6381,10 @@ kr_al("2744 refused by the listener:", {"pairs": [["A", "Q"]]}, 200, {"open": Tr
 kr_al("2745 bad request:", {"pairs": []}, 400, {"error": '"pairs" must be a non-empty list of [left, right]'})
 kr_al("2746 no font open:", {"pairs": [["A", "V"]]}, 200, {"open": False})
 kr_al("2747 HTTP 500:", {"pairs": [["A", "V"]]}, 500, {"error": "RuntimeError: boom"})
+# v0.195: a pair with a class side and no entry names its own kind (CK 1430); an unknown kind falls back to glyph : glyph
+kr_al("2747b a class : class pair, no entry:", {"pairs": [["@cwL", "@cwR"]]}, 200, {"open": True, "results": [dict(_kr_none, left="@cwL", right="@cwR", kind="class : class")]})
+kr_al("2747c a glyph : class pair, no entry:", {"pairs": [["cw1a", "@cwB"]]}, 200, {"open": True, "results": [dict(_kr_none, left="cw1a", right="@cwB", kind="glyph : class")]})
+kr_al("2747d an unknown kind, no entry:", {"pairs": [["A", "B"]]}, 200, {"open": True, "results": [dict(_kr_none, kind="bogus")]})
 for k, v in _kr_al_saved.items(): ns[k] = v
 ns["_ACT"].update(kind=None, shown=0, more=0, reads={}, no_font={}, kern_pairs=0, read_errors=0, last=0.0, pending=False, client=None)
 

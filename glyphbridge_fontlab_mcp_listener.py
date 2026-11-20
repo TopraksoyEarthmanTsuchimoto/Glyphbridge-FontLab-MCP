@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.194)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.195)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -283,7 +283,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.194"
+VERSION = "0.195"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -15085,7 +15085,8 @@ def _act_describe_kerning_remove(payload, code, reply):
             e = results[0]
             pair = _act_text(f"{e.get('left')}:{e.get('right')}")
             if e.get("status") == "no entry":
-                return f"kerning remove {pair}: no glyph : glyph entry, nothing removed", True
+                kind = e.get("kind") if e.get("kind") in _KERN_KIND_RANK else "glyph : glyph"        # v0.195: a class pair names its kind (CK 1430)
+                return f"kerning remove {pair}: no {kind} entry, nothing removed", True
             before = e.get("before") if isinstance(e.get("before"), dict) else {}
             after = e.get("after") if isinstance(e.get("after"), dict) else {}
             return f"kerning remove {pair}: {_act_num(before.get('value'))} -> {_act_num(after.get('value'))} (verified)", True

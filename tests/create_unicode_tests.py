@@ -3327,6 +3327,21 @@ print("48x set_kerning docstring        :", [w for w in _need48 if w not in _d48
       "no longer applies to any member pair", "a class side needs listener v0.194") if w not in _d48r])
 _src48 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
 print("48y no 'cannot be used' left     :", "names cannot be used" not in _src48, "| requires 0.194 in both:", _src48.count("_require_listener((0, 194)"))
+print("--- server 0.79: a class pair's general instruction no longer gives the glyph-pair rules (CK 1421, 1429, 1430)")
+_old48 = ("had no glyph : glyph entry", "to restore one,", "to revert, if 'before'")
+_new48r = ("had no entry of its kind, so nothing was removed", "to restore a glyph pair, call set_kerning with its 'before' value; a class pair: see below.")
+_new48s = ("to revert a glyph pair, if 'before' was a glyph : glyph entry", "entry and restore the prior state; a class pair: see below.")
+def ins48(label, r, want, gone):
+    t = r["agent_instruction"] if isinstance(r, dict) else ""
+    print(label, ": status", "ok" if isinstance(r, dict) else r[:160], "| has", [w in t for w in want], "| old phrases left", [w for w in gone if w in t])
+ins48("48z1 remove, class pair no entry", k48(srv.remove_kerning_write, rmreply([_nec]), pairs=[["cw1a", "@cwB"]]), _new48r, _old48)
+ins48("48z2 remove, class pair removed ", k48(srv.remove_kerning_write, rmreply([okrmc("@cwL", "@cwR", "class : class", side(0, "none"), _cc80)]), pairs=[["@cwL", "@cwR"]]), _new48r[1:], _old48)
+ins48("48z3 set, class pair            ", k48(srv.write_kerning, setreply([okcls("@cwL", "@cwR", -80, "class : class", _cc80)]), pairs=[["@cwL", "@cwR", -80]]), _new48s, _old48)
+ins48("48z4 set, glyph and class pair  ", k48(srv.write_kerning, setreply([okset("A", "B", -60), okcls("@cwL", "@cwR", -80, "class : class", _cc80)]),
+                                             pairs=[["A", "B", -60], ["@cwL", "@cwR", -80]]), _new48s, _old48)
+_ne48g = {"left": "A", "right": "B", "before": side(0, "none"), "status": "no entry", "removed": False, "changed": False}
+ins48("48z5 control: remove, glyphs only", k48(srv.remove_kerning_write, rmreply([_ne48g]), pairs=[["A", "B"]]), _old48[:2] + ("a class pair: see below",), ())
+ins48("48z6 control: set, glyphs only   ", k48(srv.write_kerning, setreply([okset("A", "B", -60)]), pairs=[["A", "B", -60]]), _old48[2:] + ("a class pair: see below",), ())
 srv._call_listener, srv._call_listener_post = _save48
 srv._reset_change_tracking()
 
