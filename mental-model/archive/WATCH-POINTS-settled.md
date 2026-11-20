@@ -2,6 +2,12 @@
 
 Watch points that were settled or dropped, one line each, in the order they were recorded. Moved from [WATCH-POINTS.md](../WATCH-POINTS.md) on 2026-11-10 and still added to. A settled fact lives in the file its line names.
 
+- 2026-11-20: "What `flPackage.isEqual` compares" (PK 930, 931) dropped: the product no longer uses it ([FONTLAB-API-RULES.md](../FONTLAB-API-RULES.md), [LESSONS.md](../LESSONS.md)); the user's choice.
+
+- 2026-11-20: "Answering from an earlier reply" (T2 254, 254b) dropped: an agent-behaviour note with no way to settle it; the user's choice.
+
+- 2026-11-20: "A fractional width written through the API" (AW 1449, AW2 1451–1455) merged into the open entry "Fractional widths and FontLab's two reads": since listener 0.197 / server 0.80 `set_glyph_width` writes whole units only; the user's choice.
+
 - 2026-11-20: "`remove_kerning`'s instruction on `no entry` predates class sides" (CK 1430; also the revert and restore sentences for a class pair, 1421, 1429, and the OUTPUT line) settled by listener 0.195 / server 0.79: run live CK2 1434–1436a, a glyph-only control unchanged (1435) ([LIVE-TESTS.md](../LIVE-TESTS.md), [CHANGELOG.md](../CHANGELOG.md)).
 
 - 2026-11-18: "`add_component` judges 'empty' by the active layer only" (NB 1353) settled in part: since listener 0.187 / server 0.74 every target needs exactly one layer, the active one, and `cpqt5` was refused with either layer active, nothing changed (1355, 1356, [LIVE-TESTS.md](../LIVE-TESTS.md)). Its open question, the `verified` read of such a glyph, stays in [WATCH-POINTS.md](../WATCH-POINTS.md).

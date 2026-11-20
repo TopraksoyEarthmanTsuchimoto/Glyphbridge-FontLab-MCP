@@ -4,6 +4,10 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 **Budget changes are not recorded here** (the user's choice of 2026-11-20, unlike HOW-TO-GET-ORGANIZED.md): each one, with its date and reason, goes to "Budget history" in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md); current values are in [MARKDOWN-MAP.md](MARKDOWN-MAP.md). *Reason:* a budget's history is not an active decision, and its rules are in [AGENTS.md](../AGENTS.md).
 
+## 2026-11-20: version history lives in WHAT-WORKS.md and CHANGELOG.md
+
+- **Goals, scope, architecture and the map describe the current state; which version brought what is recorded in [WHAT-WORKS.md](WHAT-WORKS.md)'s version table and [CHANGELOG.md](CHANGELOG.md), and moves into the archive are recorded in the archive files themselves.** *Reason:* release-by-release text in PROJECT.md, ARCHITECTURE.md and MARKDOWN-MAP.md grew with every build and pushed them toward their budgets; the user approved removing it from each (2026-11-20).
+
 ## 2026-11-20: whole-unit widths in `set_glyph_width` (listener 0.197 / server 0.80)
 
 - **A requested width is rounded to the nearest whole unit, a half rounding up (rule B), and the reply says so** (`width_rounded`). *Reason:* the user's choice (B) over refusing a fraction as `set_kerning` does: FontLab's own width field rounds a typed 437.5 to 438 (AW2 1456), while `advanceWidth = 437.5` through the API left FontLab's two views apart (AW 1449).
@@ -67,31 +71,14 @@ The rule against personal data in live files ([AGENTS.md](../AGENTS.md)) gets on
 
 The docs name AI apps side by side, never one "instead of" another. Shared steps are written for "your AI app", and each app gets a section of the same rank ([README.md](../README.md)). Apps may be listed in an order, but none is presented as the default. Reason: the user's choice, after ChatGPT Desktop joined Claude Desktop as a tested client.
 
-## 2026-11-18: `add_component` for a glyph that is not empty (research listener 0.180–0.185; built listener 0.186–0.187 / server 0.73–0.74)
+## 2026-11-09 to 2026-11-18: components (P2.7; listener 0.130–0.187 / server 0.50–0.74)
 
-Merged on 2026-11-18 from three entries; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md).
-- **Researched in the user's route order: a temporary layer in the target glyph; then setting the shapes aside and putting them back; then a component shape made directly; a scratch glyph only if all three fail.** *Reason:* FontLab's recipe build on that glyph replaced its contents (NE 1268, [topics/reading.md](topics/reading.md)); a scratch glyph would need a hidden delete in every call (the F1 risk of `delete_glyph`) and could be left behind by a failure. The first route worked (TL 1294–1300).
-- **`add_component` is extended, not joined by a new tool:** an empty target keeps its route, a target with content gets the temporary-layer route inside the same request (`placement`). *Reason:* one tool for agents; run C showed the route is safe only when nothing falls between its steps.
-- **A failure partway restores the glyph fully:** the components the call added are removed with `removeShape`, the temporary layer removed, the width written back, and a re-read confirms (`restore.restored`). *Reason:* `removeShape` is proven exact (RM, RC); a half-built glyph is left to nobody.
-- **A target may hold contours, components and Power Brush shapes; Power Brush was researched first** (listener 0.185, PB 1328–1345). No `inkBox()` is called on a brush shape.
-- **The full sync check for every target, brush targets included.** *Reason:* PB-F kept its brush through two updates; one rule for all writes. F1 is not isolated: a brush flattened in later use reopens this.
-- **Both forms on a target with content,** with the list form's rules (soft limit 30, no underscore names); the list form there live since NB 1350.
-- **Every target, both routes, both forms, needs exactly one layer, the active one; anything else is refused before any change** (0.187 / 0.74). *Reason:* in NB 1353 an empty active layer beside a full one took the empty route, and the component named that layer as its source's. The user chose this rule (A) over requiring only the master layer active (B): it is the rule proven in 1351.
-- *Reason for all:* the user's answers, one question at a time; each build approved as proposed. In the build, the reply field is `placement` (`route` already existed), and each new component names its source's own layer.
-
-## 2026-11-18: removing components, `remove_component` (listener 0.179 / server 0.72)
-
-- **A component is named by its index in `get_glyph_outline`'s element list, with the source and offset expected there; any mismatch refuses the whole call before anything changes.** *Reason:* a stale read becomes a refusal, as with `move_nodes`' `from`; two copies of one source at one place stay apart.
-- **One form per call: `component` or a `components` list. In a list every index refers to the glyph as read before the call, every entry is checked first, and removal runs from the highest index down. No size limit.**
-- **Any glyph holding a component is accepted, also one with contours; every other element is confirmed unchanged.** A Power Brush shape is refused (F1; added in the build).
-- **A target whose auto layer is on is refused; a leftover recipe is kept and reported.** *Reason:* an auto layer is FontLab's to rebuild; RM tested only glyphs with it off.
-- **The call is `layer.removeShape(component, False)`.** *Reason:* it removed exactly the component asked for (RM 1241–1245), `recursive` made no difference, and `clearComponents()` changed nothing (1246).
-- **The font is marked whenever the outline changed; a width FontLab changed is written back once and reported.** *Reason:* the precedents of `move_nodes` and `add_component`.
-- *Reason for the rest:* the user's answers, one question at a time.
-
-## 2026-11-17: placing components, `add_component` (listener 0.169–0.175 / server 0.66–0.69)
-
-Moved to [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) on 2026-11-19 (budget), still in force: FontLab's recipe build (`recipe`, `autoLayer`, `buildAuto()`) at whole-unit offsets; one component or a `components` list; soft limit 30 with the person's approval above it; the width read before, written back and confirmed; underscore names refused in a list.
+Merged on 2026-11-20 from four entries: placing components (2026-11-17), a target that is not empty and `remove_component` (both 2026-11-18), components against their source (2026-11-09). Each in full, with its reasons and evidence: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md). Facts: [topics/reading.md](topics/reading.md); limits: [WHAT-WORKS.md](WHAT-WORKS.md).
+- **Placing (`add_component`):** FontLab's recipe build at whole-unit offsets; one component or a `components` list; soft limit 30, with the person's approval above it; the width read before, written back and confirmed; underscore names refused in a list; the font in front is used.
+- **A target with content:** the same tool, through a temporary layer (`placement`); the target needs exactly one layer, the active one, or the call is refused before any change; a failure partway restores the glyph fully. A Power Brush shape flattened in later use reopens this (F1).
+- **Removing (`remove_component`):** by index, with the source and offset expected there; any mismatch refuses the whole call; the call is `layer.removeShape(component, False)`; a list runs from the highest index down, with no size limit; an auto layer that is on, or a Power Brush shape, is refused.
+- **A composite read behind its source is `unverified`,** with both boxes and an instruction to tell the person; the in-step checks cover plain offsets only.
+- *Reason for all:* the user's answers, one question at a time.
 
 ## 2026-11-15: `move_nodes`, the first edit tool (listener 0.153–0.154 / server 0.63–0.65)
 
@@ -144,11 +131,6 @@ Condensed on 2026-11-11 from six entries and again on 2026-11-13; full text: [ar
 - **FontLab offers its save question for every tool change, and a tool-written kerning pair shows in the KERNING panel at once** ([PROJECT.md](PROJECT.md), goals 7 and 8). After a verified write the listener makes one FontLab notification; nothing is ever saved. *Reason:* closing lost tool work silently (S1).
 - **Replies say what was done, never what FontLab shows.** *Reason:* no reading follows FontLab's icon or panel (659, 668).
 - **Switches** `_MARK_CHANGED`, `_REFRESH_KERNING_PANEL`, `_ICON_MAY_LAG_KERNING` (false since server 0.57). Where the icon may lag after another kind of write, the agent tells the person once per package; the kerning check is repeated on each new FontLab version ([RUNBOOK.md](RUNBOOK.md) §13, 3g).
-
-## 2026-11-09: components against their source (listener 0.130 / server 0.50)
-
-- **A composite found behind its source reads `unverified`, with both boxes and an instruction to tell the person.** *Reason:* its numbers match what FontLab holds, but can change at the next GUI edit (638–653). The user approved the design as proposed.
-- **The per-element and in-step checks cover plain offsets only;** anything else stays as before and says `"unknown"`. *Reason:* only offsets were tested.
 
 ## 2026-11-04: save tests are a preference, not a rule
 

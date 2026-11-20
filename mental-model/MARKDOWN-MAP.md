@@ -6,9 +6,9 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 
 | File | Role | Word budget |
 |---|---:|---:|
-| [AGENTS.md](../AGENTS.md) | rules and working agreements for every agent | 1,100 |
+| [AGENTS.md](../AGENTS.md) | rules and working agreements for every agent | 1,250 |
 | [CLAUDE.md](../CLAUDE.md) | imports AGENTS.md, plus Claude-only notes | 200 |
-| [CODEX.md](../CODEX.md) | Codex-only notes; Codex loads AGENTS.md by itself and reads this file because AGENTS.md says so | 350 |
+| [CODEX.md](../CODEX.md) | Codex-only notes; Codex loads AGENTS.md by itself and reads this file because AGENTS.md says so | 500 |
 | [README.md](README.md) | introduction for outside developers | 700 |
 | [PROJECT.md](PROJECT.md) | goals, scope, non-goals, design rule | 1,000 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | processes, APIs, verification model, tools, layout | 1,600 |
@@ -17,9 +17,9 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 1,000 |
 | [CHECKLIST.md](CHECKLIST.md) | open scenarios | 1,750 |
 
-Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 700; [WATCH-POINTS.md](WATCH-POINTS.md) 2,500; [WHAT-WORKS.md](WHAT-WORKS.md) 3,500.
+Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 800; [WATCH-POINTS.md](WATCH-POINTS.md) 2,500; [WHAT-WORKS.md](WHAT-WORKS.md) 3,500; [GLOSSARY.md](GLOSSARY.md) 500.
 
-**Reference totals:** 15,900 words including the root README, and 15,200 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
+**Reference totals:** 16,300 words including the root README, and 15,500 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
 
 ## Linked files (read when the task needs them; no budget unless noted)
 
@@ -46,13 +46,13 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 
 ## Archive
 
-[archive/](archive/README.md) holds snapshots and retired material:
-- [archive/milestone-summary-v11.md](archive/milestone-summary-v11.md): the last chat-era hand-off, personal details removed.
-- [archive/scenarios-checklist-v11.md](archive/scenarios-checklist-v11.md): the full scenario matrix with its DONE rows, verbatim.
-- [archive/CHECKLIST-closed-rows.md](archive/CHECKLIST-closed-rows.md): rows closed since v11, with dates and tests.
-- [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md): superseded decisions, the budget history moved from this map on 2026-11-17, and the `add_component` entry of 2026-11-17, still in force, moved for the budget on 2026-11-19.
+[archive/](archive/README.md) holds snapshots and retired material; its README says what belongs there and how to move something in. Each archive file records, with dates, what was moved there and when.
+- [archive/milestone-summary-v11.md](archive/milestone-summary-v11.md): the last chat-era hand-off (listener 0.95 / server 0.31, 2026-10-27), unchanged except for personal details.
+- [archive/scenarios-checklist-v11.md](archive/scenarios-checklist-v11.md): the full 80-row scenario matrix of v11 with its DONE rows and evidence, verbatim.
+- [archive/CHECKLIST-closed-rows.md](archive/CHECKLIST-closed-rows.md): checklist rows closed since v11, with dates and tests, and open rows as they stood before a trim.
+- [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md): superseded decisions, entries moved or merged out of DECISIONS.md that are still in force, and the budget history.
 - [archive/WATCH-POINTS-settled.md](archive/WATCH-POINTS-settled.md): watch points settled or dropped, one line each.
-- [archive/CURRENT-STATUS-resume-2026-11-10.md](archive/CURRENT-STATUS-resume-2026-11-10.md): the finished items of CURRENT-STATUS's "Resume here", as of 2026-11-10, five more moved on 2026-11-15, and the resume point of 2026-11-15 and "Components (P1.1)" (moved 2026-11-17); and, from the tidy-up of 2026-11-17, the long "Last verified" line, the P2.7 resume point and the finished items; and the finished P2.7 item (moved 2026-11-19); and the kerning resume bullet as it stood before the rewrite of 2026-11-19.
+- [archive/CURRENT-STATUS-resume-2026-11-10.md](archive/CURRENT-STATUS-resume-2026-11-10.md): text moved out of CURRENT-STATUS.md: finished "Resume here" items and earlier "Last verified" lines.
 - [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md): the old module docstrings with the full version history.
 
 ## Where the sections of milestone summary v11 went

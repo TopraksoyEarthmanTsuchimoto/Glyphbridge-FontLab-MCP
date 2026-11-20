@@ -7,7 +7,7 @@ AI app (Claude Desktop, Claude Code, ChatGPT Desktop, …)
    │ MCP over stdio
 glyphbridge_mcp_server.py      own venv, normal Python, MCP SDK v2 (mcp 2.2.0)
    │ HTTP + JSON, 127.0.0.1:8765 only
-glyphbridge_fontlab_mcp_listener.py   inside FontLab 8 (embedded Python 3.11)
+glyphbridge_fontlab_mcp_listener.py   inside FontLab 8 (embedded Python)
    │ FontLab Python API (legacy fgFont/fgGlyph + modern flGlyph/flLayer)
 FontLab 8
 ```
@@ -16,7 +16,7 @@ FontLab 8
    - FontLab gives background threads no CPU while it idles, so a `QTimer` polls a non-blocking socket every 25 ms on the main thread. Every `fontlab` call therefore runs on FontLab's main thread, and a long request keeps FontLab busy.
    - It imports `QMessageBox` from `PythonQt.QtGui`, falling back to `PythonQt.QtWidgets`.
    - While a FontLab dialog it opened is waiting for a click, nothing else is served, and other calls time out (live-verified).
-   - It prints one short line per change, and a summary of reads, in FontLab's OUTPUT panel, built only from each request and its reply (v0.102), naming the client that sent it (v0.105) and, once per new client, the program that started the server (v0.109, `| CLAUDE` since v0.110): [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4.
+   - It prints one short line per change, and a summary of reads, in FontLab's OUTPUT panel, built only from each request and its reply, naming the client that sent it and, once per new client, the program that started the server: [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4.
 2. **Server** (`glyphbridge_mcp_server.py`, `SERVER_VERSION` in the file). A normal MCP server, launched over stdio by the AI app. It **never imports `fontlab`**. All interpretation lives here: curve rebuild, transform maths, verification, name rules, Unicode instructions, save-policy bookkeeping, and the `agent_instruction` texts.
    - `MIN_LISTENER_VERSION` is `(0, 82)`. Newer tools check the listener version they need before sending anything.
    - Request timeout: 5 s by default, longer for kerning reads and for dialogs that wait for a click.
@@ -30,7 +30,7 @@ Effect of the split: the AI app starts the server in its own Python with its own
 - **Legacy** objects (`fgFont`, `fgGlyph`, `fgLayer`) list glyphs, names, Unicode values and margins. They also provide `font.update()`.
 - **Modern** objects (`flGlyph`, `flLayer`, `flShape`, `flPackage`) give the real element transforms, the drawing calls (`addContour`/`addShape`), `setSB` and `advanceWidth`, and the sync call `fontlab.Update(flGlyph)`.
 - The bridge `fontlab.flGlyph(fgGlyph, fgFont)` leaks one native reference per construction. The listener therefore caches one wrapper per glyph and validates it before reuse: [topics/reading.md](topics/reading.md) §6.
-- **Writes** go through the modern API. Right after each one the listener calls `Update(<flGlyph>)` (auto sync), so the legacy view catches up, and since 0.132 / 0.51 a verified, synced glyph write also tells FontLab it changed (`notifyChangesApplied`), so FontLab asks to save on close; since 0.133 / 0.53 a verified delete does the same through one surviving glyph, and since 0.134 / 0.54 a kerning write that changed an entry through a glyph of a changed pair; since 0.136 / 0.56 such a write also asks FontLab to refresh its KERNING panel (`notifyPackageContentUpdated`). A guard skips the legacy `font.update()` while any changed glyph might still be unsynced, because that call can throw unsynced work away: [topics/fonts-and-sync.md](topics/fonts-and-sync.md).
+- **Writes** go through the modern API. Right after each one the listener calls `Update(<flGlyph>)` (auto sync), so the legacy view catches up. A verified, synced glyph write also tells FontLab it changed (`notifyChangesApplied`), so FontLab asks to save on close; a verified delete does the same through one surviving glyph, and a kerning write that changed an entry through a glyph of a changed pair; such a kerning write also asks FontLab to refresh its KERNING panel (`notifyPackageContentUpdated`). A guard skips the legacy `font.update()` while any changed glyph might still be unsynced, because that call can throw unsynced work away: [topics/fonts-and-sync.md](topics/fonts-and-sync.md).
 - **Reads** of a glyph with modern nodes use the modern layer only (listener 0.120): touching the legacy layer of a Power Brush glyph lets the next `font.update()` flatten it (F1, [topics/fonts-and-sync.md](topics/fonts-and-sync.md) §8l). Glyphs without modern nodes are read from the legacy layer, cross-checked with the modern margins: [topics/reading.md](topics/reading.md). The PostScript names come from the font package, where FontLab keeps what Font Info shows; the legacy `font.info` can disagree (listener 0.118, [topics/fonts-and-sync.md](topics/fonts-and-sync.md)).
 - **Modern first** (2026-11-04, [DECISIONS.md](DECISIONS.md)): a legacy call is used only where the modern one is missing or proven worse. The legacy calls still in use, and why, are listed in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10; replacing them is goal 6 in [PROJECT.md](PROJECT.md).
 - Some FontLab objects crash FontLab natively when used the wrong way, for example indexing a native object. Those rules are in [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md).
@@ -51,15 +51,17 @@ Every write is reported as successful only after a re-read agrees. Drawings are 
 | Area | Tools | Listener routes | Details |
 |---|---|---|---|
 | status, font | `fontlab_status`, `get_current_font`, `list_glyphs` | `/health`, `/version`, `/font/current`, `/font/glyphs` | [server-and-endpoints](topics/server-and-endpoints.md) |
-| new font | `create_font` (server 0.60) | POST `/font/create` (listener 0.146) | [server-and-endpoints](topics/server-and-endpoints.md), [fonts-and-sync](topics/fonts-and-sync.md) §8k |
+| new font | `create_font` | POST `/font/create` | [server-and-endpoints](topics/server-and-endpoints.md), [fonts-and-sync](topics/fonts-and-sync.md) §8k |
 | reading | `get_glyph_outline`, `get_glyph_width`, `get_glyph_sidebearings` | `/glyph/outline`, `/glyph/width`, `/glyph/sidebearings` | [reading](topics/reading.md) |
 | `.notdef` | `check_notdef` (+ automatic checks) | `/font/notdef`, `/font/notdef/warn` | [notdef](topics/notdef.md) |
 | names, Unicode | `create_glyph`, `delete_glyph`, `check_glyph_unicode`, `set_glyph_unicode` | `/glyph/create`, `/glyph/delete`, `/glyph/unicode` | [names-unicode](topics/names-unicode.md) |
-| geometry | `set_glyph_width`, `set_glyph_sidebearings`, `draw_polygon`, `draw_path`, `move_nodes` (server 0.63; 0.64, 0.65) | `/glyph/width`, `/glyph/sidebearings`, `/glyph/polygon`, `/glyph/path`, `/glyph/move` (listener 0.153) | [geometry](topics/geometry.md) |
-| components | `add_component` (server 0.66; live AC 1079–1101; the `components` list since 0.68, underscore names refused since 0.69, the single form's width write-back since 0.71; a target that is not empty since 0.73, live NB 1347–1352; one layer for every target since 0.74, stub-tested); `remove_component` (server 0.72; live RC 1257–1264b) | POST `/glyph/component` (listener 0.169; `components` since 0.174, `components_after` since 0.175, `width_set_by_build` since 0.178, the temporary-layer route since 0.186, the one-layer check for both routes since 0.187); POST `/glyph/component/remove` (listener 0.179) | [reading](topics/reading.md) |
-| kerning | `get_kerning`, `set_kerning`, `get_kerning_groups` (server 0.75), `remove_kerning` (server 0.76); class sides `@name` in both writes (server 0.78) | GET/POST `/kerning/pairs`, POST `/kerning/set`, GET/POST `/kerning/groups` (listener 0.190), POST `/kerning/remove` (listener 0.192); `@name` sides on both (listener 0.194) (the current master's table of the font in front; with several fonts open, matched by path) | [kerning](topics/kerning.md) |
+| geometry | `set_glyph_width`, `set_glyph_sidebearings`, `draw_polygon`, `draw_path`, `move_nodes` | `/glyph/width`, `/glyph/sidebearings`, `/glyph/polygon`, `/glyph/path`, `/glyph/move` | [geometry](topics/geometry.md) |
+| components | `add_component` (one component or a `components` list, underscore names refused in a list; into an empty glyph, or beside what it holds through a temporary layer; the target needs exactly one layer, the active one; the width written back), `remove_component` | POST `/glyph/component`, POST `/glyph/component/remove` | [reading](topics/reading.md) |
+| kerning | `get_kerning`, `set_kerning`, `get_kerning_groups`, `remove_kerning`; class sides `@name` in both writes | GET/POST `/kerning/pairs`, POST `/kerning/set`, GET/POST `/kerning/groups`, POST `/kerning/remove`; `@name` sides on both (the current master's table of the font in front; with several fonts open, matched by path) | [kerning](topics/kerning.md) |
 | save policy | `finish_changes` | none (server bookkeeping) | [server-and-endpoints](topics/server-and-endpoints.md) §2 |
 | research | none | `/debug/...` probes, gated by `go=yes` where they change anything | [server-and-endpoints](topics/server-and-endpoints.md) §3 |
+
+Which version brought each tool and feature: [WHAT-WORKS.md](WHAT-WORKS.md); what each release changed: [CHANGELOG.md](CHANGELOG.md).
 
 **Confirmation and gating:**
 - `delete_glyph` asks a Yes/No question in FontLab (default No).
@@ -70,7 +72,7 @@ Every write is reported as successful only after a re-read agrees. Drawings are 
 ## Repository layout
 
 ```
-README.md, AGENTS.md, CLAUDE.md, .mcp.json
+README.md, LICENSE, AGENTS.md, CLAUDE.md, CODEX.md, .mcp.json, .gitattributes, .gitignore
 glyphbridge_mcp_server.py, glyphbridge_fontlab_mcp_listener.py   (root: tests read them from here)
 tests/          run_all.py, four stub harnesses, expected_*.txt, README.md
 mental-model/   all other documentation (map: MARKDOWN-MAP.md)

@@ -115,6 +115,36 @@ Condensed on 2026-11-17 from three entries, all built; full text: [archive/DECIS
 - **In the list form a source name with an underscore is refused before anything changes; after a failed build each entry's state is matched by source name, and the reply lists what the glyph holds** (0.175 / 0.69). *Reason:* FontLab's recipe reads `a_b` as a ligature of its parts (1234); a placed component was called "not reached" (1200–1208).
 - *Reason for all but the first:* the user's answers, one question at a time.
 
+## Merged on 2026-11-20: components, each entry in full
+
+The component entries of [DECISIONS.md](../DECISIONS.md), merged there into one entry ("2026-11-09 to 2026-11-18: components") to keep it within its budget (approved by the user on 2026-11-20). They are not superseded: the rules still in force are summarized in the merged entry, and the full text, reasons and evidence are here, unchanged except for the link paths. The fourth entry, placing components (2026-11-17), is above in "Moved on 2026-11-19 (budget), still in force".
+
+### 2026-11-18: `add_component` for a glyph that is not empty (research listener 0.180–0.185; built listener 0.186–0.187 / server 0.73–0.74)
+
+Merged on 2026-11-18 from three entries; full text: [archive/DECISIONS-ARCHIVE.md](DECISIONS-ARCHIVE.md).
+- **Researched in the user's route order: a temporary layer in the target glyph; then setting the shapes aside and putting them back; then a component shape made directly; a scratch glyph only if all three fail.** *Reason:* FontLab's recipe build on that glyph replaced its contents (NE 1268, [topics/reading.md](../topics/reading.md)); a scratch glyph would need a hidden delete in every call (the F1 risk of `delete_glyph`) and could be left behind by a failure. The first route worked (TL 1294–1300).
+- **`add_component` is extended, not joined by a new tool:** an empty target keeps its route, a target with content gets the temporary-layer route inside the same request (`placement`). *Reason:* one tool for agents; run C showed the route is safe only when nothing falls between its steps.
+- **A failure partway restores the glyph fully:** the components the call added are removed with `removeShape`, the temporary layer removed, the width written back, and a re-read confirms (`restore.restored`). *Reason:* `removeShape` is proven exact (RM, RC); a half-built glyph is left to nobody.
+- **A target may hold contours, components and Power Brush shapes; Power Brush was researched first** (listener 0.185, PB 1328–1345). No `inkBox()` is called on a brush shape.
+- **The full sync check for every target, brush targets included.** *Reason:* PB-F kept its brush through two updates; one rule for all writes. F1 is not isolated: a brush flattened in later use reopens this.
+- **Both forms on a target with content,** with the list form's rules (soft limit 30, no underscore names); the list form there live since NB 1350.
+- **Every target, both routes, both forms, needs exactly one layer, the active one; anything else is refused before any change** (0.187 / 0.74). *Reason:* in NB 1353 an empty active layer beside a full one took the empty route, and the component named that layer as its source's. The user chose this rule (A) over requiring only the master layer active (B): it is the rule proven in 1351.
+- *Reason for all:* the user's answers, one question at a time; each build approved as proposed. In the build, the reply field is `placement` (`route` already existed), and each new component names its source's own layer.
+
+### 2026-11-18: removing components, `remove_component` (listener 0.179 / server 0.72)
+
+- **A component is named by its index in `get_glyph_outline`'s element list, with the source and offset expected there; any mismatch refuses the whole call before anything changes.** *Reason:* a stale read becomes a refusal, as with `move_nodes`' `from`; two copies of one source at one place stay apart.
+- **One form per call: `component` or a `components` list. In a list every index refers to the glyph as read before the call, every entry is checked first, and removal runs from the highest index down. No size limit.**
+- **Any glyph holding a component is accepted, also one with contours; every other element is confirmed unchanged.** A Power Brush shape is refused (F1; added in the build).
+- **A target whose auto layer is on is refused; a leftover recipe is kept and reported.** *Reason:* an auto layer is FontLab's to rebuild; RM tested only glyphs with it off.
+- **The call is `layer.removeShape(component, False)`.** *Reason:* it removed exactly the component asked for (RM 1241–1245), `recursive` made no difference, and `clearComponents()` changed nothing (1246).
+- **The font is marked whenever the outline changed; a width FontLab changed is written back once and reported.** *Reason:* the precedents of `move_nodes` and `add_component`.
+- *Reason for the rest:* the user's answers, one question at a time.
+
+### 2026-11-09: components against their source (listener 0.130 / server 0.50)
+
+- **A composite found behind its source reads `unverified`, with both boxes and an instruction to tell the person.** *Reason:* its numbers match what FontLab holds, but can change at the next GUI edit (638–653). The user approved the design as proposed.
+- **The per-element and in-step checks cover plain offsets only;** anything else stays as before and says `"unknown"`. *Reason:* only offsets were tested.
 
 ## Budget history (moved from MARKDOWN-MAP on 2026-11-17)
 
@@ -127,6 +157,14 @@ Not core, but budgeted: the root [README.md](../../README.md), the end-user inst
 ## Budget changes since 2026-11-13
 
 Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
+
+### 2026-11-20: root README.md budget 700 → 800
+
+The user's choice, at 691 words, found by a health check of the documents. The root README is not a startup core file, so only the first reference total changes: now 16,300 and 15,500.
+
+### 2026-11-20: AGENTS.md budget 1,100 → 1,250, CODEX.md budget 350 → 500
+
+The user's choice, with both files at their budgets (1,100 and 350 words), found by a check of every budgeted file. Reference totals now 16,200 and 15,500.
 
 ### 2026-11-20: GLOSSARY.md created with a budget of 500
 
