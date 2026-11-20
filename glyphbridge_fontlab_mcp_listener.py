@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.195)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.196)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -162,6 +162,7 @@ Routes (GET unless marked POST):
     /debug/buildglyph     constructs a modern flGlyph wrapper and reads it
     /debug/trylayer       modern layer state; one layer-creation call on an empty glyph
     /debug/trymetrics     width and sidebearing experiments (glyph names starting with "tri")
+    /debug/tryadvancewidth   names-only check, then one gated flGlyph.advanceWidth read (glyph names starting with "tri")
     /debug/tryshape       shape-building experiments (pen, modern and curve variants); superseded
                           by /glyph/polygon and /glyph/path
     /debug/tryfont        a new font through flPackage(), once per listener run; stage=construct_named&family=F (v0.142) names it
@@ -283,7 +284,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.195"
+VERSION = "0.196"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -10454,6 +10455,88 @@ def _modern_wrapper(glyph, font):
     return w, "built"
 
 
+_TRYADVANCEWIDTH_MAX = 10
+_TRYADVANCEWIDTH = {"calls": 0}
+
+
+def debug_try_advance_width(name, stage, go):
+    """Names-only inspection, then one gated read of flGlyph.advanceWidth."""
+    import math as _math
+
+    result = {"name": name, "stage": stage, "call": "flGlyph.advanceWidth", "calls_so_far": _TRYADVANCEWIDTH["calls"],
+              "max_calls": _TRYADVANCEWIDTH_MAX}
+    if not isinstance(name, str) or not name or len(name) > 40 or not name.startswith("tri") or not all(
+            ch.isascii() and (ch.isalnum() or ch in "._-") for ch in name):
+        return dict(result, refused=True, error="name must be 1 to 40 ASCII letters, digits, dot, underscore or hyphen, starting with tri")
+    if stage not in ("names", "read"):
+        return dict(result, error="stage must be names or read")
+    if stage == "read" and go != "yes":
+        return dict(result, error="stage=read calls flGlyph.advanceWidth once; add &go=yes to run it")
+
+    font = _open_font()
+    if font is None:
+        return dict(result, refused=True, open=False, error="no font open")
+    if _REQUEST_FONT.get("count") != 1 or type(_REQUEST_FONT.get("count")) is not int:
+        return dict(result, refused=True, open=True, font_count=_REQUEST_FONT.get("count"),
+                    error="requires exactly one font counted by CountFonts()")
+
+    try:
+        glyphs_before = font.glyphs
+        count_before = len(glyphs_before)
+    except Exception as exc:
+        return dict(result, refused=True, open=True, error=f"glyph count before read failed: {type(exc).__name__}: {exc}")
+    try:
+        glyph = next((item for item in glyphs_before if str(item.name) == name), None)
+    except Exception as exc:
+        return dict(result, refused=True, open=True, glyph_count_before=count_before,
+                    error=f"glyph lookup failed: {type(exc).__name__}: {exc}")
+    if glyph is None:
+        return dict(result, refused=True, open=True, found=False, glyph_count_before=count_before,
+                    error="no glyph with that name")
+    try:
+        wrapper, how = _modern_wrapper(glyph, font)
+    except Exception as exc:
+        return dict(result, refused=True, open=True, found=True, glyph_count_before=count_before,
+                    error=f"modern wrapper failed: {type(exc).__name__}: {exc}")
+
+    if stage == "names":
+        try:
+            members = sorted(set(dir(wrapper)))
+        except Exception as exc:
+            return dict(result, open=True, found=True, wrapper=how, glyph_count_before=count_before,
+                        error=f"member names failed: {type(exc).__name__}: {exc}")
+        try:
+            count_after = len(font.glyphs)
+        except Exception:
+            count_after = None
+        return dict(result, open=True, found=True, wrapper=how, member_names=members,
+                    advance_width_listed="advanceWidth" in members, read_performed=False,
+                    glyph_count_before=count_before, glyph_count_after=count_after,
+                    side_effect_detected=None if count_after is None else count_after != count_before)
+
+    if _TRYADVANCEWIDTH["calls"] >= _TRYADVANCEWIDTH_MAX:
+        return dict(result, refused=True, open=True, found=True, wrapper=how, glyph_count_before=count_before,
+                    error="per-listener-run call limit reached")
+    _TRYADVANCEWIDTH["calls"] += 1  # counted before the one target-property read
+    result["calls_so_far"] = _TRYADVANCEWIDTH["calls"]
+    result["read_performed"] = True
+    try:
+        value = wrapper.advanceWidth  # exactly one read of the target property
+        if type(value) not in (int, float) or isinstance(value, bool) or not _math.isfinite(value):
+            result["call_error"] = "advanceWidth did not return a finite plain number"
+        else:
+            result["advance_width"] = value
+    except Exception as exc:
+        result["call_error"] = f"{type(exc).__name__}: {exc}"
+    try:
+        count_after = len(font.glyphs)
+    except Exception:
+        count_after = None
+    result.update(open=True, found=True, wrapper=how, glyph_count_before=count_before, glyph_count_after=count_after,
+                  side_effect_detected=None if count_after is None else count_after != count_before)
+    return result
+
+
 def _read_elements(glyph, font, legacy_layer_name, legacy_node_count):
     """The true transform of every shape of this glyph. Never raises: problems come
     back as {"available": False, "error": ...} so the outline itself is unaffected."""
@@ -14030,6 +14113,17 @@ def _route(method, full_path, body=b""):
                 return _build_response(200, debug_try_metrics(names[0].strip(), _q("go"), _q("stage", "read"), _q("what", "width"),
                                                              _q("route", "legacy"), _q("value"), _q("value2"), _q("update", "default"), _q("notify", "no"),
                                                              _q("target"), _q("member"), _q("members"), _q("arg")))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/tryadvancewidth":
+            names = query.get("name")
+            if not names or not names[0].strip():
+                return _build_response(400, {"error": "provide ?name=tri...&stage=names|read[&go=yes]"})
+            def _qaw(key, default=""):
+                return (query.get(key) or [default])[0]
+            try:
+                return _build_response(200, debug_try_advance_width(names[0].strip(), _qaw("stage", "names"), _qaw("go")))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

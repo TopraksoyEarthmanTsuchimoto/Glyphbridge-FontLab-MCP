@@ -28,6 +28,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 | [WHAT-WORKS.md](WHAT-WORKS.md) | what is live-proven and which version each feature needs; read on the trigger in AGENTS.md (budget 3,500) |
 | [HOW-TO-GET-ORGANIZED.md](HOW-TO-GET-ORGANIZED.md) | the workflow guide this repository follows |
 | [WATCH-POINTS.md](WATCH-POINTS.md) | what was seen but is not yet explained or settled, and how an entry is settled or dropped (budget 2,500) |
+| [GLOSSARY.md](GLOSSARY.md) | the project's short codes and terms, one line each, with a link to each one's home (budget 500) |
 | [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) | hard rules for FontLab API calls, the proven calls and the legacy calls in use, and dead ends not to retry |
 | [RUNBOOK.md](RUNBOOK.md) | machine setup, restart rules, PowerShell conventions, re-verify steps, ready commands |
 | [LIVE-TESTS.md](LIVE-TESTS.md) | the K-series and T-series live tests in full |

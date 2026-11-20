@@ -4,6 +4,13 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.196 (2026-11-20, server unchanged at v0.79): gated `flGlyph.advanceWidth` read
+
+**Built as proposed and approved (in a Codex session).**
+
+- Listener: `/debug/tryadvancewidth` lists member names at `stage=names`; `stage=read&go=yes` reads `flGlyph.advanceWidth` once, with one-font and `tri`-name gates and a 10-call listener-run cap.
+- Tests: four stub harnesses PASS at 5301 + 58 + 90 + 1668 lines; the deployed listener copy is identical. The stub tests cover the names stage, a read without `go=yes` and one gated read; the refusals (a second font, another name, the cap reached) are not stub-tested. Live FontLab status: [LIVE-TESTS.md](LIVE-TESTS.md).
+
 ## Listener v0.195 / server v0.79 (2026-11-20): the general kerning instructions and the OUTPUT line name a class pair's own rules
 
 **Built as proposed and approved, after CK 1421, 1429 and 1430 ([LIVE-TESTS.md](LIVE-TESTS.md)).** Run live CK2 1433–1436a, every prediction held.

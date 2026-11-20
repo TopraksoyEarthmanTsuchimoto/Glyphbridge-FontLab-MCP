@@ -4,6 +4,14 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 **Budget changes are not recorded here** (the user's choice of 2026-11-20, unlike HOW-TO-GET-ORGANIZED.md): each one, with its date and reason, goes to "Budget history" in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md); current values are in [MARKDOWN-MAP.md](MARKDOWN-MAP.md). *Reason:* a budget's history is not an active decision, and its rules are in [AGENTS.md](../AGENTS.md).
 
+## 2026-11-20: the repository's GitHub address
+
+The rule against personal data in live files ([AGENTS.md](../AGENTS.md)) gets a second exception: the repository's own GitHub address, which contains the owner's account name, where install instructions or links need it (today the root README). *Reason:* a public repository cannot be installed or linked without its address.
+
+## 2026-11-20: FontLab's Python documentation may be read, never as proof
+
+- **An agent may read FontLab's Python documentation as a source of names and descriptions (step 1 of the proving steps), never as proof** ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10). Facts recorded before this date all come from probes. *Reason:* the earlier ban was a limit of the chat-era sandbox; the site loads in the built-in browser (checked 2026-11-20) and documents `flGlyph.advanceWidth`; but its examples use container access that crashed FontLab, and its FontLab version is not stated, so FontLab stays the oracle.
+
 ## 2026-11-20: class kerning in `set_kerning` and `remove_kerning` (research listener 0.193, CW 1409–1417; built listener 0.194 / server 0.78)
 
 - **The two tools are extended; no new tools.** *Reason:* a class entry is the same call with a different key (CW); one place for agents, and the mark, refresh, approval and stop rules carry over. Glyph-only calls keep their path, calls and replies.

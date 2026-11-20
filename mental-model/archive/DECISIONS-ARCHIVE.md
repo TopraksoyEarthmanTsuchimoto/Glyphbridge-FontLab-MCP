@@ -128,6 +128,10 @@ Not core, but budgeted: the root [README.md](../../README.md), the end-user inst
 
 Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
 
+### 2026-11-20: GLOSSARY.md created with a budget of 500
+
+The user's choice, at 409 words, to keep it a list of pointers to the files where each code is defined.
+
 ### 2026-11-20: DECISIONS.md budget 4,000 → 4,500
 
 The user's choice, at 4,030 words, over moving an older entry to this archive, after the entry for class kerning in `set_kerning` and `remove_kerning` (listener 0.194 / server 0.78). Reference totals now 15,900 and 15,200.

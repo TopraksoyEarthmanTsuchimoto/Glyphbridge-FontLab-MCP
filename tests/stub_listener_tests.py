@@ -10300,3 +10300,36 @@ for _m, _a, _v in _te_saved:
         if hasattr(_m, _a): delattr(_m, _a)
     else:
         setattr(_m, _a, _v)
+
+# ================= v0.196: one gated flGlyph.advanceWidth read =================
+print("\n==== v0.196 /debug/tryadvancewidth: names-only, then one gated read ====")
+class AdvanceWidthModern:
+    reads = 0
+    def __init__(s, glyph, font): s.g = glyph; s.name = glyph.name; s.fgGlyphId = glyph.id
+    def isValid(s): return True
+    @property
+    def advanceWidth(s):
+        type(s).reads += 1
+        return 512.0
+_aw_old_cf = getattr(_fm, "CountFonts", None)
+_aw_old_cur = _fm.CurrentFont
+_aw_old_cls = getattr(_fm, "flGlyph", None)
+_fm.CountFonts = lambda: 1
+_fm.CurrentFont = lambda: TsFont()
+_fm.flGlyph = AdvanceWidthModern
+ts_reset(); ns["_MODERN_CACHE"].clear(); ns["_MODERN_CACHE_FONT"][0] = None
+ns["_TRYADVANCEWIDTH"]["calls"] = 0; AdvanceWidthModern.reads = 0
+c, d = call("/debug/tryadvancewidth?name=tri&stage=names")
+print("2590 names-only         :", c, d.get("advance_width_listed"), "| read", d.get("read_performed"), "| calls", AdvanceWidthModern.reads)
+c, d = call("/debug/tryadvancewidth?name=tri&stage=read")
+print("2591 read without go    :", c, d.get("error"), "| calls", AdvanceWidthModern.reads, "| budget", ns["_TRYADVANCEWIDTH"]["calls"])
+c, d = call("/debug/tryadvancewidth?name=tri&stage=read&go=yes")
+print("2592 gated read         :", c, d.get("advance_width"), "| wrapper", d.get("wrapper"), "| count", d.get("glyph_count_before"), d.get("glyph_count_after"),
+      "| side effect", d.get("side_effect_detected"), "| calls", AdvanceWidthModern.reads, d.get("calls_so_far"))
+_fm.CurrentFont = _aw_old_cur
+if _aw_old_cf is None:
+    if hasattr(_fm, "CountFonts"): delattr(_fm, "CountFonts")
+else: _fm.CountFonts = _aw_old_cf
+if _aw_old_cls is None:
+    if hasattr(_fm, "flGlyph"): delattr(_fm, "flGlyph")
+else: _fm.flGlyph = _aw_old_cls

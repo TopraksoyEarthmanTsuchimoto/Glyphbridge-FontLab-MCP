@@ -10,7 +10,7 @@ Instructions for any AI agent working in this repository.
 - **Each fact lives in one file.** Other files link to it with relative Markdown links instead of repeating it. No `[[wikilinks]]`.
 - **Word budgets:** the core files have budgets in MARKDOWN-MAP.md. When you propose a new or changed Markdown file, report its word count against its budget (`wc -w`). If it would go over, propose what to move to a linked file or to `mental-model/archive/`, and a budget raise only as the alternative. Never drop or shorten findings to fit a budget: report the overage and let the user choose. If you cannot run a word-count tool, say that your counts are approximate.
 - Changing a budget needs the user's approval and an entry in [mental-model/archive/DECISIONS-ARCHIVE.md](mental-model/archive/DECISIONS-ARCHIVE.md) (Budget history).
-- **The repository is public.** No personal paths, user names, e-mail addresses, time zones or locales in live files. Exception: the author's name as the copyright holder in the LICENSE file ([DECISIONS.md](mental-model/DECISIONS.md), 2026-11-19).
+- **The repository is public.** No personal paths, user names, e-mail addresses, time zones or locales in live files. Exceptions ([DECISIONS.md](mental-model/DECISIONS.md)): the author's name as copyright holder in LICENSE; the repository's GitHub address.
 
 ## Session procedure
 

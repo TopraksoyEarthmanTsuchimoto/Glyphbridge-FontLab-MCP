@@ -13,7 +13,10 @@ Notes for Codex only (including Codex and Work mode in ChatGPT Desktop). Everyth
 - On Windows the shell is PowerShell. If `wc -w` is missing, count words with this line; it can differ slightly from `wc -w` on files with dashes or arrows, so say which tool you used:
   `.\venv\Scripts\python.exe -c "import sys,re;print(len(re.findall(rb'\S+',open(sys.argv[1],'rb').read())))" AGENTS.md`
 - Copying the listener to FontLab's Scripts folder writes outside the repository and may be refused by the approval prompt. If it is refused, give the user the copy command as one PowerShell line instead, and say the copy was not made.
+- `Get-FileHash` prints the md5 in capitals; the docs write it in lowercase: `(Get-FileHash -Algorithm MD5 <file>).Hash.ToLower()`.
 
 ## What the user sees
 
 - A shared Codex session shows your messages, not your reasoning. Predictions, the Demo-mode statement and the plan you ask approval for must be written in a message before the call or edit they belong to.
+- Put the whole plan you ask approval for in a normal message: files, changes, words removed. A question card alone is not a plan: its text does not show in the shared session.
+- Answer every point a prompt numbers, the session-start report first. Text asked for "in full" is written out; a pointer to earlier text does not count. If you skip a point, say which and why.
