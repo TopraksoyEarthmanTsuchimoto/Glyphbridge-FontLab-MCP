@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.198)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.200)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -130,6 +130,15 @@ Routes (GET unless marked POST):
                                 getAllGroups() on a side that fits; key ((name, isClass), (name, isClass)); each class pair is
                                 verified by its exact entry and one sample glyph pair (kind, classes, sample, sample_verdict);
                                 a glyph side named like a kerning group gets same_name_group
+    POST /kerning/group/rename  {"group", "new_name"} (v0.200): renames ONE kerning group of the current master, groups.rename(group,
+                                new_name), confirmed by items() and getAllGroups() before and after (same members and side); a
+                                new name of any group or class is refused, a glyph's name is allowed (same_name_glyph); the id
+                                before and after (FontLab gives a renamed group a new id); then the mark, the panel refresh and
+                                one member glyph's group id read (fontlab_caught_up)
+    POST /kerning/group/remove  {"group", "pairs": "keep" | "delete"} (v0.200): removes ONE kerning group after a Yes/No dialog in
+                                FontLab (default No), groups.remove(group) or groups.remove(group, True); verified by re-reading
+                                (gone from both sources, one group fewer); the table's size before and after; then the mark,
+                                the refresh and the member check of the rename
     /kerning/pairs?pairs=A:V,T:o  or  ?text=AVATAR
                                 FontLab's effective kerning per pair from the current master's table
                                 (v0.104), class kerning included; source says which kind of entry
@@ -184,6 +193,10 @@ Routes (GET unless marked POST):
     /debug/trydelkern     WRITES: a=A&b=B&form=tuple|flags: ONE remove() of one glyph pair on flPackage.kerning(master), with get()
                           and len() before and after; glyph names only, no group of that name; no mark, no refresh; 10 per run (v0.191);
                           &left / &right as /debug/trysetkern (v0.193): remove(((a, isClass), (b, isClass)))
+    /debug/trykerngroupedit WRITES: op=rename&name=OLD&new=NEW or op=remove&name=N&pairs=keep|delete[&glyph=G]: ONE rename(OLD, NEW)
+                          or remove(N[, True]) on the current master's kerning groups, a group confirmed by items() and getAllGroups();
+                          both, len() of the table and the groups, and G's class entry before and after; no mark, no refresh;
+                          10 per listener run (v0.199)
     /debug/trykernrefresh stage=container|update|changed: ONE flPackage.kerningContainer(), then fontlab.Update(container) or
                           container.changed(); flags and table size before and after; 6 per listener run (v0.123)
     /debug/trykerngroups  stage=all|modes|tuples|items&contains=a,b,c or stage=glyph&name=N: kerning group members and sides
@@ -285,7 +298,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.198"
+VERSION = "0.200"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -585,7 +598,7 @@ _MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge wid
                 "draw_polygon": "Glyphbridge polygon", "draw_path": "Glyphbridge path", "unicode": "Glyphbridge Unicode", "delete": "Glyphbridge delete",
                 "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit", "move_nodes": "Glyphbridge move nodes",
                 "trycomponent": "Glyphbridge component", "trycomponent_light": "Glyphbridge component", "add_component": "Glyphbridge add component",
-                "remove_component": "Glyphbridge remove component"}
+                "remove_component": "Glyphbridge remove component", "kerning_group": "Glyphbridge kerning group"}
 _MARK_DELETE_MAX_TRIES = 20    # v0.133: how many surviving glyphs a delete's mark may try before it says none could be notified; v0.134: also a kerning write's mark
 _SYNCED_NOTE = ("Glyphbridge asked FontLab to sync this glyph right after the change and FontLab's legacy view now matches the modern layer, so the "
                 "change is durable against the display refresh of create_glyph, delete_glyph, set_glyph_unicode and the legacy width route. "
@@ -4769,6 +4782,309 @@ def remove_kerning_pairs(pairs):
             "table_size_before": len_before, "table_size_after": len_after,
             "table_size_as_expected": (len_before - len_after == removed_count) if None not in (len_before, len_after) else None,
             "results": results, "fontlab_changed_mark": mark, "fontlab_panel_refresh": refresh}
+
+
+def _confirm_group_removal(text):
+    """v0.200 - blocking Yes/No dialog in FontLab before a kerning group is removed, the pattern of _confirm_deletion: it runs on the
+    main thread, and Enter or closing the dialog declines. The section below (rename_kerning_group, remove_kerning_group) uses it."""
+    box = QMessageBox(QMessageBox.Warning, "Glyphbridge: Confirm Kerning Group Removal", text, QMessageBox.Yes | QMessageBox.No)
+    box.setDefaultButton(QMessageBox.No)
+    return box.exec_() == QMessageBox.Yes
+
+
+# v0.200 - renaming and removing ONE kerning group of the current master (the design of 2026-11-20, DECISIONS.md; research GE0 1499-1504,
+# GE 1505-1522, GR 1523-1529, GL 1530-1534, GK 1535-1545, topics/kerning.md section 18). The font and its table are matched as /kerning/pairs
+# matches them (_kern_table_target). The group must be a kerning group confirmed by ONE items() of the master's group container and ONE
+# getAllGroups() (_kgr_group); then ONE call on the container: rename(group, new_name), or remove(group) / remove(group, True). The outcome
+# comes from re-reading both sources and the sizes of the table and the container, never from the return value. After a change: the mark
+# through one member glyph (_mark_through_first) and ONE notifyPackageContentUpdated(<package fgId>) (_refresh_kerning_panel; without it
+# FontLab's panels and the glyphs' group ids lag until a font switch, GE 1512-1516; with it they caught up, GR 1528-1529, GL 1533, GK 1544).
+# Then the catch-up check: ONE read of one member glyph's legacy kerningLeft / kerningRight (the read get_kerning makes), expected to name
+# the new id after a rename and 0 after a removal. A rename gives the group a new id (GE 1511, GR 1525). getAllGroups() returns None when the
+# font has no group left (documented ".../Nothing", seen GL 1531): here that is read as an empty list. Container members used: items, rename,
+# remove; never a subscript, del, clear, the legacy addGroup / deleteGroup / renameGroup, flPackage.deleteGroups, a kerning setter, a
+# whole-table read, Update() or a save.
+
+_KGE_MEMBERS_SHOWN = 8          # members named in the removal dialog; the rest are counted
+
+
+def _kge_class_list(pkg):
+    """_kgr_from_class_list, except that None from getAllGroups() is an empty list (".../Nothing": the font has no group, GL 1531)."""
+    try:
+        getter = pkg.getAllGroups
+        if not callable(getter):
+            return None, None, None, "flPackage.getAllGroups is not callable"
+        groups = getter()
+    except Exception as exc:
+        return None, None, None, f"flPackage.getAllGroups() failed ({type(exc).__name__}: {exc})"
+    if groups is None:
+        return {}, set(), set(), None
+    if not _kgr_seq(groups):
+        return None, None, None, f"flPackage.getAllGroups() returned a {type(groups).__name__}, not a list"
+    found, twice, other = {}, set(), set()
+    for entry in groups:
+        if not _kgr_seq(entry) or len(entry) != 5:
+            continue
+        flag, gname, gid, _mark, members = entry
+        if type(gname) is not str:
+            continue
+        if flag is not True:
+            other.add(gname)
+            continue
+        if gname in found:
+            twice.add(gname)
+        found[gname] = {"id": gid if type(gid) is int else None, "members": _kgr_names(members)}
+    return found, twice, other, None
+
+
+def _kge_read(container, pkg):
+    """Both group sources and the container's size: {"items", "items_twice", "items_error", "list", "list_twice", "other", "list_error"}."""
+    items, items_twice, _malformed, items_error = _kgr_from_items(container)
+    found, list_twice, other, list_error = _kge_class_list(pkg)
+    return {"items": items, "items_twice": items_twice, "items_error": items_error, "list": found, "list_twice": list_twice,
+            "other": other, "list_error": list_error}
+
+
+def _kge_open(group, verb):
+    """(context, None) or (None, reply): the checks shared by both edits, before any change. context: font, count, target, container,
+    sizes and the confirmed group entry (before)."""
+    count = None
+    try:
+        counter = getattr(fl, "CountFonts", None)
+        if callable(counter):
+            got = counter()
+            if isinstance(got, int) and not isinstance(got, bool):
+                count = got
+    except Exception:
+        count = None
+    if count == 0:
+        return None, {"open": False}
+    font = fl.CurrentFont()
+    if font is None:
+        return None, {"open": False}
+    _note_request_font(font, count)
+    if count is None or count < 1:
+        return None, {"open": True, "error": "the number of open fonts could not be read as a positive number, so the kerning groups cannot be "
+                                             f"matched to the current font; nothing was {verb}"}
+    target, why = _kern_table_target(font, count)
+    if target is None:
+        return None, {"open": True, "error": f"{why}; nothing was {verb}"}
+    kerning, master = target["kerning"], target["master"]
+    try:
+        container = kerning.groups
+    except Exception as exc:
+        return None, {"open": True, "error": f"the kerning groups of master {master!r} are not reachable ({type(exc).__name__}: {exc}); nothing was {verb}"}
+    if callable(container):
+        return None, {"open": True, "error": f"the master's kerning groups attribute is callable; it was not called; nothing was {verb}"}
+    table_before, groups_before = _kern_len(kerning), _kern_len(container)
+    read = _kge_read(container, target["pkg"])
+    if read["items_error"] is not None or read["list_error"] is not None:
+        return None, {"open": True, "error": f"the kerning groups could not be read ({read['items_error'] or read['list_error']}); nothing was {verb}"}
+    if group not in read["items"] and group not in read["list"]:
+        what = ("is a class of the font but not a kerning group (an OpenType class or a tag)" if group in read["other"]
+                else "is not the name of a kerning group in the current master of this font")
+        return None, {"open": True, "error": f"{group!r} {what}; nothing was {verb}"}
+    before = _kgr_group(group, read["items"], read["list"], None, read["items_twice"] | read["list_twice"])
+    if before.get("confirmed") is not True:
+        return None, {"open": True, "group_before": before,
+                      "error": f"the kerning group {group!r} is not confirmed by both of FontLab's sources ({before.get('mismatch')}); nothing was {verb}"}
+    return {"font": font, "count": count, "target": target, "container": container, "read": read, "before": before,
+            "table_before": table_before, "groups_before": groups_before}, None
+
+
+def _kge_reply(ctx, extra):
+    """The fields every reply of the two edits carries, then extra."""
+    target, font = ctx["target"], ctx["font"]
+    out = {"open": True, "fonts_open": ctx["count"], "matched_by": target["matched_by"], "family_name": _kern_family(font),
+           "master": target["master"], "master_count": len(target["masters"]), "group_before": ctx["before"]}
+    out.update(extra)
+    return out
+
+
+def _kge_after_change(ctx, member_names, side, expected_id):
+    """The mark, the refresh and the catch-up check after a change (in that order). expected_id: the group id one member glyph should
+    now carry on the group's side (the new id after a rename, 0 after a removal). Never raises."""
+    font, pkg = ctx["font"], ctx["target"]["pkg"]
+    candidates = [n for n in member_names if n != ".notdef"][:_MARK_DELETE_MAX_TRIES]
+    try:
+        mark = (_mark_through_first(font, candidates, "kerning_group") if _MARK_CHANGED and candidates else
+                {"called": False, "reason": "the changed mark is switched off in the listener" if not _MARK_CHANGED
+                 else "the group has no member other than .notdef to take the mark"})
+    except Exception as exc:
+        mark = {"called": False, "reason": f"the mark failed ({type(exc).__name__}: {exc})"}
+    refresh = _refresh_kerning_panel(pkg, [{"changed": True}])
+    check = {"checked": False}
+    try:
+        by_name = ctx["target"]["by_name"]
+        glyph_name = next((n for n in member_names if n in by_name), None)
+        if glyph_name is None:
+            check["reason"] = "no member of the group is a glyph of the font"
+        elif type(expected_id) is not int:
+            check["reason"] = "the id to expect could not be read"
+        else:
+            attr = "kerningRight" if side == "right" else "kerningLeft"
+            value, err = _kern_class_id(by_name[glyph_name], attr)
+            if err is not None:
+                check.update(glyph=glyph_name, reason=err)
+            else:
+                check = {"checked": True, "glyph": glyph_name, "side_attribute": attr, "group_id_read": value, "expected": expected_id,
+                         "caught_up": value == expected_id}
+    except Exception as exc:
+        check = {"checked": False, "reason": f"the check failed ({type(exc).__name__}: {exc})"}
+    return mark, refresh, check
+
+
+def rename_kerning_group(group, new_name):
+    """v0.200 - renames ONE kerning group of the current master: container.rename(group, new_name), verified by re-reading both
+    sources (the old name gone, the new name confirmed with the same members and side, both sizes unchanged). Refused before any
+    change: a bad name, the same name, a new name that is already any group's or class's name. A new name that is a glyph's name is
+    allowed (the user's choice, 2026-11-20): same_name_glyph says so. The id before and after are reported: FontLab gives a renamed
+    group a new id (GE 1511). No dialog: a rename is undone by renaming back."""
+    if not _kern_name_ok(group) or not _kern_name_ok(new_name):
+        return _kern_bad("group and new_name must each be 1 to 63 characters from A-Z a-z 0-9 . _ -")
+    if group == new_name:
+        return _kern_bad("new_name is the same as group; nothing to rename")
+    ctx, refusal = _kge_open(group, "renamed")
+    if ctx is None:
+        return refusal
+    read, before = ctx["read"], ctx["before"]
+    if new_name in read["items"] or new_name in read["list"] or new_name in read["other"]:
+        what = "a kerning group" if (new_name in read["items"] or new_name in read["list"]) else "a class (an OpenType class or a tag)"
+        return _kge_reply(ctx, {"error": f"{new_name!r} is already the name of {what} in this font; nothing was renamed"})
+    try:
+        renamer = ctx["container"].rename
+    except Exception as exc:
+        return _kge_reply(ctx, {"error": f"the kerning groups' rename is not reachable ({type(exc).__name__}: {exc}); nothing was renamed"})
+    if not callable(renamer):
+        return _kge_reply(ctx, {"error": "the kerning groups' rename is not callable; nothing was renamed"})
+    call_error, returned = None, None
+    try:
+        returned = renamer(group, new_name)
+    except Exception as exc:
+        call_error = f"{type(exc).__name__}: {exc}"
+    kerning, container = ctx["target"]["kerning"], ctx["container"]
+    table_after, groups_after = _kern_len(kerning), _kern_len(container)
+    after_read = _kge_read(container, ctx["target"]["pkg"])
+    readable = after_read["items_error"] is None and after_read["list_error"] is None
+    old_gone = readable and group not in after_read["items"] and group not in after_read["list"]
+    new_seen = readable and (new_name in after_read["items"] or new_name in after_read["list"])
+    after = (_kgr_group(new_name, after_read["items"], after_read["list"], None, after_read["items_twice"] | after_read["list_twice"])
+             if new_seen else None)
+    sizes = all(type(n) is int for n in (ctx["table_before"], table_after, ctx["groups_before"], groups_after))
+    renamed = (call_error is None and old_gone and after is not None and after.get("confirmed") is True
+               and sorted(after.get("members") or []) == sorted(before.get("members") or []) and after.get("side") == before.get("side")
+               and sizes and table_after == ctx["table_before"] and groups_after == ctx["groups_before"])
+    changed = (old_gone or new_seen) if readable else None
+    out = _kge_reply(ctx, {"group": group, "new_name": new_name, "renamed": renamed, "changed": changed,
+                           "returned": _tryfont_plain(returned), "group_after": after,
+                           "table_size_before": ctx["table_before"], "table_size_after": table_after,
+                           "groups_before": ctx["groups_before"], "groups_after": groups_after,
+                           "id_before": before.get("id"), "id_after": after.get("id") if after else None,
+                           "same_name_glyph": new_name in ctx["target"]["by_name"]})
+    if call_error is not None:
+        out["call_error"] = call_error
+    if not readable:
+        out["reason"] = "the kerning groups could not be read back: " + str(after_read["items_error"] or after_read["list_error"])
+    elif not renamed and call_error is not None:
+        out["reason"] = (f"FontLab's rename raised an error ({call_error}); the re-read shows "
+                         + ("the group under the new name" if old_gone and after is not None else
+                            "the old name still listed" if not old_gone else "the old name gone, the new name not listed"))
+    elif not renamed:
+        same_group = (after is not None and after.get("confirmed") is True and after.get("side") == before.get("side")
+                      and sorted(after.get("members") or []) == sorted(before.get("members") or []))
+        out["reason"] = ("the re-read does not confirm the rename: " + ("the old name is still listed" if not old_gone else
+                         "the new name is not listed" if after is None else
+                         f"the group under the new name is not confirmed ({after.get('mismatch')})" if after.get("confirmed") is not True else
+                         "the group under the new name differs from the group before" if not same_group else
+                         f"the sizes changed (kerning entries {ctx['table_before']} -> {table_after}, groups {ctx['groups_before']} -> {groups_after})"))
+    if changed is not False:
+        side = (after or before).get("side")
+        expected = after.get("id") if after else None
+        out["fontlab_changed_mark"], out["fontlab_panel_refresh"], out["fontlab_caught_up"] = _kge_after_change(
+            ctx, (after or before).get("members") or [], side, expected)
+    else:
+        out["fontlab_changed_mark"] = {"called": False, "reason": "nothing changed"}
+        out["fontlab_panel_refresh"] = {"called": False, "reason": "nothing changed"}
+    return out
+
+
+def _kge_removal_text(group, before, pairs):
+    """The question of the removal dialog, built only from facts of this request (as _deletion_text): the client's name, the font, the
+    group, its side and members, and what happens to its kerning entries (GK 1539-1545)."""
+    who = (f"{_request_client} (via Glyphbridge) is requesting to remove" if _request_client
+           else "A request through Glyphbridge asks to remove")
+    font = _REQUEST_FONT
+    title = " ".join(part for part in (font.get("family"), font.get("style")) if part) if font.get("used") else ""
+    where = f' from the font "{title}"' if title else ""
+    members = before.get("members") or []
+    shown = ", ".join(members[:_KGE_MEMBERS_SHOWN]) + (f" and {len(members) - _KGE_MEMBERS_SHOWN} more" if len(members) > _KGE_MEMBERS_SHOWN else "")
+    side = {"left": "Kerning Left", "right": "Kerning Right", "both": "Kerning both"}.get(before.get("side"), "kerning")
+    if pairs == "keep":
+        fate = ("Its kerning is kept: each class entry becomes glyph pairs or class : glyph entries for its members, with the same values.")
+    else:
+        fate = "Its kerning entries are deleted with it."
+    return (f"{who} the kerning group '{group}'{where} ({side}, {len(members)} member{'' if len(members) == 1 else 's'}: {shown}).\n\n"
+            f"{fate}\n\nNo Glyphbridge tool can bring a removed group back.\n\nAllow this removal?")
+
+
+def remove_kerning_group(group, pairs):
+    """v0.200 - removes ONE kerning group of the current master after a Yes in a FontLab dialog (default No): container.remove(group)
+    (pairs="keep": its class entries become glyph pairs or class : glyph entries of its members, GE 1518, GL 1530, GK 1539-1544) or
+    container.remove(group, True) (pairs="delete": its entries go too, GE 1520). Verified by re-reading: the group gone from both sources,
+    the container one smaller; the table's size before and after is reported, its entries are never read."""
+    if not _kern_name_ok(group):
+        return _kern_bad("group must be 1 to 63 characters from A-Z a-z 0-9 . _ -")
+    if pairs not in ("keep", "delete"):
+        return _kern_bad('pairs must be "keep" or "delete"')
+    ctx, refusal = _kge_open(group, "removed")
+    if ctx is None:
+        return refusal
+    before = ctx["before"]
+    try:
+        remover = ctx["container"].remove
+    except Exception as exc:
+        return _kge_reply(ctx, {"error": f"the kerning groups' remove is not reachable ({type(exc).__name__}: {exc}); nothing was removed"})
+    if not callable(remover):
+        return _kge_reply(ctx, {"error": "the kerning groups' remove is not callable; nothing was removed"})
+    if not _confirm_group_removal(_kge_removal_text(group, before, pairs)):
+        return _kge_reply(ctx, {"group": group, "pairs": pairs, "removed": False, "changed": False, "user_declined": True,
+                                "reason": "the removal was not approved in FontLab (dialog answered No or closed)"})
+    call_error, returned = None, None
+    try:
+        returned = remover(group) if pairs == "keep" else remover(group, True)
+    except Exception as exc:
+        call_error = f"{type(exc).__name__}: {exc}"
+    kerning, container = ctx["target"]["kerning"], ctx["container"]
+    table_after, groups_after = _kern_len(kerning), _kern_len(container)
+    after_read = _kge_read(container, ctx["target"]["pkg"])
+    readable = after_read["items_error"] is None and after_read["list_error"] is None
+    gone = readable and group not in after_read["items"] and group not in after_read["list"]
+    sizes = all(type(n) is int for n in (ctx["groups_before"], groups_after))
+    removed = call_error is None and gone and sizes and groups_after == ctx["groups_before"] - 1
+    tables = type(ctx["table_before"]) is int and type(table_after) is int
+    changed = (gone or (tables and table_after != ctx["table_before"]) or (sizes and groups_after != ctx["groups_before"])) if readable else None
+    out = _kge_reply(ctx, {"group": group, "pairs": pairs, "removed": removed, "changed": changed, "returned": _tryfont_plain(returned),
+                           "still_in_items": (group in after_read["items"]) if after_read["items_error"] is None else None,
+                           "still_in_class_list": (group in after_read["list"]) if after_read["list_error"] is None else None,
+                           "table_size_before": ctx["table_before"], "table_size_after": table_after,
+                           "groups_before": ctx["groups_before"], "groups_after": groups_after})
+    if call_error is not None:
+        out["call_error"] = call_error
+    if not readable:
+        out["reason"] = "the kerning groups could not be read back: " + str(after_read["items_error"] or after_read["list_error"])
+    elif not removed and call_error is not None:
+        out["reason"] = (f"FontLab's remove raised an error ({call_error}); the re-read shows the group "
+                         + ("gone" if gone else "still listed"))
+    elif not removed:
+        out["reason"] = ("the re-read does not confirm the removal: " + ("the group is still listed" if not gone else
+                         "the number of kerning groups did not drop by one"))
+    if changed is not False:
+        out["fontlab_changed_mark"], out["fontlab_panel_refresh"], out["fontlab_caught_up"] = _kge_after_change(
+            ctx, before.get("members") or [], before.get("side"), 0)
+    else:
+        out["fontlab_changed_mark"] = {"called": False, "reason": "nothing changed"}
+        out["fontlab_panel_refresh"] = {"called": False, "reason": "nothing changed"}
+    return out
 
 
 def set_glyph_unicode(name, new_codepoint):
@@ -13344,7 +13660,193 @@ def debug_try_kern_refresh(stage, go):
     return out
 
 
+# --------------------------------------------------------------------------
+# /debug/trykerngroupedit (v0.199) - RESEARCH, WRITES: can a kerning group be renamed or removed through the modern API? Names-only
+# tests 1499-1504: the master's kerning groups (flPackage.kerning(master).groups, an fgKerningGroups) document
+# rename('oldGroupName', 'newGroupName') -> bool/Nothing and remove('groupName'[, deleteDependentKerningPairs = false]). GATED (go=yes);
+# the one-font gate and master reading of /debug/trydelkern; at most _TRYKGEDIT_MAX requests per listener run, counted BEFORE the first
+# kerning call.
+#   &op=rename&name=OLD&new=NEW            container.rename(OLD, NEW) ONCE
+#   &op=remove&name=N&pairs=keep|delete    container.remove(N) ONCE (keep), or container.remove(N, True) ONCE (delete)
+#   &glyph=G (optional)                    the group's own class entry against glyph G, read with get() before and after: the group on
+#                                          its side, ((N, True), (G, False)) for a left or both group, ((G, False), (N, True)) for a right
+#                                          one; a rename reads it under the old name before and under both names after
+# Refused before any kerning call: a bad name, an unknown op or pairs, NEW the same as OLD, NEW already the name of a glyph of the font
+# (defect B) or of any group of the font, G not a glyph of the font. Refused before the edit: a group not confirmed by both items() and
+# getAllGroups(). Calls: pkg.masters, pkg.master, pkg.getAllGroups() before and after, pkg.kerning(current master) once, kerning.groups
+# (never called), len() of the table and of the container before and after, container.items() before and after, kerning.get(key) for
+# the entries, and the ONE edit call. The verdicts come from the re-read only, never from the returned value. Not called, ever:
+# subscripts or del on any native object, clear, the legacy addGroup / deleteGroup / deleteAllGroups / renameGroup,
+# flPackage.deleteGroups, any kerning setter or remove, keys, values, has_key, asDict, font.update(), fontlab.Update(), the mark
+# (notifyChangesApplied) and the panel refresh (notifyPackageContentUpdated); no save.
+# --------------------------------------------------------------------------
 
+_TRYKGEDIT = {"calls": 0}
+_TRYKGEDIT_MAX = 10
+_TRYKGEDIT_OPS = ("rename", "remove")
+_TRYKGEDIT_PAIRS = ("keep", "delete")
+
+
+def _trykgedit_key(name, glyph, side):
+    """The exact class entry of group `name` against `glyph`: the group on the left for a left or both group, else on the right."""
+    return ((name, True), (glyph, False)) if side in ("left", "both") else ((glyph, False), (name, True))
+
+
+def _trykgedit_entry(kerning, key):
+    """ONE get(key) on the table, as plain facts; a failure is reported as text, never raised."""
+    r = _trypkgkern_get(kerning, key)
+    return {k: r[k] for k in ("call_error", "value_type", "value")}
+
+
+def debug_try_kern_group_edit(op, name, new, pairs, glyph, go):
+    import sys as _sys
+    if go != "yes":
+        return {"error": "this probe WRITES: it renames or removes one kerning group, flPackage.kerning(master).groups.rename(old, new) or "
+                         ".remove(name[, True]) ONCE, with items(), getAllGroups() and len() before and after; add &go=yes to run it",
+                "calls_so_far": _TRYKGEDIT["calls"], "max_calls": _TRYKGEDIT_MAX}
+    if op not in _TRYKGEDIT_OPS:
+        return {"error": 'op must be "rename" or "remove"'}
+    if not _kern_name_ok(name):
+        return {"error": "name must be 1 to 63 characters from A-Z a-z 0-9 . _ -"}
+    verb = "renamed" if op == "rename" else "removed"
+    if op == "rename":
+        if pairs:
+            return {"error": "pairs belongs to op=remove"}
+        if not _kern_name_ok(new):
+            return {"error": "new must be 1 to 63 characters from A-Z a-z 0-9 . _ -"}
+        if new == name:
+            return {"error": "new is the same as name; nothing to rename"}
+    else:
+        if new:
+            return {"error": "new belongs to op=rename"}
+        if pairs not in _TRYKGEDIT_PAIRS:
+            return {"error": 'pairs must be "keep" (remove(name)) or "delete" (remove(name, True))'}
+    if glyph and not _kern_name_ok(glyph):
+        return {"error": "glyph must be 1 to 63 characters from A-Z a-z 0-9 . _ -"}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"error": why, "calls_so_far": _TRYKGEDIT["calls"], "max_calls": _TRYKGEDIT_MAX}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    names = set(str(g.name) for g in font.glyphs)
+    if glyph and glyph not in names:
+        return {"open": True, "error": f"no glyph with this name in the current font: {glyph!r}", "calls_so_far": _TRYKGEDIT["calls"]}
+    if op == "rename" and new in names:
+        return {"open": True, "error": f"new {new!r} is the name of a glyph of the font (defect B: a plain name pair may then mean the group); "
+                                       "nothing was renamed", "calls_so_far": _TRYKGEDIT["calls"]}
+    masters, err = _pkg_get(pkg, "masters")
+    if err is not None:
+        return {"open": True, "error": err, "calls_so_far": _TRYKGEDIT["calls"]}
+    if not isinstance(masters, (list, tuple)) or not all(isinstance(m, str) for m in masters):
+        return {"open": True, "error": f"the package's masters are not a plain list of names ({type(masters).__name__}); nothing was called",
+                "calls_so_far": _TRYKGEDIT["calls"]}
+    current, err = _pkg_get(pkg, "master")
+    if not isinstance(current, str) or current not in masters:
+        return {"open": True, "error": "the package's current master could not be read as one of its masters" + (f" ({err})" if err else ""),
+                "masters": list(masters), "calls_so_far": _TRYKGEDIT["calls"]}
+    if _TRYKGEDIT["calls"] >= _TRYKGEDIT_MAX:
+        return {"open": True, "error": f"the limit of {_TRYKGEDIT_MAX} requests per listener run is used up; restart the listener to continue",
+                "calls_so_far": _TRYKGEDIT["calls"], "max_calls": _TRYKGEDIT_MAX}
+    all_before, kern_before, twice_before, err = _trysetkern_group_names(pkg)
+    if err is not None:
+        return {"open": True, "error": err + f"; nothing was {verb}", "calls_so_far": _TRYKGEDIT["calls"]}
+    if op == "rename" and new in all_before:
+        return {"open": True, "error": f"new {new!r} is already the name of a group of the font; nothing was renamed",
+                "calls_so_far": _TRYKGEDIT["calls"]}
+    try:
+        kerning_of = pkg.kerning
+    except Exception as exc:
+        return {"open": True, "error": f"flPackage.kerning not reachable: {type(exc).__name__}: {exc}", "calls_so_far": _TRYKGEDIT["calls"]}
+    if not callable(kerning_of):
+        return {"open": True, "error": "flPackage.kerning is not callable", "calls_so_far": _TRYKGEDIT["calls"]}
+    _TRYKGEDIT["calls"] += 1        # counted BEFORE the first kerning call: whatever happens, it is on record
+    cnt = {"calls_so_far": _TRYKGEDIT["calls"], "max_calls": _TRYKGEDIT_MAX}
+    try:
+        kerning = kerning_of(current)
+    except Exception as exc:
+        return dict(cnt, open=True, error=f"flPackage.kerning(master) failed: {type(exc).__name__}: {exc}", master_used=current)
+    try:
+        container = kerning.groups
+    except Exception as exc:
+        return dict(cnt, open=True, error=f"the master's kerning groups are not reachable ({type(exc).__name__}: {exc}); nothing was {verb}",
+                    master_used=current)
+    if callable(container):
+        return dict(cnt, open=True, error=f"the master's kerning groups attribute is callable; it was not called; nothing was {verb}",
+                    master_used=current)
+    table_len_before, groups_len_before = _trypkgkern_len(kerning), _trypkgkern_len(container)
+    items_before, items_twice, _malformed, err = _kgr_from_items(container)
+    if err is not None:
+        return dict(cnt, open=True, error=err + f"; nothing was {verb}", master_used=current)
+    group = _kgr_group(name, items_before, kern_before, None, items_twice | twice_before)
+    if group.get("confirmed") is not True:
+        why = group.get("mismatch") or "it is not a kerning group of the font"
+        if name not in items_before and name not in kern_before:
+            why = ("it is a class of the font but not a kerning group" if name in all_before else "it is not the name of any group of the font")
+        return dict(cnt, open=True, error=f"the kerning group {name!r} is not confirmed by both of FontLab's sources ({why}); nothing was {verb}",
+                    group_before=group if (name in items_before or name in kern_before) else None, master_used=current)
+    side = group.get("side")
+    entry_before = _trykgedit_entry(kerning, _trykgedit_key(name, glyph, side)) if glyph else None
+    returned, call_error, called = None, None, False
+    try:
+        if op == "rename":
+            editor = container.rename
+            if not callable(editor):
+                raise TypeError("rename is not callable")
+            called = True
+            returned = editor(name, new)
+        else:
+            editor = container.remove
+            if not callable(editor):
+                raise TypeError("remove is not callable")
+            called = True
+            returned = editor(name) if pairs == "keep" else editor(name, True)
+    except Exception as exc:
+        call_error = f"{type(exc).__name__}: {exc}"
+    table_len_after, groups_len_after = _trypkgkern_len(kerning), _trypkgkern_len(container)
+    items_after, items_twice_after, _malformed, items_err_after = _kgr_from_items(container)
+    _all_after, kern_after, twice_after, list_err_after = _trysetkern_group_names(pkg)
+    readable = items_after is not None and kern_after is not None
+    old_gone = readable and name not in items_after and name not in kern_after
+    ints = all(type(n) is int for n in (table_len_before, table_len_after, groups_len_before, groups_len_after))
+    out = dict(open=True, op=op, name=name, master_used=current, masters=list(masters), called=called, call_error=call_error,
+               returned_type=type(returned).__name__, returned=_tryfont_plain(returned), group_before=group,
+               table_len_before=table_len_before, table_len_after=table_len_after,
+               groups_len_before=groups_len_before, groups_len_after=groups_len_after,
+               kerning_groups_listed_before=len(kern_before), kerning_groups_listed_after=len(kern_after) if kern_after is not None else None,
+               items_error_after=items_err_after, class_list_error_after=list_err_after, old_name_gone=old_gone)
+    if op == "rename":
+        new_in_items = (new in items_after) if items_after is not None else None
+        new_in_list = (new in kern_after) if kern_after is not None else None
+        group_after = None
+        if items_after is not None and (new_in_items or new_in_list):       # items() unreadable: no verdict on the new name's group
+            group_after = _kgr_group(new, items_after, kern_after, list_err_after, (items_twice_after or set()) | (twice_after or set()))
+        out = dict(out, new=new, call=f"flPackage.kerning(master).groups.rename({name!r}, {new!r})", new_name_in_items=new_in_items,
+                   new_name_in_class_list=new_in_list, group_after=group_after)
+        out["renamed"] = bool(call_error is None and old_gone and group_after is not None and group_after.get("confirmed") is True
+                              and sorted(group_after.get("members") or []) == sorted(group.get("members") or [])
+                              and group_after.get("side") == side and group_after.get("id") == group.get("id")
+                              and ints and table_len_after == table_len_before and groups_len_after == groups_len_before)
+    else:
+        out = dict(out, pairs=pairs, call=f"flPackage.kerning(master).groups.remove({name!r}" + (")" if pairs == "keep" else ", True)"),
+                   still_in_items=(name in items_after) if items_after is not None else None,
+                   still_in_class_list=(name in kern_after) if kern_after is not None else None,
+                   table_entries_removed=(table_len_before - table_len_after) if ints else None)
+        out["removed"] = bool(call_error is None and old_gone and ints and groups_len_after == groups_len_before - 1)
+    if glyph:
+        out = dict(out, glyph=glyph, entry_key_side=side, entry_before=entry_before,
+                   entry_after_old_name=_trykgedit_entry(kerning, _trykgedit_key(name, glyph, side)))
+        before_value = entry_before.get("value")
+        if op == "rename":
+            after_new = _trykgedit_entry(kerning, _trykgedit_key(new, glyph, side))
+            out["entry_after_new_name"] = after_new
+            out["entry_followed"] = (None if before_value is None else
+                                     bool(after_new.get("value") == before_value and out["entry_after_old_name"].get("value_type") == "NoneType"))
+        else:
+            out["entry_gone"] = None if before_value is None else out["entry_after_old_name"].get("value_type") == "NoneType"
+    return dict(out, **cnt, note="RESEARCH: the font in memory may have changed. Compare with FontLab's Classes and KERNING panels; the font "
+                                 "is not marked as changed and the panel is not asked to refresh; nothing is saved by Glyphbridge")
 
 
 # --------------------------------------------------------------------------
@@ -14425,6 +14927,14 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
+        if path == "/debug/trykerngroupedit":      # v0.199: rename or remove one kerning group (research, gated)
+            try:
+                return _build_response(200, debug_try_kern_group_edit((query.get("op") or [""])[0], (query.get("name") or [""])[0],
+                                                                      (query.get("new") or [""])[0], (query.get("pairs") or [""])[0],
+                                                                      (query.get("glyph") or [""])[0], (query.get("go") or [""])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
         if path == "/debug/trykernrefresh":
             try:
                 return _build_response(200, debug_try_kern_refresh((query.get("stage") or [""])[0], (query.get("go") or [""])[0]))
@@ -14591,6 +15101,24 @@ def _route(method, full_path, body=b""):
                 return _build_response(400, {"error": 'the body must be a JSON object with "pairs" (a list of [left, right]) and nothing else'})
             try:
                 result = remove_kerning_pairs(payload["pairs"])
+                if "bad_request" in result:
+                    return _build_response(400, {"error": result["bad_request"]})
+                return _build_response(200, result)
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path in ("/kerning/group/rename", "/kerning/group/remove"):      # v0.200
+            rename = path == "/kerning/group/rename"
+            keys = {"group", "new_name"} if rename else {"group", "pairs"}
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            if not isinstance(payload, dict) or set(payload) != keys:
+                return _build_response(400, {"error": "the body must be a JSON object with " + " and ".join(f'"{k}"' for k in sorted(keys)) + " and nothing else"})
+            try:
+                result = (rename_kerning_group(payload["group"], payload["new_name"]) if rename
+                          else remove_kerning_group(payload["group"], payload["pairs"]))
                 if "bad_request" in result:
                     return _build_response(400, {"error": result["bad_request"]})
                 return _build_response(200, result)
@@ -14984,6 +15512,7 @@ _ACT = {"kind": None, "shown": 0, "more": 0, "reads": {}, "no_font": {}, "kern_p
 _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/width": "width",
                "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/glyph/polygon": "draw",
                "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning", "/kerning/remove": "kerning remove", "/font/create": "create font",
+               "/kerning/group/rename": "kerning group rename", "/kerning/group/remove": "kerning group remove",
                "/glyph/move": "move", "/glyph/component": "component", "/glyph/component/remove": "remove component"}
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
@@ -15097,6 +15626,8 @@ def _act_describe_write(path, payload, code, reply):
         return _act_describe_kerning(payload, code, reply)
     if kind == "kerning remove":
         return _act_describe_kerning_remove(payload, code, reply)
+    if kind in ("kerning group rename", "kerning group remove"):
+        return _act_describe_kerning_group(kind, payload, code, reply)
     if kind == "create font":
         return _act_describe_font(payload, code, reply)
     name = payload.get("name") if isinstance(payload, dict) else None
@@ -15255,6 +15786,33 @@ def _act_describe_kerning_remove(payload, code, reply):
     failed = next((e for e in results if e.get("status") == "failed"), None)
     where = f", stopped at {_act_text(str(failed.get('left')) + ':' + str(failed.get('right')))}: {_act_text(failed.get('reason') or 'not confirmed by the re-read')}" if failed else ""
     return f"NOT DONE {head}: {len(done)} removed{where}", False
+
+
+def _act_describe_kerning_group(kind, payload, code, reply):
+    """(line, collapsible) for one /kerning/group/rename or /kerning/group/remove request (v0.200)."""
+    group = payload.get("group") if isinstance(payload, dict) else None
+    head = f"{kind} {_act_text(group)}" if isinstance(group, str) and group else f"{kind} ?"
+    if code != 200 or not isinstance(reply, dict):
+        error = reply.get("error") if isinstance(reply, dict) else None
+        return f"{'REFUSED' if code == 400 else 'FAILED'} {head}: {_act_text(error or f'HTTP {code}')}", False
+    if reply.get("open") is False:
+        return f"REFUSED {head}: no font is open", False
+    if reply.get("error"):
+        return f"REFUSED {head}: {_act_text(reply['error'])}", False
+    caught = reply.get("fontlab_caught_up") if isinstance(reply.get("fontlab_caught_up"), dict) else {}
+    lag = "" if caught.get("caught_up") is True else "; FontLab's panels may lag until a font switch"
+    if kind == "kerning group rename":
+        if reply.get("renamed") is True:
+            return (f"{head} -> {_act_text(reply.get('new_name'))}: renamed (verified, id {_act_num(reply.get('id_before'))} -> "
+                    f"{_act_num(reply.get('id_after'))}{lag})"), False
+        return f"NOT DONE {head}: {_act_text(reply.get('reason') or reply.get('call_error') or 'not confirmed by the re-read')}", False
+    if reply.get("user_declined") is True:
+        return f"{head}: you answered No in FontLab, nothing removed", False
+    if reply.get("removed") is True:
+        what = "its kerning kept as entries of its members" if reply.get("pairs") == "keep" else "its kerning deleted"
+        return (f"{head}: removed after your Yes, {what} (verified, kerning entries {_act_num(reply.get('table_size_before'))} -> "
+                f"{_act_num(reply.get('table_size_after'))}{lag})"), False
+    return f"NOT DONE {head}: {_act_text(reply.get('reason') or reply.get('call_error') or 'not confirmed by the re-read')}", False
 
 
 _ACTIVITY_NOTE_MAX = 400     # v0.146: longest note line of /font/create (its notes are whole sentences for the person)

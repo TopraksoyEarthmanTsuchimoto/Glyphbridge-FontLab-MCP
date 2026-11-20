@@ -275,3 +275,34 @@ These probes stay as evidence tools; the product tool does not need them.
 - **Removals:** a class : class entry (1429, its sample still kerned by an exception, `class_value_applies` true) and a glyph : class entry (1431, the sample back to 0) were removed; the same removal again gave `no entry` with no mark and no panel refresh (1430). The server adds `class_value_applies` only when true.
 - **On screen:** the KERNING panel listed the five entries left at once (1432), and a text line matched the predicted positions within a few units (1432a).
 - **Not checked:** the mark and save question for a class write alone (Demo mode), Edit > Undo, other masters, several fonts, an OpenType class or a glyph named like a kerning group as a side, `no sample`, a listener older than 0.194.
+
+## 18. Renaming and removing a group (research, listener 0.199, 2026-11-20; names only GE0 1499–1504, live GE 1505–1522)
+
+**Research question.** Can a kerning group be renamed or removed through the API, and what happens to its class entries and to FontLab's view of it? Creating a group and changing its members are not covered here: their only candidate is a subscript assignment on `fgKerningGroups` ([LIVE-TESTS.md](../LIVE-TESTS.md), GE0).
+
+**Names only (GE0).** The master's group container (`flPackage.kerning(master).groups`, an `fgKerningGroups`) documents `rename('oldGroupName', 'newGroupName')` → `bool/Nothing` and `remove('groupName'[, deleteDependentKerningPairs = false])`. The legacy `fgKerning` group calls have no docstrings; `flPackage` has `deleteGroups(ids, deleteDependentContent)` and no setter.
+
+**The probe** (`/debug/trykerngroupedit`, [server-and-endpoints.md](server-and-endpoints.md) §3): one call, both group sources and the sizes before and after, and one class entry; no mark, no panel refresh.
+
+**Live (GE, one run each, a new unsaved font, one master).**
+- **`rename` works in FontLab's data:** it returned `True`; the group under the new name has the same members and side, both sources confirm it, and its class entry answers under the new name only (1511, 1513). **The id changes** (5140 → 5142): an id is not a stable handle for a group across a rename.
+- **`remove(name)` keeps the pairs by turning them into glyph pairs:** the group left both sources, the table kept its size, and the class entry `kge1 : kgeR` became the glyph entry `kge1 : kge3` (−40, `glyph : glyph`), shown as a plain row in the KERNING panel (1518, 1521, 1522). **One glyph pair per member:** a two-member group's class entry became two glyph pairs with the class value, table 2 → 3 (GL 1530, 1533). **What `remove(name)` makes of each kind of entry** (GK 1539–1545): a `class : glyph` or `glyph : class` entry becomes one glyph pair per member; a `class : class` entry against the removed group becomes one `class : glyph` (or `glyph : class`) entry per member of the removed group, and member pairs that already had a glyph entry keep it; a Kerning both group's entries on either side become glyph pairs of its member.
+- **`remove(name, True)` deletes the group's entries:** the group's one entry went, table 2 → 1 (1520, 1522).
+- **FontLab's view lags.** After a rename the Classes panel kept the old name (its member area empty when selected) and the KERNING panel the old label (1514); the glyphs kept the old group id, so `get_kerning` answered errors for the members (1512, after a removal 1519). A switch to another font and back brought the panels and the glyph ids up to date (1515, 1516, 1521, 1522). **So did one `notifyPackageContentUpdated(<package fgId>)`, the refresh `set_kerning` makes (§14), without a font switch, after a rename** (GR 1527–1529, [LIVE-TESTS.md](../LIVE-TESTS.md)): `get_kerning` read the members at once, and both panels showed the new name. After a removal it did the same (GL 1532–1534).
+- **A rename onto a taken name** is refused by the probe before any call (1517); FontLab's own behaviour for it was not tried.
+- **Not checked:** removing the left group of a class : class pair (presumably symmetric); the mark and FontLab's save question (the probe makes no mark; Demo mode cannot save); Edit > Undo; other masters; several fonts; class : class entries; a Kerning both group.
+
+**The product tools** built on this research, and their live checks: §19.
+
+## 19. The tools `rename_kerning_group` and `remove_kerning_group` (listener 0.200 / server 0.82, 2026-11-20; live GT 1546–1576)
+
+**The design** ([DECISIONS.md](../DECISIONS.md), 2026-11-20): one group per call; `pairs` (`keep` or `delete`) required for a removal; a Yes/No dialog in FontLab for a removal only; a new name of any group or class refused, a glyph's name allowed with `same_name_glyph`; after a change the mark through one member, ONE `notifyPackageContentUpdated(<package fgId>)` (§14, §18) and `fontlab_caught_up`. Routes and replies: [server-and-endpoints.md](server-and-endpoints.md); the build: [CHANGELOG.md](../CHANGELOG.md).
+
+**Live (GT, [LIVE-TESTS.md](../LIVE-TESTS.md), one run each, a new unsaved font, one master).**
+- **Rename:** verified by both sources with the same members and side; the class entries followed the new name; `caught_up` true each time, and the Classes and KERNING panels and `get_kerning` showed the new name at once, with no font switch (1553–1555). A member's name as the new name worked, with the note (1556, 1559). Renaming back is the undo (1558, 1560).
+- **Remove:** No changed nothing (1566, 1567); Yes with `keep` left the kerning as a glyph pair (table 2 → 2, 1568, 1569); Yes with `delete` deleted the group's entry (table 2 → 1, 1570, 1571); the panels followed at once (1572).
+- **Refusals before any change or dialog:** a new name that is a kerning group's or an OpenType class's name, an OpenType class or an unknown name as the group, and two unsaved fonts open (1561–1565, 1574).
+- **Ids:** every rename changed the id, as designed; the id seemed to follow the name (`kgrL` got 5154 each time; `kgr1` 5149, `kgr2` 5150), not explained ([WATCH-POINTS.md](../WATCH-POINTS.md)).
+- **The client's time limit:** Claude Code ended the removal call of 1566 after 60 s while FontLab's dialog still waited (the server waits up to 120 s); the dialog's answer came later and changed nothing, since it was No ([WATCH-POINTS.md](../WATCH-POINTS.md), [ROADMAP.md](../ROADMAP.md)).
+
+**Not checked live:** the save question for a group edit alone (Demo mode; the classes were made in the GUI, which already marks the font), Edit > Undo, other masters, a Kerning both group, a saved font beside others, more than eight members in the dialog.

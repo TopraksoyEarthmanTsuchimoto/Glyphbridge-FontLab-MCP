@@ -158,6 +158,14 @@ Not core, but budgeted: the root [README.md](../../README.md), the end-user inst
 
 Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
 
+### 2026-11-20: WATCH-POINTS.md budget 2,500 → 3,250
+
+The user's choice, at 2,466 words, after the two entries of the live tests GT 1546–1576 (a group's id following its name; the client's time limit during a FontLab dialog). WATCH-POINTS.md is not a startup core file, so the reference totals stay 17,400 and 16,600.
+
+### 2026-11-20: CURRENT-STATUS.md budget 3,000 → 4,100
+
+The user's choice, at 2,850 words, after the live tests of `rename_kerning_group` and `remove_kerning_group` (1546–1576), whose record would have brought the file to about 2,970; chosen over moving the finished "Kerning feature order" paragraph of "Resume here" to the archive. Reference totals now 17,400 and 16,600.
+
 ### 2026-11-20: root README.md budget 700 → 800
 
 The user's choice, at 691 words, found by a health check of the documents. The root README is not a startup core file, so only the first reference total changes: now 16,300 and 15,500.

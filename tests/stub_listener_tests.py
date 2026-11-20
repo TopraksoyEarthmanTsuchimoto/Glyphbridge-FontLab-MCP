@@ -5920,7 +5920,7 @@ for _p in (_RKQ + "update", _RKQ + "container&go=yes", _RKQ + "update&go=yes", _
 print("1734 spy over all cases          : forbidden package members:", RK["pkg_forbidden"], "| package members touched:", sorted(RK["pkg_all"]),
       "| forbidden container members:", RK["c_forbidden"], "| container members touched:", sorted(RK["c_all"]),
       "| kerning members touched:", sorted(RK["k_all"]), "| forbidden module calls:", RK["mod_forbidden"])
-_rk_src = src[src.index("_TRYKERNREFRESH = {"):src.index("# /debug/trymodern (v0.88)")]
+_rk_src = src[src.index("_TRYKERNREFRESH = {"):src.index("# /debug/trykerngroupedit (v0.199)")]
 _rk_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _rk_src).splitlines())
 print("1735 static scan                 : pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _rk_code))), "| container members used:",
       sorted(set(_re83.findall(r"\bcontainer\.(\w+)", _rk_code))), "| updater( calls:", _re83.findall(r"\bupdater\([^)]*\)", _rk_code),
@@ -10402,3 +10402,496 @@ else: _fm.CountFonts = _gw_old_cf
 if _gw_old_cls is None:
     if hasattr(_fm, "flGlyph"): delattr(_fm, "flGlyph")
 else: _fm.flGlyph = _gw_old_cls
+
+# ================= v0.199: /debug/trykerngroupedit (gated research probe that WRITES: rename or remove ONE kerning group) =================
+print("\n==== v0.199 /debug/trykerngroupedit ====")
+GE = {"cfg": {}, "groups": {}, "table": {}, "renames": [], "removes": [], "gets": [], "groups_calls": 0, "kerning_args": [],
+      "pkg_all": set(), "pkg_forbidden": [], "k_all": set(), "k_forbidden": [], "g_all": set(), "g_forbidden": []}
+_GE_K_FORBIDDEN = tuple(n for n in _FK_FORBIDDEN if n != "groups")
+_GE_PKG_FORBIDDEN = tuple(n for n in _PK_PKG_FORBIDDEN if n != "getAllGroups")
+_GE_G_ALLOWED = ("items", "rename", "remove")
+_GE_MODES = {"left": "KernLeft", "right": "KernRight", "both": "KernBothSide"}
+def _ge_forbid(where, n):
+    GE[where + "_forbidden"].append(n)
+    raise SystemExit("FORBIDDEN " + where + " member touched: " + n)
+class GEGroups:
+    # the master's kerning group container: only items(), rename() and remove() (and len()) may be used; no subscript, no iteration
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            GE["g_all"].add(n)
+            if n not in _GE_G_ALLOWED: _ge_forbid("g", n)
+        return object.__getattribute__(self, n)
+    def __getitem__(self, k): _ge_forbid("g", "__getitem__")
+    def __setitem__(self, k, v): _ge_forbid("g", "__setitem__")
+    def __delitem__(self, k): _ge_forbid("g", "__delitem__")
+    def __iter__(self): _ge_forbid("g", "__iter__")
+    def __len__(self): return 3 if GE["cfg"].get("len_stale") else sum(1 for g in GE["groups"].values() if g["kern"])
+    def items(self):
+        GE["items_calls"] = GE.get("items_calls", 0) + 1
+        m = GE["cfg"].get("items")
+        if m == "raise" or (m == "raise_after" and GE["renames"] + GE["removes"]): raise RuntimeError("items boom")
+        out = [(n, (list(g["members"]), _GE_MODES[g["side"]])) for n, g in GE["groups"].items() if g["kern"] and n not in GE["cfg"].get("hide_items", ())]
+        return out + [(n, (list(GE["groups"][n]["members"]), _GE_MODES[GE["groups"][n]["side"]])) for n in GE["cfg"].get("items_twice", ())]
+    def rename(self, old, new):
+        GE["renames"].append((old, new))
+        m = GE["cfg"].get("rename", "ok")
+        if m == "raise": raise RuntimeError("rename boom")
+        if m == "false": return False
+        if m == "list_keeps_old": GE["stale_list"].append([True, old, GE["groups"][old]["id"], 0, list(GE["groups"][old]["members"])])
+        if m == "ignore": return None
+        g = dict(GE["groups"][old])
+        if m == "lose_member": g["members"] = g["members"][:-1] or ["ge4"]
+        if m == "new_id": g["id"] = g["id"] + 100
+        if m != "copy": del GE["groups"][old]
+        GE["groups"][new] = g
+        if GE["cfg"].get("move_entries", True):
+            for key in [k for k in GE["table"] if (old, True) in k]:
+                value = GE["table"][key] if GE["cfg"].get("move_entries") == "copy" else GE["table"].pop(key)
+                GE["table"][tuple((new, True) if s == (old, True) else s for s in key)] = value
+        if m == "then_raise": raise RuntimeError("rename boom after renaming")
+        return True
+    def remove(self, name, *more):
+        GE["removes"].append((name,) + more)
+        m = GE["cfg"].get("remove", "ok")
+        if m == "raise": raise RuntimeError("remove boom")
+        if m == "ignore": return None
+        GE["groups"].pop(name, None)
+        if more and more[0] is True:
+            for key in [k for k in GE["table"] if (name, True) in k]: GE["table"].pop(key)
+        if m == "then_raise": raise RuntimeError("remove boom after removing")
+        return None
+GE_GROUPS = GEGroups()
+class GEKern:
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            GE["k_all"].add(n)
+            if n in _GE_K_FORBIDDEN: _ge_forbid("k", n)
+        return object.__getattribute__(self, n)
+    def __getitem__(self, k): _ge_forbid("k", "__getitem__")
+    def __len__(self): return len(GE["table"])
+    @property
+    def groups(self):
+        m = GE["cfg"].get("groups_attr")
+        if m == "raise": raise RuntimeError("groups boom")
+        if m == "callable": return lambda: None
+        return GE_GROUPS
+    def get(self, key):
+        GE["gets"].append(key)
+        return GE["table"].get(key)
+class GEPackage:
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            GE["pkg_all"].add(n)
+            if n in _GE_PKG_FORBIDDEN: _ge_forbid("pkg", n)
+        return object.__getattribute__(self, n)
+    def isNull(self): return False
+    @property
+    def masters(self): return GE["cfg"].get("masters", ["Regular"])
+    @property
+    def master(self): return GE["cfg"].get("master", "Regular")
+    def getAllGroups(self):
+        GE["groups_calls"] += 1
+        m = GE["cfg"].get("all_groups")
+        if m == "raise" or (m == "raise_after" and GE["renames"] + GE["removes"]): raise RuntimeError("getAllGroups boom")
+        out = [[g["kern"], n, g["id"], 0, list(g["members"])] for n, g in GE["groups"].items() if n not in GE["cfg"].get("hide_list", ())]
+        return out + [[True, n, GE["groups"][n]["id"] + 1, 0, list(GE["groups"][n]["members"])] for n in GE["cfg"].get("list_twice", ())] + GE["stale_list"]
+    @property
+    def kerning(self):
+        def _kerning(*args):
+            GE["kerning_args"].append(args)
+            if GE["cfg"].get("kerning_call") == "raise": raise RuntimeError("kerning() boom")
+            return GEKern()
+        return _kerning
+class GEWorkspace:
+    @staticmethod
+    def instance(): return GE_WS
+    def packages(self): return [GE_PKG] * GE["cfg"].get("packages", 1)
+    @property
+    def currentPackage(self): return GE_PKG
+GE_PKG = GEPackage(); GE_WS = GEWorkspace()
+class GEFont:
+    glyphs = [PKGlyph(n) for n in ("ge1", "ge2", "ge3", "ge4", ".notdef")]
+_ge_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flWorkspace")]
+def ge_setup(calls=0, **cfg):
+    GE["cfg"] = dict(cfg)
+    GE["groups"] = {"geL": {"kern": True, "id": 5121, "members": ["ge1", "ge2"], "side": "left"},
+                    "geR": {"kern": True, "id": 5122, "members": ["ge3"], "side": "right"},
+                    "geB": {"kern": True, "id": 5123, "members": ["ge4"], "side": "both"},
+                    "geF": {"kern": False, "id": 5125, "members": ["ge1"], "side": "left"}}
+    if cfg.get("members_differ"): GE["cfg"]["hide_items"] = ("geL",); GE["cfg"]["items_twice"] = ()
+    GE["table"] = {(("geL", True), ("ge4", False)): -60.0, (("ge1", False), ("geR", True)): -40.0, (("ge1", False), ("ge4", False)): -10.0}
+    for k in ("renames", "removes", "gets", "kerning_args", "stale_list"): GE[k] = []
+    GE["groups_calls"] = 0; GE["items_calls"] = 0
+    ns["_TRYKGEDIT"]["calls"] = calls
+    count = cfg.get("count", 1)
+    for _m in _tf_mods:
+        _m.flWorkspace = GEWorkspace
+        _m.CountFonts = lambda: count
+        _m.CurrentFont = lambda: GEFont()
+_GEQ = "/debug/trykerngroupedit?go=yes"
+_GER = ("error", "call", "called", "call_error", "returned", "renamed", "old_name_gone", "new_name_in_items", "new_name_in_class_list", "group_after", "table_len_before", "table_len_after",
+        "groups_len_before", "groups_len_after", "entry_before", "entry_after_old_name", "entry_after_new_name", "entry_followed", "calls_so_far")
+_GEX = ("error", "call", "called", "call_error", "removed", "old_name_gone", "still_in_items", "still_in_class_list", "table_entries_removed",
+        "groups_len_before", "groups_len_after", "entry_before", "entry_after_old_name", "entry_gone", "calls_so_far")
+def gec(tag, path, keys=None):
+    c, d = call(path)
+    shown = {k: v for k, v in d.items() if k != "note"} if keys is None else {k: d.get(k) for k in keys if k in d}
+    print(tag, ":", c, shown, "| kerning() args", GE["kerning_args"], "| renames", GE["renames"], "| removes", GE["removes"],
+          "| getAllGroups calls", GE["groups_calls"], "| items calls", GE["items_calls"])
+    return c, d
+ge_setup(); gec("2807 no go: nothing runs        ", "/debug/trykerngroupedit?op=rename&name=geL&new=geL2")
+ge_setup(); gec("2808 go=maybe: nothing runs     ", "/debug/trykerngroupedit?op=rename&name=geL&new=geL2&go=maybe")
+ge_setup(); c, d = gec("2809 rename left geL, glyph ge4  ", _GEQ + "&op=rename&name=geL&new=geL2&glyph=ge4", keys=_GER)
+print("2809b note: may change, no mark, no save:", "may have changed" in d.get("note", "") and "not marked" in d.get("note", "") and "nothing is saved" in d.get("note", ""),
+      "| group_before", d.get("group_before"), "| entry key side", d.get("entry_key_side"), "| gets", GE["gets"])
+ge_setup(); gec("2810 rename right geR, glyph ge1 ", _GEQ + "&op=rename&name=geR&new=geR2&glyph=ge1", keys=_GER); print("2810b gets:", GE["gets"])
+ge_setup(); gec("2811 rename both geB, no glyph   ", _GEQ + "&op=rename&name=geB&new=geB2", keys=_GER); print("2811b gets:", GE["gets"])
+ge_setup(move_entries=False); gec("2812 rename: entries stay behind ", _GEQ + "&op=rename&name=geL&new=geL2&glyph=ge4", keys=_GER)
+ge_setup(); gec("2812b rename: no entry before    ", _GEQ + "&op=rename&name=geL&new=geL2&glyph=ge3", keys=("renamed", "entry_before", "entry_followed"))
+ge_setup(move_entries="copy"); gec("2812c rename: entries copied     ", _GEQ + "&op=rename&name=geL&new=geL2&glyph=ge4", keys=("renamed", "entry_after_old_name", "entry_after_new_name", "entry_followed"))
+ge_setup(rename="false"); gec("2813 rename returns False       ", _GEQ + "&op=rename&name=geL&new=geL2&glyph=ge4", keys=_GER)
+ge_setup(rename="ignore"); gec("2813b rename changes nothing     ", _GEQ + "&op=rename&name=geL&new=geL2", keys=_GER)
+ge_setup(rename="raise"); gec("2814 rename raises (counted)    ", _GEQ + "&op=rename&name=geL&new=geL2", keys=_GER)
+ge_setup(rename="then_raise"); gec("2814b rename raises after renaming", _GEQ + "&op=rename&name=geL&new=geL2", keys=("call_error", "renamed", "old_name_gone", "group_after"))
+ge_setup(rename="copy"); gec("2815 rename keeps the old name   ", _GEQ + "&op=rename&name=geL&new=geL2", keys=_GER)
+ge_setup(rename="list_keeps_old"); gec("2815b class list still names the old", _GEQ + "&op=rename&name=geL&new=geL2", keys=("renamed", "old_name_gone", "groups_len_before", "groups_len_after", "kerning_groups_listed_after"))
+ge_setup(rename="lose_member"); gec("2816 rename loses a member       ", _GEQ + "&op=rename&name=geL&new=geL2", keys=_GER)
+ge_setup(rename="new_id"); gec("2817 rename changes the id       ", _GEQ + "&op=rename&name=geL&new=geL2", keys=_GER)
+ge_setup(); gec("2818 remove geR, pairs=keep      ", _GEQ + "&op=remove&name=geR&pairs=keep&glyph=ge1", keys=_GEX)
+ge_setup(); gec("2819 remove geL, pairs=delete    ", _GEQ + "&op=remove&name=geL&pairs=delete&glyph=ge4", keys=_GEX)
+ge_setup(); gec("2819b remove geB, no entry, keep  ", _GEQ + "&op=remove&name=geB&pairs=keep&glyph=ge1", keys=("removed", "entry_before", "entry_gone", "table_entries_removed"))
+ge_setup(remove="ignore"); gec("2820 remove changes nothing     ", _GEQ + "&op=remove&name=geR&pairs=keep", keys=_GEX)
+ge_setup(remove="raise"); gec("2821 remove raises (counted)    ", _GEQ + "&op=remove&name=geR&pairs=delete", keys=_GEX)
+ge_setup(remove="then_raise"); gec("2821b remove raises after removing", _GEQ + "&op=remove&name=geR&pairs=keep", keys=("call_error", "removed", "old_name_gone", "groups_len_after"))
+ge_setup(len_stale=True); gec("2821c group count does not drop   ", _GEQ + "&op=remove&name=geR&pairs=keep", keys=("removed", "old_name_gone", "groups_len_before", "groups_len_after"))
+for tag, q in (("2822a unknown op               ", "&op=copy&name=geL&new=geL2"), ("2822b bad name                 ", "&op=rename&name=ge:L&new=geL2"),
+               ("2822c new the same as name     ", "&op=rename&name=geL&new=geL"), ("2822d rename without new       ", "&op=rename&name=geL"),
+               ("2822e bad new                  ", "&op=rename&name=geL&new=" + "x" * 64), ("2822f rename with pairs        ", "&op=rename&name=geL&new=geL2&pairs=keep"),
+               ("2822g remove with new          ", "&op=remove&name=geL&new=geL2&pairs=keep"), ("2822h remove without pairs     ", "&op=remove&name=geL"),
+               ("2822i remove pairs=all         ", "&op=remove&name=geL&pairs=all"), ("2822j bad glyph name           ", "&op=remove&name=geL&pairs=keep&glyph=g%20h"),
+               ("2822k glyph not in the font    ", "&op=remove&name=geL&pairs=keep&glyph=Q"), ("2822l new is a glyph name      ", "&op=rename&name=geL&new=ge3"),
+               ("2822m new is a kerning group   ", "&op=rename&name=geL&new=geR"), ("2822n new is an OpenType class  ", "&op=rename&name=geL&new=geF"),
+               ("2822o unknown group           ", "&op=remove&name=geQ&pairs=keep"), ("2822p an OpenType class        ", "&op=remove&name=geF&pairs=keep"),
+               ("2822q a glyph, not a group     ", "&op=remove&name=ge1&pairs=keep")):
+    ge_setup(); gec(tag, _GEQ + q, keys=("error", "group_before", "calls_so_far"))
+ge_setup(hide_items=("geL",)); gec("2822r class list only, not items()", _GEQ + "&op=rename&name=geL&new=geL2", keys=("error", "group_before", "calls_so_far"))
+ge_setup(hide_list=("geL",)); gec("2822s items() only, not class list", _GEQ + "&op=rename&name=geL&new=geL2", keys=("error", "group_before", "calls_so_far"))
+ge_setup(list_twice=("geL",)); gec("2822t class list names it twice   ", _GEQ + "&op=remove&name=geL&pairs=keep", keys=("error", "group_before", "calls_so_far"))
+ge_setup(items_twice=("geL",)); gec("2822u items() names it twice      ", _GEQ + "&op=remove&name=geL&pairs=keep", keys=("error", "group_before", "calls_so_far"))
+for tag, over in (("2823a getAllGroups raises  ", dict(all_groups="raise")), ("2823b items() raises       ", dict(items="raise")),
+                  ("2823c kerning.groups raises ", dict(groups_attr="raise")), ("2823d kerning.groups callable", dict(groups_attr="callable")),
+                  ("2823e kerning() raises (counted)", dict(kerning_call="raise"))):
+    ge_setup(**over); gec(tag, _GEQ + "&op=rename&name=geL&new=geL2", keys=("error", "calls_so_far"))
+ge_setup(items="raise_after"); gec("2824a items() fails after rename ", _GEQ + "&op=rename&name=geL&new=geL2", keys=_GER + ("items_error_after", "new_name_in_items", "new_name_in_class_list"))
+ge_setup(all_groups="raise_after"); gec("2824b class list fails after remove", _GEQ + "&op=remove&name=geR&pairs=keep", keys=_GEX + ("class_list_error_after",))
+for tag, over in (("2825a no font open        ", dict(count=0)), ("2825b two fonts open      ", dict(count=2)), ("2825c two packages        ", dict(packages=2)),
+                  ("2825d masters not all names", dict(masters=["Regular", 5])), ("2825e current master unlisted", dict(master="Ghost"))):
+    ge_setup(**over); gec(tag, _GEQ + "&op=rename&name=geL&new=geL2", keys=("open", "error", "calls_so_far"))
+ge_setup(calls=9); gec("2826 request 10 allowed       ", _GEQ + "&op=rename&name=geL&new=geL2", keys=("renamed", "calls_so_far", "max_calls"))
+GE["renames"].clear(); GE["kerning_args"].clear(); GE["groups_calls"] = 0; GE["items_calls"] = 0
+gec("2826b request 11 refused      ", _GEQ + "&op=rename&name=geB&new=geB2", keys=("error", "calls_so_far", "max_calls"))
+ge_setup(); _ge_real = ns["debug_try_kern_group_edit"]
+ns["debug_try_kern_group_edit"] = _pk_boom; gec("2827 probe raises: HTTP 500    ", _GEQ + "&op=rename&name=geL&new=geL2"); ns["debug_try_kern_group_edit"] = _ge_real
+for k in ("pkg_all", "k_all", "g_all"): GE[k] = set()
+for k in ("pkg_forbidden", "k_forbidden", "g_forbidden"): GE[k] = []
+for _q in ("&op=rename&name=geL&new=geL2&glyph=ge4", "&op=rename&name=geR&new=geR2&glyph=ge1", "&op=remove&name=geB&pairs=keep&glyph=ge1",
+           "&op=remove&name=geL&pairs=delete&glyph=ge4", "&op=rename&name=geF&new=geF2", "&op=remove&name=geQ&pairs=keep"):
+    ge_setup(); call(_GEQ + _q)
+print("2828 spy over all cases          : forbidden package members:", GE["pkg_forbidden"], "| package members touched anywhere:", sorted(GE["pkg_all"]),
+      "| forbidden kerning members:", GE["k_forbidden"], "| kerning members touched anywhere:", sorted(GE["k_all"]),
+      "| forbidden group container members:", GE["g_forbidden"], "| group container members touched:", sorted(GE["g_all"]))
+_ge_src = src[src.index("_TRYKGEDIT = {"):src.index("# /debug/trymodern (v0.88)")]
+_ge_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _ge_src).splitlines())
+print("2829 static scan                 : pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _ge_code))),
+      "| kerning members used:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _ge_code))), "| container members used:", sorted(set(_re83.findall(r"\bcontainer\.(\w+)", _ge_code))),
+      "| editor( calls:", len(_re83.findall(r"\beditor\(", _ge_code)), "| kerning_of( calls:", len(_re83.findall(r"\bkerning_of\(", _ge_code)),
+      "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|Update\w*|add\w*|clear\w*|keys|values|items|has_key|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|setPlain\w*|scale|rename\w*|autoKern|findGroup|set|notify\w*)\(", _ge_code),
+      "| del statements:", len(_re83.findall(r"\bdel\b", _ge_code)),
+      "| subscripts on other objects:", sorted(set(s for s in _re83.findall(r"\b(\w+)\[", _ge_code) if s not in ("_TRYKGEDIT", "r", "out"))),
+      "| counter raised before the first kerning call:", _ge_code.index('_TRYKGEDIT[""] += 1') < _ge_code.index("kerning_of(current)") < _ge_code.index("editor(name"),
+      "| scanned chars > 6000:", len(_ge_src) > 6000)
+print("2830 gate, cap, route, docstring  :", "go != \"yes\"" in _ge_src, "| max requests", ns["_TRYKGEDIT_MAX"], "| route registered once:", src.count('path == "/debug/trykerngroupedit"') == 1,
+      "| listed in the module docstring:", "/debug/trykerngroupedit" in src[:src.index('"""', 3)])
+ns["_TRYKGEDIT"]["calls"] = 0
+for _m, _a, _v in _ge_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)
+
+# ================= v0.200: POST /kerning/group/rename and /kerning/group/remove (product routes; fakes with spies) =================
+print("\n==== v0.200 /kerning/group/rename and /kerning/group/remove ====")
+# Fakes: the master's group container (only items, rename, remove and len; any other member, a subscript or an iteration aborts), the
+# table (get, len, groups), the package (getAllGroups returns None when no group is left, as FontLab did in GL 1531), and glyphs whose
+# legacy kerningLeft / kerningRight lag behind an edit until notifyPackageContentUpdated (GE 1512, GR 1528). The mark and the dialog are
+# recorders; the refresh is the real _refresh_kerning_panel with a fake flItems.
+GP = {"cfg": {}, "groups": {}, "table": {}, "glyph_ids": {}, "renames": [], "removes": [], "dialogs": [], "marks": [], "refreshes": [],
+      "order": [], "groups_calls": 0, "items_calls": 0, "pkg_all": set(), "pkg_forbidden": [], "k_all": set(), "k_forbidden": [],
+      "g_all": set(), "g_forbidden": []}
+_GP_K_FORBIDDEN = tuple(n for n in _FK_FORBIDDEN if n != "groups")
+_GP_PKG_FORBIDDEN = tuple(n for n in _PK_PKG_FORBIDDEN if n != "getAllGroups")
+_GP_G_ALLOWED = ("items", "rename", "remove")
+_GP_MODES = {"left": "KernLeft", "right": "KernRight", "both": "KernBothSide"}
+def _gp_forbid(where, n):
+    GP[where + "_forbidden"].append(n)
+    raise SystemExit("FORBIDDEN " + where + " member touched: " + n)
+def _gp_ids_now():
+    ids = {}
+    for name, g in GP["groups"].items():
+        if not g["kern"]: continue
+        for m in g["members"]:
+            left, right = ids.get(m, (0, 0))
+            if g["side"] in ("left", "both"): left = g["id"]
+            if g["side"] in ("right", "both"): right = g["id"]
+            ids[m] = (left, right)
+    return ids
+class GPGroups:
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            GP["g_all"].add(n)
+            if n not in _GP_G_ALLOWED: _gp_forbid("g", n)
+        return object.__getattribute__(self, n)
+    def __getitem__(self, k): _gp_forbid("g", "__getitem__")
+    def __setitem__(self, k, v): _gp_forbid("g", "__setitem__")
+    def __delitem__(self, k): _gp_forbid("g", "__delitem__")
+    def __iter__(self): _gp_forbid("g", "__iter__")
+    def __len__(self):
+        if GP["cfg"].get("len_stale"): return GP["cfg"]["len_stale"]
+        return sum(1 for g in GP["groups"].values() if g["kern"])
+    def items(self):
+        GP["items_calls"] += 1
+        if GP["cfg"].get("items") == "raise" or (GP["cfg"].get("items") == "raise_after" and GP["renames"] + GP["removes"]): raise RuntimeError("items boom")
+        hide = GP["cfg"].get("hide_items", ())
+        return [(n, (list(g["members"][:-1] if n in GP["cfg"].get("short_items", ()) else g["members"]), _GP_MODES[g["side"]]))
+                for n, g in GP["groups"].items() if g["kern"] and n not in hide]
+    def rename(self, old, new):
+        GP["renames"].append((old, new)); GP["order"].append("rename")
+        m = GP["cfg"].get("rename", "ok")
+        if m == "raise": raise RuntimeError("rename boom")
+        if m == "false": return False
+        g = dict(GP["groups"][old])
+        g["id"] = g["id"] + 2                                   # FontLab gave the renamed group a new id (GE 1511: 5140 -> 5142)
+        if m == "lose_member": g["members"] = g["members"][:-1]
+        if m != "copy": del GP["groups"][old]
+        GP["groups"][new] = g
+        for key in [k for k in GP["table"] if (old, True) in k]:
+            GP["table"][tuple((new, True) if s == (old, True) else s for s in key)] = GP["table"].pop(key)
+        if m == "drop_entry": GP["table"].pop(next(iter(GP["table"])))
+        if m == "list_keeps_old": GP["stale_list"].append([True, old, g["id"] - 2, 0, list(g["members"])])
+        if m == "then_raise": raise RuntimeError("rename boom after renaming")
+        return True
+    def remove(self, name, *more):
+        GP["removes"].append((name,) + more); GP["order"].append("remove")
+        m = GP["cfg"].get("remove", "ok")
+        if m == "raise": raise RuntimeError("remove boom")
+        if m == "ignore": return None
+        GP["groups"].pop(name, None)
+        if more and more[0] is True:
+            for key in [k for k in GP["table"] if (name, True) in k]: GP["table"].pop(key)
+        if m == "then_raise": raise RuntimeError("remove boom after removing")
+        return None
+GP_GROUPS = GPGroups()
+class GPKern:
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            GP["k_all"].add(n)
+            if n in _GP_K_FORBIDDEN: _gp_forbid("k", n)
+        return object.__getattribute__(self, n)
+    def __getitem__(self, k): _gp_forbid("k", "__getitem__")
+    def __len__(self): return len(GP["table"])
+    @property
+    def groups(self):
+        m = GP["cfg"].get("groups_attr")
+        if m == "raise": raise RuntimeError("groups boom")
+        if m == "callable": return lambda: None
+        return GP_GROUPS
+    def get(self, key): return GP["table"].get(key)
+class GPPackage:
+    fgId = 4186
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            GP["pkg_all"].add(n)
+            if n in _GP_PKG_FORBIDDEN: _gp_forbid("pkg", n)
+        return object.__getattribute__(self, n)
+    def isNull(self): return False
+    @property
+    def path(self): return GP["cfg"].get("pkg_path", "")
+    @property
+    def masters(self): return GP["cfg"].get("masters", ["Regular"])
+    @property
+    def master(self): return GP["cfg"].get("master", "Regular")
+    def getAllGroups(self):
+        GP["groups_calls"] += 1
+        m = GP["cfg"].get("all_groups")
+        if m == "raise" or (m == "raise_after" and GP["renames"] + GP["removes"]): raise RuntimeError("getAllGroups boom")
+        out = [[g["kern"], n, g["id"], 0, list(g["members"])] for n, g in GP["groups"].items() if n not in GP["cfg"].get("hide_list", ())]
+        out += [[True, n, GP["groups"][n]["id"] + 1, 0, list(GP["groups"][n]["members"])] for n in GP["cfg"].get("list_twice", ())]
+        out += GP["stale_list"]
+        return out or None                                      # ".../Nothing" when no group is left (GL 1531)
+    @property
+    def kerning(self):
+        def _kerning(*args):
+            if GP["cfg"].get("kerning_call") == "raise": raise RuntimeError("kerning() boom")
+            return GPKern()
+        return _kerning
+class GPWorkspace:
+    @staticmethod
+    def instance(): return GP_WS
+    def packages(self): return [GP_PKG] * GP["cfg"].get("packages", 1)
+    @property
+    def currentPackage(self): return GP_PKG
+GP_PKG = GPPackage(); GP_WS = GPWorkspace()
+class GPGlyph:
+    def __init__(self, n): self.name = n
+    @property
+    def kerningLeft(self):
+        if GP["cfg"].get("ids") == "raise": raise RuntimeError("ids boom")
+        return GP["glyph_ids"].get(self.name, (0, 0))[0]
+    @property
+    def kerningRight(self): return GP["glyph_ids"].get(self.name, (0, 0))[1]
+class GPInfo:
+    familyName = "Group Test"; styleName = "Regular"
+class GPFont:
+    info = GPInfo()
+    glyphs = [GPGlyph(n) for n in ("ge1", "ge2", "ge3", "ge4", "ge5", ".notdef")]
+    @property
+    def path(self): return GP["cfg"].get("font_path", "")
+class GPItems:
+    @staticmethod
+    def notifyPackageContentUpdated(pid):
+        GP["refreshes"].append(pid); GP["order"].append("refresh")
+        if GP["cfg"].get("refresh_works", True): GP["glyph_ids"] = _gp_ids_now()
+_gp_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flWorkspace", "flItems")]
+_gp_keep = {k: ns[k] for k in ("_confirm_group_removal", "_mark_through_first")}
+def _gp_mark(font, candidates, how):
+    GP["marks"].append((list(candidates), how)); GP["order"].append("mark")
+    return {"called": True, "via_glyph": candidates[0] if candidates else None, "glyph_has_changes": True}
+def _gp_dialog(text):
+    GP["dialogs"].append(text); GP["order"].append("dialog")
+    return GP["cfg"].get("answer", True)
+def gp_setup(**cfg):
+    GP["cfg"] = dict(cfg)
+    GP["groups"] = {"geL": {"kern": True, "id": 5140, "members": ["ge1", "ge2"], "side": "left"},
+                    "geR": {"kern": True, "id": 5141, "members": ["ge3", "ge4"], "side": "right"},
+                    "geB": {"kern": True, "id": 5148, "members": ["ge5"], "side": "both"},
+                    "geF": {"kern": False, "id": 5150, "members": ["ge1"], "side": "left"}}
+    for n in cfg.get("only", ()) and [k for k in list(GP["groups"]) if k not in cfg["only"]]: del GP["groups"][n]
+    GP["table"] = {(("geL", True), ("ge4", False)): -60.0, (("ge1", False), ("geR", True)): -40.0, (("ge1", False), ("ge4", False)): -10.0}
+    GP["glyph_ids"] = _gp_ids_now()
+    for k in ("renames", "removes", "dialogs", "marks", "refreshes", "order", "stale_list"): GP[k] = []
+    GP["groups_calls"] = GP["items_calls"] = 0
+    count = cfg.get("count", 1)
+    for _m in _tf_mods:
+        _m.flWorkspace = GPWorkspace; _m.CountFonts = lambda: count; _m.CurrentFont = lambda: (None if cfg.get("no_current") else GPFont())
+        _m.flItems = GPItems
+    ns["_confirm_group_removal"] = _gp_dialog; ns["_mark_through_first"] = _gp_mark
+def gpp(tag, path, payload, keys=None, raw=False):
+    body = payload if raw else json.dumps(payload).encode("utf-8")
+    r = ns["_route"]("POST", path, body); h, _, b = r.partition(b"\r\n\r\n")
+    d = json.loads(b)
+    shown = d if keys is None else {k: d.get(k) for k in keys if k in d}
+    print(tag, ":", h.split(b"\r\n")[0].decode()[9:12], shown, "| renames", GP["renames"], "| removes", GP["removes"], "| dialogs", len(GP["dialogs"]),
+          "| order", GP["order"])
+    return d
+_RN, _RM = "/kerning/group/rename", "/kerning/group/remove"
+_GPK = ("error", "renamed", "removed", "changed", "user_declined", "returned", "id_before", "id_after", "same_name_glyph", "group_after",
+        "table_size_before", "table_size_after", "groups_before", "groups_after", "still_in_items", "still_in_class_list", "reason", "call_error",
+        "fontlab_changed_mark", "fontlab_panel_refresh", "fontlab_caught_up")
+print("--- rename")
+gp_setup(); d = gpp("2831 rename geL -> geL2           ", _RN, {"group": "geL", "new_name": "geL2"})
+print("2831b marked through members      :", GP["marks"], "| refreshed with fgId:", GP["refreshes"], "| table keys follow:", sorted(k[0][0] for k in GP["table"] if k[0][1]))
+gp_setup(); gpp("2832 rename to a glyph's name ge3", _RN, {"group": "geL", "new_name": "ge3"}, keys=("renamed", "same_name_glyph", "id_after", "fontlab_caught_up"))
+gp_setup(); gpp("2832b rename the right group geR  ", _RN, {"group": "geR", "new_name": "geR2"}, keys=("renamed", "fontlab_caught_up"))
+gp_setup(); gpp("2832c rename the both group geB   ", _RN, {"group": "geB", "new_name": "geB2"}, keys=("renamed", "fontlab_caught_up"))
+gp_setup(refresh_works=False); gpp("2833 FontLab does not catch up   ", _RN, {"group": "geL", "new_name": "geL2"}, keys=("renamed", "fontlab_caught_up"))
+gp_setup(ids="raise"); gpp("2833b the member's id unreadable ", _RN, {"group": "geL", "new_name": "geL2"}, keys=("renamed", "fontlab_caught_up"))
+gp_setup(rename="false"); gpp("2834 rename returns False        ", _RN, {"group": "geL", "new_name": "geL2"}, keys=_GPK)
+gp_setup(rename="raise"); gpp("2834b rename raises              ", _RN, {"group": "geL", "new_name": "geL2"}, keys=_GPK)
+gp_setup(rename="then_raise"); gpp("2835 renamed, then raises        ", _RN, {"group": "geL", "new_name": "geL2"}, keys=_GPK)
+gp_setup(rename="copy"); gpp("2836 the old name stays too      ", _RN, {"group": "geL", "new_name": "geL2"}, keys=("renamed", "changed", "reason", "fontlab_changed_mark"))
+gp_setup(rename="lose_member"); gpp("2837 a member lost               ", _RN, {"group": "geL", "new_name": "geL2"}, keys=("renamed", "changed", "reason"))
+gp_setup(rename="list_keeps_old"); gpp("2837b the class list keeps the old name", _RN, {"group": "geL", "new_name": "geL2"}, keys=("renamed", "changed", "reason", "groups_before", "groups_after"))
+gp_setup(rename="drop_entry"); gpp("2837c a kerning entry went too    ", _RN, {"group": "geL", "new_name": "geL2"}, keys=("renamed", "changed", "reason", "table_size_before", "table_size_after"))
+gp_setup(items="raise_after"); gpp("2838 items() fails after the call", _RN, {"group": "geL", "new_name": "geL2"}, keys=("renamed", "changed", "reason", "fontlab_changed_mark"))
+print("--- rename refused before any change")
+for tag, body in (("2839a new name is a kerning group ", {"group": "geL", "new_name": "geR"}), ("2839b new name is an OpenType class", {"group": "geL", "new_name": "geF"}),
+                  ("2839c the same name               ", {"group": "geL", "new_name": "geL"}), ("2839d a bad group name           ", {"group": "ge L", "new_name": "x"}),
+                  ("2839e a bad new name             ", {"group": "geL", "new_name": "x" * 64}), ("2839f an unknown group           ", {"group": "geQ", "new_name": "x"}),
+                  ("2839g an OpenType class as group ", {"group": "geF", "new_name": "x"}), ("2839h a glyph, not a group       ", {"group": "ge1", "new_name": "x"}),
+                  ("2839i another key in the body    ", {"group": "geL", "new_name": "x", "go": "yes"}), ("2839j new_name missing           ", {"group": "geL"}),
+                  ("2839k a number as name           ", {"group": 5, "new_name": "x"})):
+    gp_setup(); gpp(tag, _RN, body, keys=("error", "group_before"))
+gp_setup(); gpp("2839l body not JSON              ", _RN, b"group=geL", raw=True)
+gp_setup(short_items=("geL",)); gpp("2839m the sources' members differ ", _RN, {"group": "geL", "new_name": "x"}, keys=("error", "group_before"))
+gp_setup(list_twice=("geL",)); gpp("2839n the class list names it twice", _RN, {"group": "geL", "new_name": "x"}, keys=("error",))
+gp_setup(all_groups="raise"); gpp("2839o getAllGroups raises        ", _RN, {"group": "geL", "new_name": "x"}, keys=("error",))
+gp_setup(groups_attr="callable"); gpp("2839p kerning.groups callable    ", _RN, {"group": "geL", "new_name": "x"}, keys=("error",))
+gp_setup(count=0); gpp("2840a no font open               ", _RN, {"group": "geL", "new_name": "x"})
+gp_setup(count=2); gpp("2840b two fonts, unsaved         ", _RN, {"group": "geL", "new_name": "x"}, keys=("error",))
+gp_setup(count=2, font_path="C:/f/a.vfc", pkg_path="C:/f/a.vfc"); gpp("2840c two fonts, matched by path  ", _RN, {"group": "geL", "new_name": "x"}, keys=("renamed", "matched_by", "fonts_open"))
+gp_setup(master="Ghost"); gpp("2840d current master unlisted   ", _RN, {"group": "geL", "new_name": "x"}, keys=("error",))
+print("--- remove")
+gp_setup(); d = gpp("2841 remove geR, keep, Yes        ", _RM, {"group": "geR", "pairs": "keep"})
+print("2841b the dialog's text           :", GP["dialogs"][0].replace("\n", " / "))
+gp_setup(); gpp("2842 remove geL, delete, Yes      ", _RM, {"group": "geL", "pairs": "delete"}, keys=("removed", "table_size_before", "table_size_after", "fontlab_caught_up"))
+print("2842b the dialog's text           :", GP["dialogs"][0].replace("\n", " / "))
+gp_setup(answer=False); gpp("2843 answered No                 ", _RM, {"group": "geR", "pairs": "keep"}, keys=_GPK)
+gp_setup(only=("geR",)); gpp("2844 the last group (list None after)", _RM, {"group": "geR", "pairs": "delete"}, keys=("removed", "still_in_class_list", "groups_after", "fontlab_caught_up"))
+gp_setup(remove="raise"); gpp("2845 remove raises               ", _RM, {"group": "geR", "pairs": "keep"}, keys=_GPK)
+gp_setup(remove="ignore"); gpp("2845b remove changes nothing      ", _RM, {"group": "geR", "pairs": "keep"}, keys=_GPK)
+gp_setup(remove="then_raise"); gpp("2845c removed, then raises        ", _RM, {"group": "geR", "pairs": "keep"}, keys=("removed", "changed", "call_error", "fontlab_changed_mark"))
+gp_setup(len_stale=3); gpp("2845d group count does not drop   ", _RM, {"group": "geR", "pairs": "keep"}, keys=("removed", "changed", "reason"))
+gp_setup(all_groups="raise_after"); gpp("2845e class list fails after   ", _RM, {"group": "geR", "pairs": "keep"}, keys=("removed", "changed", "reason", "fontlab_changed_mark"))
+gp_setup(refresh_works=False); gpp("2845f FontLab does not catch up   ", _RM, {"group": "geB", "pairs": "keep"}, keys=("removed", "fontlab_caught_up"))
+print("--- remove refused before the dialog (dialogs must stay 0)")
+for tag, body in (("2846a an unknown group            ", {"group": "geQ", "pairs": "keep"}), ("2846b an OpenType class          ", {"group": "geF", "pairs": "keep"}),
+                  ("2846c pairs missing              ", {"group": "geR"}), ("2846d pairs 'all'                ", {"group": "geR", "pairs": "all"}),
+                  ("2846e pairs true                 ", {"group": "geR", "pairs": True}), ("2846f a bad name                 ", {"group": "", "pairs": "keep"})):
+    gp_setup(); gpp(tag, _RM, body, keys=("error",))
+gp_setup(); GP["groups"]["geR"]["members"] = ["ge3"] + [f"m{i}" for i in range(11)]; GP["glyph_ids"] = _gp_ids_now()
+gpp("2847 twelve members              ", _RM, {"group": "geR", "pairs": "keep"}, keys=("removed",)); print("2847b dialog:", GP["dialogs"][0].replace("\n", " / "))
+_mk = ns["_MARK_CHANGED"]; ns["_MARK_CHANGED"] = False
+gp_setup(); gpp("2848 the mark switched off       ", _RN, {"group": "geL", "new_name": "geL2"}, keys=("renamed", "fontlab_changed_mark"))
+ns["_MARK_CHANGED"] = _mk
+print("--- the OUTPUT lines")
+_aw = ns["_act_describe_write"]
+for tag, path, body, reply in (
+        ("2849a renamed            ", _RN, {"group": "geL", "new_name": "geL2"}, {"open": True, "renamed": True, "new_name": "geL2", "id_before": 5140, "id_after": 5142, "fontlab_caught_up": {"caught_up": True}}),
+        ("2849b renamed, lags      ", _RN, {"group": "geL", "new_name": "geL2"}, {"open": True, "renamed": True, "new_name": "geL2", "id_before": 5140, "id_after": 5142, "fontlab_caught_up": {"checked": False}}),
+        ("2849c refused            ", _RN, {"group": "geL", "new_name": "geR"}, {"open": True, "error": "'geR' is already the name of a kerning group in this font; nothing was renamed"}),
+        ("2849d not confirmed      ", _RN, {"group": "geL", "new_name": "x"}, {"open": True, "renamed": False, "reason": "the re-read does not confirm the rename: the old name is still listed"}),
+        ("2849e removed, keep      ", _RM, {"group": "geR", "pairs": "keep"}, {"open": True, "removed": True, "pairs": "keep", "table_size_before": 3, "table_size_after": 4, "fontlab_caught_up": {"caught_up": True}}),
+        ("2849f removed, delete    ", _RM, {"group": "geL", "pairs": "delete"}, {"open": True, "removed": True, "pairs": "delete", "table_size_before": 3, "table_size_after": 2, "fontlab_caught_up": {"caught_up": True}}),
+        ("2849g answered No        ", _RM, {"group": "geR", "pairs": "keep"}, {"open": True, "removed": False, "user_declined": True}),
+        ("2849h HTTP 400           ", _RM, {"group": "geR"}, {"error": "the body must be a JSON object with \"group\" and \"pairs\" and nothing else"}),
+        ("2849i no font            ", _RM, {"group": "geR", "pairs": "keep"}, {"open": False})):
+    print(tag, ":", _aw(path, body, 400 if "2849h" in tag else 200, reply))
+print("--- spies and scans")
+for k in ("pkg_all", "k_all", "g_all"): GP[k] = set()
+for k in ("pkg_forbidden", "k_forbidden", "g_forbidden"): GP[k] = []
+for _p, _b in ((_RN, {"group": "geL", "new_name": "geL2"}), (_RN, {"group": "geL", "new_name": "geR"}), (_RM, {"group": "geR", "pairs": "keep"}),
+               (_RM, {"group": "geL", "pairs": "delete"}), (_RM, {"group": "geQ", "pairs": "keep"})):
+    gp_setup(); ns["_route"]("POST", _p, json.dumps(_b).encode("utf-8"))
+print("2850 spy over all cases          : forbidden package members:", GP["pkg_forbidden"], "| package members touched:", sorted(GP["pkg_all"]),
+      "| forbidden kerning members:", GP["k_forbidden"], "| kerning members touched:", sorted(GP["k_all"]),
+      "| forbidden group container members:", GP["g_forbidden"], "| group container members touched:", sorted(GP["g_all"]))
+_gp_src = src[src.index("def _confirm_group_removal("):src.index("def set_glyph_unicode(")]
+_gp_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _gp_src).splitlines())
+_gp_body = _re83.sub(r'(?s)"""(.*?)"""', '', _gp_code)
+_gp_plain = "\n".join(l for l in _re83.sub(r'(?s)"""(.*?)"""', '', _gp_src).splitlines() if not l.lstrip().startswith("#"))
+print("2851 static scan                 : container members used:", sorted(set(_re83.findall(r'(?:\["container"\]|\bcontainer)\.(\w+)', _gp_plain))),
+      "| renamer( calls:", len(_re83.findall(r"\brenamer\(", _gp_body)), "| remover( calls:", len(_re83.findall(r"\bremover\(", _gp_body)),
+      "| pkg members:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _gp_body))), "| kerning members:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _gp_body))),
+      "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|set|update\w*|Update\w*|add\w*|clear\w*|keys|values|assign\w*|replace\w*|delete\w*|deleteGroups|asDict|getPlain\w*|setPlain\w*|scale|renameGroup|addGroup|deleteGroup)\(",
+                                         _gp_body.replace("out.update(", "").replace("check.update(", "").replace("twice.add(", "").replace("other.add(", "")),
+      "| del statements:", len(_re83.findall(r"\bdel\b", _gp_body)),
+      "| names subscripted:", sorted(set(_re83.findall(r"\b(\w+)\[", _gp_body))),
+      "| scanned chars > 9000:", len(_gp_src) > 9000)
+print("2852 routes, docstring, log, mark:", src.count('if path in ("/kerning/group/rename", "/kerning/group/remove"):') == 1,
+      "| in the module docstring:", all(p in src[:src.index('"""', 3)] for p in ("POST /kerning/group/rename", "POST /kerning/group/remove")),
+      "| write log kinds:", ns["_ACT_WRITES"].get(_RN), "/", ns["_ACT_WRITES"].get(_RM), "| mark title:", ns["_MARK_TITLES"].get("kerning_group"),
+      "| dialog default No:", "box.setDefaultButton(QMessageBox.No)" in src[src.index("def _confirm_group_removal("):src.index("# v0.200 - renaming")])
+ns.update(_gp_keep)
+for _m, _a, _v in _gp_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)

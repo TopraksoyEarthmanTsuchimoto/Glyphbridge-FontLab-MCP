@@ -3409,3 +3409,106 @@ _d49 = " ".join((srv.get_glyph_width.__doc__ or "").split())
 print("49l docstring                   :", [w for w in ("modern advance width", "widths_disagree", "do not choose one", "width_source \"legacy\"") if w not in _d49])
 print("49m version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
 srv._call_listener = _save49
+
+# ==== 50. server 0.82: rename_kerning_group and remove_kerning_group through POST /kerning/group/rename and /kerning/group/remove (listener 0.200; faked listener replies) ====
+print("\n==== 50. server 0.82: rename_kerning_group and remove_kerning_group (faked listener replies) ====")
+_save50 = (srv._call_listener, srv._call_listener_post)
+K50 = {"version": "0.200", "reply": None, "paths": [], "posts": []}
+def _k50_get(path):
+    K50["paths"].append(path)
+    if path == "/version":
+        return {"version": K50["version"]}
+    raise AssertionError("unexpected GET " + path)
+def _k50_post(path, payload, timeout=0):
+    K50["posts"].append((path, payload, timeout))
+    r = K50["reply"]
+    if isinstance(r, Exception): raise r
+    return r
+srv._call_listener, srv._call_listener_post = _k50_get, _k50_post
+def k50(fn, reply=None, version="0.200", **call):
+    K50["reply"] = reply; K50["version"] = version; K50["paths"].clear(); K50["posts"] = []
+    srv._reset_change_tracking()
+    try:
+        return fn(**call)
+    except srv.ToolError as e:
+        return "ToolError: " + str(e)
+def k50chg(): return (srv._CHANGES["package"], srv._CHANGES["package_unsure"])
+def k50sent(): return [(p, pl, t) for p, pl, t in K50["posts"]]
+_gL = {"name": "kgeL", "side": "left", "fontlab_side": "KernLeft", "members": ["kge1", "kge2"], "member_count": 2, "id": 5140, "confirmed": True}
+def rnreply(**extra):
+    base = {"open": True, "fonts_open": 1, "matched_by": "only font", "family_name": "Unnamed", "master": "Regular", "master_count": 1,
+            "group_before": _gL, "group": "kgeL", "new_name": "kgeL2", "renamed": True, "changed": True, "returned": True,
+            "group_after": dict(_gL, name="kgeL2", id=5142), "table_size_before": 2, "table_size_after": 2, "groups_before": 2, "groups_after": 2,
+            "id_before": 5140, "id_after": 5142, "same_name_glyph": False,
+            "fontlab_changed_mark": {"called": True, "via_glyph": "kge1", "glyph_has_changes": True}, "fontlab_panel_refresh": {"called": True},
+            "fontlab_caught_up": {"checked": True, "glyph": "kge1", "side_attribute": "kerningLeft", "group_id_read": 5142, "expected": 5142, "caught_up": True}}
+    base.update(extra); return base
+def rmreply50(**extra):
+    base = {"open": True, "fonts_open": 1, "matched_by": "only font", "family_name": "Unnamed", "master": "Regular", "master_count": 1,
+            "group_before": _gL, "group": "kgeL", "pairs": "keep", "removed": True, "changed": True, "returned": None,
+            "still_in_items": False, "still_in_class_list": False, "table_size_before": 2, "table_size_after": 3, "groups_before": 2, "groups_after": 1,
+            "fontlab_changed_mark": {"called": True, "via_glyph": "kge1", "glyph_has_changes": True}, "fontlab_panel_refresh": {"called": True},
+            "fontlab_caught_up": {"checked": True, "glyph": "kge1", "side_attribute": "kerningLeft", "group_id_read": 0, "expected": 0, "caught_up": True}}
+    base.update(extra); return base
+def row50(label, r):
+    if isinstance(r, str): print(label, ":", r[:400], "| changes", k50chg(), "| sent", [(p, pl) for p, pl, _t in K50["posts"]]); return
+    print(label, ":", {k: v for k, v in r.items() if k != "agent_instruction"}, "| changes", k50chg())
+RN, RM = srv.rename_group_write, srv.remove_group_write
+print("--- rename")
+r = k50(RN, rnreply(), group="kgeL", new_name="kgeL2"); row50("50a renamed                   ", r)
+print("50b request                      :", k50sent(), "| GETs", K50["paths"])
+print("50c instruction                  :", r["agent_instruction"])
+r = k50(RN, rnreply(), group=" @kgeL ", new_name="@kgeL2"); print("50d '@' and spaces stripped       :", k50sent()[0][1])
+r = k50(RN, rnreply(new_name="kge3", same_name_glyph=True, group_after=dict(_gL, name="kge3", id=5142)), group="kgeL", new_name="kge3")
+print("50e a glyph's name               :", r["same_name_glyph"], "|", r["agent_instruction"][r["agent_instruction"].index(" new_name is also"):][:330])
+r = k50(RN, rnreply(fontlab_caught_up={"checked": True, "glyph": "kge1", "group_id_read": 5140, "expected": 5142, "caught_up": False}), group="kgeL", new_name="kgeL2")
+print("50f not caught up                :", r["fontlab_caught_up"])
+r = k50(RN, rnreply(fonts_open=2, matched_by="path", master_count=2), group="kgeL", new_name="kgeL2")
+print("50g two fonts, two masters       :", r["agent_instruction"][r["agent_instruction"].index(" 2 fonts are open"):r["agent_instruction"].index("Say so.") + 7])
+print("--- rename: refused, nothing sent")
+for _lbl, _kw in (("50h same name                ", dict(group="kgeL", new_name="@kgeL")), ("50h2 bad group               ", dict(group="kge L", new_name="x")),
+                  ("50h3 bad new name            ", dict(group="kgeL", new_name="x" * 64)), ("50h4 not a string           ", dict(group=5, new_name="x")),
+                  ("50h5 only '@'                ", dict(group="@", new_name="x"))):
+    row50(_lbl, k50(RN, rnreply(), **_kw))
+row50("50i listener 0.199           ", k50(RN, rnreply(), version="0.199", group="kgeL", new_name="kgeL2"))
+print("--- rename: the listener's answers")
+row50("50j refused by the listener   ", k50(RN, {"open": True, "error": "'kgeR' is already the name of a kerning group in this font; nothing was renamed"}, group="kgeL", new_name="kgeR"))
+row50("50j2 no font                  ", k50(RN, {"open": False}, group="kgeL", new_name="kgeL2"))
+row50("50k answer for another group  ", k50(RN, rnreply(group="kgeX"), group="kgeL", new_name="kgeL2"))
+row50("50k2 answer for another new name", k50(RN, rnreply(new_name="kgeX"), group="kgeL", new_name="kgeL2"))
+row50("50l not confirmed, nothing changed", k50(RN, rnreply(renamed=False, changed=False, reason="the re-read does not confirm the rename: the old name is still listed"), group="kgeL", new_name="kgeL2"))
+row50("50l2 not confirmed, changed    ", k50(RN, rnreply(renamed=False, changed=True, reason="the re-read does not confirm the rename: the old name is still listed"), group="kgeL", new_name="kgeL2"))
+row50("50l3 not confirmed, unknown    ", k50(RN, rnreply(renamed=False, changed=None, reason="the kerning groups could not be read back: x"), group="kgeL", new_name="kgeL2"))
+row50("50l4 raised after renaming     ", k50(RN, rnreply(renamed=False, changed=True, call_error="RuntimeError: boom", reason="FontLab's rename raised an error (RuntimeError: boom); the re-read shows the group under the new name"), group="kgeL", new_name="kgeL2"))
+row50("50m timeout                   ", k50(RN, srv.OutcomeUnknown("The FontLab listener did not answer"), group="kgeL", new_name="kgeL2"))
+print("--- remove")
+r = k50(RM, rmreply50(), group="kgeL", pairs="keep"); row50("50n removed, keep             ", r)
+print("50o request                      :", k50sent(), "| timeout is the dialog's:", k50sent()[0][2] == srv.DELETE_CONFIRM_TIMEOUT_SECONDS)
+print("50p instruction, keep            :", r["agent_instruction"])
+r = k50(RM, rmreply50(pairs="delete", table_size_after=1), group="kgeL", pairs="delete")
+print("50q delete                       :", r["table_size_change"], "|", r["agent_instruction"][r["agent_instruction"].index("pairs was"):][:120])
+row50("50r answered No               ", k50(RM, rmreply50(removed=False, changed=False, user_declined=True, reason="the removal was not approved in FontLab (dialog answered No or closed)"), group="kgeL", pairs="keep"))
+print("--- remove: refused, nothing sent")
+for _lbl, _kw in (("50s pairs missing            ", dict(group="kgeL", pairs=None)), ("50s2 pairs 'all'              ", dict(group="kgeL", pairs="all")),
+                  ("50s3 pairs True              ", dict(group="kgeL", pairs=True)), ("50s4 bad group               ", dict(group="", pairs="keep"))):
+    row50(_lbl, k50(RM, rmreply50(), **_kw))
+row50("50t listener 0.199           ", k50(RM, rmreply50(), version="0.199", group="kgeL", pairs="keep"))
+print("--- remove: the listener's answers")
+row50("50u refused by the listener   ", k50(RM, {"open": True, "error": "'kgeQ' is not the name of a kerning group in the current master of this font; nothing was removed"}, group="kgeQ", pairs="keep"))
+row50("50v answer for other pairs    ", k50(RM, rmreply50(pairs="delete"), group="kgeL", pairs="keep"))
+row50("50w not confirmed, changed     ", k50(RM, rmreply50(removed=False, changed=True, reason="the re-read does not confirm the removal: the number of kerning groups did not drop by one"), group="kgeL", pairs="keep"))
+row50("50w2 not confirmed, unchanged  ", k50(RM, rmreply50(removed=False, changed=False, call_error="RuntimeError: remove boom", reason="FontLab's remove raised an error (RuntimeError: remove boom); the re-read shows the group still listed"), group="kgeL", pairs="keep"))
+row50("50x no catch-up check reported ", k50(RM, {k: v for k, v in rmreply50().items() if k != "fontlab_caught_up"}, group="kgeL", pairs="keep"))
+print("--- descriptions and source")
+for _n in ("rename_kerning_group", "remove_kerning_group"):
+    _d = " ".join((getattr(srv, _n).__doc__ or "").split())
+    _want = (("leading '@'", "new id", "same_name_glyph", "renaming back", "fontlab_caught_up", "switches to another font", "NEVER saves", "listener v0.200")
+             if _n == "rename_kerning_group" else
+             ("REQUIRED", "\"keep\"", "\"delete\"", "never choose for them", "Yes/No question inside FontLab", "up to two minutes", "No Glyphbridge tool can bring",
+              "table_size_before", "fontlab_caught_up", "NEVER saves", "listener v0.200"))
+    print(f"50y {_n:22}: missing words", [w for w in _want if w not in _d])
+_src50 = open(srv.__file__, encoding="utf-8").read()
+_body50 = _src50[_src50.index("# v0.82 (listener 0.200): rename_kerning_group"):_src50.index("_POLY_MAX_CONTOURS, _POLY_MAX_TOTAL")]
+print("50z source                       : POSTs", len(_re19.findall(r"_write_post\(", _body50)), "| requires 0.200 twice", _body50.count("_require_listener((0, 200)") == 2,
+      "| save", bool(_re19.search(r"\.save\(|save\(", _body50)), "| the dialog timeout on remove", "timeout=DELETE_CONFIRM_TIMEOUT_SECONDS" in _body50)
+srv._call_listener, srv._call_listener_post = _save50

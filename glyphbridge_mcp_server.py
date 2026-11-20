@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.81)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.82)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.81"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.82"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1981,6 +1981,197 @@ def _check_polygon_points(points: Any) -> list:
     if len({(x, y) for x, y in clean}) < 3:
         raise ToolError("the points must contain at least 3 different positions.")
     return clean
+
+
+# v0.82 (listener 0.200): rename_kerning_group and remove_kerning_group, the design of 2026-11-20 (DECISIONS.md; research GE0 1499-1504,
+# GE 1505-1522, GR 1523-1529, GL 1530-1534, GK 1535-1545, mental-model/topics/kerning.md section 18).
+
+_KGE_COMMON = (
+    "FontLab was told that the font changed through one member glyph, whose content did not change (fontlab_changed_mark), and asked to refresh "
+    "its panels (fontlab_panel_refresh); fontlab_caught_up says whether one member glyph already carries the group's new state. If caught_up is "
+    "not true, tell the person that FontLab's Classes and KERNING panels, and get_kerning for the group's members, may show the old state until "
+    "they switch to another open font and back (with one font open: File > New Font, then back to this font's tab; the new font can be closed "
+    "without saving). Whether FontLab asks to save after a group edit alone was not tested: do not promise it. Edit > Undo was not tested for "
+    "this either. Only the current master's kerning groups are covered.")
+_KGE_RENAME_INSTRUCTION = (
+    "The kerning group was renamed in the current master (master names it) and verified by re-reading both of FontLab's sources: the same "
+    "members and side under the new name. Its kerning entries follow the new name. FontLab gives a renamed group a NEW id (id_before, id_after): "
+    "that is expected, not an error. To undo, rename it back. In set_kerning and remove_kerning the group is now '@' + new_name. " + _KGE_COMMON)
+_KGE_SAME_NAME_GLYPH = (
+    " new_name is also the name of a glyph of the font (same_name_glyph; FontLab itself names classes after a member): in set_kerning and "
+    "remove_kerning '@{n}' means the group and '{n}' the glyph. Tell the person.")
+_KGE_REMOVE_INSTRUCTION = (
+    "The kerning group was removed from the current master (master names it) after the person answered Yes in FontLab, and verified by "
+    "re-reading both of FontLab's sources. {fate} The kerning entries themselves were not read: table_size_before and table_size_after give "
+    "the number of entries in the table. NO Glyphbridge tool can bring a removed group back (the person can make it again in FontLab's "
+    "Classes panel, and its kerning would have to be set again). " + _KGE_COMMON)
+_KGE_KEEP = (
+    "pairs was 'keep': FontLab kept its kerning by turning each class entry into entries of its members, with the same values (seen live): a "
+    "class : glyph or glyph : class entry became one glyph pair per member, a class : class entry became one class : glyph (or glyph : class) "
+    "entry per member of the removed group, and member pairs that already had a glyph entry kept it. Tell the person that the kerning still "
+    "applies, now as separate entries, so the table may have grown.")
+_KGE_DELETE = "pairs was 'delete': the group's own kerning entries were deleted with it. Tell the person how many entries the table lost."
+
+
+def _kge_name(value: Any, label: str) -> str:
+    """A kerning group name, stripped, one leading '@' allowed (as in set_kerning); a ToolError before anything is sent otherwise."""
+    if not isinstance(value, str):
+        raise ToolError(f"{label} must be a kerning group name. Nothing was changed.")
+    clean = value.strip()
+    if clean.startswith("@"):
+        clean = clean[1:]
+    if not _KERN_NAME_RE.match(clean or "!"):
+        raise ToolError(f"{label} must be 1 to 63 characters from A-Z a-z 0-9 . _ - (an optional leading '@' is allowed); got {value!r}. Nothing was changed.")
+    return clean
+
+
+def _kge_group_fields(raw: Any) -> dict:
+    """The type-checked fields of one group entry from the listener (name, side, members, member_count, id, confirmed)."""
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    if isinstance(raw.get("name"), str) and _KERN_NAME_RE.match(raw["name"]):
+        out["name"] = raw["name"]
+    if raw.get("side") in ("left", "right", "both", "unknown"):
+        out["side"] = raw["side"]
+    members = _kgr_plain_names(raw.get("members"))
+    if members is not None:
+        out["members"] = members
+        out["member_count"] = len(members)
+    if isinstance(raw.get("id"), int) and not isinstance(raw.get("id"), bool):
+        out["id"] = raw["id"]
+    if isinstance(raw.get("confirmed"), bool):
+        out["confirmed"] = raw["confirmed"]
+    return out
+
+
+def _kge_common(data: dict) -> dict:
+    """The font fields, the mark, the refresh and the catch-up check of a group edit's reply, type-checked."""
+    master, master_count = data.get("master"), data.get("master_count")
+    fonts_open, family, matched_by = data.get("fonts_open"), data.get("family_name"), data.get("matched_by")
+    reply = {"fonts_open": fonts_open if isinstance(fonts_open, int) and not isinstance(fonts_open, bool) and fonts_open >= 1 else None,
+             "matched_by": matched_by if matched_by in ("only font", "path") else None,
+             "family_name": family if isinstance(family, str) and 1 <= len(family) <= 63 and family.isprintable() else None,
+             "master": master if isinstance(master, str) and 1 <= len(master) <= 63 and master.isprintable() else None,
+             "master_count": master_count if isinstance(master_count, int) and not isinstance(master_count, bool) and master_count >= 1 else None}
+    for key in ("table_size_before", "table_size_after"):
+        v = data.get(key)
+        reply[key] = v if isinstance(v, int) and not isinstance(v, bool) else None
+    _add_guard_fields(reply, data)
+    panel = data.get("fontlab_panel_refresh")
+    if isinstance(panel, dict) and isinstance(panel.get("called"), bool):
+        reply["fontlab_panel_refresh"] = {"called": panel["called"]}
+        for key in ("reason", "call_error"):
+            if isinstance(panel.get(key), str) and panel[key]:
+                reply["fontlab_panel_refresh"][key] = panel[key][:300]
+    check = data.get("fontlab_caught_up")
+    if isinstance(check, dict) and isinstance(check.get("checked"), bool):
+        fwd: dict = {"checked": check["checked"]}
+        if isinstance(check.get("caught_up"), bool):
+            fwd["caught_up"] = check["caught_up"]
+        if isinstance(check.get("glyph"), str) and _KERN_NAME_RE.match(check["glyph"]):
+            fwd["glyph"] = check["glyph"]
+        for key in ("group_id_read", "expected"):
+            if isinstance(check.get(key), int) and not isinstance(check.get(key), bool):
+                fwd[key] = check[key]
+        if isinstance(check.get("reason"), str) and check["reason"]:
+            fwd["reason"] = check["reason"][:300]
+        reply["fontlab_caught_up"] = fwd
+    else:
+        reply["fontlab_caught_up"] = {"checked": False, "reason": "the listener did not report the check"}
+    return reply
+
+
+def _kge_instruction_tail(reply: dict) -> str:
+    tail = ""
+    if reply["fonts_open"] is not None and reply["fonts_open"] > 1:
+        which = f" ({reply['family_name']})" if reply["family_name"] else ""
+        tail += (f" {reply['fonts_open']} fonts are open in FontLab; this changed the current one, the font whose window is in front{which}, "
+                 "matched to its kerning table by its file path. Say which font when you report it.")
+    if reply["master_count"] is not None and reply["master_count"] > 1:
+        tail += f" This font has {reply['master_count']} masters; only the current one was changed. Say so."
+    return tail
+
+
+def _kge_failed(data: dict, verb: str, noun: str) -> None:
+    """Raise the ToolError for an edit that the re-read did not confirm, counting a change that did happen."""
+    reason = _kgr_text(data.get("reason")) or "the listener did not confirm it by re-reading"
+    call_error = _kgr_text(data.get("call_error"), 300)
+    detail = reason.rstrip(".") + (f" (FontLab reported: {call_error})" if call_error and call_error not in reason else "")
+    if data.get("changed") is True:
+        _note_change()
+        raise ToolError(f"The kerning group was changed, but the {noun} was NOT confirmed: {detail}. Read the groups with get_kerning_groups "
+                        f"and tell the person what is there now. {_CHANGED_BY_ERROR_NOTE}")
+    if data.get("changed") is False:
+        raise ToolError(f"The kerning group was NOT {verb}d: {detail}. Nothing was changed.")
+    _note_change(sure=False)
+    raise ToolError(f"Whether the kerning group was {verb}d is not known: {detail}. {_UNSURE_NOTE}")
+
+
+def rename_group_write(group: Any, new_name: Any) -> dict:
+    old = _kge_name(group, "group")
+    new = _kge_name(new_name, "new_name")
+    if old == new:
+        raise ToolError("new_name is the same as group: nothing to rename, and nothing was changed.")
+    _require_listener((0, 200), "rename_kerning_group")
+    data = _write_post("/kerning/group/rename", {"group": old, "new_name": new}, timeout=max(TIMEOUT_SECONDS, 10.0))
+    if not data.get("open"):
+        raise ToolError(NO_FONT)
+    if isinstance(data.get("error"), str) and data["error"]:
+        refusal = data["error"][:600].rstrip(" .")
+        raise ToolError(f"The kerning group was NOT renamed: {refusal}." + ("" if refusal.endswith("nothing was renamed") else " Nothing was changed."))
+    if data.get("group") != old or data.get("new_name") != new:
+        _note_change(sure=False)
+        raise ToolError(f"The listener's answer to rename_kerning_group did not match the request, so whether the group was renamed is not known. {_UNSURE_NOTE}")
+    if data.get("renamed") is not True:
+        _kge_failed(data, "rename", "rename")
+    after = _kge_group_fields(data.get("group_after"))
+    id_before, id_after = data.get("id_before"), data.get("id_after")
+    id_before = id_before if isinstance(id_before, int) and not isinstance(id_before, bool) else None
+    id_after = id_after if isinstance(id_after, int) and not isinstance(id_after, bool) else None
+    reply = {"renamed": True, "group": old, "new_name": new, "side": after.get("side"), "member_count": after.get("member_count"),
+             "members": after.get("members"), "id_before": id_before, "id_after": id_after,
+             "id_changed": (id_before != id_after) if id_before is not None and id_after is not None else None,
+             "same_name_glyph": data.get("same_name_glyph") is True}
+    reply.update(_kge_common(data))
+    instruction = _KGE_RENAME_INSTRUCTION
+    if reply["same_name_glyph"]:
+        instruction += _KGE_SAME_NAME_GLYPH.replace("{n}", new)
+    reply["agent_instruction"] = instruction + _kge_instruction_tail(reply)
+    _mark_modified(reply, True)
+    return reply
+
+
+def remove_group_write(group: Any, pairs: Any) -> dict:
+    name = _kge_name(group, "group")
+    if pairs not in ("keep", "delete"):
+        raise ToolError('pairs is required and must be "keep" (the group\'s kerning stays, as entries of its members) or "delete" (its kerning '
+                        'entries go with it). Ask the person which they want if they have not said. Nothing was changed.')
+    _require_listener((0, 200), "remove_kerning_group")
+    data = _write_post("/kerning/group/remove", {"group": name, "pairs": pairs}, timeout=DELETE_CONFIRM_TIMEOUT_SECONDS)
+    if not data.get("open"):
+        raise ToolError(NO_FONT)
+    if isinstance(data.get("error"), str) and data["error"]:
+        refusal = data["error"][:600].rstrip(" .")
+        raise ToolError(f"The kerning group was NOT removed: {refusal}." + ("" if refusal.endswith("nothing was removed") else " Nothing was changed."))
+    if data.get("group") != name or data.get("pairs") != pairs:
+        _note_change(sure=False)
+        raise ToolError(f"The listener's answer to remove_kerning_group did not match the request, so whether the group was removed is not known. {_UNSURE_NOTE}")
+    if data.get("user_declined") is True and data.get("removed") is False:
+        raise ToolError(f"Removal of the kerning group '{name}' was not approved in FontLab. A person needs to click Yes on the confirmation "
+                        "dialog for this to proceed - this is expected behavior, not an error. Nothing was changed.")
+    if data.get("removed") is not True:
+        _kge_failed(data, "remove", "removal")
+    before = _kge_group_fields(data.get("group_before"))
+    reply = {"removed": True, "group": name, "pairs": pairs, "side": before.get("side"), "member_count": before.get("member_count"),
+             "members": before.get("members"), "id": before.get("id")}
+    reply.update(_kge_common(data))
+    if reply["table_size_before"] is not None and reply["table_size_after"] is not None:
+        reply["table_size_change"] = reply["table_size_after"] - reply["table_size_before"]
+    reply["agent_instruction"] = (_KGE_REMOVE_INSTRUCTION.replace("{fate}", _KGE_KEEP if pairs == "keep" else _KGE_DELETE)
+                                  + _kge_instruction_tail(reply))
+    _mark_modified(reply, True)
+    return reply
 
 
 _POLY_MAX_CONTOURS, _POLY_MAX_TOTAL = 20, 2000
@@ -4705,6 +4896,59 @@ def remove_kerning(pairs: list[list[Any]], confirmed_large_write: bool | None = 
     """
     _note_client(ctx)
     return _with_font(remove_kerning_write, pairs, confirmed_large_write)
+
+
+@_tool()
+def rename_kerning_group(group: str, new_name: str, ctx: Context | None = None) -> dict[str, Any]:
+    """Rename ONE kerning group (FontLab's kerning class) of the font currently open in FontLab 8, in its current master.
+
+    group is the group's current name and new_name the new one; a leading '@' (as set_kerning writes classes) is allowed on either. Names
+    are 1 to 63 characters from A-Z a-z 0-9 . _ -. Read the group first with get_kerning_groups when the task depends on it. Refused before
+    any change: a group that is not a kerning group confirmed by both of FontLab's sources (an OpenType class, an unknown name), and a
+    new_name that is already the name of a kerning group or of any other class of the font. A new_name that is also a glyph's name is
+    allowed (FontLab itself names classes after a member; same_name_glyph says so): in set_kerning and remove_kerning '@name' then means the
+    group. The rename is verified by re-reading both sources: the same members and side under the new name. The group's kerning entries
+    follow the new name. FontLab gives a renamed group a NEW id (id_before, id_after): that is expected. No question is asked in FontLab: a
+    rename is undone by renaming back. After the rename FontLab is told that the font changed (fontlab_changed_mark) and asked to refresh its
+    panels (fontlab_panel_refresh); fontlab_caught_up says whether one member glyph already carries the new id - if not, FontLab's panels
+    and get_kerning for the members may show the old state until the person switches to another font and back. Edit > Undo is not known to
+    take it back. It changes the current font, the one whose window is in front; with several fonts open it refuses when that font cannot
+    be matched to its kerning table (for example a new, unsaved font). Other masters are not changed. Needs listener v0.200.
+
+    Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
+    (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
+    after each step: call finish_changes ONCE when the whole task package is finished.
+    """
+    _note_client(ctx)
+    return _with_font(rename_group_write, group, new_name)
+
+
+@_tool()
+def remove_kerning_group(group: str, pairs: str, ctx: Context | None = None) -> dict[str, Any]:
+    """Remove ONE kerning group (FontLab's kerning class) from the font currently open in FontLab 8, in its current master.
+
+    group is the group's name (a leading '@' is allowed). pairs is REQUIRED and says what happens to the group's kerning: "keep" - the
+    kerning stays, FontLab turns each class entry into entries of the members with the same values (a class : glyph or glyph : class
+    entry becomes one glyph pair per member; a class : class entry becomes one class : glyph or glyph : class entry per member of the
+    removed group), so the table may grow; "delete" - the group's own kerning entries are deleted with it. If the person has not said
+    which, ask them; never choose for them. Read the group first with get_kerning_groups. A group that is not a kerning group confirmed by
+    both of FontLab's sources is refused before anything is asked. Otherwise this shows a Yes/No question inside FontLab (default No) that
+    names the group, its members and what happens to its kerning, and only proceeds if a person clicks Yes there: this tool cannot remove
+    anything on its own. Expect the call to take a while (up to two minutes) while the question waits; that is normal, not a hang. The
+    removal is verified by re-reading both of FontLab's sources; the kerning entries themselves are not read (table_size_before and
+    table_size_after give the size of the table). No Glyphbridge tool can bring a removed group back. After the removal FontLab is told
+    that the font changed (fontlab_changed_mark) and asked to refresh its panels (fontlab_panel_refresh); fontlab_caught_up says whether
+    one member glyph already left the group - if not, FontLab's panels and get_kerning for the members may show the old state until the
+    person switches to another font and back. Edit > Undo is not known to take it back. It changes the current font, the one whose window
+    is in front; with several fonts open it refuses when that font cannot be matched to its kerning table (for example a new, unsaved font).
+    Other masters are not changed. Needs listener v0.200.
+
+    Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
+    (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
+    after each step: call finish_changes ONCE when the whole task package is finished.
+    """
+    _note_client(ctx)
+    return _with_font(remove_group_write, group, pairs)
 
 
 @_tool()

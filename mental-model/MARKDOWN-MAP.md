@@ -12,14 +12,14 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [README.md](README.md) | introduction for outside developers | 700 |
 | [PROJECT.md](PROJECT.md) | goals, scope, non-goals, design rule | 1,000 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | processes, APIs, verification model, tools, layout | 1,600 |
-| [CURRENT-STATUS.md](CURRENT-STATUS.md) | where the project stands and what comes next | 3,000 |
+| [CURRENT-STATUS.md](CURRENT-STATUS.md) | where the project stands and what comes next | 4,100 |
 | [DECISIONS.md](DECISIONS.md) | active decisions with dates and reasons | 4,500 (active part) |
 | [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 1,000 |
 | [CHECKLIST.md](CHECKLIST.md) | open scenarios | 1,750 |
 
-Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 800; [WATCH-POINTS.md](WATCH-POINTS.md) 2,500; [WHAT-WORKS.md](WHAT-WORKS.md) 3,500; [GLOSSARY.md](GLOSSARY.md) 500.
+Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 800; [WATCH-POINTS.md](WATCH-POINTS.md) 3,250; [WHAT-WORKS.md](WHAT-WORKS.md) 3,500; [GLOSSARY.md](GLOSSARY.md) 500.
 
-**Reference totals:** 16,300 words including the root README, and 15,500 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
+**Reference totals:** 17,400 words including the root README, and 16,600 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
 
 ## Linked files (read when the task needs them; no budget unless noted)
 
@@ -27,7 +27,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 |---|---|
 | [WHAT-WORKS.md](WHAT-WORKS.md) | what is live-proven and which version each feature needs; read on the trigger in AGENTS.md (budget 3,500) |
 | [HOW-TO-GET-ORGANIZED.md](HOW-TO-GET-ORGANIZED.md) | the workflow guide this repository follows |
-| [WATCH-POINTS.md](WATCH-POINTS.md) | what was seen but is not yet explained or settled, and how an entry is settled or dropped (budget 2,500) |
+| [WATCH-POINTS.md](WATCH-POINTS.md) | what was seen but is not yet explained or settled, and how an entry is settled or dropped (budget 3,250) |
 | [GLOSSARY.md](GLOSSARY.md) | the project's short codes and terms, one line each, with a link to each one's home (budget 500) |
 | [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) | hard rules for FontLab API calls, the proven calls and the legacy calls in use, and dead ends not to retry |
 | [RUNBOOK.md](RUNBOOK.md) | machine setup, restart rules, PowerShell conventions, re-verify steps, ready commands |

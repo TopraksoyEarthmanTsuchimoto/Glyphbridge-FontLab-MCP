@@ -1,6 +1,6 @@
 [glyphbridge] Connected at HH:MM:SS - first request (GET /health) from a local client.
 /health ('200', {'status': 'ok'})
-/version ('200', {'version': '0.198'})
+/version ('200', {'version': '0.200'})
 /font/current ('200', {'open': True, 'path': 'x', 'glyph_count': 3, 'family_name': 'F', 'style_name': 'R', 'postscript_font_name': '', 'postscript_full_name': '', 'units_per_em': 1000, 'ascender': 800, 'descender': -200, 'cap_height': 700, 'x_height': 500, 'weight_class': 400, 'package_names_unavailable': "the number of open fonts is unknown or not a positive number, so the font's package cannot be matched to it"})
 /font/glyphs ('200', {'open': True, 'count': 3, 'names': ['A', 'empty', 'B']})
 /glyph/width?name=A ('200', {'open': True, 'found': True, 'name': 'A', 'advance_width': None, 'legacy_width': 500.0, 'width': 500.0, 'source': 'legacy', 'modern_reason': "FontLab's modern glyph could not be reached (the fontlab module has no flGlyph class)"})
@@ -264,7 +264,7 @@ shape_count in outline: 1
 207 bad route       : unknown route 'bogus': use rou
 208 unknown tri glyph: False no glyph named 'trinope'
 209 no font open    : {'open': False}
-210 version         : {'version': '0.198'}
+210 version         : {'version': '0.200'}
 220 legacy lsb refused: True refused: the legacy setters glyph.leftMargin / glyph.rightMa | leftMargin 0.0 | calls []
 221 legacy rsb refused: True | rightMargin -500.0
 222 legacy width still allowed: glyph.width = 600.0 | width 600.0
@@ -378,7 +378,7 @@ shape_count in outline: 1
 341g unchanged      : {'set': False, 'route': 'modern', 'before': 500.0, 'after': 500.0, 'requested': 700.0, 'width_rounded': None, 'changed': None, 'reason': 'width did not change to the requested value after setting'} | mark False
 341h OUTPUT line     : ('NOT DONE width tri: width did not change to the requested value after setting', False)
 341i legacy route rounds: {'set': True, 'route': 'legacy_empty_glyph', 'before': 500.0, 'after': 641.0, 'requested': 640.5, 'width_rounded': {'requested': 640.5, 'written': 641.0}, 'changed': None, 'reason': None} | legacy width 641.0
-342 version          : {'version': '0.198'}
+342 version          : {'version': '0.200'}
 343 state            : 200 {'is_none': True} 0 | findLayer {'is_none': True} | nocreate {'is_none': True} | ref True | calls [('findLayer', 'Master'), ('getLayerByName', 'Master', False)]
 344 create without go: 200 refused: stage=create can change the fon | calls []
 345 findLayerCreate  : 200 w.findLayerCreate('Master') | returned {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | same {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | rebuilt built {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
@@ -395,14 +395,14 @@ shape_count in outline: 1
 356 no name          : 400
 357 unknown glyph    : {'open': True, 'found': False, 'reason': "no glyph named 'nope'", 'font_master': {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}}
 358 no font          : {'open': False}
-359 version          : {'version': '0.198'}
+359 version          : {'version': '0.200'}
 360 font_master      : 200 {'is_none': False, 'type': 'FmLayer', 'public_names': ['id', 'isBodyLayer', 'isMasterLayer', 'mutate', 'name'], 'name': 'test_font', 'id': 7, 'isMasterLayer': True, 'isBodyLayer': False}
 361 master, no glyph : False test_font
 362 create has no section: False
 363 master is None   : {'is_none': True}
 364 master raises    : {'error': 'RuntimeError: no master'}
 365 no master member : {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}
-366 version          : {'version': '0.198'}
+366 version          : {'version': '0.200'}
 400 width, new glyph  : 200 {'set': True, 'route': 'modern', 'layer_created': 'test_font', 'before': 0.0, 'after': 600.0} | calls [('findLayerCreate', 'fresh', 'test_font'), ('advanceWidth', 'fresh', 600.0)]
 401 width again       : True modern | layer_created None | creates 1
 402 names disagree    : True legacy_empty_glyph | the glyphs of this font have different layer names (['Alpha' | creates [] | legacy width 600.0
@@ -439,7 +439,7 @@ shape_count in outline: 1
 434 reader, agree     : 3 | modern_check {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True}
 435 reader, modern=no : False
 436 reader, no modern : 3 | modern_check {'available': True, 'modern_layer': False}
-437 version           : {'version': '0.198'}
+437 version           : {'version': '0.200'}
 440 stage=layer       : 200 1 | getContours {'type': 'list', 'python_sequence': True, 'len': 1} | getShapes {'type': 'list', 'python_sequence': True, 'len': 1} | shapes {'type': 'R73Native', 'python_sequence': False, 'len': 2} | shapesCount 1
 441 stage=contour     : 1 True False 4 {'type': 'list', 'python_sequence': True, 'len': 4}
 442 node via getNodeAt: {'type': 'R73Node', 'x': 400, 'y': 300, 'isOn': True, 'isOff': False, 'isCurve': False, 'smooth': False, 'index': 2} | calls [('getNodeAt', 2)]
@@ -462,7 +462,7 @@ shape_count in outline: 1
 459 no modern layer    : this glyph has no modern active layer, so there is nothing to read
 460 no font            : {'open': False}
 461 read-only          : calls [] | shapes still 1
-462 version           : {'version': '0.198'}
+462 version           : {'version': '0.200'}
 470 modern_outline    : True | nodes 5 of 5 | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0} | check agree False
 471 contour 0         : {'index': 0, 'closed': True, 'clockwise': True, 'nodesCount': 5}
 472 nodes             : [(10.0, 20.0, True), (410.0, 20.0, True), (410.0, 220.0, True), (210.0, 320.0, True), (10.0, 220.0, True)]
@@ -478,7 +478,7 @@ shape_count in outline: 1
 482 count mismatch    : {'available': False, 'error': 'read 5 nodes but the layer reports 6: the outline is not trusted'}
 483 too many nodes    : {'available': False, 'error': 'the layer has 5 nodes, more than the 3 that are read'}
 484 no QTransform     : margins key False | available True
-485 version           : {'version': '0.198'}
+485 version           : {'version': '0.200'}
 490 two contours      : 200 {'drawn': True, 'points': 8, 'contours': 2, 'contour_sizes': [4, 4], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': True}, 'layer_created': 'test_font'} | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 8, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P72Layer' object has no attribute 'shapes')"}
 491 calls             : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'flContour', 'addShape']
 492 read back         : True | contours 2 [4, 4]
@@ -498,7 +498,7 @@ shape_count in outline: 1
 506 second contour dropped: False | after drawing, the layer reads 1 shape(s), 4 node(s) and 1 contour(s); expected 1, 8 and 2 | changed True | checks {'shapes_ok': True, 'nodes_ok': False, 'contours_ok': False}
 507 getContours unreadable: True | checks {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': None}
 508 not empty         : False | the glyph's layer is not KNOWN to be empty (needs  | calls []
-509 version           : {'version': '0.198'}
+509 version           : {'version': '0.200'}
 510 curve probe        : 200 curve | call node(index 1).convertToCurve(False) | returned True | nodes_added 2 | may_change False
     before             : 4 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '2: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '3: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
     after              : 6 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '2: (268.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '3: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '4: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '5: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
@@ -516,7 +516,7 @@ shape_count in outline: 1
 520 bogus stage        : unknown stage 'bogus' for route=modern: use stage=names or stage=build or stage=attach or stage=refresh
 521 bogus variant      : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
 522 curve without go   : 200 refused: this probe can change the font 
-523 version           : {'version': '0.198'}
+523 version           : {'version': '0.200'}
 524 curve2 normal | may_change False | keys []
     A plan: convertToCurve(False) on node 1; setPoint(1, QPointF(100, 60 | error: None | note: None | final_as_expected: True
       step getNodeAt(1).convertToCurve(False) | returned True | error None | as_expected None | n 6
@@ -601,7 +601,7 @@ shape_count in outline: 1
 537 QPointF missing    : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 538 curve2 without go  : 200 refused: this probe can change the font 
 539 variant=curve still works: 2 1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False
-540 version           : {'version': '0.198'}
+540 version           : {'version': '0.200'}
 541 build (dry run)   : 200 curve3 | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | may_change False | layer shapes/nodes 0 0
     calls             : ['flContour([5 QPointF])', 'contour.closed = True', 'getNodeAt(2).convertToCurve(False)', 'setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))', 'flShape()', 'shape.shapeData', 'shapeData.addContour(contour)']
     notes             : ['detached nodes before attach: 0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 1: (300.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 2: (355.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 3: (400.0, 45.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 4: (400.0, 100.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 5: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 6: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', "after adding the contour, the detached shape reads {'contoursCount': 1, 'hasContours': True, 'isEmpty': False}"]
@@ -626,7 +626,7 @@ shape_count in outline: 1
 557 attach without go : 200 refused: this probe can change the font 
 558 second attach refused: True | layer 1 7
 559 variant=single unchanged: single {'nodesCount': 3, 'closed': True, 'clockwise': False}
-560 version           : {'version': '0.198'}
+560 version           : {'version': '0.200'}
 561 curve3 whole-number handles: None | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | calls ['setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))']
 562 curve3 attach     : True {'shapes': 1, 'nodes': 7} | layer 1 7
 563 curve3, FontLab rounds everything: None | layer 1 7
@@ -693,7 +693,7 @@ shape_count in outline: 1
 573 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 574 curve4 without go : 200 refused: this probe can change the font 
 575 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-576 version           : {'version': '0.198'}
+576 version           : {'version': '0.200'}
 577 curve5, everything works (stub assumptions) | may_change False | error None
      T1 closing segment: convertToCurve(False) on node 0 of a square | {'returned': True, 'handle_indices': [4, 5], 'nodesCount': 6}
      T2a convertToCurve(True) on node 1 of a square | {'returned': True, 'smooth_flags': [False, False, False, True, False, False]}
@@ -749,7 +749,7 @@ shape_count in outline: 1
 586 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 587 curve5 without go : 200 refused: this probe can change the font 
 588 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-589 version           : {'version': '0.198'}
+589 version           : {'version': '0.200'}
 600 one curved segment       : {'drawn': True, 'nodes_match': True, 'points': 4, 'segments_curved': 1, 'contour_sizes': [6], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 601 nodes read back       : [[(0.0, 0.0, 'on', False), (400.0, 0.0, 'on', False), (500.0, 100.0, 'h', False), (500.0, 300.0, 'h', False), (400.0, 400.0, 'on', False), (0.0, 400.0, 'on', False)]] | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 6, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
 602 calls                 : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'convertToCurve', 'addShape'] | layer_created test_font
@@ -809,7 +809,7 @@ shape_count in outline: 1
 667 second draw refused   : False | the glyph's layer is not KNOWN to be empty (needs 
 668 plain triangle via path : {'drawn': True, 'nodes_match': True, 'points': 3, 'segments_curved': 0, 'contour_sizes': [3], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 669 no convert calls      : 0
-671 version               : {'version': '0.198'}
+671 version               : {'version': '0.200'}
 672 pure helpers          : 3.0 -2.0 0.0 0.0 0.0 -3.0
 700 first draw             : True | layer_created test_font | layer (1, 6, 1) | creates 1
 701 legacy view lags       : True | wrapper activeLayer None
@@ -821,7 +821,7 @@ shape_count in outline: 1
 708 findLayer missing        : False | the glyph may already have a layer (the glyph has no findLayer to ask with), so no layer was created | creates 0 | layer None
 709 glyph without layer, nobody answers yes: True | layer_created test_font | creates 1
 710 width on a glyph with no layer still works: True modern | layer_created test_font | creates 1
-711 version                : {'version': '0.198'}
+711 version                : {'version': '0.200'}
 720 state, nothing open        : 200 {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': None} | constructed False | attached False | calls []
 721 default stage is state     : 200 state
 722 construct without go       : 200 stage=construct constructs ONE native flPackage object (it is not attached to anything). Add &go=yes to run it. | calls []
@@ -845,7 +845,7 @@ shape_count in outline: 1
 738 no flPackage class         : 200 the fontlab module has no flPackage class; nothing was constructed | constructed False
 739 forbidden members called   : [] | calls ['flPackage()', 'addPackage']
 740 static scan of the probe   : forbidden call syntax found: [] | real addPackage calls: 1 | scanned chars > 3000: True
-741 version                    : {'version': '0.198'}
+741 version                    : {'version': '0.200'}
 750 first glyph of a new font, polygon    : {'drawn': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
 751 what was read             : ['cp', 'cp_fgId', 'cp_isNull', 'defaultMaster', 'glyphsCount', 'gp', 'gp_fgId', 'isNull', 'master', 'masters', 'mastersCount', 'upm'] | reads 12
 752 first glyph, width               : {'set': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
@@ -905,7 +905,7 @@ shape_count in outline: 1
 798 forbidden members called, whole run: [] | addShape calls 1
 799 static scan of the fallback  : forbidden call syntax found: [] | scanned chars > 3000: True
 799b v0.150 no isEqual in the product: layer name False | create_font False | calls in the whole listener: 4 (4: research probes only, trynotify 1 call + 1 docstring, trypackage 2) | w.package read: True
-800 version                      : {'version': '0.198'}
+800 version                      : {'version': '0.200'}
 810 state, one font open               : 200 {'stage': 'state', 'state': {'package_isChanged': False, 'workspace_isChanged': False, 'package_glyphsCount': 1}, 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 811 default stage is state           : 200 {'stage': 'state', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 812 package_update without go        : 200 {'error': "stage=package_update calls flPackage.update() ONCE on the font's package. Add &go=yes to run it."} | calls []
@@ -936,7 +936,7 @@ shape_count in outline: 1
 842 the module has no CountFonts     : 200 {'error': 'the fontlab module has no CountFonts, so the number of open fonts is unknown', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 843 forbidden members called    : [] | calls ['flPackage.update()', 'flWorkspace.update()']
 844 static scan of the probe     : forbidden call syntax found: [] | real update calls: 1 | scanned chars > 3000: True
-845 version                      : {'version': '0.198'}
+845 version                      : {'version': '0.200'}
 850 no go                         : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 851 go must be exactly yes           : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 852 unknown how                      : 200 {'error': 'how must be "plain" (createGlyph only) or "legacy_update" (createGlyph, then font.update())'} | names ['.notdef', 'A'] | calls []
@@ -968,7 +968,7 @@ shape_count in outline: 1
 878 forbidden members called     : [] | calls ['createGlyph', 'createGlyph', 'update'] | names ['.notdef', 'A', 'P1', 'P2']
 879 static scan of the probe     : forbidden call syntax found: [] | real createGlyph calls: 1 | real font.update calls: 1 | scanned chars > 2000: True
 880 create_glyph itself unchanged: True | still calls font.update(): True
-881 version                      : {'version': '0.198'}
+881 version                      : {'version': '0.200'}
 890 nothing tracked: update runs       : 200 {'created': True} | calls ['createGlyph', 'font.update'] | layers ['ref'] | tracked []
 891 draw: reply says not synced         : 200 {'drawn': True, 'synced_with_fontlab': False} | calls [] | layers ['fresh', 'ref'] | tracked ['fresh']
 891b durability note present  : True | mentions create_glyph: True
@@ -1001,7 +1001,7 @@ shape_count in outline: 1
 913 no regression: duplicate name   : 200 {'created': False}
 914 static scan of the guard     : forbidden call syntax found: [] | scanned chars > 3000: True
 915 every legacy update is guarded: [(1, 1, 1), (1, 1, 1), (1, 1, 2), (1, 1, 2)]
-916 version                      : {'version': '0.198'}
+916 version                      : {'version': '0.200'}
 917 sidebearings change remembered: 200 {'set': True, 'changed': True, 'synced_with_fontlab': False} | tracked ['tri']
 918 same values again: not remembered: {'set': True, 'changed': False, 'synced_with_fontlab': None} | tracked []
 920 margins agree                    : 200 node_count 3 | check {'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True} | modern_outline None
@@ -1024,7 +1024,7 @@ shape_count in outline: 1
 936 margins argument not a dict  : {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True}
 937 direct compare, missing key  : {'margins_agree': None, 'margins_note': 'the legacy margins are not numbers, so they could not be compared'}
 938 static scan of the compare   : forbidden call syntax found: [] | getLSB / getRSB reads in the helper: 1 | scanned chars > 1500: True
-939 version                      : {'version': '0.198'}
+939 version                      : {'version': '0.200'}
 940 state, drawn glyph                  : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"}, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
 940b                              : {'found': True, 'legacy_layers': 0, 'modern': 'present', 'modern_nodes': 4, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'} | registry {'fresh': 'at_risk'} | counters {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}
 941 state, updatedFgGlyphs ids          : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"}, 'updated_fg_glyphs': {'count': 2, 'ids': [5, 7]}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
@@ -1112,7 +1112,7 @@ shape_count in outline: 1
 981 forbidden members called     : [] | pkg.update / other recorded package calls: []
 982 static scan of the probe     : forbidden call syntax found: ['.update(', '.update('] | real calls: Update 2 UpdateAll 1 fillFgData 1 prepareFontGateData 1 addGlyph 1 flGlyph() 1 | scanned chars > 6000: True
 983 no other tool changed        : True | create_glyph still calls font.update(): True
-984 version                      : {'version': '0.198'}
+984 version                      : {'version': '0.200'}
 990 polygon, Update syncs           : 200 {'drawn': True} | synced_with_fontlab True | fontlab_sync {'attempted': True, 'verdict': 'synced', 'synced': True} | note Glyphbridge asked Font | calls [('Update', 'M88Mod')] | tracked []
 990b                              : unsynced note gone: True | layer kept: True | legacy layers: 1
 991 polygon, Update has no effect     : 200 {'drawn': True} | synced_with_fontlab False | fontlab_sync {'attempted': True, 'verdict': 'at_risk', 'synced': False} | note This change exists onl | calls [('Update', 'M88Mod')] | tracked ['fresh']
@@ -1137,7 +1137,7 @@ shape_count in outline: 1
 1005 calls over all cases        : UpdateAll called: False | forbidden: [] | Update calls: 10 | all Update args are the modern wrapper: True
 1006 static scan of the sync     : forbidden call syntax found: [] | upd(w) calls: 1 | scanned chars > 900: True
 1007 constants                   : shipped default ['True'] | synced note mentions legacy view: True
-1008 version                     : {'version': '0.198'}
+1008 version                     : {'version': '0.200'}
 
 ==== v0.90 /debug/fontdir ====
 1010 dir                     : 200 {'open': True, 'count_fonts': 1, 'stage': 'dir', 'font_type': 'FDFont'} | names ['boom', 'familyName', 'flag', 'kerning', 'lenboom', 'method', 'nolen', 'nothing', 'unitsPerEm'] | doc len None | touched [] | called []
@@ -1747,12 +1747,12 @@ shape_count in outline: 1
 1328 poll: health, shutdown, version : raised None | accepts 2 | left 1 | socket closed True | timer stopped True | listener running False
 1329 replies                       : 200 {"status": "ok"} | 200 {"status": "shutting down"} | (nothing sent) | closed True True
 1330 poll: one request, then none : raised None | accepts 2 | left 0 | socket closed False | timer stopped False | listener running True
-1331 reply                         : 200 {"version": "0.198"}
+1331 reply                         : 200 {"version": "0.200"}
 1332 poll after stop()             : returns quietly
 [glyphbridge] Listener stopped.
 1333 poll: shutdown as 8th request : raised None | accepts 8 | left 0 | socket closed True | timer stopped True | listener running False
 1334 start() prints:
-[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.198
+[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.200
 [glyphbridge] Listener started on http://127.0.0.1:8765 (main-thread polling)
 [glyphbridge] Try: GET /health, GET /version. All routes are listed at the top of glyphbridge_fontlab_mcp_listener.py.
 1334 start() result                : socket set True | timer started True | interval 25 | signal timeout()
@@ -2517,7 +2517,7 @@ shape_count in outline: 1
 1621 forbidden members called    : [] | calls [('createGlyph', 'P1'), ('createGlyph', 'P2'), ('flGlyph', 'P2'), ('Update', ['P2']), ('flGlyph', 'A'), ('set unicode', 'A', 57346), ('Update', ['A'])] | names ['.notdef', 'A', 'P1', 'P2']
 1622 static scan of the probe     : forbidden call syntax found: [] | real calls: createGlyph 1 upd(w) 2 unicode set 1 | scanned chars > 6000: True
 1623 no product route changed    : create_glyph still calls font.update(): True | mentions of debug_try_refresh( (its def and its route): 2 | route wired: True
-1624 version                      : {'version': '0.198'}
+1624 version                      : {'version': '0.200'}
 
 ==== v0.120 F1: modern-only reads, the light sync check, the box probe ====
 1630 outline, modern nodes        : 200 {'source': 'modern', 'node_count': 3, 'contour_count': 1, 'component_count': 0, 'shape_count': 1, 'layer_route': 'body'} | legacy members touched []
@@ -2563,7 +2563,7 @@ shape_count in outline: 1
 1665 static scan light part of _guard_classify  : legacy members named: [] | scanned chars True
 1665 static scan _guard_is_light                : legacy members named: [] | scanned chars True
 1666 shipped switch              : ['True'] | full kinds ('draw_polygon', 'draw_path', 'layer_created', 'move_nodes', 'add_component', 'remove_component') | light kinds ('width', 'sidebearings', 'trycomponent_light')
-1667 version                     : {'version': '0.198'}
+1667 version                     : {'version': '0.200'}
 
 ==== v0.121: fontlab_ink_box on the modern-only outline read ====
 1668 ink box, read once           : 200 | source modern | fontlab_ink_box {'type': 'SimpleNamespace', 'left': 192.466, 'right': 464.534, 'top': 0.0, 'bottom': 700.0, 'width': 272.068, 'height': 700.0} | inkBox calls [((), {})] | outline kept True | legacy members touched []
@@ -3588,7 +3588,7 @@ shape_count in outline: 1
 --- static checks
 2308a forbidden call syntax           : [] | scanned chars > 6000: True
 2308b one construction, one mark      : True True | no per-run counter: True
-2308c route registered once, documented: True True | in the activity writes: create font | version 0.198
+2308c route registered once, documented: True True | in the activity writes: create font | version 0.200
 2308d one shared family check        : True | probe uses it: True | route uses it: True | psn limit 63 | forbidden [](){}<>/%
 
 ==== v0.148 /debug/trypackage ====
@@ -3622,7 +3622,7 @@ shape_count in outline: 1
 2309ab request 21 refused           : 200 {'error': 'the probe already ran 20 times in this listener run; restart the listener to repeat it', 'runs_so_far': 20} | isEqual [('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg')] | forbidden []
 2309ac  isEqual calls in 21 requests: 20
 2309ad static scan of the probe   : forbidden call syntax: [] | fgPackage: False | subscripts of a native object: [] | one isEqual per stage: True | counter before the first read: True | scanned chars > 4000: True
-2309ae route documented, registered once: True True | version 0.198
+2309ae route documented, registered once: True True | version 0.200
 --- v0.149 stage=cached
 2310a cached without go            : 200 {'error': 'reads flGlyph.package and calls isEqual on it, which have not been called live before. Add &go=yes to run it.'} | isEqual [] | forbidden []
 2310b cached with a name           : 200 {'error': "stage=cached takes no name: it reads the wrappers already in the listener's cache"} | isEqual [] | forbidden []
@@ -5320,3 +5320,146 @@ shape_count in outline: 1
 2607 legacy raises       : 200 {'width': 500.0, 'source': 'modern', 'advance_width': 500.0, 'legacy_width': None, 'legacy_error': 'RuntimeError: legacy boom'} | advanceWidth reads 1 | legacy layer touched []
 2608 both fail           : 200 {'width': None, 'source': None, 'advance_width': None, 'legacy_width': None, 'modern_reason': 'advanceWidth could not be read: RuntimeError: adv boom', 'legacy_error': 'RuntimeError: legacy boom', 'readable': False, 'reason': 'neither width could be read: modern: advanceWidth could not be read: RuntimeError: adv boom; legacy: RuntimeError: legacy boom'} | advanceWidth reads 1 | legacy layer touched []
 2609 unknown glyph      : 200 {'open': True, 'found': False, 'reason': "no glyph named 'nosuch'"}
+
+==== v0.199 /debug/trykerngroupedit ====
+2807 no go: nothing runs         : 200 {'error': 'this probe WRITES: it renames or removes one kerning group, flPackage.kerning(master).groups.rename(old, new) or .remove(name[, True]) ONCE, with items(), getAllGroups() and len() before and after; add &go=yes to run it', 'calls_so_far': 0, 'max_calls': 10} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2808 go=maybe: nothing runs      : 200 {'error': 'this probe WRITES: it renames or removes one kerning group, flPackage.kerning(master).groups.rename(old, new) or .remove(name[, True]) ONCE, with items(), getAllGroups() and len() before and after; add &go=yes to run it', 'calls_so_far': 0, 'max_calls': 10} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2809 rename left geL, glyph ge4   : 200 {'call': "flPackage.kerning(master).groups.rename('geL', 'geL2')", 'called': True, 'call_error': None, 'returned': True, 'renamed': True, 'old_name_gone': True, 'new_name_in_items': True, 'new_name_in_class_list': True, 'group_after': {'name': 'geL2', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5121, 'confirmed': True}, 'table_len_before': 3, 'table_len_after': 3, 'groups_len_before': 3, 'groups_len_after': 3, 'entry_before': {'call_error': None, 'value_type': 'float', 'value': -60.0}, 'entry_after_old_name': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'entry_after_new_name': {'call_error': None, 'value_type': 'float', 'value': -60.0}, 'entry_followed': True, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2809b note: may change, no mark, no save: True | group_before {'name': 'geL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5121, 'confirmed': True} | entry key side left | gets [(('geL', True), ('ge4', False)), (('geL', True), ('ge4', False)), (('geL2', True), ('ge4', False))]
+2810 rename right geR, glyph ge1  : 200 {'call': "flPackage.kerning(master).groups.rename('geR', 'geR2')", 'called': True, 'call_error': None, 'returned': True, 'renamed': True, 'old_name_gone': True, 'new_name_in_items': True, 'new_name_in_class_list': True, 'group_after': {'name': 'geR2', 'side': 'right', 'fontlab_side': 'KernRight', 'members': ['ge3'], 'member_count': 1, 'id': 5122, 'confirmed': True}, 'table_len_before': 3, 'table_len_after': 3, 'groups_len_before': 3, 'groups_len_after': 3, 'entry_before': {'call_error': None, 'value_type': 'float', 'value': -40.0}, 'entry_after_old_name': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'entry_after_new_name': {'call_error': None, 'value_type': 'float', 'value': -40.0}, 'entry_followed': True, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [('geR', 'geR2')] | removes [] | getAllGroups calls 2 | items calls 2
+2810b gets: [(('ge1', False), ('geR', True)), (('ge1', False), ('geR', True)), (('ge1', False), ('geR2', True))]
+2811 rename both geB, no glyph    : 200 {'call': "flPackage.kerning(master).groups.rename('geB', 'geB2')", 'called': True, 'call_error': None, 'returned': True, 'renamed': True, 'old_name_gone': True, 'new_name_in_items': True, 'new_name_in_class_list': True, 'group_after': {'name': 'geB2', 'side': 'both', 'fontlab_side': 'KernBothSide', 'members': ['ge4'], 'member_count': 1, 'id': 5123, 'confirmed': True}, 'table_len_before': 3, 'table_len_after': 3, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [('geB', 'geB2')] | removes [] | getAllGroups calls 2 | items calls 2
+2811b gets: []
+2812 rename: entries stay behind  : 200 {'call': "flPackage.kerning(master).groups.rename('geL', 'geL2')", 'called': True, 'call_error': None, 'returned': True, 'renamed': True, 'old_name_gone': True, 'new_name_in_items': True, 'new_name_in_class_list': True, 'group_after': {'name': 'geL2', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5121, 'confirmed': True}, 'table_len_before': 3, 'table_len_after': 3, 'groups_len_before': 3, 'groups_len_after': 3, 'entry_before': {'call_error': None, 'value_type': 'float', 'value': -60.0}, 'entry_after_old_name': {'call_error': None, 'value_type': 'float', 'value': -60.0}, 'entry_after_new_name': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'entry_followed': False, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2812b rename: no entry before     : 200 {'renamed': True, 'entry_before': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'entry_followed': None} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2812c rename: entries copied      : 200 {'renamed': False, 'entry_after_old_name': {'call_error': None, 'value_type': 'float', 'value': -60.0}, 'entry_after_new_name': {'call_error': None, 'value_type': 'float', 'value': -60.0}, 'entry_followed': False} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2813 rename returns False        : 200 {'call': "flPackage.kerning(master).groups.rename('geL', 'geL2')", 'called': True, 'call_error': None, 'returned': False, 'renamed': False, 'old_name_gone': False, 'new_name_in_items': False, 'new_name_in_class_list': False, 'group_after': None, 'table_len_before': 3, 'table_len_after': 3, 'groups_len_before': 3, 'groups_len_after': 3, 'entry_before': {'call_error': None, 'value_type': 'float', 'value': -60.0}, 'entry_after_old_name': {'call_error': None, 'value_type': 'float', 'value': -60.0}, 'entry_after_new_name': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'entry_followed': False, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2813b rename changes nothing      : 200 {'call': "flPackage.kerning(master).groups.rename('geL', 'geL2')", 'called': True, 'call_error': None, 'returned': None, 'renamed': False, 'old_name_gone': False, 'new_name_in_items': False, 'new_name_in_class_list': False, 'group_after': None, 'table_len_before': 3, 'table_len_after': 3, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2814 rename raises (counted)     : 200 {'call': "flPackage.kerning(master).groups.rename('geL', 'geL2')", 'called': True, 'call_error': 'RuntimeError: rename boom', 'returned': None, 'renamed': False, 'old_name_gone': False, 'new_name_in_items': False, 'new_name_in_class_list': False, 'group_after': None, 'table_len_before': 3, 'table_len_after': 3, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2814b rename raises after renaming : 200 {'call_error': 'RuntimeError: rename boom after renaming', 'renamed': False, 'old_name_gone': True, 'group_after': {'name': 'geL2', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5121, 'confirmed': True}} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2815 rename keeps the old name    : 200 {'call': "flPackage.kerning(master).groups.rename('geL', 'geL2')", 'called': True, 'call_error': None, 'returned': True, 'renamed': False, 'old_name_gone': False, 'new_name_in_items': True, 'new_name_in_class_list': True, 'group_after': {'name': 'geL2', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5121, 'confirmed': True}, 'table_len_before': 3, 'table_len_after': 3, 'groups_len_before': 3, 'groups_len_after': 4, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2815b class list still names the old : 200 {'renamed': False, 'old_name_gone': False, 'groups_len_before': 3, 'groups_len_after': 3, 'kerning_groups_listed_after': 4} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2816 rename loses a member        : 200 {'call': "flPackage.kerning(master).groups.rename('geL', 'geL2')", 'called': True, 'call_error': None, 'returned': True, 'renamed': False, 'old_name_gone': True, 'new_name_in_items': True, 'new_name_in_class_list': True, 'group_after': {'name': 'geL2', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1'], 'member_count': 1, 'id': 5121, 'confirmed': True}, 'table_len_before': 3, 'table_len_after': 3, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2817 rename changes the id        : 200 {'call': "flPackage.kerning(master).groups.rename('geL', 'geL2')", 'called': True, 'call_error': None, 'returned': True, 'renamed': False, 'old_name_gone': True, 'new_name_in_items': True, 'new_name_in_class_list': True, 'group_after': {'name': 'geL2', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5221, 'confirmed': True}, 'table_len_before': 3, 'table_len_after': 3, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2818 remove geR, pairs=keep       : 200 {'call': "flPackage.kerning(master).groups.remove('geR')", 'called': True, 'call_error': None, 'removed': True, 'old_name_gone': True, 'still_in_items': False, 'still_in_class_list': False, 'table_entries_removed': 0, 'groups_len_before': 3, 'groups_len_after': 2, 'entry_before': {'call_error': None, 'value_type': 'float', 'value': -40.0}, 'entry_after_old_name': {'call_error': None, 'value_type': 'float', 'value': -40.0}, 'entry_gone': False, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [('geR',)] | getAllGroups calls 2 | items calls 2
+2819 remove geL, pairs=delete     : 200 {'call': "flPackage.kerning(master).groups.remove('geL', True)", 'called': True, 'call_error': None, 'removed': True, 'old_name_gone': True, 'still_in_items': False, 'still_in_class_list': False, 'table_entries_removed': 1, 'groups_len_before': 3, 'groups_len_after': 2, 'entry_before': {'call_error': None, 'value_type': 'float', 'value': -60.0}, 'entry_after_old_name': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'entry_gone': True, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [('geL', True)] | getAllGroups calls 2 | items calls 2
+2819b remove geB, no entry, keep   : 200 {'removed': True, 'entry_before': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'entry_gone': None, 'table_entries_removed': 0} | kerning() args [('Regular',)] | renames [] | removes [('geB',)] | getAllGroups calls 2 | items calls 2
+2820 remove changes nothing      : 200 {'call': "flPackage.kerning(master).groups.remove('geR')", 'called': True, 'call_error': None, 'removed': False, 'old_name_gone': False, 'still_in_items': True, 'still_in_class_list': True, 'table_entries_removed': 0, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [('geR',)] | getAllGroups calls 2 | items calls 2
+2821 remove raises (counted)     : 200 {'call': "flPackage.kerning(master).groups.remove('geR', True)", 'called': True, 'call_error': 'RuntimeError: remove boom', 'removed': False, 'old_name_gone': False, 'still_in_items': True, 'still_in_class_list': True, 'table_entries_removed': 0, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [('geR', True)] | getAllGroups calls 2 | items calls 2
+2821b remove raises after removing : 200 {'call_error': 'RuntimeError: remove boom after removing', 'removed': False, 'old_name_gone': True, 'groups_len_after': 2} | kerning() args [('Regular',)] | renames [] | removes [('geR',)] | getAllGroups calls 2 | items calls 2
+2821c group count does not drop    : 200 {'removed': False, 'old_name_gone': True, 'groups_len_before': 3, 'groups_len_after': 3} | kerning() args [('Regular',)] | renames [] | removes [('geR',)] | getAllGroups calls 2 | items calls 2
+2822a unknown op                : 200 {'error': 'op must be "rename" or "remove"'} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822b bad name                  : 200 {'error': 'name must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822c new the same as name      : 200 {'error': 'new is the same as name; nothing to rename'} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822d rename without new        : 200 {'error': 'new must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822e bad new                   : 200 {'error': 'new must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822f rename with pairs         : 200 {'error': 'pairs belongs to op=remove'} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822g remove with new           : 200 {'error': 'new belongs to op=rename'} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822h remove without pairs      : 200 {'error': 'pairs must be "keep" (remove(name)) or "delete" (remove(name, True))'} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822i remove pairs=all          : 200 {'error': 'pairs must be "keep" (remove(name)) or "delete" (remove(name, True))'} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822j bad glyph name            : 200 {'error': 'glyph must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822k glyph not in the font     : 200 {'error': "no glyph with this name in the current font: 'Q'", 'calls_so_far': 0} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822l new is a glyph name       : 200 {'error': "new 'ge3' is the name of a glyph of the font (defect B: a plain name pair may then mean the group); nothing was renamed", 'calls_so_far': 0} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2822m new is a kerning group    : 200 {'error': "new 'geR' is already the name of a group of the font; nothing was renamed", 'calls_so_far': 0} | kerning() args [] | renames [] | removes [] | getAllGroups calls 1 | items calls 0
+2822n new is an OpenType class   : 200 {'error': "new 'geF' is already the name of a group of the font; nothing was renamed", 'calls_so_far': 0} | kerning() args [] | renames [] | removes [] | getAllGroups calls 1 | items calls 0
+2822o unknown group            : 200 {'error': "the kerning group 'geQ' is not confirmed by both of FontLab's sources (it is not the name of any group of the font); nothing was removed", 'group_before': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [] | getAllGroups calls 1 | items calls 1
+2822p an OpenType class         : 200 {'error': "the kerning group 'geF' is not confirmed by both of FontLab's sources (it is a class of the font but not a kerning group); nothing was removed", 'group_before': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [] | getAllGroups calls 1 | items calls 1
+2822q a glyph, not a group      : 200 {'error': "the kerning group 'ge1' is not confirmed by both of FontLab's sources (it is not the name of any group of the font); nothing was removed", 'group_before': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [] | getAllGroups calls 1 | items calls 1
+2822r class list only, not items() : 200 {'error': "the kerning group 'geL' is not confirmed by both of FontLab's sources (FontLab's class list names this kerning group, but the master's kerning groups do not hold it); nothing was renamed", 'group_before': {'name': 'geL', 'side': 'unknown', 'fontlab_side': None, 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5121, 'confirmed': False, 'mismatch': "FontLab's class list names this kerning group, but the master's kerning groups do not hold it"}, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [] | getAllGroups calls 1 | items calls 1
+2822s items() only, not class list : 200 {'error': "the kerning group 'geL' is not confirmed by both of FontLab's sources (the master's kerning groups hold this group, but FontLab's class list does not name it as a kerning group); nothing was renamed", 'group_before': {'name': 'geL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': None, 'confirmed': False, 'mismatch': "the master's kerning groups hold this group, but FontLab's class list does not name it as a kerning group"}, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [] | getAllGroups calls 1 | items calls 1
+2822t class list names it twice    : 200 {'error': "the kerning group 'geL' is not confirmed by both of FontLab's sources (FontLab lists this group name twice, so which entry is meant is not known); nothing was removed", 'group_before': {'name': 'geL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5122, 'confirmed': False, 'mismatch': 'FontLab lists this group name twice, so which entry is meant is not known'}, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [] | getAllGroups calls 1 | items calls 1
+2822u items() names it twice       : 200 {'error': "the kerning group 'geL' is not confirmed by both of FontLab's sources (FontLab lists this group name twice, so which entry is meant is not known); nothing was removed", 'group_before': {'name': 'geL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5121, 'confirmed': False, 'mismatch': 'FontLab lists this group name twice, so which entry is meant is not known'}, 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [] | getAllGroups calls 1 | items calls 1
+2823a getAllGroups raises   : 200 {'error': 'flPackage.getAllGroups() failed (RuntimeError: getAllGroups boom); nothing was renamed', 'calls_so_far': 0} | kerning() args [] | renames [] | removes [] | getAllGroups calls 1 | items calls 0
+2823b items() raises        : 200 {'error': "the kerning groups' items() failed (RuntimeError: items boom); nothing was renamed", 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [] | getAllGroups calls 1 | items calls 1
+2823c kerning.groups raises  : 200 {'error': "the master's kerning groups are not reachable (RuntimeError: groups boom); nothing was renamed", 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [] | getAllGroups calls 1 | items calls 0
+2823d kerning.groups callable : 200 {'error': "the master's kerning groups attribute is callable; it was not called; nothing was renamed", 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [] | getAllGroups calls 1 | items calls 0
+2823e kerning() raises (counted) : 200 {'error': 'flPackage.kerning(master) failed: RuntimeError: kerning() boom', 'calls_so_far': 1} | kerning() args [('Regular',)] | renames [] | removes [] | getAllGroups calls 1 | items calls 0
+2824a items() fails after rename  : 200 {'call': "flPackage.kerning(master).groups.rename('geL', 'geL2')", 'called': True, 'call_error': None, 'returned': True, 'renamed': False, 'old_name_gone': False, 'new_name_in_items': None, 'new_name_in_class_list': True, 'group_after': None, 'table_len_before': 3, 'table_len_after': 3, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1, 'items_error_after': "the kerning groups' items() failed (RuntimeError: items boom)"} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2824b class list fails after remove : 200 {'call': "flPackage.kerning(master).groups.remove('geR')", 'called': True, 'call_error': None, 'removed': False, 'old_name_gone': False, 'still_in_items': False, 'still_in_class_list': None, 'table_entries_removed': 0, 'groups_len_before': 3, 'groups_len_after': 2, 'calls_so_far': 1, 'class_list_error_after': 'flPackage.getAllGroups() failed (RuntimeError: getAllGroups boom)'} | kerning() args [('Regular',)] | renames [] | removes [('geR',)] | getAllGroups calls 2 | items calls 2
+2825a no font open         : 200 {'error': 'CountFonts() is 0; the probe runs only when exactly one font is open', 'calls_so_far': 0} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2825b two fonts open       : 200 {'error': 'CountFonts() is 2; the probe runs only when exactly one font is open', 'calls_so_far': 0} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2825c two packages         : 200 {'error': 'the workspace holds 2 packages, not exactly 1', 'calls_so_far': 0} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2825d masters not all names : 200 {'open': True, 'error': "the package's masters are not a plain list of names (list); nothing was called", 'calls_so_far': 0} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2825e current master unlisted : 200 {'open': True, 'error': "the package's current master could not be read as one of its masters", 'calls_so_far': 0} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2826 request 10 allowed        : 200 {'renamed': True, 'calls_so_far': 10, 'max_calls': 10} | kerning() args [('Regular',)] | renames [('geL', 'geL2')] | removes [] | getAllGroups calls 2 | items calls 2
+2826b request 11 refused       : 200 {'error': 'the limit of 10 requests per listener run is used up; restart the listener to continue', 'calls_so_far': 10, 'max_calls': 10} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2827 probe raises: HTTP 500     : 500 {'error': 'RuntimeError: probe boom'} | kerning() args [] | renames [] | removes [] | getAllGroups calls 0 | items calls 0
+2828 spy over all cases          : forbidden package members: [] | package members touched anywhere: ['getAllGroups', 'isNull', 'kerning', 'master', 'masters'] | forbidden kerning members: [] | kerning members touched anywhere: ['get', 'groups'] | forbidden group container members: [] | group container members touched: ['items', 'remove', 'rename']
+2829 static scan                 : pkg members used: ['kerning'] | kerning members used: ['groups'] | container members used: ['remove', 'rename'] | editor( calls: 3 | kerning_of( calls: 1 | forbidden syntax: [] | del statements: 0 | subscripts on other objects: [] | counter raised before the first kerning call: True | scanned chars > 6000: True
+2830 gate, cap, route, docstring  : True | max requests 10 | route registered once: True | listed in the module docstring: True
+
+==== v0.200 /kerning/group/rename and /kerning/group/remove ====
+--- rename
+2831 rename geL -> geL2            : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Group Test', 'master': 'Regular', 'master_count': 1, 'group_before': {'name': 'geL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5140, 'confirmed': True}, 'group': 'geL', 'new_name': 'geL2', 'renamed': True, 'changed': True, 'returned': True, 'group_after': {'name': 'geL2', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5142, 'confirmed': True}, 'table_size_before': 3, 'table_size_after': 3, 'groups_before': 3, 'groups_after': 3, 'id_before': 5140, 'id_after': 5142, 'same_name_glyph': False, 'fontlab_changed_mark': {'called': True, 'via_glyph': 'ge1', 'glyph_has_changes': True}, 'fontlab_panel_refresh': {'called': True}, 'fontlab_caught_up': {'checked': True, 'glyph': 'ge1', 'side_attribute': 'kerningLeft', 'group_id_read': 5142, 'expected': 5142, 'caught_up': True}} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2831b marked through members      : [(['ge1', 'ge2'], 'kerning_group')] | refreshed with fgId: [4186] | table keys follow: ['geL2']
+2832 rename to a glyph's name ge3 : 200 {'renamed': True, 'same_name_glyph': True, 'id_after': 5142, 'fontlab_caught_up': {'checked': True, 'glyph': 'ge1', 'side_attribute': 'kerningLeft', 'group_id_read': 5142, 'expected': 5142, 'caught_up': True}} | renames [('geL', 'ge3')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2832b rename the right group geR   : 200 {'renamed': True, 'fontlab_caught_up': {'checked': True, 'glyph': 'ge3', 'side_attribute': 'kerningRight', 'group_id_read': 5143, 'expected': 5143, 'caught_up': True}} | renames [('geR', 'geR2')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2832c rename the both group geB    : 200 {'renamed': True, 'fontlab_caught_up': {'checked': True, 'glyph': 'ge5', 'side_attribute': 'kerningLeft', 'group_id_read': 5150, 'expected': 5150, 'caught_up': True}} | renames [('geB', 'geB2')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2833 FontLab does not catch up    : 200 {'renamed': True, 'fontlab_caught_up': {'checked': True, 'glyph': 'ge1', 'side_attribute': 'kerningLeft', 'group_id_read': 5140, 'expected': 5142, 'caught_up': False}} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2833b the member's id unreadable  : 200 {'renamed': True, 'fontlab_caught_up': {'checked': False, 'glyph': 'ge1', 'reason': 'kerningLeft could not be read (RuntimeError: ids boom)'}} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2834 rename returns False         : 200 {'renamed': False, 'changed': False, 'returned': False, 'id_before': 5140, 'id_after': None, 'same_name_glyph': False, 'group_after': None, 'table_size_before': 3, 'table_size_after': 3, 'groups_before': 3, 'groups_after': 3, 'reason': 'the re-read does not confirm the rename: the old name is still listed', 'fontlab_changed_mark': {'called': False, 'reason': 'nothing changed'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'nothing changed'}} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename']
+2834b rename raises               : 200 {'renamed': False, 'changed': False, 'returned': None, 'id_before': 5140, 'id_after': None, 'same_name_glyph': False, 'group_after': None, 'table_size_before': 3, 'table_size_after': 3, 'groups_before': 3, 'groups_after': 3, 'reason': "FontLab's rename raised an error (RuntimeError: rename boom); the re-read shows the old name still listed", 'call_error': 'RuntimeError: rename boom', 'fontlab_changed_mark': {'called': False, 'reason': 'nothing changed'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'nothing changed'}} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename']
+2835 renamed, then raises         : 200 {'renamed': False, 'changed': True, 'returned': None, 'id_before': 5140, 'id_after': 5142, 'same_name_glyph': False, 'group_after': {'name': 'geL2', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5142, 'confirmed': True}, 'table_size_before': 3, 'table_size_after': 3, 'groups_before': 3, 'groups_after': 3, 'reason': "FontLab's rename raised an error (RuntimeError: rename boom after renaming); the re-read shows the group under the new name", 'call_error': 'RuntimeError: rename boom after renaming', 'fontlab_changed_mark': {'called': True, 'via_glyph': 'ge1', 'glyph_has_changes': True}, 'fontlab_panel_refresh': {'called': True}, 'fontlab_caught_up': {'checked': True, 'glyph': 'ge1', 'side_attribute': 'kerningLeft', 'group_id_read': 5142, 'expected': 5142, 'caught_up': True}} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2836 the old name stays too       : 200 {'renamed': False, 'changed': True, 'reason': 'the re-read does not confirm the rename: the old name is still listed', 'fontlab_changed_mark': {'called': True, 'via_glyph': 'ge1', 'glyph_has_changes': True}} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2837 a member lost                : 200 {'renamed': False, 'changed': True, 'reason': 'the re-read does not confirm the rename: the group under the new name differs from the group before'} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2837b the class list keeps the old name : 200 {'renamed': False, 'changed': True, 'reason': 'the re-read does not confirm the rename: the old name is still listed', 'groups_before': 3, 'groups_after': 3} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2837c a kerning entry went too     : 200 {'renamed': False, 'changed': True, 'reason': 'the re-read does not confirm the rename: the sizes changed (kerning entries 3 -> 2, groups 3 -> 3)', 'table_size_before': 3, 'table_size_after': 2} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2838 items() fails after the call : 200 {'renamed': False, 'changed': None, 'reason': "the kerning groups could not be read back: the kerning groups' items() failed (RuntimeError: items boom)", 'fontlab_changed_mark': {'called': True, 'via_glyph': 'ge1', 'glyph_has_changes': True}} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+--- rename refused before any change
+2839a new name is a kerning group  : 200 {'error': "'geR' is already the name of a kerning group in this font; nothing was renamed", 'group_before': {'name': 'geL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5140, 'confirmed': True}} | renames [] | removes [] | dialogs 0 | order []
+2839b new name is an OpenType class : 200 {'error': "'geF' is already the name of a class (an OpenType class or a tag) in this font; nothing was renamed", 'group_before': {'name': 'geL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1', 'ge2'], 'member_count': 2, 'id': 5140, 'confirmed': True}} | renames [] | removes [] | dialogs 0 | order []
+2839c the same name                : 400 {'error': 'new_name is the same as group; nothing to rename'} | renames [] | removes [] | dialogs 0 | order []
+2839d a bad group name            : 400 {'error': 'group and new_name must each be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | renames [] | removes [] | dialogs 0 | order []
+2839e a bad new name              : 400 {'error': 'group and new_name must each be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | renames [] | removes [] | dialogs 0 | order []
+2839f an unknown group            : 200 {'error': "'geQ' is not the name of a kerning group in the current master of this font; nothing was renamed"} | renames [] | removes [] | dialogs 0 | order []
+2839g an OpenType class as group  : 200 {'error': "'geF' is a class of the font but not a kerning group (an OpenType class or a tag); nothing was renamed"} | renames [] | removes [] | dialogs 0 | order []
+2839h a glyph, not a group        : 200 {'error': "'ge1' is not the name of a kerning group in the current master of this font; nothing was renamed"} | renames [] | removes [] | dialogs 0 | order []
+2839i another key in the body     : 400 {'error': 'the body must be a JSON object with "group" and "new_name" and nothing else'} | renames [] | removes [] | dialogs 0 | order []
+2839j new_name missing            : 400 {'error': 'the body must be a JSON object with "group" and "new_name" and nothing else'} | renames [] | removes [] | dialogs 0 | order []
+2839k a number as name            : 400 {'error': 'group and new_name must each be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | renames [] | removes [] | dialogs 0 | order []
+2839l body not JSON               : 400 {'error': 'request body was not valid JSON'} | renames [] | removes [] | dialogs 0 | order []
+2839m the sources' members differ  : 200 {'error': "the kerning group 'geL' is not confirmed by both of FontLab's sources (the two sources list different members); nothing was renamed", 'group_before': {'name': 'geL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ge1'], 'member_count': 1, 'id': 5140, 'confirmed': False, 'mismatch': 'the two sources list different members', 'class_list_members': ['ge1', 'ge2']}} | renames [] | removes [] | dialogs 0 | order []
+2839n the class list names it twice : 200 {'error': "the kerning group 'geL' is not confirmed by both of FontLab's sources (FontLab lists this group name twice, so which entry is meant is not known); nothing was renamed"} | renames [] | removes [] | dialogs 0 | order []
+2839o getAllGroups raises         : 200 {'error': 'the kerning groups could not be read (flPackage.getAllGroups() failed (RuntimeError: getAllGroups boom)); nothing was renamed'} | renames [] | removes [] | dialogs 0 | order []
+2839p kerning.groups callable     : 200 {'error': "the master's kerning groups attribute is callable; it was not called; nothing was renamed"} | renames [] | removes [] | dialogs 0 | order []
+2840a no font open                : 200 {'open': False} | renames [] | removes [] | dialogs 0 | order []
+2840b two fonts, unsaved          : 200 {'error': "2 fonts are open and the current font could not be matched to its kerning table: the current font has no file path (a new, unsaved font). Bring a saved font's window to the front, or close the other fonts (without saving them if they are test fonts), and ask again; nothing was renamed"} | renames [] | removes [] | dialogs 0 | order []
+2840c two fonts, matched by path   : 200 {'renamed': True, 'matched_by': 'path', 'fonts_open': 2} | renames [('geL', 'x')] | removes [] | dialogs 0 | order ['rename', 'mark', 'refresh']
+2840d current master unlisted    : 200 {'error': "the current master could not be read as one of the font's masters; nothing was renamed"} | renames [] | removes [] | dialogs 0 | order []
+--- remove
+2841 remove geR, keep, Yes         : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Group Test', 'master': 'Regular', 'master_count': 1, 'group_before': {'name': 'geR', 'side': 'right', 'fontlab_side': 'KernRight', 'members': ['ge3', 'ge4'], 'member_count': 2, 'id': 5141, 'confirmed': True}, 'group': 'geR', 'pairs': 'keep', 'removed': True, 'changed': True, 'returned': None, 'still_in_items': False, 'still_in_class_list': False, 'table_size_before': 3, 'table_size_after': 3, 'groups_before': 3, 'groups_after': 2, 'fontlab_changed_mark': {'called': True, 'via_glyph': 'ge3', 'glyph_has_changes': True}, 'fontlab_panel_refresh': {'called': True}, 'fontlab_caught_up': {'checked': True, 'glyph': 'ge3', 'side_attribute': 'kerningRight', 'group_id_read': 0, 'expected': 0, 'caught_up': True}} | renames [] | removes [('geR',)] | dialogs 1 | order ['dialog', 'remove', 'mark', 'refresh']
+2841b the dialog's text           : A request through Glyphbridge asks to remove the kerning group 'geR' from the font "Group Test Regular" (Kerning Right, 2 members: ge3, ge4). /  / Its kerning is kept: each class entry becomes glyph pairs or class : glyph entries for its members, with the same values. /  / No Glyphbridge tool can bring a removed group back. /  / Allow this removal?
+2842 remove geL, delete, Yes       : 200 {'removed': True, 'table_size_before': 3, 'table_size_after': 2, 'fontlab_caught_up': {'checked': True, 'glyph': 'ge1', 'side_attribute': 'kerningLeft', 'group_id_read': 0, 'expected': 0, 'caught_up': True}} | renames [] | removes [('geL', True)] | dialogs 1 | order ['dialog', 'remove', 'mark', 'refresh']
+2842b the dialog's text           : A request through Glyphbridge asks to remove the kerning group 'geL' from the font "Group Test Regular" (Kerning Left, 2 members: ge1, ge2). /  / Its kerning entries are deleted with it. /  / No Glyphbridge tool can bring a removed group back. /  / Allow this removal?
+2843 answered No                  : 200 {'removed': False, 'changed': False, 'user_declined': True, 'reason': 'the removal was not approved in FontLab (dialog answered No or closed)'} | renames [] | removes [] | dialogs 1 | order ['dialog']
+2844 the last group (list None after) : 200 {'removed': True, 'still_in_class_list': False, 'groups_after': 0, 'fontlab_caught_up': {'checked': True, 'glyph': 'ge3', 'side_attribute': 'kerningRight', 'group_id_read': 0, 'expected': 0, 'caught_up': True}} | renames [] | removes [('geR', True)] | dialogs 1 | order ['dialog', 'remove', 'mark', 'refresh']
+2845 remove raises                : 200 {'removed': False, 'changed': False, 'returned': None, 'table_size_before': 3, 'table_size_after': 3, 'groups_before': 3, 'groups_after': 3, 'still_in_items': True, 'still_in_class_list': True, 'reason': "FontLab's remove raised an error (RuntimeError: remove boom); the re-read shows the group still listed", 'call_error': 'RuntimeError: remove boom', 'fontlab_changed_mark': {'called': False, 'reason': 'nothing changed'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'nothing changed'}} | renames [] | removes [('geR',)] | dialogs 1 | order ['dialog', 'remove']
+2845b remove changes nothing       : 200 {'removed': False, 'changed': False, 'returned': None, 'table_size_before': 3, 'table_size_after': 3, 'groups_before': 3, 'groups_after': 3, 'still_in_items': True, 'still_in_class_list': True, 'reason': 'the re-read does not confirm the removal: the group is still listed', 'fontlab_changed_mark': {'called': False, 'reason': 'nothing changed'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'nothing changed'}} | renames [] | removes [('geR',)] | dialogs 1 | order ['dialog', 'remove']
+2845c removed, then raises         : 200 {'removed': False, 'changed': True, 'call_error': 'RuntimeError: remove boom after removing', 'fontlab_changed_mark': {'called': True, 'via_glyph': 'ge3', 'glyph_has_changes': True}} | renames [] | removes [('geR',)] | dialogs 1 | order ['dialog', 'remove', 'mark', 'refresh']
+2845d group count does not drop    : 200 {'removed': False, 'changed': True, 'reason': 'the re-read does not confirm the removal: the number of kerning groups did not drop by one'} | renames [] | removes [('geR',)] | dialogs 1 | order ['dialog', 'remove', 'mark', 'refresh']
+2845e class list fails after    : 200 {'removed': False, 'changed': None, 'reason': 'the kerning groups could not be read back: flPackage.getAllGroups() failed (RuntimeError: getAllGroups boom)', 'fontlab_changed_mark': {'called': True, 'via_glyph': 'ge3', 'glyph_has_changes': True}} | renames [] | removes [('geR',)] | dialogs 1 | order ['dialog', 'remove', 'mark', 'refresh']
+2845f FontLab does not catch up    : 200 {'removed': True, 'fontlab_caught_up': {'checked': True, 'glyph': 'ge5', 'side_attribute': 'kerningLeft', 'group_id_read': 5148, 'expected': 0, 'caught_up': False}} | renames [] | removes [('geB',)] | dialogs 1 | order ['dialog', 'remove', 'mark', 'refresh']
+--- remove refused before the dialog (dialogs must stay 0)
+2846a an unknown group             : 200 {'error': "'geQ' is not the name of a kerning group in the current master of this font; nothing was removed"} | renames [] | removes [] | dialogs 0 | order []
+2846b an OpenType class           : 200 {'error': "'geF' is a class of the font but not a kerning group (an OpenType class or a tag); nothing was removed"} | renames [] | removes [] | dialogs 0 | order []
+2846c pairs missing               : 400 {'error': 'the body must be a JSON object with "group" and "pairs" and nothing else'} | renames [] | removes [] | dialogs 0 | order []
+2846d pairs 'all'                 : 400 {'error': 'pairs must be "keep" or "delete"'} | renames [] | removes [] | dialogs 0 | order []
+2846e pairs true                  : 400 {'error': 'pairs must be "keep" or "delete"'} | renames [] | removes [] | dialogs 0 | order []
+2846f a bad name                  : 400 {'error': 'group must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | renames [] | removes [] | dialogs 0 | order []
+2847 twelve members               : 200 {'removed': True} | renames [] | removes [('geR',)] | dialogs 1 | order ['dialog', 'remove', 'mark', 'refresh']
+2847b dialog: A request through Glyphbridge asks to remove the kerning group 'geR' from the font "Group Test Regular" (Kerning Right, 12 members: ge3, m0, m1, m2, m3, m4, m5, m6 and 4 more). /  / Its kerning is kept: each class entry becomes glyph pairs or class : glyph entries for its members, with the same values. /  / No Glyphbridge tool can bring a removed group back. /  / Allow this removal?
+2848 the mark switched off        : 200 {'renamed': True, 'fontlab_changed_mark': {'called': False, 'reason': 'the changed mark is switched off in the listener'}} | renames [('geL', 'geL2')] | removes [] | dialogs 0 | order ['rename', 'refresh']
+--- the OUTPUT lines
+2849a renamed             : ('kerning group rename geL -> geL2: renamed (verified, id 5140 -> 5142)', False)
+2849b renamed, lags       : ("kerning group rename geL -> geL2: renamed (verified, id 5140 -> 5142; FontLab's panels may lag until a font switch)", False)
+2849c refused             : ("REFUSED kerning group rename geL: 'geR' is already the name of a kerning group in this font; nothing was renamed", False)
+2849d not confirmed       : ('NOT DONE kerning group rename geL: the re-read does not confirm the rename: the old name is still listed', False)
+2849e removed, keep       : ('kerning group remove geR: removed after your Yes, its kerning kept as entries of its members (verified, kerning entries 3 -> 4)', False)
+2849f removed, delete     : ('kerning group remove geL: removed after your Yes, its kerning deleted (verified, kerning entries 3 -> 2)', False)
+2849g answered No         : ('kerning group remove geR: you answered No in FontLab, nothing removed', False)
+2849h HTTP 400            : ('REFUSED kerning group remove geR: the body must be a JSON object with "group" and "pairs" and nothing else', False)
+2849i no font             : ('REFUSED kerning group remove geR: no font is open', False)
+--- spies and scans
+2850 spy over all cases          : forbidden package members: [] | package members touched: ['fgId', 'getAllGroups', 'isNull', 'kerning', 'master', 'masters'] | forbidden kerning members: [] | kerning members touched: ['get', 'groups'] | forbidden group container members: [] | group container members touched: ['items', 'remove', 'rename']
+2851 static scan                 : container members used: ['remove', 'rename'] | renamer( calls: 1 | remover( calls: 2 | pkg members: ['getAllGroups'] | kerning members: ['groups'] | forbidden syntax: [] | del statements: 0 | names subscripted: ['after_read', 'by_name', 'check', 'ctx', 'found', 'members', 'out', 'read', 'target'] | scanned chars > 9000: True
+2852 routes, docstring, log, mark: True | in the module docstring: True | write log kinds: kerning group rename / kerning group remove | mark title: Glyphbridge kerning group | dialog default No: True

@@ -121,3 +121,7 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 ## Whole-unit widths (2026-11-20, tests 1459–1467)
 
 - **Predict a log line from the process that writes it.** 1462 predicted "rounded from 437.5" in FontLab's OUTPUT line, but the server rounds before it calls the listener, which writes that line and only saw 438. Before predicting a reply or a log, check which process sees the raw value.
+
+## Group-editing research (2026-11-20, GE–GK 1505–1545)
+
+- **Save a probe's reply to a file before parsing it, and start each command with an absolute `cd`.** In GK 1539 a command ran from the folder an earlier command had left; the parsing step failed, and the reply of a write was lost, though the write ran. The state had to be re-read instead (1539b).

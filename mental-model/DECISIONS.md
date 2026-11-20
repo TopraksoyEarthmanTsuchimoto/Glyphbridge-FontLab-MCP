@@ -4,6 +4,14 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 **Budget changes are not recorded here** (the user's choice of 2026-11-20, unlike HOW-TO-GET-ORGANIZED.md): each one, with its date and reason, goes to "Budget history" in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md); current values are in [MARKDOWN-MAP.md](MARKDOWN-MAP.md). *Reason:* a budget's history is not an active decision, and its rules are in [AGENTS.md](../AGENTS.md).
 
+## 2026-11-20: renaming and removing kerning groups (research listener 0.199, GE0–GK 1499–1545; built listener 0.200 / server 0.82)
+
+- **Two tools, `rename_kerning_group` and `remove_kerning_group`, one group per call.** *Reason:* the user's choices (A, A); removing is a different act from renaming, as with `remove_kerning` (2026-11-19).
+- **`remove_kerning_group` takes `pairs`, required, `"keep"` or `"delete"`, with no default.** *Reason:* the user's choice; the two change kerning a lot in opposite directions (GE 1518, 1520; GL; GK).
+- **A removal asks Yes/No in FontLab, default No; a rename asks nothing.** *Reason:* the user's choice; no tool can bring a removed group back, while a rename is undone by renaming back.
+- **A new name that is also a glyph's name is allowed, with a note (`same_name_glyph`); one that is any group's or class's name is refused.** *Reason:* the user's choice; FontLab names classes after a member, and the kerning tools mark a class side with `@`.
+- **After a change: the mark through one member glyph, ONE `notifyPackageContentUpdated(<package fgId>)`, and a read of one member's group id (`fontlab_caught_up`).** *Reason:* without the refresh FontLab's panels and the glyphs' ids lag until a font switch (GE 1512–1516); with it they caught up (GR, GL, GK). The rename reports the new id (GE 1511).
+
 ## 2026-11-20: `get_glyph_width` reads `advanceWidth`, cross-checked with the legacy width (design B; listener 0.198 / server 0.81)
 
 - **The width is FontLab's modern `advanceWidth`; the legacy `glyph.width` is still read, and shown only when the two differ by 0.01 or more, with a note and an instruction to tell the person both and not choose one.** *Reason:* the user's choice (B over A, modern only): which value FontLab saves is open (AW 1449, [WATCH-POINTS.md](WATCH-POINTS.md)), so hiding a disagreement would break the design rule ([PROJECT.md](PROJECT.md)); the extra read is F1-safe (486–496) and AW4 (1470–1489) found both reads equal on the glyph kinds tried. The cross-check may be dropped once a save test settles the stored value, as a decision of its own.
