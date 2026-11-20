@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.79)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.80)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.79"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.80"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -944,8 +944,12 @@ def write_glyph_width(name: str, width: float) -> dict:
         raise ToolError("Width must be a number.")
     if width < 0:
         raise ToolError("Width must not be negative.")
+    # v0.80: whole units, rule B (a half rounds up), as FontLab's own width field does (AW2 1456); also with an older listener
+    target = _tidy_number(_rule_b(width))
+    rounded = float(width) != float(target)
+    asked = f"{_tidy_number(width)}, rounded to {target}" if rounded else f"{target}"
 
-    data = _write_post("/glyph/width", {"name": clean, "width": width})
+    data = _write_post("/glyph/width", {"name": clean, "width": target})
 
     if not data.get("open"):
         raise ToolError(NO_FONT)
@@ -961,6 +965,15 @@ def write_glyph_width(name: str, width: float) -> dict:
             detail = f"FontLab reported: {call_error}"
         else:
             detail = reason or "unknown reason"
+        before, after = data.get("before"), data.get("after")
+        moved = (isinstance(before, (int, float)) and isinstance(after, (int, float)) and not isinstance(before, bool)
+                 and not isinstance(after, bool) and abs(after - before) >= 0.01)
+        if data.get("changed") is True or moved:
+            # v0.80 (AW 1449): the width moved, but not to the request; the font HAS changed, so never "NOT changed"
+            _note_change()
+            layer = (f" A layer named '{data['layer_created']}' was also created for the glyph." if data.get("layer_created") else "")
+            raise ToolError(f"Width of glyph '{clean}' was changed to {_tidy_number(after)} (was {_tidy_number(before)}), but not to the "
+                            f"requested {asked}: {detail}.{layer} {_CHANGED_BY_ERROR_NOTE}")
         if data.get("layer_created"):
             _note_change()
             raise ToolError(f"Width of glyph '{clean}' was NOT changed: {detail}. A layer named '{data['layer_created']}' WAS created "
@@ -972,12 +985,19 @@ def write_glyph_width(name: str, width: float) -> dict:
         "width_before": _tidy_number(data.get("before")),
         "width_after": _tidy_number(data.get("after")),
     }
+    if rounded:
+        result["width_rounded"] = {"requested": _tidy_number(width), "written": target}
+        result["rounding_note"] = _WIDTH_ROUNDING_NOTE
     for key in ("route", "outline_untouched", "warning", "display_note", "layer_created", "layer_create_note"):
         if data.get(key) is not None:
             result[key] = data[key]
     _add_guard_fields(result, data)
     _mark_modified(result, result["width_before"] != result["width_after"] or bool(data.get("layer_created")))
     return result
+
+
+_WIDTH_ROUNDING_NOTE = ("FontLab keeps advance widths in whole units, as its own width field does (seen live: a typed 437.5 became 438), so "
+                        "the requested width was rounded to the nearest whole unit (a half rounds up): tell the person the width written.")
 
 
 def _require_listener(minimum: tuple, feature: str) -> None:
@@ -4509,7 +4529,8 @@ def set_glyph_width(name: str, width: float, ctx: Context | None = None) -> dict
     Width is in font units, same scale as get_glyph_width. This changes ONLY the advance width (the space the glyph takes when
     typed): the outline does not move, so the right sidebearing changes and the left one does not. To place the outline inside
     the width use set_glyph_sidebearings instead. A glyph that has an outline but no editable layer yet is refused: the person
-    must open it once in an editor tab in FontLab. This does not
+    must open it once in an editor tab in FontLab. The width is rounded to a whole unit (a half rounds up), as FontLab's own
+    width field does (seen live); the reply's width_rounded says when that happened. This does not
     require confirmation in FontLab, unlike delete_glyph, since it is a
     reversible value change rather than a destructive one. Success is only
     reported after re-reading the glyph confirms the new width took effect.

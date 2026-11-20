@@ -703,6 +703,30 @@ print("9zd tool surface     -> set_glyph_sidebearings:", callable(srv.set_glyph_
 import inspect as _inspect
 print("9ze signature        ->", _inspect.signature(srv.set_glyph_sidebearings), "|", _inspect.signature(srv.get_glyph_sidebearings))
 print("9zf MIN_LISTENER_VERSION ->", srv.MIN_LISTENER_VERSION, "| server", srv.SERVER_VERSION)
+# server 0.80: whole units (rule B) before sending; a width that moved but not to the request is a change (AW 1449, AW2 1456)
+s9_reset(); S9["post"]["/glyph/width"] = {"open": True, "set": True, "name": "tri", "route": "modern", "before": 437.0, "after": 438.0, "requested": 438}
+r = srv.write_glyph_width("tri", 437.5)
+print("9zg 437.5 rounded    -> sent", S9["posts"], "|", {k: r.get(k) for k in ("width_before", "width_after", "width_rounded", "font_modified")},
+      "| note:", r.get("rounding_note", "")[:60], "| changes", srv._CHANGES["package"])
+s9_reset(); S9["post"]["/glyph/width"] = {"open": True, "set": True, "name": "tri", "route": "modern", "before": 437.0, "after": 437.0, "requested": 437}
+r = srv.write_glyph_width("tri", 437.4)
+print("9zh 437.4 rounded    -> sent", S9["posts"][0][1], "|", r.get("width_rounded"), "| font_modified", r["font_modified"])
+s9_reset(); S9["post"]["/glyph/width"] = {"open": True, "set": True, "name": "tri", "route": "modern", "before": 500.0, "after": 700.0, "requested": 700}
+r = srv.write_glyph_width("tri", 700)
+print("9zi whole number     -> sent", S9["posts"][0][1], "| width_rounded absent:", "width_rounded" not in r, "| rounding_note absent:", "rounding_note" not in r)
+s9_reset(); S9["post"]["/glyph/width"] = {"open": True, "set": False, "name": "tri", "route": "modern", "before": 437.0, "after": 438.0, "requested": 437,
+                                          "changed": True, "reason": "the width changed to 438, not to the requested 437"}
+print("9zj changed, not as asked ->", s9_try(lambda: srv.write_glyph_width("tri", 436.5)), "| changes", srv._CHANGES["package"])
+s9_reset(); S9["post"]["/glyph/width"] = {"open": True, "set": False, "name": "tri", "route": "modern", "before": 437.0, "after": 438.0, "requested": 437.5,
+                                          "reason": "width did not change to the requested value after setting"}
+print("9zk older listener (no 'changed', the AW 1449 reply) ->", s9_try(lambda: srv.write_glyph_width("tri", 437)), "| changes", srv._CHANGES["package"])
+s9_reset(); S9["post"]["/glyph/width"] = {"open": True, "set": False, "name": "tri", "route": "modern", "before": 500.0, "after": 500.0, "requested": 700,
+                                          "reason": "width did not change to the requested value after setting"}
+print("9zl unchanged        ->", s9_try(lambda: srv.write_glyph_width("tri", 700)), "| changes", srv._CHANGES["package"])
+s9_reset(); S9["post"]["/glyph/width"] = {"open": True, "set": False, "name": "fresh", "before": 0.0, "after": 600.0, "requested": 610, "changed": True,
+                                          "layer_created": "test_font", "reason": "the width changed to 600, not to the requested 610"}
+print("9zm changed + layer  ->", s9_try(lambda: srv.write_glyph_width("fresh", 610)), "| changes", srv._CHANGES["package"])
+print("9zn docstring says rounded:", "rounded to a whole unit" in srv.set_glyph_width.__doc__)
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 
 # ---------------------------------------------------------------- part 10: server 0.20 - draw_polygon, layer_created, reader modern_check ----

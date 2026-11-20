@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.196)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.197)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -284,7 +284,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.196"
+VERSION = "0.197"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -1509,11 +1509,18 @@ def _set_width_modern(ctx, name, new_width):
     success = (after is not None) and abs(after - float(new_width)) < 0.01
     result = {"open": True, "set": success, "name": name, "route": "modern", "before": before, "after": after,
               "requested": new_width, "display_refreshed": repainted, "display_note": _DISPLAY_NOTE}
+    # v0.197 (AW 1449): a width that moved, but not to the request, is a change: say so, sync and mark it, never "not changed"
+    changed_other = (not success) and after is not None and before is not None and abs(after - before) >= 0.01
     if success:
         _guard_mark(ctx["font"], name, "width", result, no_mark=None if abs(after - before) >= 0.01 else "the width did not change")
+    elif changed_other:
+        result["changed"] = True
+        _guard_mark(ctx["font"], name, "width", result)
     if call_error:
         result["call_error"] = call_error
-    if not success and not call_error:
+    if changed_other:
+        result["reason"] = f"the width changed to {_act_num(after)}, not to the requested {_act_num(new_width)}"
+    elif not success and not call_error:
         result["reason"] = "width did not change to the requested value after setting"
     m_after = _modern_margins_read(w, tr)[0] if tr is not None else None
     if m_before is not None and m_after is not None:
@@ -1550,22 +1557,37 @@ def _set_width_legacy(font, glyph, name, new_width):
     result.update(guard_report)
     if call_error:
         result["call_error"] = call_error
-    if not success and not call_error:
+    changed_other = (not success) and _num(after) is not None and _num(before) is not None and abs(_num(after) - _num(before)) >= 0.01
+    if changed_other:                     # v0.197: moved, but not to the request (no mark on this route, as before)
+        result["changed"] = True
+        result["reason"] = f"the width changed to {_act_num(after)}, not to the requested {_act_num(new_width)}"
+    elif not success and not call_error:
         result["reason"] = "width did not change to the requested value after setting"
     return result
+
+
+def _width_rounding(out, requested, target):
+    """v0.197: report rule-B rounding of the requested width (FontLab's own width field rounds a typed 437.5 to 438, AW2 1456)."""
+    if isinstance(out, dict) and float(requested) != target:
+        out["requested"] = requested
+        out["width_rounded"] = {"requested": requested, "written": target}
+    return out
 
 
 def set_glyph_width(name, new_width):
     """Set one glyph's advance width, verified by re-reading it afterward. With a modern layer the MODERN property
     flGlyph.advanceWidth is used (the outline is not touched); a glyph without one is written the legacy way only when it is
-    positively empty, otherwise the request is refused (live finding: the legacy write lost work on glyphs with shapes)."""
+    positively empty, otherwise the request is refused (live finding: the legacy write lost work on glyphs with shapes).
+    v0.197: the width is rounded to a whole unit first (rule B, a half rounds up): after advanceWidth = 437.5 FontLab's two
+    views disagreed (legacy 437.5, advanceWidth 438.0, AW 1449), while its width field keeps whole units (AW2 1456)."""
+    target = _round_half_up(new_width)
     ctx, refusal = _modern_edit_target(name, create_layer=True)
     if ctx is not None:
-        out = _set_width_modern(ctx, name, new_width)
+        out = _set_width_modern(ctx, name, target)
         if ctx.get("layer_created"):
             out["layer_created"] = ctx["layer_created"]
             out["layer_name_source"] = ctx.get("layer_name_source")
-        return out
+        return _width_rounding(out, new_width, target)
     if "glyph" not in refusal:            # no font, or no such glyph
         out = _public_refusal(refusal)
         if out.get("found") is False:
@@ -1573,10 +1595,10 @@ def set_glyph_width(name, new_width):
         return out
     font, glyph = refusal["font"], refusal["glyph"]
     if _tryshape_known_empty(_tryshape_state(glyph)) and not refusal.get("existing_layer"):
-        out = _set_width_legacy(font, glyph, name, new_width)
+        out = _set_width_legacy(font, glyph, name, target)
         if refusal.get("create_layer_error"):
             out["layer_create_note"] = refusal["create_layer_error"]
-        return out
+        return _width_rounding(out, new_width, target)
     out = _public_refusal(refusal)
     out.update({"before": None, "after": None, "requested": new_width})
     return out
@@ -15068,8 +15090,12 @@ def _act_describe_write(path, payload, code, reply):
     if kind == "width":
         if reply.get("set") is True:
             warning = f"; WARNING: {_act_text(reply['warning'])}" if reply.get("warning") else ""
-            line = f"{head}: {_act_num(reply.get('before'))} -> {_act_num(reply.get('after'))} (verified{sync}){warning}"
+            rounded = reply.get("width_rounded")
+            rnote = f"rounded from {_act_num(rounded.get('requested'))}, " if isinstance(rounded, dict) else ""   # v0.197
+            line = f"{head}: {_act_num(reply.get('before'))} -> {_act_num(reply.get('after'))} ({rnote}verified{sync}){warning}"
             return line, not (warning or unsynced)
+        if reply.get("changed") is True:  # v0.197 (AW 1449): the width moved, but not to the request; never "NOT DONE"
+            return f"CHANGED, NOT AS ASKED {head}: {_act_num(reply.get('before'))} -> {_act_num(reply.get('after'))}: {why}", False
         return f"NOT DONE {head}: {why}", False
     if kind == "sidebearings":
         if reply.get("set") is True:

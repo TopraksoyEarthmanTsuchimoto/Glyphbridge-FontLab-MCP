@@ -4,6 +4,14 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.197 / server v0.80 (2026-11-20): whole-unit widths, and a changed width is never reported as unchanged
+
+**Built as proposed and approved.** Cause: AW 1449 ([LIVE-TESTS.md](LIVE-TESTS.md)): `set_glyph_width tri1a 437.5` changed the width (`advanceWidth` 438.0, legacy 437.5) but replied "NOT changed", and the change was not counted; FontLab's width field rounds a typed 437.5 to 438 (AW2 1456).
+
+- Listener: `set_glyph_width` rounds the requested width to a whole unit before any write (rule B, a half rounds up), on the modern and the legacy route; the re-read is checked against the rounded value; `width_rounded {requested, written}` when the number changed. A width that moved, but not to the request, gives `changed: true` and the reason "the width changed to X, not to the requested Y"; on the modern route the glyph is synced and the font marked. OUTPUT: "(rounded from 437.5, verified)" when the listener itself receives a fraction (a direct POST; through server 0.80 the server rounds first, so the line shows only the whole width, AW3 1462), and "CHANGED, NOT AS ASKED" in place of "NOT DONE" for such a write.
+- Server: rounds before sending (so an older listener is covered too); a successful reply carries `width_rounded` and `rounding_note`; a width that moved but not to the request raises "Width of glyph 'X' was changed to A (was B), but not to the requested C: …", counted as a change, also from a listener that sends no `changed`; "NOT changed" only when the re-read equals the old width. The `set_glyph_width` description says the width is rounded.
+- Tests: four stub harnesses PASS at 5310 + 58 + 90 + 1676 lines; the deployed listener copy is identical. New cases: 341a–341i (listener), 9zg–9zn (server). Not stub-tested: the legacy route's `changed` case (the fake legacy glyph keeps any width). No mutation run. Not yet run live.
+
 ## Listener v0.196 (2026-11-20, server unchanged at v0.79): gated `flGlyph.advanceWidth` read
 
 **Built as proposed and approved (in a Codex session).**

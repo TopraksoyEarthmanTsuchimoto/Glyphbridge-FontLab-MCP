@@ -4,6 +4,12 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 **Budget changes are not recorded here** (the user's choice of 2026-11-20, unlike HOW-TO-GET-ORGANIZED.md): each one, with its date and reason, goes to "Budget history" in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md); current values are in [MARKDOWN-MAP.md](MARKDOWN-MAP.md). *Reason:* a budget's history is not an active decision, and its rules are in [AGENTS.md](../AGENTS.md).
 
+## 2026-11-20: whole-unit widths in `set_glyph_width` (listener 0.197 / server 0.80)
+
+- **A requested width is rounded to the nearest whole unit, a half rounding up (rule B), and the reply says so** (`width_rounded`). *Reason:* the user's choice (B) over refusing a fraction as `set_kerning` does: FontLab's own width field rounds a typed 437.5 to 438 (AW2 1456), while `advanceWidth = 437.5` through the API left FontLab's two views apart (AW 1449).
+- **A width that moved, but not to the request, is reported as changed, counted and marked; "NOT changed" only when the width did not move.** *Reason:* the design rule ([PROJECT.md](PROJECT.md)); the reply of 1449 was false.
+- **FontLab's OUTPUT line does not show the rounding; only the chat reply (`width_rounded`) does.** *Reason:* the user's choice (2026-11-20, after AW3 1462): the server rounds before the listener sees the value, and showing it there would need a server change, which was not wanted.
+
 ## 2026-11-20: the repository's GitHub address
 
 The rule against personal data in live files ([AGENTS.md](../AGENTS.md)) gets a second exception: the repository's own GitHub address, which contains the owner's account name, where install instructions or links need it (today the root README). *Reason:* a public repository cannot be installed or linked without its address.

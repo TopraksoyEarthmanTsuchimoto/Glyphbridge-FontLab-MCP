@@ -117,3 +117,7 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 
 - **The cut view was `run_all.py`'s own.** It shows only the first 60 lines of a diff; for 0.175 those held only version lines, and the six intended state changes lay below the cut. They were found by diffing the full harness output against the expected file. The rule of the 0.157 lesson above stands; [tests/README.md](../tests/README.md) now names the limit.
 - **Write test code to a file, not through a shell heredoc.** A heredoc turned `\n` and `\x07` in new test lines into real characters (a syntax error and a raw control byte); a script written to a file and run from there did not.
+
+## Whole-unit widths (2026-11-20, tests 1459–1467)
+
+- **Predict a log line from the process that writes it.** 1462 predicted "rounded from 437.5" in FontLab's OUTPUT line, but the server rounds before it calls the listener, which writes that line and only saw 438. Before predicting a reply or a log, check which process sees the raw value.

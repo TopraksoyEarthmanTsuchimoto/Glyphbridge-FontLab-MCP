@@ -994,7 +994,7 @@ class SbModernX:
         SBX["calls"].append(("advanceWidth", v))
         if SBX["adv_raises"]: raise RuntimeError("advance refused")
         if not SBX["adv_ignored"]:
-            s._adv = v
+            s._adv = v + SBX.get("adv_off", 0.0)     # v0.197: adv_off fakes a width that lands elsewhere than asked
             if SBX["adv_moves_lsb"]: s._lsb += 1.0
     def getLSB(s, tr):
         if SBX["getter_raises"]: raise RuntimeError("getLSB refused")
@@ -1103,6 +1103,23 @@ c, d = sbpost("/glyph/width", {"name": "tri", "width": -1}); print("339 negative
 c, d = sbpost("/glyph/width", {"name": "nope", "width": 600}); print("340 unknown glyph    :", d)
 _fm.CurrentFont = lambda: None; c, d = sbpost("/glyph/width", {"name": "tri", "width": 600}); print("341 no font          :", d)
 _fm.CurrentFont = lambda: TsFont()
+# ---- v0.197: whole units (rule B) and a width that moved but not to the request (AW 1449, AW2 1456) ----
+_WK = ("set", "route", "before", "after", "requested", "width_rounded", "changed", "reason")
+sbx_setup()
+c, d = sbpost("/glyph/width", {"name": "tri", "width": 437.5}); print("341a 437.5 rounds up :", short_sb(d, _WK), "| calls", SBX["calls"], "| mark", "fontlab_changed_mark" in d)
+print("341b OUTPUT line     :", ns["_act_describe_write"]("/glyph/width", {"name": "tri", "width": 437.5}, 200, d))
+sbx_setup()
+c, d = sbpost("/glyph/width", {"name": "tri", "width": 437.4}); print("341c 437.4 rounds down:", short_sb(d, _WK), "| calls", SBX["calls"])
+sbx_setup()
+c, d = sbpost("/glyph/width", {"name": "tri", "width": 700}); print("341d whole number   :", short_sb(d, _WK), "| width_rounded absent:", "width_rounded" not in d)
+sbx_setup(adv_off=1.0)
+c, d = sbpost("/glyph/width", {"name": "tri", "width": 700}); print("341e lands at 701   :", short_sb(d, _WK), "| mark", "fontlab_changed_mark" in d, "| synced key", "synced_with_fontlab" in d)
+print("341f OUTPUT line     :", ns["_act_describe_write"]("/glyph/width", {"name": "tri", "width": 700}, 200, d))
+sbx_setup(adv_ignored=True)
+c, d = sbpost("/glyph/width", {"name": "tri", "width": 700}); print("341g unchanged      :", short_sb(d, _WK), "| mark", "fontlab_changed_mark" in d)
+print("341h OUTPUT line     :", ns["_act_describe_write"]("/glyph/width", {"name": "tri", "width": 700}, 200, d))
+sbx_setup(nolayer=True, glyph=TsGlyph("tri", []))
+c, d = sbpost("/glyph/width", {"name": "tri", "width": 640.5}); print("341i legacy route rounds:", short_sb(d, _WK), "| legacy width", TS["tri"].width)
 c, d = call("/version"); print("342 version          :", d)
 
 # ================= v0.70: /debug/trylayer - the missing modern layer =================
