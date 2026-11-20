@@ -65,7 +65,7 @@ Tool names as Claude sees them: [CLAUDE.md](../../CLAUDE.md). After a server upd
 ## 3. Listener endpoints (v0.95)
 
 `/health`, `/version` (`{"version":"0.95"}`); `/font/current` (since listener 0.118 also `package_names` from the font package, or `package_names_unavailable` with the reason; [fonts-and-sync.md](fonts-and-sync.md)); `/font/glyphs`; `/font/nonempty` (layerless glyphs such as an empty
-`.notdef` land in `unreadable`, while `/font/notdef` and `/glyph/outline` call the same glyph empty: a known inconsistency, backlog item 11); GET/POST `/glyph/width` and `/glyph/unicode` (POST sets, then re-reads to verify); POST
+`.notdef` land in `unreadable`, while `/font/notdef` and `/glyph/outline` call the same glyph empty: a known inconsistency, backlog item 11); GET/POST `/glyph/width` and `/glyph/unicode` (POST sets, then re-reads to verify; since listener 0.198 GET `/glyph/width` answers with `advanceWidth`, `source` "modern", and the legacy `glyph.width` as `legacy_width`, or, when the modern side cannot be reached, with the legacy width, `source` "legacy" and `modern_reason`; server 0.81 shows `legacy_width` only when the two differ by 0.01 or more); POST
 `/glyph/create` (verified by list re-read); POST `/glyph/delete` (**requires a Yes/No QMessageBox**, default No; since listener 0.114 its text names the client the request named, or none, and the font: family and style, file name or "not saved to a file yet", and "1 of N open fonts" when several are open); GET `/glyph/nodes`
 (older, superseded); GET `/shutdown` (stops the listener, not FontLab).
 

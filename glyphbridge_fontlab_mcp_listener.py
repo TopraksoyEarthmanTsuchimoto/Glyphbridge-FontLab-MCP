@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.197)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.198)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -75,7 +75,8 @@ Routes (GET unless marked POST):
                                 and for modern=no (F1 risk): contours (kind,
                                 smooth, x, y), fontlab_bbox, margins, component_count, shape_count, layer_name,
                                 elements, modern_check, and modern_outline when the legacy view is stale
-    /glyph/width?name=X         advance width
+    /glyph/width?name=X         advance width: modern advanceWidth (source "modern"), the legacy glyph.width as
+                                legacy_width; the legacy width only when the modern side cannot be reached (v0.198)
     /glyph/sidebearings?name=X  modern lsb, rsb, advance and ink width
     /glyph/unicode?name=X       raw primary codepoint (no standard checks here: the server does that)
     /glyph/nodes?name=X[&attrs=a,b][&calls=c,d]
@@ -284,7 +285,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.197"
+VERSION = "0.198"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -1163,13 +1164,52 @@ def _find_glyph(font, name):
 
 
 def get_glyph_width(name):
+    """v0.198 (AW4 1470-1489): the width from the modern flGlyph.advanceWidth, with the legacy glyph.width as a cross-check;
+    the legacy width is the answer only when the modern side cannot be reached. Raw facts only (the server compares them).
+    Never touches the legacy layer (F1): only the wrapper, its activeLayer, advanceWidth and glyph.width are read."""
     font = _open_font()
     if font is None:
         return {"open": False}
     glyph = _find_glyph(font, name)
     if glyph is None:
         return {"open": True, "found": False, "reason": f"no glyph named {name!r}"}
-    return {"open": True, "found": True, "name": name, "width": glyph.width}
+    advance, modern_reason = None, None
+    try:
+        w, _how = _modern_wrapper(glyph, font)
+    except Exception as exc:
+        w, modern_reason = None, f"FontLab's modern glyph could not be reached ({exc})"
+    if w is not None:
+        try:
+            layer = w.activeLayer
+        except Exception as exc:
+            layer, modern_reason = None, f"the modern active layer could not be read: {type(exc).__name__}: {exc}"
+        if layer is None and modern_reason is None:
+            modern_reason = "the glyph has no active modern layer"
+        if layer is not None:
+            try:
+                advance = _num(w.advanceWidth)
+                if advance is None:
+                    modern_reason = "advanceWidth did not return a number"
+            except Exception as exc:
+                modern_reason = f"advanceWidth could not be read: {type(exc).__name__}: {exc}"
+    legacy, legacy_error = None, None
+    try:
+        legacy = _num(glyph.width)
+        if legacy is None:
+            legacy_error = "glyph.width did not return a number"
+    except Exception as exc:
+        legacy_error = f"{type(exc).__name__}: {exc}"
+    out = {"open": True, "found": True, "name": name, "advance_width": advance, "legacy_width": legacy}
+    if advance is not None:
+        out.update(width=advance, source="modern")
+    elif legacy is not None:
+        out.update(width=legacy, source="legacy", modern_reason=modern_reason)
+    else:
+        out.update(width=None, source=None, readable=False, modern_reason=modern_reason,
+                   reason=f"neither width could be read: modern: {modern_reason}; legacy: {legacy_error}")
+    if legacy_error is not None:
+        out["legacy_error"] = legacy_error
+    return out
 
 
 _NO_MODERN_LAYER = ("this glyph has no editable layer yet: open it once in an editor tab in FontLab (double-click it in the glyph "

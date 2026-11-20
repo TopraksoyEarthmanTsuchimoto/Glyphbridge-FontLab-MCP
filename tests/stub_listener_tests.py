@@ -10350,3 +10350,55 @@ else: _fm.CountFonts = _aw_old_cf
 if _aw_old_cls is None:
     if hasattr(_fm, "flGlyph"): delattr(_fm, "flGlyph")
 else: _fm.flGlyph = _aw_old_cls
+
+# ================= v0.198: get_glyph_width reads advanceWidth, the legacy glyph.width as a cross-check (AW4 1470-1489) =================
+print("\n==== v0.198 /glyph/width: modern advanceWidth, legacy cross-check, legacy fallback ====")
+class GwSpyGlyph(TsGlyph):
+    touched = []
+    def __getattribute__(s, a):
+        if a in ("layer", "layers", "bodyLayer"): type(s).touched.append(a)
+        return object.__getattribute__(s, a)
+class GwBadGlyph(GwSpyGlyph):
+    @property
+    def width(s): raise RuntimeError("legacy boom")
+    @width.setter
+    def width(s, v): pass
+class GwModern:
+    mode = "ok"; adv = 500.0; reads = 0
+    def __init__(s, glyph, font):
+        if type(s).mode == "wrapper": raise RuntimeError("no wrapper")
+        s.name = glyph.name; s.fgGlyphId = glyph.id
+    def isValid(s): return True
+    @property
+    def activeLayer(s):
+        if type(s).mode == "layer_raises": raise RuntimeError("layer boom")
+        return None if type(s).mode == "nolayer" else object()
+    @property
+    def advanceWidth(s):
+        type(s).reads += 1
+        if type(s).mode == "adv_raises": raise RuntimeError("adv boom")
+        return "x" if type(s).mode == "adv_nan" else type(s).adv
+_gw_old_cf = getattr(_fm, "CountFonts", None); _gw_old_cur = _fm.CurrentFont; _gw_old_cls = getattr(_fm, "flGlyph", None)
+_fm.CountFonts = lambda: 1; _fm.CurrentFont = lambda: TsFont(); _fm.flGlyph = GwModern
+def gw(mode="ok", adv=500.0, legacy=500.0, name="g1"):
+    TS.clear(); g = (GwBadGlyph if legacy == "raises" else GwSpyGlyph)(name, [TsLayer(1, 3)])
+    if legacy != "raises": g.width = legacy
+    TS[name] = g; ns["_MODERN_CACHE"].clear(); ns["_MODERN_CACHE_FONT"][0] = None
+    GwModern.mode = mode; GwModern.adv = adv; GwModern.reads = 0; GwSpyGlyph.touched = []
+    c, d = call("/glyph/width?name=" + name)
+    return c, {k: d.get(k) for k in ("width", "source", "advance_width", "legacy_width", "modern_reason", "legacy_error", "readable", "reason") if k in d}
+for lbl, kw in (("2600 both equal         ", {}), ("2601 disagree 438/437.5 ", {"adv": 438.0, "legacy": 437.5}),
+                ("2602 no active layer    ", {"mode": "nolayer"}), ("2603 wrapper raises     ", {"mode": "wrapper"}),
+                ("2604 activeLayer raises ", {"mode": "layer_raises"}), ("2605 advanceWidth raises", {"mode": "adv_raises"}),
+                ("2606 advanceWidth no num", {"mode": "adv_nan"}), ("2607 legacy raises      ", {"legacy": "raises"}),
+                ("2608 both fail          ", {"mode": "adv_raises", "legacy": "raises"})):
+    c, d = gw(**kw)
+    print(lbl, ":", c, d, "| advanceWidth reads", GwModern.reads, "| legacy layer touched", GwSpyGlyph.touched)
+c, d = call("/glyph/width?name=nosuch"); print("2609 unknown glyph      :", c, d)
+_fm.CurrentFont = _gw_old_cur
+if _gw_old_cf is None:
+    if hasattr(_fm, "CountFonts"): delattr(_fm, "CountFonts")
+else: _fm.CountFonts = _gw_old_cf
+if _gw_old_cls is None:
+    if hasattr(_fm, "flGlyph"): delattr(_fm, "flGlyph")
+else: _fm.flGlyph = _gw_old_cls

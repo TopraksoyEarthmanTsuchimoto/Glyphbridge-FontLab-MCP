@@ -4,6 +4,11 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 **Budget changes are not recorded here** (the user's choice of 2026-11-20, unlike HOW-TO-GET-ORGANIZED.md): each one, with its date and reason, goes to "Budget history" in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md); current values are in [MARKDOWN-MAP.md](MARKDOWN-MAP.md). *Reason:* a budget's history is not an active decision, and its rules are in [AGENTS.md](../AGENTS.md).
 
+## 2026-11-20: `get_glyph_width` reads `advanceWidth`, cross-checked with the legacy width (design B; listener 0.198 / server 0.81)
+
+- **The width is FontLab's modern `advanceWidth`; the legacy `glyph.width` is still read, and shown only when the two differ by 0.01 or more, with a note and an instruction to tell the person both and not choose one.** *Reason:* the user's choice (B over A, modern only): which value FontLab saves is open (AW 1449, [WATCH-POINTS.md](WATCH-POINTS.md)), so hiding a disagreement would break the design rule ([PROJECT.md](PROJECT.md)); the extra read is F1-safe (486–496) and AW4 (1470–1489) found both reads equal on the glyph kinds tried. The cross-check may be dropped once a save test settles the stored value, as a decision of its own.
+- **When the modern side cannot be reached (no wrapper, no active modern layer, no number), the legacy width is the answer, and the reply says so.** *Reason:* goal 6 replaces a legacy call only where the modern one works; a glyph with no layer was not reached in AW4; the path ran live on `.notdef` in AW5 (1494).
+
 ## 2026-11-20: version history lives in WHAT-WORKS.md and CHANGELOG.md
 
 - **Goals, scope, architecture and the map describe the current state; which version brought what is recorded in [WHAT-WORKS.md](WHAT-WORKS.md)'s version table and [CHANGELOG.md](CHANGELOG.md), and moves into the archive are recorded in the archive files themselves.** *Reason:* release-by-release text in PROJECT.md, ARCHITECTURE.md and MARKDOWN-MAP.md grew with every build and pushed them toward their budgets; the user approved removing it from each (2026-11-20).

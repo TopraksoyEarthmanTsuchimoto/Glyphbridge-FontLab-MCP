@@ -4,6 +4,14 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.198 / server v0.81 (2026-11-20): `get_glyph_width` reads the modern advance width, cross-checked with the legacy width
+
+**Built as proposed and approved** (design B, [DECISIONS.md](DECISIONS.md)). Research: AW–AW4 ([LIVE-TESTS.md](LIVE-TESTS.md)).
+
+- Listener: GET `/glyph/width` reads the modern wrapper's `activeLayer` and then `advanceWidth` once (`source: "modern"`, `advance_width`), and the legacy `glyph.width` as `legacy_width`. With no wrapper, no active modern layer, or an `advanceWidth` that raises or is not a number, the answer is the legacy width (`source: "legacy"`, `modern_reason`). A failed legacy read gives `legacy_error`; when both fail, `width` and `source` are null, `readable: false` and `reason` names both causes. The legacy layer is never touched (F1). `width` stays the chosen value, so an older server keeps working.
+- Server: `get_glyph_width` adds `width_source`. When both widths are numbers 0.01 or more apart: `legacy_width`, `widths_disagree: true`, `width_note` and an `agent_instruction` to tell the person both values and not choose one. A legacy answer, a failed cross-check, and a listener older than 0.198 each get a `width_note`. An unreadable width is an error that says it is not a width of 0. The tool description says all this. `MIN_LISTENER_VERSION` unchanged.
+- Tests: four stub harnesses PASS at 5322 + 58 + 90 + 1691 lines; the deployed listener copy is identical. New cases: 2600–2609 (listener; a spy confirms no legacy layer read), 49a–49m (server). Mutation tests, one at a time on a throwaway copy, all killed: the 0.01 threshold, the old-listener branch, the legacy note, the modern-first choice, a legacy layer read, an `advanceWidth` read without a layer. Not yet run live.
+
 ## Listener v0.197 / server v0.80 (2026-11-20): whole-unit widths, and a changed width is never reported as unchanged
 
 **Built as proposed and approved.** Cause: AW 1449 ([LIVE-TESTS.md](LIVE-TESTS.md)): `set_glyph_width tri1a 437.5` changed the width (`advanceWidth` 438.0, legacy 437.5) but replied "NOT changed", and the change was not counted; FontLab's width field rounds a typed 437.5 to 438 (AW2 1456).

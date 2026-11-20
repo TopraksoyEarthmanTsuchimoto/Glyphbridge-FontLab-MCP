@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.80)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.81)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.80"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.81"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -933,7 +933,34 @@ def read_glyph_width(name: str) -> dict:
     if not data.get("found"):
         raise ToolError(f"No glyph named '{clean}' was found.")
 
-    return {"name": clean, "width": _tidy_number(data.get("width"))}
+    # v0.81 (AW4 1470-1489): listener 0.198 reads FontLab's modern advanceWidth and the legacy glyph.width as a cross-check
+    if "source" not in data:
+        return {"name": clean, "width": _tidy_number(data.get("width")), "width_source": "legacy",
+                "width_note": ("This listener is older than 0.198: the width comes from FontLab's older (legacy) view and was not "
+                               "cross-checked with the modern advance width.")}
+    source = data.get("source")
+    if source not in ("modern", "legacy") or not isinstance(data.get("width"), (int, float)) or isinstance(data.get("width"), bool):
+        raise ToolError(f"The width of glyph '{clean}' could not be read: {data.get('reason') or 'the listener gave no width'}. "
+                        "This is not a width of 0.")
+    out = {"name": clean, "width": _tidy_number(data["width"]), "width_source": source}
+    adv, leg = data.get("advance_width"), data.get("legacy_width")
+    if source == "legacy":
+        out["width_note"] = (f"FontLab's modern advance width could not be read ({data.get('modern_reason') or 'no reason given'}), "
+                             "so this width comes from FontLab's older (legacy) view and was not cross-checked.")
+        return out
+    numbers = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (adv, leg))
+    if numbers and abs(float(adv) - float(leg)) >= 0.01:
+        out["legacy_width"] = _tidy_number(leg)
+        out["widths_disagree"] = True
+        out["width_note"] = (f"FontLab holds two values for this glyph's width: {_tidy_number(adv)} in its modern view (the value its "
+                             f"width field and tooltip show) and {_tidy_number(leg)} in its older view. Which one FontLab saves "
+                             "and exports is not known.")
+        out["agent_instruction"] = ("Tell the person both width values and that FontLab's two views disagree; do not choose one "
+                                    "for them.")
+    elif not numbers:
+        out["width_note"] = ("The width is FontLab's modern advance width; the cross-check with FontLab's older view could not be "
+                             f"made ({data.get('legacy_error') or 'no legacy width given'}).")
+    return out
 
 
 def write_glyph_width(name: str, width: float) -> dict:
@@ -4517,6 +4544,10 @@ def get_glyph_width(name: str, ctx: Context | None = None) -> dict[str, Any]:
 
     Width is in font units, on the same scale as the font's units-per-em
     (for a 1000-upm font, typical letter widths run a few hundred units).
+    The width is FontLab's modern advance width (width_source "modern"), cross-checked with FontLab's older view. When the two
+    disagree, the reply adds legacy_width, widths_disagree and width_note: tell the person both values, and do not choose one,
+    since which one FontLab saves is not known. When the modern width cannot be read, the older view's width is given instead
+    (width_source "legacy", with a width_note saying why). Reading changes nothing.
     """
     _note_client(ctx)
     return _with_font(read_glyph_width, name)

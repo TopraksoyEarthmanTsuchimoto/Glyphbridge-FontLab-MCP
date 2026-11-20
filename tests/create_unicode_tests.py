@@ -3371,3 +3371,41 @@ srv._reset_change_tracking()
 
 srv._call_listener, srv._call_listener_post = wire_get, wire_post
 srv._reset_change_tracking()
+
+# ==== 49. server 0.81: get_glyph_width reports the modern advance width, cross-checked with the legacy width (listener 0.198; AW4 1470-1489) ====
+print("\n==== 49. server 0.81: get_glyph_width, width_source and the legacy cross-check (faked listener replies) ====")
+_save49 = srv._call_listener
+def k49(reply):
+    sent = []
+    def fake(path, *a, **k):
+        sent.append(path); return dict(reply)
+    srv._call_listener = fake
+    try:
+        r = srv.read_glyph_width("g1")
+    except srv.ToolError as exc:
+        r = "ToolError: " + str(exc)
+    return r, sent
+def row49(label, reply):
+    r, sent = k49(reply)
+    if isinstance(r, dict):
+        print(label, ":", {k: r[k] for k in ("width", "width_source", "legacy_width", "widths_disagree") if k in r},
+              "| note", (r.get("width_note") or "")[:110], "| instruction", (r.get("agent_instruction") or "")[:60], "| sent", sent)
+    else:
+        print(label, ":", r[:200], "| sent", sent)
+_b49 = {"open": True, "found": True, "name": "g1"}
+row49("49a equal                     ", dict(_b49, width=500.0, source="modern", advance_width=500.0, legacy_width=500.0))
+row49("49b disagree 438 / 437.5      ", dict(_b49, width=438.0, source="modern", advance_width=438.0, legacy_width=437.5))
+row49("49c just under 0.01           ", dict(_b49, width=438.0, source="modern", advance_width=438.0, legacy_width=437.991))
+row49("49d 0.02 apart                ", dict(_b49, width=438.0, source="modern", advance_width=438.0, legacy_width=437.98))
+row49("49e legacy fallback           ", dict(_b49, width=500.0, source="legacy", advance_width=None, legacy_width=500.0, modern_reason="the glyph has no active modern layer"))
+row49("49f legacy read failed        ", dict(_b49, width=500.0, source="modern", advance_width=500.0, legacy_width=None, legacy_error="RuntimeError: legacy boom"))
+row49("49g both failed               ", dict(_b49, width=None, source=None, advance_width=None, legacy_width=None, readable=False,
+                                             reason="neither width could be read: modern: x; legacy: y"))
+row49("49h listener older than 0.198 ", dict(_b49, width=437.5))
+row49("49i no glyph                  ", {"open": True, "found": False})
+row49("49j no font                   ", {"open": False})
+row49("49k a bool width is no number ", dict(_b49, width=True, source="modern", advance_width=True, legacy_width=1.0))
+_d49 = " ".join((srv.get_glyph_width.__doc__ or "").split())
+print("49l docstring                   :", [w for w in ("modern advance width", "widths_disagree", "do not choose one", "width_source \"legacy\"") if w not in _d49])
+print("49m version / MIN_LISTENER_VERSION:", srv.SERVER_VERSION, srv.MIN_LISTENER_VERSION)
+srv._call_listener = _save49

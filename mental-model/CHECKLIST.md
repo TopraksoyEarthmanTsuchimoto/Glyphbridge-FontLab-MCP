@@ -48,7 +48,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 15, 40, 51 | A real designed letter (Arial `O`, `S`, `g`, `eacute`), read-only | TODO (P1.5), under about 150 nodes each |
 | 4 | Back To PS Curves round trip | TODO |
 | 5 | The "To Line" route itself (straight polygons already read back) | PARTLY |
-| 16 | Other empty glyphs (e.g. `space`): zero layers like `.notdef`? | PARTLY: Arial's `space` has one empty layer (`Regular`, 0 nodes), unlike the layerless `.notdef` of a File > New Font font; API and Layers panel agree (1405–1408, one run). Open: an empty glyph made by FontLab other than `.notdef`, other imported fonts |
+| 16 | Other empty glyphs (e.g. `space`): zero layers like `.notdef`? | PARTLY: Arial's `space` has one empty layer (`Regular`, 0 nodes), unlike the layerless `.notdef` of a File > New Font font; API and Layers panel agree (1405–1408, one run). A glyph made with Font > New Glyph… > Create Blank has a modern layer, width 500 (1471–1473, one run). Open: other imported fonts |
 | 18 | `.notdef` remainders: explicit `check_notdef` through Claude, a drawn `.notdef`, the `missing` dialog, waits of 90–120 s and over 120 s | PARTLY: a drawn `.notdef`: `draw_path`, 3 contours, layer created, verified (926, one run) |
 
 ## Writing gaps

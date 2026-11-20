@@ -35,7 +35,7 @@ Scope and non-goals: [PROJECT.md](PROJECT.md).
 
 ## Status at a glance
 
-Current releases: **listener 0.197 and server 0.80**, on Windows 11 with FontLab 8.9.5, tested on fonts with one master.
+Current releases: **listener 0.198 and server 0.81**, on Windows 11 with FontLab 8.9.5, tested on fonts with one master.
 
 - **Proven in FontLab:** reading outlines and element transforms; writing widths, sidebearings and new contours (open ones included) into an empty glyph; moving nodes in an existing outline; making a new font; reading kerning and kerning groups, and writing and removing kerning between two glyphs and for kerning classes; placing components, also beside what a glyph already holds, and removing them.
 - **Partly proven:** components (other transforms are open) and work with several fonts open.
