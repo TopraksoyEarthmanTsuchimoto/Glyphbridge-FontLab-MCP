@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.77)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.78)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -42,7 +42,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.77"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.78"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -1036,6 +1036,79 @@ _KERN_SOURCES = ("glyph : glyph", "glyph : class", "class : glyph", "class : cla
 _KERN_SOURCE_CLASSES = {"glyph : glyph": (), "glyph : class": ("right_class",), "class : glyph": ("left_class",),
                         "class : class": ("left_class", "right_class"), "none": ()}
 
+# v0.78 (listener 0.194): class sides in set_kerning and remove_kerning, the design of 2026-11-20 (DECISIONS.md; research CW 1409-1417).
+# A side written '@name' (the plain ASCII @) names a kerning group; any other side is a glyph, as before.
+_KERN_CLASS_RE = re.compile(r"^@[A-Za-z0-9._-]{1,63}$")
+_KERN_KIND_RANK = {"glyph : glyph": 0, "glyph : class": 1, "class : glyph": 2, "class : class": 3}     # FontLab's order (topics/kerning.md 9.9)
+_KERN_SIDE_HINT = ("A side is a glyph name of 1 to 63 characters from A-Z a-z 0-9 . _ -, or '@' (the plain ASCII @) followed by a "
+                   "kerning group's name, for example \"@O\" for the kerning group O.")
+
+
+def _kern_side_name(n: Any) -> str | None:
+    """A pair side, stripped: a glyph name, or '@' and a kerning group name; None when it is neither."""
+    if not isinstance(n, str):
+        return None
+    s = n.strip()
+    return s if (_KERN_NAME_RE.match(s or "!") or _KERN_CLASS_RE.match(s)) else None
+
+
+def _kern_kind(left: str, right: str) -> str:
+    return ("class" if left.startswith("@") else "glyph") + " : " + ("class" if right.startswith("@") else "glyph")
+
+
+def _kern_class_fields(raw: dict, left: str, right: str) -> tuple:
+    """(entry fields, sample (left, right) or None, problem text or None) from the listener's answer for a pair with a class side, type-checked."""
+    fields: dict = {}
+    problem = None
+    want = sorted(set(nm[1:] for nm in (left, right) if nm.startswith("@")))
+    classes = raw.get("classes")
+    if (not isinstance(classes, dict) or sorted(classes) != want
+            or not all(isinstance(v, dict) and v.get("side") in ("left", "right", "both") and isinstance(v.get("member_count"), int)
+                       and not isinstance(v.get("member_count"), bool) and v["member_count"] >= 0 for v in classes.values())):
+        problem = "the listener did not describe the classes of this pair"
+    else:
+        fields["classes"] = {k: {"side": classes[k]["side"], "member_count": classes[k]["member_count"]} for k in want}
+    sample, pair = raw.get("sample"), None
+    if isinstance(sample, dict) and all(isinstance(sample.get(k), str) and _KERN_NAME_RE.match(sample[k]) for k in ("left", "right")):
+        pair = (sample["left"], sample["right"])
+        if (not left.startswith("@") and pair[0] != left) or (not right.startswith("@") and pair[1] != right):
+            pair, problem = None, problem or "the listener's sample pair does not keep this pair's glyph side"
+        else:
+            fields["sample"] = {"left": pair[0], "right": pair[1]}
+    elif sample is None and "sample" in raw:
+        fields["sample"] = None
+    else:
+        problem = problem or "the listener named no usable sample pair"
+    eb = raw.get("entry_before", False)
+    if eb is None or (isinstance(eb, (int, float)) and not isinstance(eb, bool) and eb == eb and abs(eb) != float("inf")):
+        fields["entry_before"] = None if eb is None else _tidy_number(eb)
+    return fields, pair, problem
+
+
+def _kern_sample_ok(kind: str, left: str, right: str, value: Any, after: Any, verdict: Any) -> bool:
+    """Whether a class pair's checked sample supports the listener's verdict: 'applied' (the sample takes value from the new entry, of
+    this kind and these classes) or 'covered' (an entry of higher rank, the sample's own exception, answers for it)."""
+    if not isinstance(after, dict) or "error" in after:
+        return False
+    if verdict == "applied":
+        return (after.get("source") == kind and after.get("value") == value
+                and (not left.startswith("@") or after.get("left_class") == left[1:]) and (not right.startswith("@") or after.get("right_class") == right[1:]))
+    if verdict == "covered":
+        return _KERN_KIND_RANK.get(after.get("source"), 9) < _KERN_KIND_RANK[kind]
+    return False
+
+
+def _kern_same_name_note(raw: dict, left: str, right: str, verb: str) -> str | None:
+    """The note for a glyph side whose name is also a kerning group's name (listener same_name_group), or None."""
+    same = raw.get("same_name_group")
+    if not isinstance(same, list) or not same or not all(s in ("left", "right") for s in same):
+        return None
+    names = [nm for nm in dict.fromkeys(left if s == "left" else right for s in same) if not nm.startswith("@")]
+    if not names:
+        return None
+    return " ".join(f"{n} was {verb} as the glyph {n}; the font also has a kerning group named {n}. To {'kern' if verb == 'written' else 'remove kerning of'} "
+                    f"the group, write @{n}." for n in names)
+
 
 def _kern_pair_names(pairs: Any) -> list:
     """The pairs as a clean list of (left, right) glyph-name tuples, or a ToolError (before anything is sent)."""
@@ -1435,6 +1508,15 @@ _KERN_SET_INSTRUCTION = (
     "entry and restore the prior state.{lag} Setting a pair to 0 leaves an explicit zero entry; remove_kerning removes the glyph : glyph entry. "
     "Other masters, classes and feature-based kerning were not changed."
 )
+_KERN_SET_CLASS_NOTE = (
+    " A pair with 'kind' has a kerning class side ('@name'): its entry is of that kind, and FontLab applies the value to every glyph pair of "
+    "the classes' members that has no exception of its own ('classes' gives each class's side and member_count; those glyph pairs were not "
+    "read). For such a pair 'before' and 'after' belong to ONE sample glyph pair ('sample'): sample_verdict 'applied' means the sample now "
+    "takes the new value; 'covered' means the sample has an exception of its own, which still applies to it, and the class entry itself was "
+    "confirmed by re-reading it; 'no sample' means no member of a class is a glyph of the font, so only the entry itself was re-read. Tell the "
+    "person how far a class value reaches. To revert a class entry: if entry_before is a number, call set_kerning with that value for the "
+    "same '@' pair; if it is null, call remove_kerning for the same '@' pair."
+)
 
 
 def _kern_set_items(pairs: Any) -> list:
@@ -1444,9 +1526,8 @@ def _kern_set_items(pairs: Any) -> list:
     clean, seen = [], set()
     for i, item in enumerate(pairs):
         if (not isinstance(item, (list, tuple)) or len(item) != 3
-                or not all(isinstance(n, str) and _KERN_NAME_RE.match(n.strip() or "!") for n in item[:2])):
-            raise ToolError(f"pair {i + 1} must be [left, right, value]: two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - "
-                            f"and a number (got {item!r}). Class (group) names cannot be used.")
+                or not all(_kern_side_name(n) is not None for n in item[:2])):
+            raise ToolError(f"pair {i + 1} must be [left, right, value]: two sides and a number (got {item!r}). {_KERN_SIDE_HINT}")
         value = item[2]
         if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value or abs(value) == float("inf"):
             raise ToolError(f"pair {i + 1} ({item[0].strip()}:{item[1].strip()}): the value must be a number in font units.")
@@ -1480,7 +1561,10 @@ def write_kerning(pairs: Any, confirmed_large_write: Any = None) -> dict:
             f"This request would set {len(wanted)} kerning pairs, more than the {_KERN_CONFIRM_ABOVE}-pair threshold, and nothing was changed. "
             "Do NOT repeat the call yet. Tell the person how many pairs you want to set and why, and ask whether they approve. "
             "Only after they have said yes, call set_kerning again with the same arguments and confirmed_large_write=true. Never set that flag without the person's approval.")
-    _require_listener((0, 124), "set_kerning")
+    if any(nm.startswith("@") for a, b, _v in wanted for nm in (a, b)):
+        _require_listener((0, 194), "set_kerning with a kerning class side ('@name')")
+    else:
+        _require_listener((0, 124), "set_kerning")
     data = _write_post("/kerning/set", {"pairs": [[a, b, v] for a, b, v in wanted]}, timeout=max(TIMEOUT_SECONDS, 5.0 + len(wanted) / 25.0))
     if not data.get("open"):
         raise ToolError(NO_FONT)
@@ -1505,21 +1589,38 @@ def write_kerning(pairs: Any, confirmed_large_write: Any = None) -> dict:
             entry["status"] = status
             results.append(entry)
             continue
-        if "before" in raw:
-            entry["before"] = _kern_set_side(raw.get("before"), left, right)
-        if "after" in raw:
-            entry["after"] = _kern_set_side(raw.get("after"), left, right)
-        verified = (raw.get("set") is True and status == "set" and raw.get("changed") in (True, False)
-                    and isinstance(entry.get("after"), dict) and entry["after"].get("source") == "glyph : glyph" and entry["after"].get("value") == _tidy_number(value))
+        kind, sample, problem = _kern_kind(left, right), (left, right), None
+        if kind != "glyph : glyph":               # v0.78: 'before' and 'after' belong to the sample glyph pair
+            entry["kind"] = kind
+            fields, sample, problem = _kern_class_fields(raw, left, right)
+            entry.update(fields)
+        if sample is not None and "before" in raw:
+            entry["before"] = _kern_set_side(raw.get("before"), *sample)
+        if sample is not None and "after" in raw:
+            entry["after"] = _kern_set_side(raw.get("after"), *sample)
+        if kind == "glyph : glyph":
+            verified = (raw.get("set") is True and status == "set" and raw.get("changed") in (True, False)
+                        and isinstance(entry.get("after"), dict) and entry["after"].get("source") == "glyph : glyph" and entry["after"].get("value") == _tidy_number(value))
+        else:
+            verdict = raw.get("sample_verdict")
+            sample_ok = ((verdict == "no sample" and "sample" in entry and entry["sample"] is None and "after" not in raw)
+                         or (sample is not None and _kern_sample_ok(kind, left, right, _tidy_number(value), entry.get("after"), verdict)))
+            verified = problem is None and raw.get("set") is True and status == "set" and raw.get("changed") in (True, False) and sample_ok
+            if verdict in ("applied", "covered", "no sample"):
+                entry["sample_verdict"] = verdict
         entry["status"] = "set" if verified else "failed"
         entry["changed"] = raw.get("changed") if raw.get("changed") in (True, False) else None
         if raw.get("exception_over_class") is True and verified:
             entry["exception_over_class"] = True
         if not verified:
             reason = raw.get("reason")
-            entry["reason"] = reason[:600] if isinstance(reason, str) and reason else "the listener did not confirm this pair by re-reading it"
+            entry["reason"] = (reason[:600] if isinstance(reason, str) and reason else
+                               (problem or "the listener did not confirm this pair by re-reading it"))
             if isinstance(raw.get("call_error"), str):
                 entry["call_error"] = raw["call_error"][:300]
+        note = _kern_same_name_note(raw, left, right, "written")
+        if note:
+            entry["note"] = note
         if entry["changed"] is True:
             changed = True
         elif entry["changed"] is None and status != "not attempted" and "after" in raw:
@@ -1546,7 +1647,10 @@ def write_kerning(pairs: Any, confirmed_large_write: Any = None) -> dict:
         failed = next((e for e in results if e["status"] in ("failed", "unknown")), None)
         holds = ""
         if failed and failed.get("changed") is True and isinstance(failed.get("after"), dict) and "value" in failed["after"]:
-            holds = f"; the entry now holds {failed['after']['value']}"
+            if "kind" in failed and isinstance(failed.get("sample"), dict):        # v0.78: 'after' belongs to the sample glyph pair
+                holds = f"; its sample pair {failed['sample']['left']}:{failed['sample']['right']} now kerns at {failed['after']['value']}"
+            else:
+                holds = f"; the entry now holds {failed['after']['value']}"
         where = f" It stopped at {failed['left']}:{failed['right']}: {failed.get('reason')}{holds}." if failed else ""
         skipped = sum(1 for e in results if e["status"] == "not attempted")
         tail = f" {skipped} pair(s) after it were not attempted." if skipped else ""
@@ -1570,6 +1674,12 @@ def write_kerning(pairs: Any, confirmed_large_write: Any = None) -> dict:
     point1 = _KERN_PANEL_ASKED if refreshed else (_KERN_PANEL_STALE if changed else _KERN_PANEL_NO_CHANGE)        # v0.57: reached only when every pair was verified
     instruction = (_KERN_SET_INSTRUCTION.replace("{panel}", point1).replace("{save}", point2)
                    .replace("{lag}", _KERN_ICON_LAG if marked and _ICON_MAY_LAG_KERNING else ""))
+    if any("kind" in e for e in results):        # v0.78: a request with a kerning class side
+        instruction = (instruction.replace("was written as a glyph : glyph entry", "was written as an entry of its kind (glyph : glyph unless 'kind' says otherwise)")
+                       .replace("Other masters, classes and feature-based kerning were not changed.", "Other masters, other kerning entries and feature-based kerning were not changed.")
+                       + _KERN_SET_CLASS_NOTE)
+    if any("note" in e for e in results):
+        instruction += " Pass on every pair's 'note' to the person."
     if reply["fonts_open"] is not None and reply["fonts_open"] > 1:
         which = f" ({reply['family_name']})" if reply["family_name"] else ""
         instruction += (f" {reply['fonts_open']} fonts are open in FontLab; this changed the current one, the font whose window is in front{which}, "
@@ -1607,6 +1717,12 @@ _KERN_RM_INSTRUCTION = (
     "these facts: {panel} {save} (3) Edit > Undo is not known to bring a removed pair back; to restore one, call set_kerning with its "
     "'before' value. Other masters, classes and feature-based kerning were not changed."
 )
+_KERN_RM_CLASS_NOTE = (
+    " A pair with 'kind' has a kerning class side ('@name'): the entry removed was of that kind, and its value no longer applies to any glyph "
+    "pair of the classes' members ('classes' gives each class's side and member_count; those glyph pairs were not read). For such a pair "
+    "'before' and 'after' belong to ONE sample glyph pair ('sample'), so they show what applies to that pair now. To restore a removed class "
+    "entry, call set_kerning with the same '@' pair and the value it held (entry_before when the reply gives it)."
+)
 
 
 def _kern_rm_items(pairs: Any) -> list:
@@ -1616,9 +1732,8 @@ def _kern_rm_items(pairs: Any) -> list:
     clean, seen = [], set()
     for i, item in enumerate(pairs):
         if (not isinstance(item, (list, tuple)) or len(item) != 2
-                or not all(isinstance(n, str) and _KERN_NAME_RE.match(n.strip() or "!") for n in item)):
-            raise ToolError(f"pair {i + 1} must be [left, right]: two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ - "
-                            f"(got {item!r}). Class (group) names cannot be used. Nothing was changed.")
+                or not all(_kern_side_name(n) is not None for n in item)):
+            raise ToolError(f"pair {i + 1} must be [left, right]: two sides (got {item!r}). {_KERN_SIDE_HINT} Nothing was changed.")
         left, right = item[0].strip(), item[1].strip()
         if (left, right) in seen:
             raise ToolError(f"pair {i + 1} ({left}:{right}) is given more than once; give each pair once. Nothing was changed.")
@@ -1639,6 +1754,14 @@ def _kern_rm_note(before: dict) -> str:
     return "no glyph : glyph entry, so nothing was removed"
 
 
+def _kern_rm_class_note(kind: str, left: str, right: str, sample: Any, before: Any) -> str:
+    """v0.78: the note of a pair with a class side that has no entry of its kind: nothing removed, and what its sample pair kerns at."""
+    text = f"no {kind} entry for {left}:{right}, so nothing was removed"
+    if sample is not None and isinstance(before, dict) and "source" in before:
+        text += f"; the sample pair {sample[0]}:{sample[1]} kerns at {before.get('value')} ({before.get('source')})"
+    return text
+
+
 def remove_kerning_write(pairs: Any, confirmed_large_write: Any = None) -> dict:
     if confirmed_large_write is not None and not isinstance(confirmed_large_write, bool):
         raise ToolError("confirmed_large_write must be true or false (or left out).")
@@ -1649,7 +1772,10 @@ def remove_kerning_write(pairs: Any, confirmed_large_write: Any = None) -> dict:
             f"This request would remove {len(wanted)} kerning pairs, more than the {_KERN_CONFIRM_ABOVE}-pair threshold, and nothing was changed. "
             "Do NOT repeat the call yet. Tell the person how many pairs you want to remove and why, and ask whether they approve. "
             "Only after they have said yes, call remove_kerning again with the same arguments and confirmed_large_write=true. Never set that flag without the person's approval.")
-    _require_listener((0, 192), "remove_kerning")
+    if any(nm.startswith("@") for a, b in wanted for nm in (a, b)):
+        _require_listener((0, 194), "remove_kerning with a kerning class side ('@name')")
+    else:
+        _require_listener((0, 192), "remove_kerning")
     data = _write_post("/kerning/remove", {"pairs": [[a, b] for a, b in wanted]}, timeout=max(TIMEOUT_SECONDS, 5.0 + len(wanted) / 25.0))
     if not data.get("open"):
         raise ToolError(NO_FONT)
@@ -1674,27 +1800,46 @@ def remove_kerning_write(pairs: Any, confirmed_large_write: Any = None) -> dict:
             entry["status"] = status
             results.append(entry)
             continue
-        if "before" in raw:
-            entry["before"] = _kern_set_side(raw.get("before"), left, right)
-        if "after" in raw:
-            entry["after"] = _kern_set_side(raw.get("after"), left, right)
+        kind, sample, problem = _kern_kind(left, right), (left, right), None
+        if kind != "glyph : glyph":               # v0.78: 'before' and 'after' belong to the sample glyph pair
+            entry["kind"] = kind
+            fields, sample, problem = _kern_class_fields(raw, left, right)
+            entry.update(fields)
+        if sample is not None and "before" in raw:
+            entry["before"] = _kern_set_side(raw.get("before"), *sample)
+        if sample is not None and "after" in raw:
+            entry["after"] = _kern_set_side(raw.get("after"), *sample)
         before, after = entry.get("before"), entry.get("after")
-        if (status == "no entry" and raw.get("removed") is False and raw.get("changed") is False and "after" not in raw
-                and isinstance(before, dict) and "error" not in before and before.get("source") != "glyph : glyph"):
-            entry.update(status="no entry", changed=False, note=_kern_rm_note(before))
+        same_name = _kern_same_name_note(raw, left, right, "taken")
+        if kind == "glyph : glyph":
+            no_entry = isinstance(before, dict) and "error" not in before and before.get("source") != "glyph : glyph"
+        else:
+            no_entry = problem is None and (sample is None or (isinstance(before, dict) and "error" not in before))
+        if status == "no entry" and raw.get("removed") is False and raw.get("changed") is False and "after" not in raw and no_entry:
+            note = _kern_rm_note(before) if kind == "glyph : glyph" else _kern_rm_class_note(kind, left, right, sample, before)
+            entry.update(status="no entry", changed=False, note=note + (" " + same_name if same_name else ""))
             results.append(entry)
             continue
-        verified = (raw.get("removed") is True and status == "removed" and raw.get("changed") is True
-                    and isinstance(after, dict) and "error" not in after and after.get("source") != "glyph : glyph")
+        if kind == "glyph : glyph":
+            gone = isinstance(after, dict) and "error" not in after and after.get("source") != "glyph : glyph"
+        else:
+            gone = problem is None and ((sample is None and "after" not in raw) or (
+                isinstance(after, dict) and "error" not in after and not (
+                    after.get("source") == kind and (not left.startswith("@") or after.get("left_class") == left[1:])
+                    and (not right.startswith("@") or after.get("right_class") == right[1:]))))
+        verified = raw.get("removed") is True and status == "removed" and raw.get("changed") is True and gone
         entry["status"] = "removed" if verified else "failed"
         entry["changed"] = raw.get("changed") if raw.get("changed") in (True, False) else None
-        if verified and after.get("source") in ("glyph : class", "class : glyph", "class : class"):
+        if verified and isinstance(after, dict) and after.get("source") in ("glyph : class", "class : glyph", "class : class"):
             entry["class_value_applies"] = True
         if not verified:
             reason = raw.get("reason")
-            entry["reason"] = reason[:600] if isinstance(reason, str) and reason else "the listener did not confirm this removal by re-reading it"
+            entry["reason"] = (reason[:600] if isinstance(reason, str) and reason else
+                               (problem or "the listener did not confirm this removal by re-reading it"))
             if isinstance(raw.get("call_error"), str):
                 entry["call_error"] = raw["call_error"][:300]
+        if same_name:
+            entry["note"] = same_name
         if entry["changed"] is True:
             changed = True
         elif entry["changed"] is None and "after" in raw:
@@ -1722,6 +1867,8 @@ def remove_kerning_write(pairs: Any, confirmed_large_write: Any = None) -> dict:
         holds = ""
         if failed and isinstance(failed.get("after"), dict) and "value" in failed["after"]:
             holds = f"; FontLab now applies {failed['after']['value']} ({failed['after'].get('source')})"
+            if "kind" in failed and isinstance(failed.get("sample"), dict):        # v0.78: 'after' belongs to the sample glyph pair
+                holds = f"; its sample pair {failed['sample']['left']}:{failed['sample']['right']} now kerns at {failed['after']['value']} ({failed['after'].get('source')})"
         where = f" It stopped at {failed['left']}:{failed['right']}: {failed.get('reason')}{holds}." if failed else ""
         skipped = sum(1 for e in results if e["status"] == "not attempted")
         tail = f" {skipped} pair(s) after it were not attempted." if skipped else ""
@@ -1744,6 +1891,13 @@ def remove_kerning_write(pairs: Any, confirmed_large_write: Any = None) -> dict:
     refreshed = isinstance(forwarded, dict) and forwarded.get("called") is True and not forwarded.get("call_error")
     point1 = _KERN_RM_PANEL_ASKED if refreshed else (_KERN_RM_PANEL_STALE if changed else _KERN_RM_PANEL_NO_CHANGE)
     instruction = _KERN_RM_INSTRUCTION.replace("{panel}", point1).replace("{save}", point2)
+    if any("kind" in e for e in results):        # v0.78: a request with a kerning class side
+        instruction = (instruction.replace("had a glyph : glyph entry", "had an entry of its kind (glyph : glyph unless 'kind' says otherwise)")
+                       .replace("(this tool never removes class kerning)", "(class kerning is removed only for a pair written with '@')")
+                       .replace("Other masters, classes and feature-based kerning were not changed.", "Other masters, other kerning entries and feature-based kerning were not changed.")
+                       + _KERN_RM_CLASS_NOTE)
+    if any("note" in e and e["status"] != "no entry" for e in results):
+        instruction += " Pass on every pair's 'note' to the person."
     if reply["fonts_open"] is not None and reply["fonts_open"] > 1:
         which = f" ({reply['family_name']})" if reply["family_name"] else ""
         instruction += (f" {reply['fonts_open']} fonts are open in FontLab; this changed the current one, the font whose window is in front{which}, "
@@ -4424,16 +4578,23 @@ def get_kerning_groups(groups: list[str] | None = None, glyphs: list[str] | None
 
 @_tool()
 def set_kerning(pairs: list[list[Any]], confirmed_large_write: bool | None = None, ctx: Context | None = None) -> dict[str, Any]:
-    """Set kerning for glyph pairs in the font currently open in FontLab 8: pairs is a list of [left, right, value] such as
-    [["A", "V", -60], ["T", "o", -40]], two glyph names and a value in font units (negative = closer).
+    """Set kerning for glyph pairs or kerning classes in the font currently open in FontLab 8: pairs is a list of [left, right, value]
+    such as [["A", "V", -60], ["T", "@o", -40]], two sides and a value in font units (negative = closer).
 
-    Each pair becomes a glyph : glyph entry in the current master's kerning table; class (group) names cannot be used, and a
-    pair whose glyphs belong to classes gets an exception for these two glyphs only (exception_over_class). Every check runs
+    A side is a glyph name, or '@' (the plain ASCII @) followed by a kerning group's name (see get_kerning_groups): "@o" means the
+    kerning group o, "o" the glyph o. Two glyphs give a glyph : glyph entry; a pair whose glyphs belong to classes then gets an
+    exception for these two glyphs only (exception_over_class). With a class side the entry is glyph : class, class : glyph or
+    class : class ('kind'), and FontLab applies it to every member pair that has no exception of its own: tell the person how far it
+    reaches ('classes' gives each class's side and member_count). A class must be a kerning group on a side that fits: a left or
+    both group on the left, a right or both group on the right; anything else (an OpenType class, an unknown name, a wrong side) is
+    refused before any change. A class pair is verified by re-reading its entry and ONE sample glyph pair ('sample',
+    sample_verdict); its 'before' and 'after' are the sample's, and entry_before is the class entry's own value before. When a glyph
+    side's name is also a kerning group's name, the pair's 'note' says the glyph was meant and how to name the group. Every check runs
     before the first change, and every pair is verified by re-reading it; the reply gives 'before' (the value FontLab applied,
     with its source) and 'after'. If a pair cannot be confirmed the tool stops there and says which pairs were set.
     Read the pairs first with get_kerning when the task depends on their current values. More than 250 pairs in one call is
-    refused until the PERSON has approved it: ask them, and only after a yes repeat the call with confirmed_large_write=true.
-    Never set confirmed_large_write=true on your own.
+    refused until the PERSON has approved it: ask them, and only after a yes repeat the call with confirmed_large_write=true
+    (a class pair counts as one pair). Never set confirmed_large_write=true on your own.
     Values must be whole numbers: FontLab keeps kerning in whole font units, so a fraction is refused.
     Since listener 0.136, after a write that changed an entry, FontLab is asked to refresh its KERNING panel (fontlab_panel_refresh).
     With an older listener, or when that call was not made or failed, tell the person: FontLab's KERNING panel shows such pairs (new ones,
@@ -4441,11 +4602,12 @@ def set_kerning(pairs: list[list[Any]], confirmed_large_write: bool | None = Non
     reply says which applies. Unsaved they are lost when the font is closed. Since
     listener 0.134 the reply's fontlab_changed_mark says that FontLab was told of the change; with an older listener, or when the
     reply has save_question_note, FontLab asks no save question for them, so they are lost silently.
-    Edit > Undo cannot take them back. To revert: if 'before' was a glyph : glyph entry, call set_kerning again with that value;
-    if it was 'none' or a class value, call remove_kerning to remove the new glyph : glyph entry and restore the prior state.
+    Edit > Undo cannot take them back. To revert a glyph pair: if 'before' was a glyph : glyph entry, call set_kerning again with that
+    value; if it was 'none' or a class value, call remove_kerning to remove the new glyph : glyph entry and restore the prior state.
+    To revert a class pair: entry_before a number, set it again; entry_before null, remove_kerning for the same '@' pair.
     Setting a pair to 0 leaves an explicit zero entry. It changes the current font, the one whose window is in front; with several fonts
-    open it refuses when that font cannot be matched to its kerning table (for example a new, unsaved font). Other masters,
-    classes and feature-based kerning are not changed. Needs listener v0.124.
+    open it refuses when that font cannot be matched to its kerning table (for example a new, unsaved font). Other masters, the
+    entries not named and feature-based kerning are not changed. Needs listener v0.124; a class side needs listener v0.194.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
@@ -4457,22 +4619,28 @@ def set_kerning(pairs: list[list[Any]], confirmed_large_write: bool | None = Non
 
 @_tool()
 def remove_kerning(pairs: list[list[Any]], confirmed_large_write: bool | None = None, ctx: Context | None = None) -> dict[str, Any]:
-    """Remove kerning pairs from the font currently open in FontLab 8: pairs is a list of [left, right] such as [["A", "V"], ["T", "o"]],
-    two glyph names each.
+    """Remove kerning pairs from the font currently open in FontLab 8: pairs is a list of [left, right] such as [["A", "V"], ["T", "@o"]],
+    two sides each.
 
-    Each pair's glyph : glyph entry is removed from the current master's kerning table; class (group) names cannot be used, and class
-    kerning is never removed. Removing is not the same as setting 0: set_kerning with 0 keeps an explicit zero entry, this tool takes
-    the entry away. When a kerning class also kerns the pair, the pair then kerns at that class value, not at 0 (class_value_applies):
-    tell the person. A pair with no glyph : glyph entry is reported as 'no entry' with a note (nothing to remove; a class may still kern
-    it), and the other pairs go on. Every check runs before the first change, and every removal is verified by re-reading it; the reply
+    A side is a glyph name, or '@' (the plain ASCII @) followed by a kerning group's name: "@o" means the kerning group o, "o" the
+    glyph o. Each pair's entry of that kind is removed from the current master's kerning table: two glyphs remove the glyph : glyph
+    entry only, never class kerning; a class side removes the glyph : class, class : glyph or class : class entry ('kind'), whose
+    value then no longer applies to any member pair: tell the person. A class must be a kerning group on a side that fits (left or
+    both on the left, right or both on the right); anything else is refused before any change. For a class pair 'before' and 'after'
+    belong to ONE sample glyph pair ('sample'), and entry_before is the removed entry's own value. When a glyph side's name is also a
+    kerning group's name, the pair's 'note' says the glyph was meant and how to name the group. Removing is not the same as setting 0:
+    set_kerning with 0 keeps an explicit zero entry, this tool takes the entry away. When a kerning class also kerns a glyph pair, the
+    pair then kerns at that class value, not at 0 (class_value_applies): tell the person. A pair with no entry of its kind is reported
+    as 'no entry' with a note (nothing to remove; a class may still kern it), and the other pairs go on. Every check runs before the first change, and every removal is verified by re-reading it; the reply
     gives 'before' (the value FontLab applied, with its source) and 'after'. If a removal cannot be confirmed the tool stops there and
     says which pairs were removed. Read the pairs first with get_kerning when the task depends on their current values. More than 250
     pairs in one call is refused until the PERSON has approved it: ask them, and only after a yes repeat the call with
     confirmed_large_write=true. Never set confirmed_large_write=true on your own.
     After a removal FontLab is told that the font changed (fontlab_changed_mark) and asked to refresh its KERNING panel
-    (fontlab_panel_refresh). Edit > Undo is not known to bring a removed pair back: to restore one, call set_kerning with its 'before'
-    value. It changes the current font, the one whose window is in front; with several fonts open it refuses when that font cannot be
-    matched to its kerning table (for example a new, unsaved font). Other masters and feature-based kerning are not changed. Needs listener v0.192.
+    (fontlab_panel_refresh). Edit > Undo is not known to bring a removed pair back: to restore a glyph pair, call set_kerning with its
+    'before' value; a class pair, with the same '@' pair and its entry_before. It changes the current font, the one whose window is in
+    front; with several fonts open it refuses when that font cannot be matched to its kerning table (for example a new, unsaved font).
+    Other masters and feature-based kerning are not changed. Needs listener v0.192; a class side needs listener v0.194.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person

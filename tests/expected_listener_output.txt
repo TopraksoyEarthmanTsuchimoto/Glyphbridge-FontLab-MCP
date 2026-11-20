@@ -1,6 +1,6 @@
 [glyphbridge] Connected at HH:MM:SS - first request (GET /health) from a local client.
 /health ('200', {'status': 'ok'})
-/version ('200', {'version': '0.192'})
+/version ('200', {'version': '0.194'})
 /font/current ('200', {'open': True, 'path': 'x', 'glyph_count': 3, 'family_name': 'F', 'style_name': 'R', 'postscript_font_name': '', 'postscript_full_name': '', 'units_per_em': 1000, 'ascender': 800, 'descender': -200, 'cap_height': 700, 'x_height': 500, 'weight_class': 400, 'package_names_unavailable': "the number of open fonts is unknown or not a positive number, so the font's package cannot be matched to it"})
 /font/glyphs ('200', {'open': True, 'count': 3, 'names': ['A', 'empty', 'B']})
 /glyph/width?name=A ('200', {'open': True, 'found': True, 'name': 'A', 'width': 500.0})
@@ -264,7 +264,7 @@ shape_count in outline: 1
 207 bad route       : unknown route 'bogus': use rou
 208 unknown tri glyph: False no glyph named 'trinope'
 209 no font open    : {'open': False}
-210 version         : {'version': '0.192'}
+210 version         : {'version': '0.194'}
 220 legacy lsb refused: True refused: the legacy setters glyph.leftMargin / glyph.rightMa | leftMargin 0.0 | calls []
 221 legacy rsb refused: True | rightMargin -500.0
 222 legacy width still allowed: glyph.width = 600.0 | width 600.0
@@ -369,7 +369,7 @@ shape_count in outline: 1
 339 negative width   : 400 "width" must not be negative
 340 unknown glyph    : {'open': True, 'found': False, 'set': False, 'reason': "no glyph named 'nope'", 'before': None, 'after': None}
 341 no font          : {'open': False}
-342 version          : {'version': '0.192'}
+342 version          : {'version': '0.194'}
 343 state            : 200 {'is_none': True} 0 | findLayer {'is_none': True} | nocreate {'is_none': True} | ref True | calls [('findLayer', 'Master'), ('getLayerByName', 'Master', False)]
 344 create without go: 200 refused: stage=create can change the fon | calls []
 345 findLayerCreate  : 200 w.findLayerCreate('Master') | returned {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | same {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | rebuilt built {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
@@ -386,14 +386,14 @@ shape_count in outline: 1
 356 no name          : 400
 357 unknown glyph    : {'open': True, 'found': False, 'reason': "no glyph named 'nope'", 'font_master': {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}}
 358 no font          : {'open': False}
-359 version          : {'version': '0.192'}
+359 version          : {'version': '0.194'}
 360 font_master      : 200 {'is_none': False, 'type': 'FmLayer', 'public_names': ['id', 'isBodyLayer', 'isMasterLayer', 'mutate', 'name'], 'name': 'test_font', 'id': 7, 'isMasterLayer': True, 'isBodyLayer': False}
 361 master, no glyph : False test_font
 362 create has no section: False
 363 master is None   : {'is_none': True}
 364 master raises    : {'error': 'RuntimeError: no master'}
 365 no master member : {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}
-366 version          : {'version': '0.192'}
+366 version          : {'version': '0.194'}
 400 width, new glyph  : 200 {'set': True, 'route': 'modern', 'layer_created': 'test_font', 'before': 0.0, 'after': 600.0} | calls [('findLayerCreate', 'fresh', 'test_font'), ('advanceWidth', 'fresh', 600.0)]
 401 width again       : True modern | layer_created None | creates 1
 402 names disagree    : True legacy_empty_glyph | the glyphs of this font have different layer names (['Alpha' | creates [] | legacy width 600.0
@@ -430,7 +430,7 @@ shape_count in outline: 1
 434 reader, agree     : 3 | modern_check {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True}
 435 reader, modern=no : False
 436 reader, no modern : 3 | modern_check {'available': True, 'modern_layer': False}
-437 version           : {'version': '0.192'}
+437 version           : {'version': '0.194'}
 440 stage=layer       : 200 1 | getContours {'type': 'list', 'python_sequence': True, 'len': 1} | getShapes {'type': 'list', 'python_sequence': True, 'len': 1} | shapes {'type': 'R73Native', 'python_sequence': False, 'len': 2} | shapesCount 1
 441 stage=contour     : 1 True False 4 {'type': 'list', 'python_sequence': True, 'len': 4}
 442 node via getNodeAt: {'type': 'R73Node', 'x': 400, 'y': 300, 'isOn': True, 'isOff': False, 'isCurve': False, 'smooth': False, 'index': 2} | calls [('getNodeAt', 2)]
@@ -453,7 +453,7 @@ shape_count in outline: 1
 459 no modern layer    : this glyph has no modern active layer, so there is nothing to read
 460 no font            : {'open': False}
 461 read-only          : calls [] | shapes still 1
-462 version           : {'version': '0.192'}
+462 version           : {'version': '0.194'}
 470 modern_outline    : True | nodes 5 of 5 | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0} | check agree False
 471 contour 0         : {'index': 0, 'closed': True, 'clockwise': True, 'nodesCount': 5}
 472 nodes             : [(10.0, 20.0, True), (410.0, 20.0, True), (410.0, 220.0, True), (210.0, 320.0, True), (10.0, 220.0, True)]
@@ -469,7 +469,7 @@ shape_count in outline: 1
 482 count mismatch    : {'available': False, 'error': 'read 5 nodes but the layer reports 6: the outline is not trusted'}
 483 too many nodes    : {'available': False, 'error': 'the layer has 5 nodes, more than the 3 that are read'}
 484 no QTransform     : margins key False | available True
-485 version           : {'version': '0.192'}
+485 version           : {'version': '0.194'}
 490 two contours      : 200 {'drawn': True, 'points': 8, 'contours': 2, 'contour_sizes': [4, 4], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': True}, 'layer_created': 'test_font'} | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 8, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P72Layer' object has no attribute 'shapes')"}
 491 calls             : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'flContour', 'addShape']
 492 read back         : True | contours 2 [4, 4]
@@ -489,7 +489,7 @@ shape_count in outline: 1
 506 second contour dropped: False | after drawing, the layer reads 1 shape(s), 4 node(s) and 1 contour(s); expected 1, 8 and 2 | changed True | checks {'shapes_ok': True, 'nodes_ok': False, 'contours_ok': False}
 507 getContours unreadable: True | checks {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': None}
 508 not empty         : False | the glyph's layer is not KNOWN to be empty (needs  | calls []
-509 version           : {'version': '0.192'}
+509 version           : {'version': '0.194'}
 510 curve probe        : 200 curve | call node(index 1).convertToCurve(False) | returned True | nodes_added 2 | may_change False
     before             : 4 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '2: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '3: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
     after              : 6 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '2: (268.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '3: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '4: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '5: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
@@ -507,7 +507,7 @@ shape_count in outline: 1
 520 bogus stage        : unknown stage 'bogus' for route=modern: use stage=names or stage=build or stage=attach or stage=refresh
 521 bogus variant      : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
 522 curve without go   : 200 refused: this probe can change the font 
-523 version           : {'version': '0.192'}
+523 version           : {'version': '0.194'}
 524 curve2 normal | may_change False | keys []
     A plan: convertToCurve(False) on node 1; setPoint(1, QPointF(100, 60 | error: None | note: None | final_as_expected: True
       step getNodeAt(1).convertToCurve(False) | returned True | error None | as_expected None | n 6
@@ -592,7 +592,7 @@ shape_count in outline: 1
 537 QPointF missing    : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 538 curve2 without go  : 200 refused: this probe can change the font 
 539 variant=curve still works: 2 1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False
-540 version           : {'version': '0.192'}
+540 version           : {'version': '0.194'}
 541 build (dry run)   : 200 curve3 | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | may_change False | layer shapes/nodes 0 0
     calls             : ['flContour([5 QPointF])', 'contour.closed = True', 'getNodeAt(2).convertToCurve(False)', 'setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))', 'flShape()', 'shape.shapeData', 'shapeData.addContour(contour)']
     notes             : ['detached nodes before attach: 0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 1: (300.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 2: (355.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 3: (400.0, 45.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 4: (400.0, 100.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 5: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 6: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', "after adding the contour, the detached shape reads {'contoursCount': 1, 'hasContours': True, 'isEmpty': False}"]
@@ -617,7 +617,7 @@ shape_count in outline: 1
 557 attach without go : 200 refused: this probe can change the font 
 558 second attach refused: True | layer 1 7
 559 variant=single unchanged: single {'nodesCount': 3, 'closed': True, 'clockwise': False}
-560 version           : {'version': '0.192'}
+560 version           : {'version': '0.194'}
 561 curve3 whole-number handles: None | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | calls ['setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))']
 562 curve3 attach     : True {'shapes': 1, 'nodes': 7} | layer 1 7
 563 curve3, FontLab rounds everything: None | layer 1 7
@@ -684,7 +684,7 @@ shape_count in outline: 1
 573 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 574 curve4 without go : 200 refused: this probe can change the font 
 575 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-576 version           : {'version': '0.192'}
+576 version           : {'version': '0.194'}
 577 curve5, everything works (stub assumptions) | may_change False | error None
      T1 closing segment: convertToCurve(False) on node 0 of a square | {'returned': True, 'handle_indices': [4, 5], 'nodesCount': 6}
      T2a convertToCurve(True) on node 1 of a square | {'returned': True, 'smooth_flags': [False, False, False, True, False, False]}
@@ -740,7 +740,7 @@ shape_count in outline: 1
 586 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 587 curve5 without go : 200 refused: this probe can change the font 
 588 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-589 version           : {'version': '0.192'}
+589 version           : {'version': '0.194'}
 600 one curved segment       : {'drawn': True, 'nodes_match': True, 'points': 4, 'segments_curved': 1, 'contour_sizes': [6], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 601 nodes read back       : [[(0.0, 0.0, 'on', False), (400.0, 0.0, 'on', False), (500.0, 100.0, 'h', False), (500.0, 300.0, 'h', False), (400.0, 400.0, 'on', False), (0.0, 400.0, 'on', False)]] | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 6, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
 602 calls                 : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'convertToCurve', 'addShape'] | layer_created test_font
@@ -800,7 +800,7 @@ shape_count in outline: 1
 667 second draw refused   : False | the glyph's layer is not KNOWN to be empty (needs 
 668 plain triangle via path : {'drawn': True, 'nodes_match': True, 'points': 3, 'segments_curved': 0, 'contour_sizes': [3], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 669 no convert calls      : 0
-671 version               : {'version': '0.192'}
+671 version               : {'version': '0.194'}
 672 pure helpers          : 3.0 -2.0 0.0 0.0 0.0 -3.0
 700 first draw             : True | layer_created test_font | layer (1, 6, 1) | creates 1
 701 legacy view lags       : True | wrapper activeLayer None
@@ -812,7 +812,7 @@ shape_count in outline: 1
 708 findLayer missing        : False | the glyph may already have a layer (the glyph has no findLayer to ask with), so no layer was created | creates 0 | layer None
 709 glyph without layer, nobody answers yes: True | layer_created test_font | creates 1
 710 width on a glyph with no layer still works: True modern | layer_created test_font | creates 1
-711 version                : {'version': '0.192'}
+711 version                : {'version': '0.194'}
 720 state, nothing open        : 200 {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': None} | constructed False | attached False | calls []
 721 default stage is state     : 200 state
 722 construct without go       : 200 stage=construct constructs ONE native flPackage object (it is not attached to anything). Add &go=yes to run it. | calls []
@@ -836,7 +836,7 @@ shape_count in outline: 1
 738 no flPackage class         : 200 the fontlab module has no flPackage class; nothing was constructed | constructed False
 739 forbidden members called   : [] | calls ['flPackage()', 'addPackage']
 740 static scan of the probe   : forbidden call syntax found: [] | real addPackage calls: 1 | scanned chars > 3000: True
-741 version                    : {'version': '0.192'}
+741 version                    : {'version': '0.194'}
 750 first glyph of a new font, polygon    : {'drawn': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
 751 what was read             : ['cp', 'cp_fgId', 'cp_isNull', 'defaultMaster', 'glyphsCount', 'gp', 'gp_fgId', 'isNull', 'master', 'masters', 'mastersCount', 'upm'] | reads 12
 752 first glyph, width               : {'set': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
@@ -896,7 +896,7 @@ shape_count in outline: 1
 798 forbidden members called, whole run: [] | addShape calls 1
 799 static scan of the fallback  : forbidden call syntax found: [] | scanned chars > 3000: True
 799b v0.150 no isEqual in the product: layer name False | create_font False | calls in the whole listener: 4 (4: research probes only, trynotify 1 call + 1 docstring, trypackage 2) | w.package read: True
-800 version                      : {'version': '0.192'}
+800 version                      : {'version': '0.194'}
 810 state, one font open               : 200 {'stage': 'state', 'state': {'package_isChanged': False, 'workspace_isChanged': False, 'package_glyphsCount': 1}, 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 811 default stage is state           : 200 {'stage': 'state', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 812 package_update without go        : 200 {'error': "stage=package_update calls flPackage.update() ONCE on the font's package. Add &go=yes to run it."} | calls []
@@ -927,7 +927,7 @@ shape_count in outline: 1
 842 the module has no CountFonts     : 200 {'error': 'the fontlab module has no CountFonts, so the number of open fonts is unknown', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 843 forbidden members called    : [] | calls ['flPackage.update()', 'flWorkspace.update()']
 844 static scan of the probe     : forbidden call syntax found: [] | real update calls: 1 | scanned chars > 3000: True
-845 version                      : {'version': '0.192'}
+845 version                      : {'version': '0.194'}
 850 no go                         : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 851 go must be exactly yes           : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 852 unknown how                      : 200 {'error': 'how must be "plain" (createGlyph only) or "legacy_update" (createGlyph, then font.update())'} | names ['.notdef', 'A'] | calls []
@@ -959,7 +959,7 @@ shape_count in outline: 1
 878 forbidden members called     : [] | calls ['createGlyph', 'createGlyph', 'update'] | names ['.notdef', 'A', 'P1', 'P2']
 879 static scan of the probe     : forbidden call syntax found: [] | real createGlyph calls: 1 | real font.update calls: 1 | scanned chars > 2000: True
 880 create_glyph itself unchanged: True | still calls font.update(): True
-881 version                      : {'version': '0.192'}
+881 version                      : {'version': '0.194'}
 890 nothing tracked: update runs       : 200 {'created': True} | calls ['createGlyph', 'font.update'] | layers ['ref'] | tracked []
 891 draw: reply says not synced         : 200 {'drawn': True, 'synced_with_fontlab': False} | calls [] | layers ['fresh', 'ref'] | tracked ['fresh']
 891b durability note present  : True | mentions create_glyph: True
@@ -992,7 +992,7 @@ shape_count in outline: 1
 913 no regression: duplicate name   : 200 {'created': False}
 914 static scan of the guard     : forbidden call syntax found: [] | scanned chars > 3000: True
 915 every legacy update is guarded: [(1, 1, 1), (1, 1, 1), (1, 1, 2), (1, 1, 2)]
-916 version                      : {'version': '0.192'}
+916 version                      : {'version': '0.194'}
 917 sidebearings change remembered: 200 {'set': True, 'changed': True, 'synced_with_fontlab': False} | tracked ['tri']
 918 same values again: not remembered: {'set': True, 'changed': False, 'synced_with_fontlab': None} | tracked []
 920 margins agree                    : 200 node_count 3 | check {'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True} | modern_outline None
@@ -1015,7 +1015,7 @@ shape_count in outline: 1
 936 margins argument not a dict  : {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True}
 937 direct compare, missing key  : {'margins_agree': None, 'margins_note': 'the legacy margins are not numbers, so they could not be compared'}
 938 static scan of the compare   : forbidden call syntax found: [] | getLSB / getRSB reads in the helper: 1 | scanned chars > 1500: True
-939 version                      : {'version': '0.192'}
+939 version                      : {'version': '0.194'}
 940 state, drawn glyph                  : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"}, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
 940b                              : {'found': True, 'legacy_layers': 0, 'modern': 'present', 'modern_nodes': 4, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'} | registry {'fresh': 'at_risk'} | counters {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}
 941 state, updatedFgGlyphs ids          : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"}, 'updated_fg_glyphs': {'count': 2, 'ids': [5, 7]}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
@@ -1103,7 +1103,7 @@ shape_count in outline: 1
 981 forbidden members called     : [] | pkg.update / other recorded package calls: []
 982 static scan of the probe     : forbidden call syntax found: ['.update(', '.update('] | real calls: Update 2 UpdateAll 1 fillFgData 1 prepareFontGateData 1 addGlyph 1 flGlyph() 1 | scanned chars > 6000: True
 983 no other tool changed        : True | create_glyph still calls font.update(): True
-984 version                      : {'version': '0.192'}
+984 version                      : {'version': '0.194'}
 990 polygon, Update syncs           : 200 {'drawn': True} | synced_with_fontlab True | fontlab_sync {'attempted': True, 'verdict': 'synced', 'synced': True} | note Glyphbridge asked Font | calls [('Update', 'M88Mod')] | tracked []
 990b                              : unsynced note gone: True | layer kept: True | legacy layers: 1
 991 polygon, Update has no effect     : 200 {'drawn': True} | synced_with_fontlab False | fontlab_sync {'attempted': True, 'verdict': 'at_risk', 'synced': False} | note This change exists onl | calls [('Update', 'M88Mod')] | tracked ['fresh']
@@ -1128,7 +1128,7 @@ shape_count in outline: 1
 1005 calls over all cases        : UpdateAll called: False | forbidden: [] | Update calls: 10 | all Update args are the modern wrapper: True
 1006 static scan of the sync     : forbidden call syntax found: [] | upd(w) calls: 1 | scanned chars > 900: True
 1007 constants                   : shipped default ['True'] | synced note mentions legacy view: True
-1008 version                     : {'version': '0.192'}
+1008 version                     : {'version': '0.194'}
 
 ==== v0.90 /debug/fontdir ====
 1010 dir                     : 200 {'open': True, 'count_fonts': 1, 'stage': 'dir', 'font_type': 'FDFont'} | names ['boom', 'familyName', 'flag', 'kerning', 'lenboom', 'method', 'nolen', 'nothing', 'unitsPerEm'] | doc len None | touched [] | called []
@@ -1738,12 +1738,12 @@ shape_count in outline: 1
 1328 poll: health, shutdown, version : raised None | accepts 2 | left 1 | socket closed True | timer stopped True | listener running False
 1329 replies                       : 200 {"status": "ok"} | 200 {"status": "shutting down"} | (nothing sent) | closed True True
 1330 poll: one request, then none : raised None | accepts 2 | left 0 | socket closed False | timer stopped False | listener running True
-1331 reply                         : 200 {"version": "0.192"}
+1331 reply                         : 200 {"version": "0.194"}
 1332 poll after stop()             : returns quietly
 [glyphbridge] Listener stopped.
 1333 poll: shutdown as 8th request : raised None | accepts 8 | left 0 | socket closed True | timer stopped True | listener running False
 1334 start() prints:
-[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.192
+[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.194
 [glyphbridge] Listener started on http://127.0.0.1:8765 (main-thread polling)
 [glyphbridge] Try: GET /health, GET /version. All routes are listed at the top of glyphbridge_fontlab_mcp_listener.py.
 1334 start() result                : socket set True | timer started True | interval 25 | signal timeout()
@@ -2508,7 +2508,7 @@ shape_count in outline: 1
 1621 forbidden members called    : [] | calls [('createGlyph', 'P1'), ('createGlyph', 'P2'), ('flGlyph', 'P2'), ('Update', ['P2']), ('flGlyph', 'A'), ('set unicode', 'A', 57346), ('Update', ['A'])] | names ['.notdef', 'A', 'P1', 'P2']
 1622 static scan of the probe     : forbidden call syntax found: [] | real calls: createGlyph 1 upd(w) 2 unicode set 1 | scanned chars > 6000: True
 1623 no product route changed    : create_glyph still calls font.update(): True | mentions of debug_try_refresh( (its def and its route): 2 | route wired: True
-1624 version                      : {'version': '0.192'}
+1624 version                      : {'version': '0.194'}
 
 ==== v0.120 F1: modern-only reads, the light sync check, the box probe ====
 1630 outline, modern nodes        : 200 {'source': 'modern', 'node_count': 3, 'contour_count': 1, 'component_count': 0, 'shape_count': 1, 'layer_route': 'body'} | legacy members touched []
@@ -2554,7 +2554,7 @@ shape_count in outline: 1
 1665 static scan light part of _guard_classify  : legacy members named: [] | scanned chars True
 1665 static scan _guard_is_light                : legacy members named: [] | scanned chars True
 1666 shipped switch              : ['True'] | full kinds ('draw_polygon', 'draw_path', 'layer_created', 'move_nodes', 'add_component', 'remove_component') | light kinds ('width', 'sidebearings', 'trycomponent_light')
-1667 version                     : {'version': '0.192'}
+1667 version                     : {'version': '0.194'}
 
 ==== v0.121: fontlab_ink_box on the modern-only outline read ====
 1668 ink box, read once           : 200 | source modern | fontlab_ink_box {'type': 'SimpleNamespace', 'left': 192.466, 'right': 464.534, 'top': 0.0, 'bottom': 700.0, 'width': 272.068, 'height': 700.0} | inkBox calls [((), {})] | outline kept True | legacy members touched []
@@ -2596,7 +2596,7 @@ shape_count in outline: 1
 1690 bad name a 'A:V'          : 200 {'error': 'a must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | sets [] | getAllGroups calls 0
 1690 bad name a 'xxxxxxxxxxxx' : 200 {'error': 'a must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | sets [] | getAllGroups calls 0
 1691 unknown glyph             : 200 {'open': True, 'error': "no glyph with this name in the current font: 'Q'", 'calls_so_far': 0} | kerning() args [] | sets [] | getAllGroups calls 0
-1692 bad form                  : 200 {'error': 'form must be "tuple" (set((a, b), value)) or "flags" (set(((a, False), (b, False)), value))'} | kerning() args [] | sets [] | getAllGroups calls 0
+1692 bad form                  : 200 {'error': 'form must be "tuple" (set((a, b), value)) or "flags" (set(((a, isClass), (b, isClass)), value))'} | kerning() args [] | sets [] | getAllGroups calls 0
 1693 b is also a group: refused : 200 {'open': True, 'error': "a group of the font has the same name as 'ks1R' (defect B: a plain name pair may then mean the group); nothing was set", 'calls_so_far': 0} | kerning() args [] | sets [] | getAllGroups calls 1
 1694 a names a non-kerning group : 200 {'open': True, 'error': "a group of the font has the same name as 'ks1L' (defect B: a plain name pair may then mean the group); nothing was set", 'calls_so_far': 0} | kerning() args [] | sets [] | getAllGroups calls 1
 1695 other group: allowed       : 200 {'read_back_matches': True, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [(('ks1L', 'ks1R'), 'float', -100.0)] | getAllGroups calls 1
@@ -2617,7 +2617,7 @@ shape_count in outline: 1
 1707 request 11 refused        : 200 {'open': True, 'error': 'the limit of 10 requests per listener run is used up; restart the listener to continue', 'calls_so_far': 10, 'max_calls': 10} | kerning() args [] | sets [] | getAllGroups calls 0
 1708 probe raises: HTTP 500     : 500 {'error': 'RuntimeError: probe boom'} | kerning() args [] | sets [] | getAllGroups calls 0
 1709 spy over all cases          : forbidden package members: [] | package members touched anywhere: ['getAllGroups', 'isNull', 'kerning', 'master', 'masters', 'upm'] | forbidden kerning members: [] | kerning members touched anywhere: ['get', 'set']
-1710 static scan                 : pkg members used: ['getAllGroups', 'kerning'] | kerning members used: ['set'] | setter( calls: 1 | kerning_of( calls: 1 | forbidden syntax: [] | subscripts on other objects: [] | counter raised before the first kerning call: True | scanned chars > 3000: True
+1710 static scan                 : pkg members used: ['getAllGroups', 'kerning'] | kerning members used: ['groups', 'set'] | setter( calls: 1 | kerning_of( calls: 1 | forbidden syntax: [] | subscripts on other objects: [] | counter raised before the first kerning call: True | scanned chars > 3000: True
 1711 gate, cap, route, docstring  : True | max requests 10 | route registered once: True | listed in the module docstring: True
 
 ==== v0.191 /debug/trydelkern ====
@@ -2635,7 +2635,7 @@ shape_count in outline: 1
 2641 remove takes two entries    : 200 {'remove_called': True, 'remove_error': None, 'remove_returned': True, 'exact_before': {'call_error': None, 'value_type': 'float', 'value': -100.0}, 'exact_after': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'removed': False, 'len_before': 3, 'len_after': 1, 'table_size_changed': True, 'calls_so_far': 1} | kerning() args [('Regular',)] | removes [('ks1L', 'ks1R')] | sets [] | getAllGroups calls 1
 2642 get raises: remove not called : 200 {'remove_called': False, 'remove_error': 'not called: the read before it failed, so the result could not be checked', 'remove_returned': None, 'exact_before': {'call_error': 'RuntimeError: get boom', 'value_type': 'NoneType', 'value': None}, 'exact_after': {'call_error': 'RuntimeError: get boom', 'value_type': 'NoneType', 'value': None}, 'removed': False, 'len_before': 2, 'len_after': 2, 'table_size_changed': False, 'calls_so_far': 1} | kerning() args [('Regular',)] | removes [] | sets [] | getAllGroups calls 1
 2643 len raises: not removed     : 200 {'remove_called': True, 'remove_error': None, 'remove_returned': None, 'exact_before': {'call_error': None, 'value_type': 'float', 'value': -100.0}, 'exact_after': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'removed': False, 'len_before': None, 'len_after': None, 'table_size_changed': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | removes [('ks1L', 'ks1R')] | sets [] | getAllGroups calls 1
-2644 bad form                    : 200 {'error': 'form must be "tuple" (remove((a, b))) or "flags" (remove(((a, False), (b, False))))'} | kerning() args [] | removes [] | sets [] | getAllGroups calls 0
+2644 bad form                    : 200 {'error': 'form must be "tuple" (remove((a, b))) or "flags" (remove(((a, isClass), (b, isClass))))'} | kerning() args [] | removes [] | sets [] | getAllGroups calls 0
 2645 bad name b ''             : 200 {'error': 'b must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | removes [] | sets [] | getAllGroups calls 0
 2645 bad name b 'A:V'          : 200 {'error': 'b must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | removes [] | sets [] | getAllGroups calls 0
 2645 bad name b 'xxxxxxxxxxxx' : 200 {'error': 'b must be 1 to 63 characters from A-Z a-z 0-9 . _ -'} | kerning() args [] | removes [] | sets [] | getAllGroups calls 0
@@ -2657,6 +2657,40 @@ shape_count in outline: 1
 2660 spy over all cases          : forbidden package members: [] | package members touched anywhere: ['getAllGroups', 'isNull', 'kerning', 'master', 'masters'] | forbidden kerning members: [] | kerning members touched anywhere: ['get', 'remove'] | sets []
 2661 static scan                 : pkg members used: ['kerning'] | kerning members used: ['remove'] | remover( calls: 1 | kerning_of( calls: 1 | forbidden syntax: [] | subscripts on other objects: [] | counter raised before the first kerning call: True | scanned chars > 3000: True
 2662 gate, cap, route, docstring  : True | max requests 10 | route registered once: True | listed in the module docstring: True
+
+==== v0.193 class sides in /debug/trysetkern and /debug/trydelkern ====
+2748 class : class cwL:cwR -80    : 200 {'call': 'flPackage.kerning(master).set(((a, True), (b, True)), value)', 'error': None, 'left': 'class', 'right': 'class', 'classes': {'left': {'name': 'cwL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ks1L', 'ks1S'], 'id': 5121, 'confirmed': True}, 'right': {'name': 'cwR', 'side': 'right', 'fontlab_side': 'KernRight', 'members': ['ks1R'], 'id': 5122, 'confirmed': True}}, 'exact_before': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'exact_after': {'call_error': None, 'value_type': 'float', 'value': -80.0}, 'read_back_matches': True, 'len_before': 0, 'len_after': 1, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [((('cwL', True), ('cwR', True)), 'float', -80.0)] | removes [] | getAllGroups calls 1 | group container members ['items']
+2749 glyph : class ks1L:cwR -50   : 200 {'call': 'flPackage.kerning(master).set(((a, False), (b, True)), value)', 'error': None, 'left': 'glyph', 'right': 'class', 'classes': {'right': {'name': 'cwR', 'side': 'right', 'fontlab_side': 'KernRight', 'members': ['ks1R'], 'id': 5122, 'confirmed': True}}, 'exact_before': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'exact_after': {'call_error': None, 'value_type': 'float', 'value': -50.0}, 'read_back_matches': True, 'len_before': 0, 'len_after': 1, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [((('ks1L', False), ('cwR', True)), 'float', -50.0)] | removes [] | getAllGroups calls 1 | group container members ['items']
+2750 class : glyph cwL:ks1R -30   : 200 {'call': 'flPackage.kerning(master).set(((a, True), (b, False)), value)', 'error': None, 'left': 'class', 'right': 'glyph', 'classes': {'left': {'name': 'cwL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ks1L', 'ks1S'], 'id': 5121, 'confirmed': True}}, 'exact_before': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'exact_after': {'call_error': None, 'value_type': 'float', 'value': -30.0}, 'read_back_matches': True, 'len_before': 0, 'len_after': 1, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [((('cwL', True), ('ks1R', False)), 'float', -30.0)] | removes [] | getAllGroups calls 1 | group container members ['items']
+2751 both class on both sides      : 200 {'call': 'flPackage.kerning(master).set(((a, True), (b, True)), value)', 'error': None, 'left': 'class', 'right': 'class', 'classes': {'left': {'name': 'cwB', 'side': 'both', 'fontlab_side': 'KernBothSide', 'members': ['ks1S'], 'id': 5123, 'confirmed': True}, 'right': {'name': 'cwB', 'side': 'both', 'fontlab_side': 'KernBothSide', 'members': ['ks1S'], 'id': 5123, 'confirmed': True}}, 'exact_before': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'exact_after': {'call_error': None, 'value_type': 'float', 'value': -20.0}, 'read_back_matches': True, 'len_before': 0, 'len_after': 1, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [((('cwB', True), ('cwB', True)), 'float', -20.0)] | removes [] | getAllGroups calls 1 | group container members ['items']
+2752 glyph pair of members kept apart : 200 {'call': 'flPackage.kerning(master).set(((a, True), (b, True)), value)', 'error': None, 'left': 'class', 'right': 'class', 'classes': {'left': {'name': 'cwL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ks1L', 'ks1S'], 'id': 5121, 'confirmed': True}, 'right': {'name': 'cwR', 'side': 'right', 'fontlab_side': 'KernRight', 'members': ['ks1R'], 'id': 5122, 'confirmed': True}}, 'exact_before': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'exact_after': {'call_error': None, 'value_type': 'float', 'value': -80.0}, 'read_back_matches': True, 'len_before': 1, 'len_after': 2, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [((('cwL', True), ('cwR', True)), 'float', -80.0)] | removes [] | getAllGroups calls 1 | group container members ['items']
+2753 class side, form=tuple        : 200 {'error': 'form=tuple names two glyphs; a class side needs form=flags'} | kerning() args [] | sets [] | removes [] | getAllGroups calls 0 | group container members []
+2754 left=group: refused           : 200 {'error': 'left and right must each be "glyph" or "class"'} | kerning() args [] | sets [] | removes [] | getAllGroups calls 0 | group container members []
+2755 unknown class name            : 200 {'open': True, 'error': "the left side 'cwQ' is not the name of any group of the font; nothing was set", 'calls_so_far': 0} | kerning() args [] | sets [] | removes [] | getAllGroups calls 1 | group container members []
+2756 an OpenType class             : 200 {'open': True, 'error': "the left side 'cwF' is a class of the font but not a kerning group; nothing was set", 'calls_so_far': 0} | kerning() args [] | sets [] | removes [] | getAllGroups calls 1 | group container members []
+2757 right group on the left       : 200 {'call': None, 'error': "the kerning group 'cwR' is a right group, so it cannot stand on the left side of a pair; nothing was set", 'left': 'class', 'right': 'class', 'classes': {'left': {'name': 'cwR', 'side': 'right', 'fontlab_side': 'KernRight', 'members': ['ks1R'], 'id': 5122, 'confirmed': True}}, 'exact_before': None, 'exact_after': None, 'read_back_matches': None, 'len_before': None, 'len_after': None, 'groups_len_before': None, 'groups_len_after': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [] | getAllGroups calls 1 | group container members ['items']
+2758 left group on the right       : 200 {'call': None, 'error': "the kerning group 'cwL' is a left group, so it cannot stand on the right side of a pair; nothing was set", 'left': 'glyph', 'right': 'class', 'classes': {'right': {'name': 'cwL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ks1L', 'ks1S'], 'id': 5121, 'confirmed': True}}, 'exact_before': None, 'exact_after': None, 'read_back_matches': None, 'len_before': None, 'len_after': None, 'groups_len_before': None, 'groups_len_after': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [] | getAllGroups calls 1 | group container members ['items']
+2759 class list only, not items()   : 200 {'call': None, 'error': "the kerning group 'cwR' is not confirmed by both of FontLab's sources (FontLab's class list names this kerning group, but the master's kerning groups do not hold it); nothing was set", 'left': 'class', 'right': 'class', 'classes': {'left': {'name': 'cwL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ks1L', 'ks1S'], 'id': 5121, 'confirmed': True}, 'right': {'name': 'cwR', 'side': 'unknown', 'fontlab_side': None, 'members': ['ks1R'], 'id': 5122, 'confirmed': False, 'mismatch': "FontLab's class list names this kerning group, but the master's kerning groups do not hold it"}}, 'exact_before': None, 'exact_after': None, 'read_back_matches': None, 'len_before': None, 'len_after': None, 'groups_len_before': None, 'groups_len_after': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [] | getAllGroups calls 1 | group container members ['items']
+2760 members differ                : 200 {'call': None, 'error': "the kerning group 'cwL' is not confirmed by both of FontLab's sources (the two sources list different members); nothing was set", 'left': 'class', 'right': 'class', 'classes': {'left': {'name': 'cwL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ks1L'], 'id': 5121, 'confirmed': False, 'mismatch': 'the two sources list different members'}}, 'exact_before': None, 'exact_after': None, 'read_back_matches': None, 'len_before': None, 'len_after': None, 'groups_len_before': None, 'groups_len_after': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [] | getAllGroups calls 1 | group container members ['items']
+2761 class list names it twice     : 200 {'call': None, 'error': "the kerning group 'cwL' is not confirmed by both of FontLab's sources (FontLab lists this group name twice, so which entry is meant is not known); nothing was set", 'left': 'class', 'right': 'class', 'classes': {'left': {'name': 'cwL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ks1L', 'ks1S'], 'id': 5126, 'confirmed': False, 'mismatch': 'FontLab lists this group name twice, so which entry is meant is not known'}}, 'exact_before': None, 'exact_after': None, 'read_back_matches': None, 'len_before': None, 'len_after': None, 'groups_len_before': None, 'groups_len_after': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [] | getAllGroups calls 1 | group container members ['items']
+2762 an unknown side word         : 200 {'call': None, 'error': "the kerning group 'cwL' is not confirmed by both of FontLab's sources (the side 'KernTop' is not one this listener knows); nothing was set", 'left': 'class', 'right': 'class', 'classes': {'left': {'name': 'cwL', 'side': 'unknown', 'fontlab_side': 'KernTop', 'members': ['ks1L', 'ks1S'], 'id': 5121, 'confirmed': False, 'mismatch': "the side 'KernTop' is not one this listener knows"}}, 'exact_before': None, 'exact_after': None, 'read_back_matches': None, 'len_before': None, 'len_after': None, 'groups_len_before': None, 'groups_len_after': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [] | getAllGroups calls 1 | group container members ['items']
+2763 items() raises                : 200 {'call': None, 'error': "the kerning groups' items() failed (RuntimeError: items boom); nothing was set", 'left': 'class', 'right': 'class', 'classes': {}, 'exact_before': None, 'exact_after': None, 'read_back_matches': None, 'len_before': None, 'len_after': None, 'groups_len_before': None, 'groups_len_after': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [] | getAllGroups calls 1 | group container members ['items']
+2764 kerning.groups raises         : 200 {'call': None, 'error': "the master's kerning groups are not reachable (RuntimeError: groups boom); nothing was set", 'left': 'class', 'right': 'class', 'classes': {}, 'exact_before': None, 'exact_after': None, 'read_back_matches': None, 'len_before': None, 'len_after': None, 'groups_len_before': None, 'groups_len_after': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [] | getAllGroups calls 1 | group container members []
+2765 kerning.groups callable       : 200 {'call': None, 'error': "the master's kerning groups attribute is callable; it was not called; nothing was set", 'left': 'class', 'right': 'class', 'classes': {}, 'exact_before': None, 'exact_after': None, 'read_back_matches': None, 'len_before': None, 'len_after': None, 'groups_len_before': None, 'groups_len_after': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [] | getAllGroups calls 1 | group container members []
+2766 class named like a glyph       : 200 {'call': 'flPackage.kerning(master).set(((a, True), (b, True)), value)', 'error': None, 'read_back_matches': True, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [((('cwL', True), ('ks1S', True)), 'float', -10.0)] | removes [] | getAllGroups calls 1 | group container members ['items']
+2766b the same name as a glyph side : 200 {'open': True, 'error': "a group of the font has the same name as 'ks1S' (defect B: a plain name pair may then mean the group); nothing was set", 'calls_so_far': 0} | kerning() args [] | sets [] | removes [] | getAllGroups calls 1 | group container members []
+2767 a missing glyph on a glyph side : 200 {'open': True, 'error': "no glyph with this name in the current font: 'Q'", 'calls_so_far': 0} | kerning() args [] | sets [] | removes [] | getAllGroups calls 0 | group container members []
+2768 glyph pair: groups untouched  : 200 {'call': 'flPackage.kerning(master).set(((a, False), (b, False)), value)', 'read_back_matches': True, 'classes': None, 'groups_len_before': None} | kerning() args [('Regular',)] | sets [((('ks1L', False), ('ks1R', False)), 'float', -10.0)] | removes [] | getAllGroups calls 1 | group container members []
+2769 remove class : class          : 200 {'call': 'flPackage.kerning(master).remove(((a, True), (b, True)))', 'error': None, 'left': 'class', 'right': 'class', 'classes': {'left': {'name': 'cwL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['ks1L', 'ks1S'], 'id': 5121, 'confirmed': True}, 'right': {'name': 'cwR', 'side': 'right', 'fontlab_side': 'KernRight', 'members': ['ks1R'], 'id': 5122, 'confirmed': True}}, 'exact_before': {'call_error': None, 'value_type': 'float', 'value': -80.0}, 'exact_after': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'removed': True, 'len_before': 3, 'len_after': 2, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [(('cwL', True), ('cwR', True))] | getAllGroups calls 1 | group container members ['items']
+2770 remove glyph : class          : 200 {'call': 'flPackage.kerning(master).remove(((a, False), (b, True)))', 'error': None, 'left': 'glyph', 'right': 'class', 'classes': {'right': {'name': 'cwR', 'side': 'right', 'fontlab_side': 'KernRight', 'members': ['ks1R'], 'id': 5122, 'confirmed': True}}, 'exact_before': {'call_error': None, 'value_type': 'float', 'value': -50.0}, 'exact_after': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'removed': True, 'len_before': 3, 'len_after': 2, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [(('ks1L', False), ('cwR', True))] | getAllGroups calls 1 | group container members ['items']
+2771 remove: no class entry        : 200 {'call': 'flPackage.kerning(master).remove(((a, True), (b, True)))', 'error': None, 'left': 'class', 'right': 'class', 'classes': {'left': {'name': 'cwB', 'side': 'both', 'fontlab_side': 'KernBothSide', 'members': ['ks1S'], 'id': 5123, 'confirmed': True}, 'right': {'name': 'cwB', 'side': 'both', 'fontlab_side': 'KernBothSide', 'members': ['ks1S'], 'id': 5123, 'confirmed': True}}, 'exact_before': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'exact_after': {'call_error': None, 'value_type': 'NoneType', 'value': None}, 'removed': False, 'len_before': 3, 'len_after': 3, 'groups_len_before': 3, 'groups_len_after': 3, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [(('cwB', True), ('cwB', True))] | getAllGroups calls 1 | group container members ['items']
+2772 remove: right group on left   : 200 {'call': None, 'error': "the kerning group 'cwR' is a right group, so it cannot stand on the left side of a pair; nothing was removed", 'left': 'class', 'right': 'glyph', 'classes': {'left': {'name': 'cwR', 'side': 'right', 'fontlab_side': 'KernRight', 'members': ['ks1R'], 'id': 5122, 'confirmed': True}}, 'exact_before': None, 'exact_after': None, 'removed': None, 'len_before': None, 'len_after': None, 'groups_len_before': None, 'groups_len_after': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [] | getAllGroups calls 1 | group container members ['items']
+2773 remove: class with form=tuple : 200 {'error': 'form=tuple names two glyphs; a class side needs form=flags'} | kerning() args [] | sets [] | removes [] | getAllGroups calls 0 | group container members []
+2774 remove: an OpenType class     : 200 {'open': True, 'error': "the left side 'cwF' is a class of the font but not a kerning group; nothing was removed", 'calls_so_far': 0} | kerning() args [] | sets [] | removes [] | getAllGroups calls 1 | group container members []
+2775 remove: items() raises       : 200 {'call': None, 'error': "the kerning groups' items() failed (RuntimeError: items boom); nothing was removed", 'left': 'class', 'right': 'class', 'classes': {}, 'exact_before': None, 'exact_after': None, 'removed': None, 'len_before': None, 'len_after': None, 'groups_len_before': None, 'groups_len_after': None, 'calls_so_far': 1} | kerning() args [('Regular',)] | sets [] | removes [] | getAllGroups calls 1 | group container members ['items']
+2776 spy over the class cases     : forbidden package members: [] | package members touched anywhere: ['getAllGroups', 'isNull', 'kerning', 'master', 'masters', 'upm'] | forbidden kerning members: [] | kerning members touched anywhere: ['get', 'groups', 'remove', 'set'] | forbidden group container members: [] | group container members touched: ['items']
+2777 static scan of the class checks: pkg members used: ['getAllGroups'] | kerning members used: ['groups'] | container members used: [] | getter( calls: 1 | _kgr_from_items( calls: 1 | forbidden syntax: [] | .get( only on the plain dict g: ['g'] | subscripts on other objects: [] | scanned chars > 2000: True
+2778 routes and docstring        : left / right read in the routes: 2 2 | class key built from the sides: 2 | listed in the module docstring: True
 
 ==== v0.123 /debug/trykernrefresh ====
 1712 no go: nothing runs         : 200 {'error': 'this probe calls flPackage.kerningContainer() ONCE and, in stage=update, fontlab.Update(container) or, in stage=changed, container.changed(); add &go=yes to run it', 'calls_so_far': 0, 'max_calls': 6} | kerningContainer() calls 0 | Update args [] | changed() calls 0
@@ -2705,7 +2739,7 @@ shape_count in outline: 1
 2005 zero: an explicit entry      : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1371, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('A', False), ('B', False)), 0.0)] | forbidden []
        {'left': 'A', 'right': 'B', 'requested': 0, 'before': {'value': 0, 'kerned': False, 'source': 'none'}, 'after': {'value': 0.0, 'kerned': False, 'source': 'glyph : glyph'}, 'status': 'set', 'set': True, 'changed': True, 'exception_over_class': False}
 2006 defect B: glyph Aring, class Aring exists : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1371, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('Aring', False), ('V', False)), -45.0)] | forbidden []
-       {'left': 'Aring', 'right': 'V', 'requested': -45, 'before': {'value': 0, 'kerned': False, 'source': 'none'}, 'after': {'value': -45.0, 'kerned': True, 'source': 'glyph : glyph'}, 'status': 'set', 'set': True, 'changed': True, 'exception_over_class': False}
+       {'left': 'Aring', 'right': 'V', 'requested': -45, 'before': {'value': 0, 'kerned': False, 'source': 'none'}, 'after': {'value': -45.0, 'kerned': True, 'source': 'glyph : glyph'}, 'status': 'set', 'set': True, 'changed': True, 'exception_over_class': False, 'same_name_group': ['left']}
 2007 |value| = upm is allowed     : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 1000.0, 'count': 1, 'set_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1371, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('A', False), ('B', False)), -1000.0)] | forbidden []
        {'left': 'A', 'right': 'B', 'requested': -1000, 'before': {'value': 0, 'kerned': False, 'source': 'none'}, 'after': {'value': -1000.0, 'kerned': True, 'source': 'glyph : glyph'}, 'status': 'set', 'set': True, 'changed': True, 'exception_over_class': False}
 2008 two fonts, matched by path   : 200 {'open': True, 'fonts_open': 2, 'matched_by': 'path', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1371, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('A', False), ('B', False)), -60.0)] | forbidden []
@@ -2788,7 +2822,7 @@ shape_count in outline: 1
 2031i stopped partway               : 200 | refresh {'called': True} | order ['mark', ('refresh', 'KPPackage', [('A', True), ('T', False)])]
 2031j refused: no refresh call      : 200 | refresh <no field> | order []
 2032 GET /kerning/set             : ('404', {'error': 'unknown endpoint', 'path': '/kerning/set'})
-2033 static scan                  : kerning members used: ['set'] | setter( calls: 1 | getter( calls: 1 | set keys: ['key'] | forbidden syntax: [] | Update(: False | font members: [] | pkg members: [] | gate go=: False | scanned chars > 4000: True
+2033 static scan                  : kerning members used: ['groups', 'set'] | setter( calls: 1 | getter( calls: 1 | set keys: ['key'] | forbidden syntax: [] | Update(: False | font members: [] | pkg members: [] | gate go=: False | scanned chars > 4000: True
 2034 the key is the flags form    : True | route registered once: True | write log kind: kerning | the read scan (1180) still ends before it: True
 --- the activity log line of /kerning/set
 2040 one pair, verified:
@@ -2825,7 +2859,7 @@ shape_count in outline: 1
        {'left': 'A', 'right': 'B', 'before': {'value': 0, 'kerned': False, 'source': 'none'}, 'status': 'no entry', 'removed': False, 'changed': False}
        {'left': 'T', 'right': 'o', 'before': {'value': -227.0, 'kerned': True, 'source': 'glyph : glyph'}, 'after': {'value': 0, 'kerned': False, 'source': 'none'}, 'status': 'removed', 'removed': True, 'changed': True, 'class_value_applies': False}
 2706 defect B: glyph Aring        : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'count': 1, 'removed_count': 0, 'no_entry_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1370, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'no kerning entry is known to have changed'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'no kerning entry is known to have changed'}} | remove calls [] | forbidden []
-       {'left': 'Aring', 'right': 'W.c2sc', 'before': {'value': -76.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'W'}, 'status': 'no entry', 'removed': False, 'changed': False}
+       {'left': 'Aring', 'right': 'W.c2sc', 'before': {'value': -76.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'W'}, 'status': 'no entry', 'removed': False, 'changed': False, 'same_name_group': ['left']}
 2707 two fonts, matched by path   : 200 {'open': True, 'fonts_open': 2, 'matched_by': 'path', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'count': 1, 'removed_count': 1, 'no_entry_count': 0, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1369, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | remove calls [(('A', False), ('V', False))] | forbidden []
        {'left': 'A', 'right': 'V', 'before': {'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}, 'after': {'value': 0, 'kerned': False, 'source': 'none'}, 'status': 'removed', 'removed': True, 'changed': True, 'class_value_applies': False}
 --- refused before any removal (remove calls must stay empty)
@@ -2885,6 +2919,90 @@ shape_count in outline: 1
 2734 GET /kerning/remove          : ('404', {'error': 'unknown endpoint', 'path': '/kerning/remove'})
 2735 static scan                  : kerning members used: ['remove'] | remover( calls: 1 | getter( calls: 0 | remove keys: ['key'] | forbidden syntax: [] | Update(: False | font members: [] | pkg members: [] | scanned chars > 4000: True
 2736 the key is the flags form    : True | route registered once: True | write log kind: kerning remove | in the module docstring: True
+
+==== v0.194 class sides in /kerning/set and /kerning/remove ====
+2780 class : class @Aring:@Y       : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1370, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('Aring', True), ('Y', True)), -100.0)] | forbidden []
+       {'left': '@Aring', 'right': '@Y', 'requested': -100, 'kind': 'class : class', 'classes': {'Aring': {'side': 'left', 'member_count': 3}, 'Y': {'side': 'right', 'member_count': 1}}, 'sample': {'left': 'Aacute', 'right': 'Ydieresis.c2sc'}, 'before': {'value': -152.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}, 'after': {'value': -100.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}, 'sample_verdict': 'applied', 'entry_before': -152.0, 'status': 'set', 'set': True, 'changed': True}
+       group container members: ['items'] | getAllGroups calls 2
+2781 glyph : class T:@W (new)      : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1371, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('T', False), ('W', True)), -40.0)] | forbidden []
+       {'left': 'T', 'right': '@W', 'requested': -40, 'kind': 'glyph : class', 'classes': {'W': {'side': 'right', 'member_count': 2}}, 'sample': {'left': 'T', 'right': 'W.c2sc'}, 'before': {'value': 0, 'kerned': False, 'source': 'none'}, 'after': {'value': -40.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}, 'sample_verdict': 'applied', 'entry_before': None, 'status': 'set', 'set': True, 'changed': True}
+       group container members: ['items'] | getAllGroups calls 2
+2782 class : glyph @Aring:Tbar.c2sc : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1370, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('Aring', True), ('Tbar.c2sc', False)), -90.0)] | forbidden []
+       {'left': '@Aring', 'right': 'Tbar.c2sc', 'requested': -90, 'kind': 'class : glyph', 'classes': {'Aring': {'side': 'left', 'member_count': 3}}, 'sample': {'left': 'Aacute', 'right': 'Tbar.c2sc'}, 'before': {'value': -80.0, 'kerned': True, 'source': 'class : glyph', 'left_class': 'Aring'}, 'after': {'value': -90.0, 'kerned': True, 'source': 'class : glyph', 'left_class': 'Aring'}, 'sample_verdict': 'applied', 'entry_before': -80.0, 'status': 'set', 'set': True, 'changed': True}
+       group container members: ['items'] | getAllGroups calls 2
+2783 sample covered by an exception : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1370, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('Aring', True), ('W', True)), -60.0)] | forbidden []
+       {'left': '@Aring', 'right': '@W', 'requested': -60, 'kind': 'class : class', 'classes': {'Aring': {'side': 'left', 'member_count': 3}, 'W': {'side': 'right', 'member_count': 2}}, 'sample': {'left': 'Aacute', 'right': 'W.c2sc'}, 'before': {'value': -10.0, 'kerned': True, 'source': 'glyph : glyph'}, 'after': {'value': -10.0, 'kerned': True, 'source': 'glyph : glyph'}, 'sample_verdict': 'covered', 'entry_before': -76.0, 'status': 'set', 'set': True, 'changed': True}
+       group container members: ['items'] | getAllGroups calls 2
+2784 glyph and class pairs mixed  : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'set_count': 2, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1371, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 4 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('A', False), ('B', False)), -60.0), ((('Aring', True), ('Y', True)), -100.0)] | forbidden []
+       {'left': 'A', 'right': 'B', 'requested': -60, 'before': {'value': 0, 'kerned': False, 'source': 'none'}, 'after': {'value': -60.0, 'kerned': True, 'source': 'glyph : glyph'}, 'status': 'set', 'set': True, 'changed': True, 'exception_over_class': False}
+       {'left': '@Aring', 'right': '@Y', 'requested': -100, 'kind': 'class : class', 'classes': {'Aring': {'side': 'left', 'member_count': 3}, 'Y': {'side': 'right', 'member_count': 1}}, 'sample': {'left': 'Aacute', 'right': 'Ydieresis.c2sc'}, 'before': {'value': -152.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}, 'after': {'value': -100.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}, 'sample_verdict': 'applied', 'entry_before': -152.0, 'status': 'set', 'set': True, 'changed': True}
+       group container members: ['items'] | getAllGroups calls 2
+2785 sample not reached: stops     : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'set_count': 0, 'stopped': True, 'table_size_before': 1370, 'table_size_after': 1370, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('Aring', True), ('Y', True)), -100.0)] | forbidden []
+       {'left': '@Aring', 'right': '@Y', 'requested': -100, 'kind': 'class : class', 'classes': {'Aring': {'side': 'left', 'member_count': 3}, 'Y': {'side': 'right', 'member_count': 1}}, 'sample': {'left': 'Aacute', 'right': 'Ydieresis.c2sc'}, 'before': {'value': 0, 'kerned': False, 'source': 'none'}, 'after': {'value': 0, 'kerned': False, 'source': 'none'}, 'sample_verdict': None, 'entry_before': -152.0, 'status': 'failed', 'set': False, 'changed': True, 'reason': 'FontLab applies 0 from the none entry, not the new class : class entry (sample pair Aacute:Ydieresis.c2sc)'}
+       {'left': 'T', 'right': '@W', 'requested': -40, 'status': 'not attempted'}
+       group container members: ['items'] | getAllGroups calls 2
+2786 no member in the font: no sample : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1370, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': "no glyph of a changed pair can take the mark: a changed class entry's group has no member that is a glyph of the font, and the other glyphs are only .notdef"}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('Aring', True), ('Y', True)), -100.0)] | forbidden []
+       {'left': '@Aring', 'right': '@Y', 'requested': -100, 'kind': 'class : class', 'classes': {'Aring': {'side': 'left', 'member_count': 1}, 'Y': {'side': 'right', 'member_count': 1}}, 'sample': None, 'sample_verdict': 'no sample', 'entry_before': -152.0, 'status': 'set', 'set': True, 'changed': True}
+       group container members: ['items'] | getAllGroups calls 1
+2785b sample in another class: stops : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 0, 'stopped': True, 'table_size_before': 1370, 'table_size_after': 1370, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('Aring', True), ('Y', True)), -100.0)] | forbidden []
+       {'left': '@Aring', 'right': '@Y', 'requested': -100, 'kind': 'class : class', 'classes': {'Aring': {'side': 'left', 'member_count': 3}, 'Y': {'side': 'right', 'member_count': 1}}, 'sample': {'left': 'Aacute', 'right': 'Ydieresis.c2sc'}, 'before': {'value': -100.0, 'kerned': True, 'source': 'class : class', 'left_class': 'W', 'right_class': 'Y'}, 'after': {'value': -100.0, 'kerned': True, 'source': 'class : class', 'left_class': 'W', 'right_class': 'Y'}, 'sample_verdict': None, 'entry_before': -152.0, 'status': 'failed', 'set': False, 'changed': True, 'reason': 'FontLab applies -100.0 from the class : class entry of W : Y, not the new class : class entry (sample pair Aacute:Ydieresis.c2sc)'}
+       group container members: ['items'] | getAllGroups calls 2
+2787 set stores nothing: failed    : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 0, 'stopped': True, 'table_size_before': 1370, 'table_size_after': 1370, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'no kerning entry is known to have changed'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'no kerning entry is known to have changed'}} | set calls [((('Aring', True), ('Y', True)), -100.0)] | forbidden []
+       {'left': '@Aring', 'right': '@Y', 'requested': -100, 'kind': 'class : class', 'classes': {'Aring': {'side': 'left', 'member_count': 3}, 'Y': {'side': 'right', 'member_count': 1}}, 'sample': {'left': 'Aacute', 'right': 'Ydieresis.c2sc'}, 'before': {'value': -152.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}, 'after': {'value': -152.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}, 'sample_verdict': None, 'entry_before': -152.0, 'status': 'failed', 'set': False, 'changed': False, 'reason': 'the entry reads -152.0 after setting, not -100'}
+       group container members: ['items'] | getAllGroups calls 2
+2788 glyph B, group B, no class id: no note : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1371, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('B', False), ('o', False)), -10.0)] | forbidden []
+       {'left': 'B', 'right': 'o', 'requested': -10, 'before': {'value': 0, 'kerned': False, 'source': 'none'}, 'after': {'value': -10.0, 'kerned': True, 'source': 'glyph : glyph'}, 'status': 'set', 'set': True, 'changed': True, 'exception_over_class': False}
+       group container members: [] | getAllGroups calls 0
+--- refused before any write (set calls must stay empty)
+2789 a right group on the left     : 200 {'open': True, 'error': "the kerning group '@W' is a right group, so it cannot stand on the left side of a pair; nothing was set"} | set calls [] | forbidden []
+       group container members: ['items'] | getAllGroups calls 1
+2790 a left group on the right     : 200 {'open': True, 'error': "the kerning group '@Aring' is a left group, so it cannot stand on the right side of a pair; nothing was set"} | set calls [] | forbidden []
+       group container members: ['items'] | getAllGroups calls 1
+2791 an OpenType class             : 200 {'open': True, 'error': "'@fea' on the left side is a class of the font but not a kerning group; nothing was set"} | set calls [] | forbidden []
+       group container members: [] | getAllGroups calls 1
+2792 an unknown class              : 200 {'open': True, 'error': "'@nope' on the left side is not the name of any kerning group of the font; nothing was set"} | set calls [] | forbidden []
+       group container members: [] | getAllGroups calls 1
+2793 the sources' members differ   : 200 {'open': True, 'error': "the kerning group '@Aring' is not confirmed by both of FontLab's sources (the two sources list different members); nothing was set"} | set calls [] | forbidden []
+       group container members: ['items'] | getAllGroups calls 1
+2794 items() raises                : 200 {'open': True, 'error': "the kerning groups' items() failed (RuntimeError: items boom); nothing was set"} | set calls [] | forbidden []
+       group container members: ['items'] | getAllGroups calls 1
+2795 kerning.groups callable       : 200 {'open': True, 'error': "the master's kerning groups attribute is callable; it was not called; nothing was set"} | set calls [] | forbidden []
+       group container members: [] | getAllGroups calls 1
+2796 getAllGroups raises            : 200 {'open': True, 'error': "FontLab's class list could not be read (flPackage.getAllGroups() failed (RuntimeError: list boom)); nothing was set"} | set calls [] | forbidden []
+       group container members: [] | getAllGroups calls 1
+2797 bad side '@'                 : 400 {'error': 'pair 1 must be [left, right, value] with two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -'} | set calls [] | forbidden []
+       group container members: [] | getAllGroups calls 0
+2797 bad side '@@Aring'           : 400 {'error': 'pair 1 must be [left, right, value] with two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -'} | set calls [] | forbidden []
+       group container members: [] | getAllGroups calls 0
+2797 bad side 'A@'                : 400 {'error': 'pair 1 must be [left, right, value] with two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -'} | set calls [] | forbidden []
+       group container members: [] | getAllGroups calls 0
+2797 bad side '@A ring'           : 400 {'error': 'pair 1 must be [left, right, value] with two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -'} | set calls [] | forbidden []
+       group container members: [] | getAllGroups calls 0
+--- remove
+2798 remove class : class @Aring:@Y : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'count': 1, 'removed_count': 1, 'no_entry_count': 0, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1369, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | remove calls [(('Aring', True), ('Y', True))] | forbidden []
+       {'left': '@Aring', 'right': '@Y', 'kind': 'class : class', 'classes': {'Aring': {'side': 'left', 'member_count': 3}, 'Y': {'side': 'right', 'member_count': 1}}, 'sample': {'left': 'Aacute', 'right': 'Ydieresis.c2sc'}, 'before': {'value': -152.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}, 'entry_before': -152.0, 'after': {'value': 0, 'kerned': False, 'source': 'none'}, 'status': 'removed', 'removed': True, 'changed': True, 'class_value_applies': False}
+       group container members: ['items'] | getAllGroups calls 2
+2799 remove glyph : class A:@W     : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'count': 1, 'removed_count': 1, 'no_entry_count': 0, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1369, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | remove calls [(('A', False), ('W', True))] | forbidden []
+       {'left': 'A', 'right': '@W', 'kind': 'glyph : class', 'classes': {'W': {'side': 'right', 'member_count': 2}}, 'sample': {'left': 'A', 'right': 'W.c2sc'}, 'before': {'value': -76.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}, 'entry_before': -76.0, 'after': {'value': 0, 'kerned': False, 'source': 'none'}, 'status': 'removed', 'removed': True, 'changed': True, 'class_value_applies': False}
+       group container members: ['items'] | getAllGroups calls 2
+2800 no class entry: goes on       : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'count': 2, 'removed_count': 1, 'no_entry_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1369, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': 'none of the 2 glyphs tried could be notified (the fontlab module has no flItems)'}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | remove calls [(('Aring', True), ('Y', True))] | forbidden []
+       {'left': 'T', 'right': '@W', 'kind': 'glyph : class', 'classes': {'W': {'side': 'right', 'member_count': 2}}, 'sample': {'left': 'T', 'right': 'W.c2sc'}, 'before': {'value': 0, 'kerned': False, 'source': 'none'}, 'status': 'no entry', 'removed': False, 'changed': False}
+       {'left': '@Aring', 'right': '@Y', 'kind': 'class : class', 'classes': {'Aring': {'side': 'left', 'member_count': 3}, 'Y': {'side': 'right', 'member_count': 1}}, 'sample': {'left': 'Aacute', 'right': 'Ydieresis.c2sc'}, 'before': {'value': -152.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}, 'entry_before': -152.0, 'after': {'value': 0, 'kerned': False, 'source': 'none'}, 'status': 'removed', 'removed': True, 'changed': True, 'class_value_applies': False}
+       group container members: ['items'] | getAllGroups calls 2
+2801 remove: right group on left  : 200 {'open': True, 'error': "the kerning group '@Y' is a right group, so it cannot stand on the left side of a pair; nothing was removed"} | remove calls [] | forbidden []
+       group container members: ['items'] | getAllGroups calls 1
+2802 remove: an OpenType class    : 200 {'open': True, 'error': "'@fea' on the right side is a class of the font but not a kerning group; nothing was removed"} | remove calls [] | forbidden []
+       group container members: [] | getAllGroups calls 1
+2803 spy over the class cases     : forbidden: [] | ever: [] | kerning and package members touched: ['get', 'groups', 'package.getAllGroups', 'package.isNull', 'package.kerning', 'package.master', 'package.masters', 'package.upm', 'remove', 'set'] | group container members: ['items'] | forbidden there: []
+2804 static scan of the class checks: kerning members used: ['groups'] | pkg members used: [] | container members used: [] | _kgr_from_items( calls: 1 | _trysetkern_group_names( calls: 1 | forbidden syntax: [] | scanned chars > 3000: True
+2806 the mark goes to sample glyphs  : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'set_count': 2, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1371, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': True, 'via_glyph': 'Aacute', 'candidates': ['Aacute', 'Ydieresis.c2sc', 'T', 'W.c2sc']}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('Aring', True), ('Y', True)), -100.0), ((('T', False), ('W', True)), -40.0)] | forbidden []
+       {'left': '@Aring', 'right': '@Y', 'requested': -100, 'kind': 'class : class', 'classes': {'Aring': {'side': 'left', 'member_count': 3}, 'Y': {'side': 'right', 'member_count': 1}}, 'sample': {'left': 'Aacute', 'right': 'Ydieresis.c2sc'}, 'before': {'value': -152.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}, 'after': {'value': -100.0, 'kerned': True, 'source': 'class : class', 'left_class': 'Aring', 'right_class': 'Y'}, 'sample_verdict': 'applied', 'entry_before': -152.0, 'status': 'set', 'set': True, 'changed': True}
+       {'left': 'T', 'right': '@W', 'requested': -40, 'kind': 'glyph : class', 'classes': {'W': {'side': 'right', 'member_count': 2}}, 'sample': {'left': 'T', 'right': 'W.c2sc'}, 'before': {'value': 0, 'kerned': False, 'source': 'none'}, 'after': {'value': -40.0, 'kerned': True, 'source': 'glyph : class', 'right_class': 'W'}, 'sample_verdict': 'applied', 'entry_before': None, 'status': 'set', 'set': True, 'changed': True}
+       group container members: ['items'] | getAllGroups calls 2
+2806b no sample: no class name marked : 200 {'open': True, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'set_count': 1, 'stopped': False, 'table_size_before': 1370, 'table_size_after': 1370, 'table_size_as_expected': True, 'fontlab_changed_mark': {'called': False, 'reason': "no glyph of a changed pair can take the mark: a changed class entry's group has no member that is a glyph of the font, and the other glyphs are only .notdef"}, 'fontlab_panel_refresh': {'called': False, 'reason': 'the fontlab module has no flItems'}} | set calls [((('Aring', True), ('Y', True)), -100.0)] | forbidden []
+       {'left': '@Aring', 'right': '@Y', 'requested': -100, 'kind': 'class : class', 'classes': {'Aring': {'side': 'left', 'member_count': 1}, 'Y': {'side': 'right', 'member_count': 1}}, 'sample': None, 'sample_verdict': 'no sample', 'entry_before': -152.0, 'status': 'set', 'set': True, 'changed': True}
+       group container members: ['items'] | getAllGroups calls 1
+2805 one key form in both routes  : set 1 | remove 1 | class checks in both: 1 1 | documented: True
 --- the activity log line of /kerning/remove
 2740 one pair, verified:
 [claude-code > Glyphbridge] 12:00:00 kerning remove kd1L:kd1R: -50 -> -80 (verified)
@@ -3455,7 +3573,7 @@ shape_count in outline: 1
 --- static checks
 2308a forbidden call syntax           : [] | scanned chars > 6000: True
 2308b one construction, one mark      : True True | no per-run counter: True
-2308c route registered once, documented: True True | in the activity writes: create font | version 0.192
+2308c route registered once, documented: True True | in the activity writes: create font | version 0.194
 2308d one shared family check        : True | probe uses it: True | route uses it: True | psn limit 63 | forbidden [](){}<>/%
 
 ==== v0.148 /debug/trypackage ====
@@ -3489,7 +3607,7 @@ shape_count in outline: 1
 2309ab request 21 refused           : 200 {'error': 'the probe already ran 20 times in this listener run; restart the listener to repeat it', 'runs_so_far': 20} | isEqual [('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg')] | forbidden []
 2309ac  isEqual calls in 21 requests: 20
 2309ad static scan of the probe   : forbidden call syntax: [] | fgPackage: False | subscripts of a native object: [] | one isEqual per stage: True | counter before the first read: True | scanned chars > 4000: True
-2309ae route documented, registered once: True True | version 0.192
+2309ae route documented, registered once: True True | version 0.194
 --- v0.149 stage=cached
 2310a cached without go            : 200 {'error': 'reads flGlyph.package and calls isEqual on it, which have not been called live before. Add &go=yes to run it.'} | isEqual [] | forbidden []
 2310b cached with a name           : 200 {'error': "stage=cached takes no name: it reads the wrappers already in the listener's cache"} | isEqual [] | forbidden []

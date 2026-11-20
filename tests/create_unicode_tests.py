@@ -1844,7 +1844,7 @@ print("27x static scan                  : posts", _re19.findall(r'_write_post\("
       "| GETs", len(_re19.findall(r"_call_listener\(", _body27)), "| save", bool(_re19.search(r"\.save\(|save\(", _body27)), "| requires 0.124", '_require_listener((0, 124), "set_kerning")' in _body27,
       "| read scan (19ci) ends before it:", _src27.index("def write_glyph_sidebearings(") < _src27.index("_KERN_SET_INSTRUCTION = ("))
 _d27 = srv.set_kerning.__doc__ or ""
-_need27 = ("[left, right, value]", "class (group) names cannot be used", "exception_over_class", "verified by re-reading", "'before'", "More than 250 pairs",
+_need27 = ("[left, right, value]", "'@' (the plain ASCII @)", "exception_over_class", "verified by re-reading", "'before'", "More than 250 pairs",
            "Never set confirmed_large_write=true on your own", "only after switching", "another open font and back", "saved and reopened", "whole numbers", "asks no save",
            "Edit > Undo cannot take them back", "whose window is in front", "Needs listener v0.124", "NEVER saves", "finish_changes ONCE")
 print("27y docstring key phrases        :", [w for w in _need27 if w not in _d27] == [], "| missing", [w for w in _need27 if w not in _d27], "| save shortcut filled in:", "SAVE_KEYS" not in _d27)
@@ -3217,7 +3217,7 @@ _body47 = _src47[_src47.index("# v0.76 (listener 0.192): remove_kerning"):_src47
 print("47w static scan                  : posts", _re19.findall(r'_write_post\("([^"]+)"', _body47), "| direct posts", len(_re19.findall(r"_call_listener_post\(", _body47)),
       "| GETs", len(_re19.findall(r"_call_listener\(", _body47)), "| save", bool(_re19.search(r"\.save\(|save\(", _body47)), "| requires 0.192", '_require_listener((0, 192), "remove_kerning")' in _body47)
 _d47 = " ".join((srv.remove_kerning.__doc__ or "").split())
-_need47 = ("[left, right]", "class (group) names cannot be used", "class kerning is never removed", "not the same as setting 0", "class_value_applies", "'no entry'",
+_need47 = ("[left, right]", "'@' (the plain ASCII @)", "never class kerning", "not the same as setting 0", "class_value_applies", "'no entry'",
            "verified by re-reading", "'before'", "More than 250", "Never set confirmed_large_write=true on your own", "fontlab_changed_mark", "fontlab_panel_refresh",
            "Edit > Undo", "set_kerning with its 'before'", "whose window is in front", "Needs listener v0.192", "NEVER saves", "finish_changes ONCE")
 print("47x docstring key phrases        :", [w for w in _need47 if w not in _d47] == [], "| missing", [w for w in _need47 if w not in _d47], "| save shortcut filled in:", "SAVE_KEYS" not in _d47)
@@ -3225,6 +3225,109 @@ K47["reply"] = rmreply([okrm("A", "V")]); K47["version"] = "0.192"
 srv._reset_change_tracking(); _w47 = srv.remove_kerning(pairs=[["A", "V"]]); srv._reset_change_tracking(); _d47r = srv.remove_kerning_write(pairs=[["A", "V"]])
 print("47y wrapper equals the function  :", {k: v for k, v in _w47.items() if k not in ("font", "fonts_open")} == {k: v for k, v in _d47r.items() if k not in ("font", "fonts_open")})
 srv._call_listener, srv._call_listener_post = _save47
+srv._reset_change_tracking()
+
+# ==== 48. server 0.78: class sides ('@name') in set_kerning and remove_kerning (listener 0.194; faked listener replies) ====
+print("\n==== 48. server 0.78: class sides in set_kerning and remove_kerning (faked listener replies) ====")
+_save48 = (srv._call_listener, srv._call_listener_post)
+K48 = {"version": "0.194", "reply": None, "paths": [], "posts": []}
+def _k48_get(path):
+    K48["paths"].append(path)
+    if path == "/version": return {"version": K48["version"]}
+    raise AssertionError("unexpected GET " + path)
+def _k48_post(path, payload, timeout=0):
+    K48["posts"].append((path, payload, timeout)); return K48["reply"]
+srv._call_listener, srv._call_listener_post = _k48_get, _k48_post
+def k48(fn, reply=None, version="0.194", **call):
+    K48["reply"] = reply; K48["version"] = version; K48["paths"].clear(); K48["posts"] = []
+    srv._reset_change_tracking()
+    try:
+        return fn(**call)
+    except srv.ToolError as e:
+        return "ToolError: " + str(e)
+def k48sent(): return [(p, pl) for p, pl, _t in K48["posts"]]
+def row48(label, r):
+    if isinstance(r, str): print(label, ":", r[:420], "| changes", k27chg()); return
+    print(label, ":", {k: v for k, v in r.items() if k not in ("results", "agent_instruction")}, "| changes", k27chg())
+    for e in r["results"]: print("       ", e)
+_CW = {"cwL": {"side": "left", "member_count": 2}, "cwR": {"side": "right", "member_count": 2}, "cwB": {"side": "both", "member_count": 1}}
+def okcls(left, right, value, kind, after, before=None, verdict="applied", sample=("cw1a", "cw1c"), entry_before=None, **over):
+    names = sorted(set(nm[1:] for nm in (left, right) if nm.startswith("@")))
+    e = {"left": left, "right": right, "requested": value, "kind": kind, "classes": {n: _CW[n] for n in names},
+         "sample": None if sample is None else {"left": sample[0], "right": sample[1]}, "sample_verdict": verdict if sample is not None else "no sample",
+         "entry_before": entry_before, "status": "set", "set": True, "changed": True}
+    if sample is not None:
+        e["before"] = before or side(0, "none"); e["after"] = after
+    e.update(over)
+    return e
+_cc80 = side(-80.0, "class : class", left_class="cwL", right_class="cwR")
+r = k48(srv.write_kerning, setreply([okcls("@cwL", "@cwR", -80, "class : class", _cc80)]), pairs=[["@cwL", " @cwR ", -80]]); row48("48a class : class applied        ", r)
+print("48b request                      :", k48sent(), "| GETs", K48["paths"])
+print("48c instruction                  :", r["agent_instruction"])
+r = k48(srv.write_kerning, setreply([okcls("cw1a", "@cwR", -50, "glyph : class", side(-20.0), before=side(-20.0), verdict="covered")]), pairs=[["cw1a", "@cwR", -50]])
+row48("48d glyph : class, sample covered", r)
+r = k48(srv.write_kerning, setreply([okcls("@cwL", "cw1d", -30, "class : glyph", None, sample=None)]), pairs=[["@cwL", "cw1d", -30]]); row48("48e no sample                   ", r)
+r = k48(srv.write_kerning, setreply([okcls("@cwB", "@cwB", -20, "class : class", side(-20.0, "class : class", left_class="cwB", right_class="cwB"),
+                                           sample=("cw1e", "cw1e"), entry_before=-10.0, changed=True)]), pairs=[["@cwB", "@cwB", -20]]); row48("48f both class, a value before  ", r)
+r = k48(srv.write_kerning, setreply([okset("A", "B", -60), okcls("@cwL", "@cwR", -80, "class : class", _cc80)], table_size_after=4), pairs=[["A", "B", -60], ["@cwL", "@cwR", -80]])
+row48("48g glyph and class pairs mixed  ", r)
+print("--- the server's own checks of a class pair")
+r = k48(srv.write_kerning, setreply([okcls("@cwL", "@cwR", -80, "class : class", side(-80.0, "class : glyph", left_class="cwL"))]), pairs=[["@cwL", "@cwR", -80]])
+row48("48h 'applied', other kind after  ", r)
+r = k48(srv.write_kerning, setreply([okcls("@cwL", "@cwR", -80, "class : class", side(-80.0, "class : class", left_class="cwL", right_class="cwX"))]), pairs=[["@cwL", "@cwR", -80]])
+row48("48i 'applied', other class after ", r)
+r = k48(srv.write_kerning, setreply([okcls("cw1a", "@cwR", -50, "glyph : class", side(-50.0, "class : class", left_class="cwL", right_class="cwR"))]), pairs=[["cw1a", "@cwR", -50]])
+row48("48h2 'applied', same class, other kind", r)
+r = k48(srv.write_kerning, setreply([okcls("@cwL", "@cwR", -80, "class : class", side(0, "none"), verdict="covered")]), pairs=[["@cwL", "@cwR", -80]])
+row48("48j 'covered' by no entry        ", r)
+r = k48(srv.write_kerning, setreply([okcls("@cwL", "@cwR", -80, "class : class", side(-70.0, "class : class", left_class="cwX", right_class="cwR"), verdict="covered")]),
+        pairs=[["@cwL", "@cwR", -80]])
+row48("48j2 'covered' by an equal rank  ", r)
+r = k48(srv.write_kerning, setreply([okcls("cw1a", "@cwR", -50, "glyph : class", side(-50.0, "glyph : class", right_class="cwR"), sample=("cw1b", "cw1c"))]), pairs=[["cw1a", "@cwR", -50]])
+row48("48k sample drops the glyph side  ", r)
+r = k48(srv.write_kerning, setreply([okcls("@cwL", "@cwR", -80, "class : class", _cc80, classes={"cwL": _CW["cwL"]})]), pairs=[["@cwL", "@cwR", -80]])
+row48("48l a class not described       ", r)
+r = k48(srv.write_kerning, setreply([okcls("@cwL", "@cwR", -80, "class : class", _cc80, sample_verdict="maybe")]), pairs=[["@cwL", "@cwR", -80]])
+row48("48m an unknown verdict           ", r)
+_ns48 = okcls("@cwL", "@cwR", -80, "class : class", None, sample=None); _ns48["after"] = side(-80.0)
+r = k48(srv.write_kerning, setreply([_ns48]), pairs=[["@cwL", "@cwR", -80]])
+row48("48n no sample, but an 'after'    ", r)
+_sn = dict(okset("Aring", "V", -45), same_name_group=["left"])
+r = k48(srv.write_kerning, setreply([_sn]), pairs=[["Aring", "V", -45]]); row48("48o a glyph named like a group  ", r)
+print("48o2 note in the instruction     :", "Pass on every pair's 'note'" in r["agent_instruction"])
+print("--- refused before anything is sent")
+for _lbl, _kw, _ver in (("48p listener 0.193, a class side", dict(pairs=[["@cwL", "@cwR", -80]]), "0.193"), ("48p2 listener 0.193, glyphs only", dict(pairs=[["A", "B", -60]]), "0.193"),
+                        ("48q a full-width at sign        ", dict(pairs=[["＠cwL", "V", -10]]), "0.194"), ("48q2 '@' alone                  ", dict(pairs=[["@", "V", -10]]), "0.194"),
+                        ("48q3 '@@cwL'                    ", dict(pairs=[["@@cwL", "V", -10]]), "0.194"), ("48q4 a fraction on a class pair ", dict(pairs=[["@cwL", "@cwR", -8.5]]), "0.194")):
+    r = k48(srv.write_kerning, setreply([okset("A", "B", -60)]), version=_ver, **_kw); print(_lbl, ":", (r if isinstance(r, str) else "set_count " + str(r.get("set_count")))[:230], "| sent", len(k48sent()))
+_big48 = [[f"@g{i}", "@cwR", -10] for i in range(251)]
+r = k48(srv.write_kerning, setreply([]), pairs=_big48); print("48r 251 class pairs, no approval :", r[:120], "| sent", len(k48sent()))
+print("--- remove_kerning")
+def okrmc(left, right, kind, after, before, sample=("cw1a", "cw1c"), entry_before=-80.0, **over):
+    names = sorted(set(nm[1:] for nm in (left, right) if nm.startswith("@")))
+    e = {"left": left, "right": right, "kind": kind, "classes": {n: _CW[n] for n in names}, "sample": {"left": sample[0], "right": sample[1]},
+         "before": before, "entry_before": entry_before, "after": after, "status": "removed", "removed": True, "changed": True,
+         "class_value_applies": after.get("source") in ("glyph : class", "class : glyph", "class : class")}
+    e.update(over)
+    return e
+r = k48(srv.remove_kerning_write, rmreply([okrmc("@cwL", "@cwR", "class : class", side(0, "none"), _cc80)]), pairs=[["@cwL", "@cwR"]]); row48("48s remove class : class        ", r)
+print("48s2 instruction                 :", r["agent_instruction"])
+_nec = {"left": "cw1a", "right": "@cwB", "kind": "glyph : class", "classes": {"cwB": _CW["cwB"]}, "sample": {"left": "cw1a", "right": "cw1e"},
+        "before": side(0, "none"), "status": "no entry", "removed": False, "changed": False}
+r = k48(srv.remove_kerning_write, rmreply([_nec, okrmc("@cwL", "cw1d", "class : glyph", side(0, "none"), side(-30.0, "class : glyph", left_class="cwL"), sample=("cw1b", "cw1d"), entry_before=-30.0)]),
+        pairs=[["cw1a", "@cwB"], ["@cwL", "cw1d"]]); row48("48t no entry, then removed       ", r)
+r = k48(srv.remove_kerning_write, rmreply([okrmc("@cwL", "@cwR", "class : class", _cc80, _cc80)]), pairs=[["@cwL", "@cwR"]]); row48("48u removed, sample still on it  ", r)
+r = k48(srv.remove_kerning_write, rmreply([okrmc("cw1a", "@cwR", "glyph : class", side(-80.0, "class : class", left_class="cwL", right_class="cwR"), side(-50.0, "glyph : class", right_class="cwR"))]),
+        pairs=[["cw1a", "@cwR"]]); row48("48v exception gone, class applies", r)
+r = k48(srv.remove_kerning_write, rmreply([]), version="0.193", pairs=[["@cwL", "@cwR"]]); print("48w listener 0.193, a class side :", r[:200], "| sent", len(k48sent()))
+_d48s = " ".join((srv.set_kerning.__doc__ or "").split()); _d48r = " ".join((srv.remove_kerning.__doc__ or "").split())
+_need48 = ("'@' (the plain ASCII @)", "every member pair", "a left or both group on the left", "ONE sample glyph pair", "entry_before", "a class pair counts as one pair",
+           "a class side needs listener v0.194")
+print("48x set_kerning docstring        :", [w for w in _need48 if w not in _d48s], "| remove_kerning:", [w for w in ("'@' (the plain ASCII @)", "ONE sample glyph pair", "entry_before",
+      "no longer applies to any member pair", "a class side needs listener v0.194") if w not in _d48r])
+_src48 = open(find("glyphbridge_mcp_server.py"), encoding="utf-8").read()
+print("48y no 'cannot be used' left     :", "names cannot be used" not in _src48, "| requires 0.194 in both:", _src48.count("_require_listener((0, 194)"))
+srv._call_listener, srv._call_listener_post = _save48
 srv._reset_change_tracking()
 
 srv._call_listener, srv._call_listener_post = wire_get, wire_post

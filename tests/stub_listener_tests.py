@@ -5441,10 +5441,18 @@ SK = {"cfg": {}, "kerning_args": [], "pkg_all": set(), "pkg_forbidden": [], "k_a
 _SK_K_FORBIDDEN = tuple(n for n in _FK_FORBIDDEN if n != "set")
 _SK_PKG_FORBIDDEN = tuple(n for n in _PK_PKG_FORBIDDEN if n != "getAllGroups")
 def _sk_pair(key):
-    if isinstance(key, tuple) and len(key) == 2 and all(isinstance(s, tuple) for s in key): return (key[0][0], key[1][0])
-    return tuple(key)
+    # v0.193: entries are kept by their full key, so a class entry ((name, True), ...) and a glyph entry of the same names stay apart;
+    # the documented (a, b) form means two glyphs, the same entry as ((a, False), (b, False))
+    if isinstance(key, tuple) and len(key) == 2 and all(isinstance(s, tuple) for s in key): return (tuple(key[0]), tuple(key[1]))
+    return ((key[0], False), (key[1], False))
 class SKKern:
-    def __init__(self): self._table = dict(SK["cfg"].get("table", {}))
+    def __init__(self): self._table = {_sk_pair(k): v for k, v in SK["cfg"].get("table", {}).items()}
+    @property
+    def groups(self):
+        m = SK["cfg"].get("groups_attr")
+        if m == "raise": raise RuntimeError("groups boom")
+        if m == "callable": return lambda: None
+        return SKGroups()
     def __getattribute__(self, n):
         if not n.startswith("_"):
             SK["k_all"].add(n)
@@ -5477,6 +5485,22 @@ class SKKern:
         if m == "two": self._table.pop(_sk_pair(key), None); self._table.pop(next(iter(self._table), None), None); return True
         self._table.pop(_sk_pair(key), None)
         return None
+class SKGroups:
+    # v0.193: the master's kerning group container; only items() (and len()) may be used
+    def __getattribute__(self, n):
+        if not n.startswith("_"):
+            SK.setdefault("g_all", set()).add(n)
+            if n != "items":
+                SK.setdefault("g_forbidden", []).append(n)
+                raise SystemExit("FORBIDDEN group container member touched: " + n)
+        return object.__getattribute__(self, n)
+    def __len__(self):
+        v = SK["cfg"].get("items", [])
+        return len(v) if isinstance(v, list) else 0
+    def items(self):
+        v = SK["cfg"].get("items", [])
+        if v == "raise": raise RuntimeError("items boom")
+        return v
 class SKPackage:
     def __getattribute__(self, n):
         if not n.startswith("_"):
@@ -5583,7 +5607,7 @@ _sk_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', 
 print("1710 static scan                 : pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _sk_code))), "| kerning members used:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _sk_code))),
       "| setter( calls:", len(_re83.findall(r"\bsetter\(", _sk_code)), "| kerning_of( calls:", len(_re83.findall(r"\bkerning_of\(", _sk_code)),
       "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|Update\w*|add\w*|clear\w*|keys|values|items|has_key|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|setPlain\w*|scale|rename\w*|autoKern|findGroup)\(", _sk_code),
-      "| subscripts on other objects:", [s for s in _re83.findall(r"\b(\w+)\[", _sk_code) if s not in ("_TRYSETKERN", "before", "after", "entry")],
+      "| subscripts on other objects:", [s for s in _re83.findall(r"\b(\w+)\[", _sk_code) if s not in ("_TRYSETKERN", "before", "after", "entry", "kern", "classes", "g", "_TRYKERN_SIDE_FITS")],
       "| counter raised before the first kerning call:", _sk_code.index('_TRYSETKERN[""] += 1') < _sk_code.index("kerning_of(current)") < _sk_code.index("setter(key"),
       "| scanned chars > 3000:", len(_sk_src) > 3000)
 print("1711 gate, cap, route, docstring  :", "go != \"yes\"" in _sk_src, "| max requests", ns["_TRYSETKERN_MAX"], "| route registered once:", src.count('path == "/debug/trysetkern"') == 1,
@@ -5653,6 +5677,81 @@ print("2661 static scan                 : pkg members used:", sorted(set(_re83.f
 print("2662 gate, cap, route, docstring  :", "go != \"yes\"" in _dk_src, "| max requests", ns["_TRYDELKERN_MAX"], "| route registered once:", src.count('path == "/debug/trydelkern"') == 1,
       "| listed in the module docstring:", "/debug/trydelkern" in src[:src.index('"""', 3)])
 ns["_TRYDELKERN"]["calls"] = 0
+
+# ================= v0.193: class sides in /debug/trysetkern and /debug/trydelkern (class-write research CW, gated, WRITES) =================
+print("\n==== v0.193 class sides in /debug/trysetkern and /debug/trydelkern ====")
+_CW_KF = tuple(n for n in _SK_K_FORBIDDEN if n != "groups")
+_CW_DKF = tuple(n for n in _DK_K_FORBIDDEN if n != "groups")
+_CWG = [[True, "cwL", 5121, 0, ["ks1L", "ks1S"]], [True, "cwR", 5122, 0, ["ks1R"]], [True, "cwB", 5123, 0, ["ks1S"]], [False, "cwF", 5125, 0, ["ks1L"]]]
+_CWI = [("cwL", (["ks1L", "ks1S"], "KernLeft")), ("cwB", (["ks1S"], "KernBothSide")), ("cwR", (["ks1R"], "KernRight"))]
+def cw_setup(calls=0, remove=False, **cfg):
+    base = dict(groups=_CWG, items=_CWI, k_forbid=_CW_DKF if remove else _CW_KF)
+    base.update(cfg)
+    sk_setup(calls=calls, **base)
+    SK["removes"] = []; SK["g_all"] = set(); SK["g_forbidden"] = []
+    ns["_TRYDELKERN"]["calls"] = calls
+def cwc(tag, path, keys=None):
+    c, d = call(path)
+    shown = {k: v for k, v in d.items() if k != "note"} if keys is None else {k: d.get(k) for k in keys}
+    print(tag, ":", c, shown, "| kerning() args", SK["kerning_args"], "| sets", SK["sets"], "| removes", SK["removes"], "| getAllGroups calls", SK["groups_calls"],
+          "| group container members", sorted(SK["g_all"]))
+    return c, d
+_CWS = "/debug/trysetkern?form=flags&go=yes"
+_CWD = "/debug/trydelkern?form=flags&go=yes"
+_CWR = ("call", "error", "left", "right", "classes", "exact_before", "exact_after", "read_back_matches", "len_before", "len_after", "groups_len_before", "groups_len_after", "calls_so_far")
+_CWX = ("call", "error", "left", "right", "classes", "exact_before", "exact_after", "removed", "len_before", "len_after", "groups_len_before", "groups_len_after", "calls_so_far")
+cw_setup(); cwc("2748 class : class cwL:cwR -80   ", _CWS + "&a=cwL&b=cwR&left=class&right=class&value=-80", keys=_CWR)
+cw_setup(); cwc("2749 glyph : class ks1L:cwR -50  ", _CWS + "&a=ks1L&b=cwR&right=class&value=-50", keys=_CWR)
+cw_setup(); cwc("2750 class : glyph cwL:ks1R -30  ", _CWS + "&a=cwL&b=ks1R&left=class&value=-30", keys=_CWR)
+cw_setup(); cwc("2751 both class on both sides     ", _CWS + "&a=cwB&b=cwB&left=class&right=class&value=-20", keys=_CWR)
+cw_setup(table={("ks1L", "ks1R"): -100.0}); cwc("2752 glyph pair of members kept apart", _CWS + "&a=cwL&b=cwR&left=class&right=class&value=-80", keys=_CWR)
+cw_setup(); cwc("2753 class side, form=tuple       ", "/debug/trysetkern?a=cwL&b=cwR&left=class&right=class&value=-80&go=yes")
+cw_setup(); cwc("2754 left=group: refused          ", _CWS + "&a=cwL&b=cwR&left=group&right=class&value=-80")
+cw_setup(); cwc("2755 unknown class name           ", _CWS + "&a=cwQ&b=cwR&left=class&right=class&value=-80")
+cw_setup(); cwc("2756 an OpenType class            ", _CWS + "&a=cwF&b=cwR&left=class&right=class&value=-80")
+cw_setup(); cwc("2757 right group on the left      ", _CWS + "&a=cwR&b=cwR&left=class&right=class&value=-80", keys=_CWR)
+cw_setup(); cwc("2758 left group on the right      ", _CWS + "&a=ks1L&b=cwL&right=class&value=-80", keys=_CWR)
+cw_setup(items=[e for e in _CWI if e[0] != "cwR"]); cwc("2759 class list only, not items()  ", _CWS + "&a=cwL&b=cwR&left=class&right=class&value=-80", keys=_CWR)
+cw_setup(items=[("cwL", (["ks1L"], "KernLeft"))] + _CWI[1:]); cwc("2760 members differ               ", _CWS + "&a=cwL&b=cwR&left=class&right=class&value=-80", keys=_CWR)
+cw_setup(groups=_CWG + [[True, "cwL", 5126, 0, ["ks1L", "ks1S"]]]); cwc("2761 class list names it twice    ", _CWS + "&a=cwL&b=cwR&left=class&right=class&value=-80", keys=_CWR)
+cw_setup(items=[("cwL", (["ks1L", "ks1S"], "KernTop"))] + _CWI[1:]); cwc("2762 an unknown side word        ", _CWS + "&a=cwL&b=cwR&left=class&right=class&value=-80", keys=_CWR)
+cw_setup(items="raise"); cwc("2763 items() raises               ", _CWS + "&a=cwL&b=cwR&left=class&right=class&value=-80", keys=_CWR)
+cw_setup(groups_attr="raise"); cwc("2764 kerning.groups raises        ", _CWS + "&a=cwL&b=cwR&left=class&right=class&value=-80", keys=_CWR)
+cw_setup(groups_attr="callable"); cwc("2765 kerning.groups callable      ", _CWS + "&a=cwL&b=cwR&left=class&right=class&value=-80", keys=_CWR)
+cw_setup(groups=_CWG + [[True, "ks1S", 5127, 0, ["ks1S"]]], items=_CWI + [("ks1S", (["ks1S"], "KernBothSide"))])
+cwc("2766 class named like a glyph      ", _CWS + "&a=cwL&b=ks1S&left=class&right=class&value=-10", keys=("call", "error", "read_back_matches", "calls_so_far"))
+cw_setup(groups=_CWG + [[True, "ks1S", 5127, 0, ["ks1S"]]], items=_CWI + [("ks1S", (["ks1S"], "KernBothSide"))])
+cwc("2766b the same name as a glyph side", _CWS + "&a=cwL&b=ks1S&left=class&value=-10")
+cw_setup(); cwc("2767 a missing glyph on a glyph side", _CWS + "&a=cwL&b=Q&left=class&value=-10")
+cw_setup(k_forbid=_SK_K_FORBIDDEN); cwc("2768 glyph pair: groups untouched ", _CWS + "&a=ks1L&b=ks1R&value=-10", keys=("call", "read_back_matches", "classes", "groups_len_before"))
+_CWT = {(("cwL", True), ("cwR", True)): -80.0, ("ks1L", "ks1R"): -100.0, (("ks1L", False), ("cwR", True)): -50.0}
+cw_setup(remove=True, table=_CWT); cwc("2769 remove class : class         ", _CWD + "&a=cwL&b=cwR&left=class&right=class", keys=_CWX)
+cw_setup(remove=True, table=_CWT); cwc("2770 remove glyph : class         ", _CWD + "&a=ks1L&b=cwR&right=class", keys=_CWX)
+cw_setup(remove=True, table=_CWT); cwc("2771 remove: no class entry       ", _CWD + "&a=cwB&b=cwB&left=class&right=class", keys=_CWX)
+cw_setup(remove=True, table=_CWT); cwc("2772 remove: right group on left  ", _CWD + "&a=cwR&b=ks1R&left=class", keys=_CWX)
+cw_setup(remove=True, table=_CWT); cwc("2773 remove: class with form=tuple", "/debug/trydelkern?a=cwL&b=cwR&left=class&right=class&go=yes")
+cw_setup(remove=True, table=_CWT); cwc("2774 remove: an OpenType class    ", _CWD + "&a=cwF&b=cwR&left=class&right=class")
+cw_setup(remove=True, table=_CWT, items="raise"); cwc("2775 remove: items() raises      ", _CWD + "&a=cwL&b=cwR&left=class&right=class", keys=_CWX)
+cw_setup(); SK["pkg_all"].clear(); SK["k_all"].clear(); SK["pkg_forbidden"].clear(); SK["k_forbidden"].clear()
+for _p in (_CWS + "&a=cwL&b=cwR&left=class&right=class&value=-80", _CWS + "&a=ks1L&b=cwR&right=class&value=-50", _CWS + "&a=cwR&b=cwR&left=class&right=class&value=-80"): call(_p)
+SK["cfg"]["k_forbid"] = _CW_DKF
+for _p in (_CWD + "&a=cwL&b=cwR&left=class&right=class", _CWD + "&a=ks1L&b=ks1R"): call(_p)
+print("2776 spy over the class cases     : forbidden package members:", SK["pkg_forbidden"], "| package members touched anywhere:", sorted(SK["pkg_all"]),
+      "| forbidden kerning members:", SK["k_forbidden"], "| kerning members touched anywhere:", sorted(SK["k_all"]),
+      "| forbidden group container members:", SK["g_forbidden"], "| group container members touched:", sorted(SK["g_all"]))
+_cw_src = src[src.index("_TRYKERN_KINDS = ("):src.index("def debug_try_set_kern(")]
+_cw_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _cw_src).splitlines())
+print("2777 static scan of the class checks: pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _cw_code))),
+      "| kerning members used:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _cw_code))), "| container members used:", sorted(set(_re83.findall(r"\bcontainer\.(\w+)", _cw_code))),
+      "| getter( calls:", len(_re83.findall(r"\bgetter\(", _cw_code)), "| _kgr_from_items( calls:", len(_re83.findall(r"\b_kgr_from_items\(", _cw_code)),
+      "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|Update\w*|add\w*|clear\w*|keys|values|items|has_key|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|setPlain\w*|scale|rename\w*|autoKern|findGroup|set|notify\w*)\(", _cw_code),
+      "| .get( only on the plain dict g:", sorted(set(_re83.findall(r"\b(\w+)\.get\(", _cw_code))),
+      "| subscripts on other objects:", [s for s in _re83.findall(r"\b(\w+)\[", _cw_code) if s not in ("entry", "kern", "classes", "g", "_TRYKERN_SIDE_FITS")],
+      "| scanned chars > 2000:", len(_cw_src) > 2000)
+print("2778 routes and docstring        : left / right read in the routes:", src.count('(query.get("left") or ["glyph"])[0]'), src.count('(query.get("right") or ["glyph"])[0]'),
+      "| class key built from the sides:", src.count('exact = ((a, left == "class"), (b, right == "class"))'),
+      "| listed in the module docstring:", "&left=glyph|class&right=glyph|class" in src[:src.index('"""', 3)])
+ns["_TRYSETKERN"]["calls"] = 0; ns["_TRYDELKERN"]["calls"] = 0
 for _m, _a, _v in _sk_saved:
     if _v is None:
         if hasattr(_m, _a): delattr(_m, _a)
@@ -5973,7 +6072,7 @@ print("2033 static scan                  : kerning members used:", sorted(set(_r
       "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|remove\w*|update\w*|add\w*|clear\w*|keys|values|items|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|scale|rename\w*)\(", _ks_body.replace("entry.update(", "").replace("seen.add(", "")),
       "| Update(:", "Update(" in _ks_body, "| font members:", sorted(set(_re83.findall(r"\bfont\.(\w+)", _ks_body))), "| pkg members:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _ks_body))),
       "| gate go=:", "go" in _re83.findall(r"\bgo\b", _ks_body), "| scanned chars > 4000:", len(_ks_src) > 4000)
-print("2034 the key is the flags form    :", "key = ((left, False), (right, False))" in _ks_src, "| route registered once:", src.count('if path == "/kerning/set":') == 1,
+print("2034 the key is the flags form    :", 'key = ((left.lstrip("@"), left[:1] == "@"), (right.lstrip("@"), right[:1] == "@"))' in _ks_src, "| route registered once:", src.count('if path == "/kerning/set":') == 1,
       "| write log kind:", ns["_ACT_WRITES"].get("/kerning/set"), "| the read scan (1180) still ends before it:", src.index("def _other_glyphs_with_unicode(") < src.index("def set_kerning_pairs("))
 fl.CurrentFont = _ks_cur
 if _ks_cf is not None: fl.CountFonts = _ks_cf
@@ -6126,8 +6225,134 @@ print("2735 static scan                  : kerning members used:", sorted(set(_r
       "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|set|remove\w*|update\w*|add\w*|clear\w*|keys|values|items|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|setPlain\w*|scale|rename\w*)\(", _kr_body.replace("entry.update(", "").replace("seen.add(", "")),
       "| Update(:", "Update(" in _kr_body, "| font members:", sorted(set(_re83.findall(r"\bfont\.(\w+)", _kr_body))), "| pkg members:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _kr_body))),
       "| scanned chars > 4000:", len(_kr_src) > 4000)
-print("2736 the key is the flags form    :", "key = ((left, False), (right, False))" in _kr_src, "| route registered once:", src.count('if path == "/kerning/remove":') == 1,
+print("2736 the key is the flags form    :", 'key = ((left.lstrip("@"), left[:1] == "@"), (right.lstrip("@"), right[:1] == "@"))' in _kr_src, "| route registered once:", src.count('if path == "/kerning/remove":') == 1,
       "| write log kind:", ns["_ACT_WRITES"].get("/kerning/remove"), "| in the module docstring:", "POST /kerning/remove" in src[:src.index('"""', 3)])
+
+# ================= v0.194: class sides ('@name') in POST /kerning/set and POST /kerning/remove (class keys; a sample glyph pair; spies) =================
+print("\n==== v0.194 class sides in /kerning/set and /kerning/remove ====")
+# The KP fakes: left class Aring {Aacute, Atilde, Aring} (id 101), right classes W {W.c2sc, Wgrave.c2sc} (201) and Y {Ydieresis.c2sc} (202),
+# an OpenType class 'fea'. KCSet / KCRem accept keys whose flags are booleans and expose the master's kerning groups (KCGroups: only items()).
+KC = {"g_all": set(), "g_forbidden": []}
+_KC_ITEMS = [("Aring", (["Aacute", "Atilde", "Aring"], "KernLeft")), ("W", (["W.c2sc", "Wgrave.c2sc"], "KernRight")), ("Y", (["Ydieresis.c2sc"], "KernRight"))]
+class KCGroups:
+    def __getattribute__(self, n):
+        if not n.startswith("__"):
+            KC["g_all"].add(n)
+            if n != "items":
+                KC["g_forbidden"].append(n); raise SystemExit("FORBIDDEN group container member touched: " + n)
+        return object.__getattribute__(self, n)
+    def __len__(self): return 3
+    def items(self):
+        v = KP["cfg"].get("items", "default")
+        if isinstance(v, Exception): raise v
+        return [(n, (list(m), s)) for n, (m, s) in _KC_ITEMS] if v == "default" else v
+def _kc_bool_key(key):
+    return isinstance(key, tuple) and len(key) == 2 and all(isinstance(p, tuple) and len(p) == 2 and type(p[1]) is bool for p in key)
+def _kc_groups_attr():
+    m = KP["cfg"].get("groups_attr")
+    if m == "raise": raise RuntimeError("groups boom")
+    if m == "callable": return lambda: None
+    return KCGroups()
+_KC_SET_FORBIDDEN = tuple(n for n in _KS_FORBIDDEN if n != "groups")
+_KC_REM_FORBIDDEN = tuple(n for n in _KR_FORBIDDEN if n != "groups")
+class KCSet(KSKern):
+    def __getattribute__(self, n):
+        if not n.startswith("__"):
+            KP["touched"].append(n); KP["all_touched"].add(n)
+            if n in _KC_SET_FORBIDDEN:
+                KP["forbidden"].append(n); raise SystemExit("FORBIDDEN kerning member touched: " + n)
+            if n == "groups": return _kc_groups_attr()
+        return object.__getattribute__(self, n)
+    def set(self, key, value):
+        KS["sets"].append((key, value))
+        if not _kc_bool_key(key):
+            KP["forbidden"].append("set with key " + repr(key)); return None
+        if KS["set_mode"] == "ignore": return None
+        KS["new"][key] = value
+        return None
+class KCRem(KRKern):
+    def __getattribute__(self, n):
+        if not n.startswith("__"):
+            KP["touched"].append(n); KP["all_touched"].add(n)
+            if n in _KC_REM_FORBIDDEN:
+                KP["forbidden"].append(n); raise SystemExit("FORBIDDEN kerning member touched: " + n)
+            if n == "groups": return _kc_groups_attr()
+        return object.__getattribute__(self, n)
+    def remove(self, key):
+        KR["removes"].append(key)
+        if not _kc_bool_key(key):
+            KP["forbidden"].append("remove with key " + repr(key)); return True
+        KR["removed"].add(key)
+        if key in KR["extra"]: KR["removed"].discard(key); del KR["extra"][key]
+        return None
+def kc_set_setup(set_mode=None, **cfg):
+    kp_setup(kern_factory=KCSet, **cfg)
+    KS.update(new={}, sets=[], set_mode=set_mode, extra=0, after_set_get=None, flaky=set(), hidden=set(), script={})
+    KC.update(g_all=set(), g_forbidden=[])
+def kc_rem_setup(extra=None, **cfg):
+    kp_setup(kern_factory=KCRem, **cfg)
+    KR.update(removed=set(), extra=dict(extra or {}), removes=[], mode=None, after_get=None, drop=0)
+    KC.update(g_all=set(), g_forbidden=[])
+def kcs(tag, payload):
+    ksp(tag, payload); print("       group container members:", sorted(KC["g_all"]), "| getAllGroups calls", KP["groups_calls"])
+def kcr(tag, payload):
+    krp(tag, payload); print("       group container members:", sorted(KC["g_all"]), "| getAllGroups calls", KP["groups_calls"])
+KP["ever"].clear()
+kc_set_setup(); kcs("2780 class : class @Aring:@Y      ", {"pairs": [["@Aring", "@Y", -100]]})
+kc_set_setup(); kcs("2781 glyph : class T:@W (new)     ", {"pairs": [["T", "@W", -40]]})
+kc_set_setup(); kcs("2782 class : glyph @Aring:Tbar.c2sc", {"pairs": [["@Aring", "Tbar.c2sc", -90]]})
+kc_set_setup(mode={(("Aacute", False), ("W.c2sc", False)): -10.0}); kcs("2783 sample covered by an exception", {"pairs": [["@Aring", "@W", -60]]})
+kc_set_setup(); kcs("2784 glyph and class pairs mixed ", {"pairs": [["A", "B", -60], ["@Aring", "@Y", -100]]})
+kc_set_setup(ids={"Aacute": (0, 0)}); kcs("2785 sample not reached: stops    ", {"pairs": [["@Aring", "@Y", -100], ["T", "@W", -40]]})
+kc_set_setup(groups=[(True, "Aring", 101, 0, ["Zq"]), (True, "Y", 202, 0, ["Ydieresis.c2sc"])],
+             items=[("Aring", (["Zq"], "KernLeft")), ("Y", (["Ydieresis.c2sc"], "KernRight"))]); kcs("2786 no member in the font: no sample", {"pairs": [["@Aring", "@Y", -100]]})
+kc_set_setup(ids={"Aacute": (201, 0)}, mode={(("W", True), ("Y", True)): -100.0})
+kcs("2785b sample in another class: stops", {"pairs": [["@Aring", "@Y", -100]]})
+kc_set_setup(set_mode="ignore"); kcs("2787 set stores nothing: failed   ", {"pairs": [["@Aring", "@Y", -100]]})
+kc_set_setup(groups=_kp_groups_default() + [(True, "B", 400, 0, ["V"])]); kcs("2788 glyph B, group B, no class id: no note", {"pairs": [["B", "o", -10]]})
+print("--- refused before any write (set calls must stay empty)")
+kc_set_setup(); kcs("2789 a right group on the left    ", {"pairs": [["@W", "V", -10]]})
+kc_set_setup(); kcs("2790 a left group on the right    ", {"pairs": [["A", "@Aring", -10]]})
+kc_set_setup(); kcs("2791 an OpenType class            ", {"pairs": [["@fea", "V", -10]]})
+kc_set_setup(); kcs("2792 an unknown class             ", {"pairs": [["A", "B", -60], ["@nope", "V", -10]]})
+kc_set_setup(items=[("Aring", (["Aacute"], "KernLeft"))] + _KC_ITEMS[1:]); kcs("2793 the sources' members differ  ", {"pairs": [["@Aring", "@Y", -10]]})
+kc_set_setup(items=RuntimeError("items boom")); kcs("2794 items() raises               ", {"pairs": [["@Aring", "@Y", -10]]})
+kc_set_setup(groups_attr="callable"); kcs("2795 kerning.groups callable      ", {"pairs": [["@Aring", "@Y", -10]]})
+kc_set_setup(groups=RuntimeError("list boom")); kcs("2796 getAllGroups raises           ", {"pairs": [["@Aring", "@Y", -10]]})
+for _bad in ("@", "@@Aring", "A@", "@A ring"):
+    kc_set_setup(); kcs(f"2797 bad side {_bad!r:10}         ", {"pairs": [[_bad, "V", -10]]})
+print("--- remove")
+kc_rem_setup(); kcr("2798 remove class : class @Aring:@Y", {"pairs": [["@Aring", "@Y"]]})
+kc_rem_setup(); kcr("2799 remove glyph : class A:@W    ", {"pairs": [["A", "@W"]]})
+kc_rem_setup(); kcr("2800 no class entry: goes on      ", {"pairs": [["T", "@W"], ["@Aring", "@Y"]]})
+kc_rem_setup(); kcr("2801 remove: right group on left ", {"pairs": [["@Y", "V"]]})
+kc_rem_setup(); kcr("2802 remove: an OpenType class   ", {"pairs": [["A", "@fea"]]})
+kc_set_setup(); KP["all_touched"].clear(); KC["g_all"].clear()
+for _p in ({"pairs": [["@Aring", "@Y", -100]]}, {"pairs": [["T", "@W", -40]]}, {"pairs": [["A", "B", -60]]}):
+    ns["_route"]("POST", "/kerning/set", json.dumps(_p).encode("utf-8"))
+kc_rem_setup()
+for _p in ({"pairs": [["@Aring", "@Y"]]}, {"pairs": [["A", "V"]]}):
+    ns["_route"]("POST", "/kerning/remove", json.dumps(_p).encode("utf-8"))
+print("2803 spy over the class cases     : forbidden:", list(KP["forbidden"]), "| ever:", list(KP["ever"]), "| kerning and package members touched:",
+      sorted(n for n in KP["all_touched"]), "| group container members:", sorted(KC["g_all"]), "| forbidden there:", KC["g_forbidden"])
+_kc_src = src[src.index("_KERN_KIND_RANK = {"):src.index("def set_kerning_pairs(")]
+_kc_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _kc_src).splitlines())
+_kc_body = _re83.sub(r'(?s)"""(.*?)"""', '', _kc_code)
+print("2804 static scan of the class checks: kerning members used:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _kc_body))),
+      "| pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _kc_body))), "| container members used:", sorted(set(_re83.findall(r"\bcontainer\.(\w+)", _kc_body))),
+      "| _kgr_from_items( calls:", len(_re83.findall(r"\b_kgr_from_items\(", _kc_body)), "| _trysetkern_group_names( calls:", len(_re83.findall(r"\b_trysetkern_group_names\(", _kc_body)),
+      "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|set|remove\w*|update\w*|Update\w*|add\w*|clear\w*|keys|values|items|has_key|assign\w*|replace\w*|delete\w*|asDict|getPlain\w*|setPlain\w*|scale|rename\w*|notify\w*)\(", _kc_body),
+      "| scanned chars > 3000:", len(_kc_src) > 3000)
+_kc_mtf = ns["_mark_through_first"]
+ns["_mark_through_first"] = lambda font, candidates, how: {"called": True, "via_glyph": candidates[0] if candidates else None, "candidates": list(candidates)}
+kc_set_setup(); kcs("2806 the mark goes to sample glyphs ", {"pairs": [["@Aring", "@Y", -100], ["T", "@W", -40]]})
+kc_set_setup(groups=[(True, "Aring", 101, 0, ["Zq"]), (True, "Y", 202, 0, ["Zr"])], items=[("Aring", (["Zq"], "KernLeft")), ("Y", (["Zr"], "KernRight"))])
+kcs("2806b no sample: no class name marked", {"pairs": [["@Aring", "@Y", -100]]})
+ns["_mark_through_first"] = _kc_mtf
+print("2805 one key form in both routes  : set", _ks_src.count('key = ((left.lstrip("@"), left[:1] == "@"), (right.lstrip("@"), right[:1] == "@"))'),
+      "| remove", _kr_src.count('key = ((left.lstrip("@"), left[:1] == "@"), (right.lstrip("@"), right[:1] == "@"))'),
+      "| class checks in both:", _ks_src.count("_kern_class_targets(pkg, kerning, class_sides, by_name)"), _kr_src.count("_kern_class_targets(pkg, kerning, class_sides, by_name)"),
+      "| documented:", "a side written '@name' is a kerning group" in src[:src.index('"""', 3)])
 fl.CurrentFont = _kr_cur
 if _kr_cf is not None: fl.CountFonts = _kr_cf
 elif hasattr(fl, "CountFonts"): delattr(fl, "CountFonts")

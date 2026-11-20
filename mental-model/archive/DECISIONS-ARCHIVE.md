@@ -128,6 +128,14 @@ Not core, but budgeted: the root [README.md](../../README.md), the end-user inst
 
 Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
 
+### 2026-11-20: DECISIONS.md budget 4,000 → 4,500
+
+The user's choice, at 4,030 words, over moving an older entry to this archive, after the entry for class kerning in `set_kerning` and `remove_kerning` (listener 0.194 / server 0.78). Reference totals now 15,900 and 15,200.
+
+### 2026-11-20: WHAT-WORKS.md budget 3,000 → 3,500
+
+The user's choice, at 2,895 words, before the build of listener 0.194 / server 0.78 (class sides in the kerning write tools), whose live results will add to the kerning entries. WHAT-WORKS.md is not a startup core file, so the reference totals stay 15,400 and 14,700.
+
 ### 2026-11-20: CODEX.md budget 350
 
 A new startup core file at its first budget; the file's own decision stays in [DECISIONS.md](../DECISIONS.md) ("CODEX.md, notes for Codex only"). Reference totals then 15,400 and 14,700.

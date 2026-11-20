@@ -1,6 +1,6 @@
 # What works
 
-What is live-proven in FontLab, and which version each feature needs. An entry is added only after a live run; what is stub-tested only is named as such. What is not proven or not built, and what comes next: [CURRENT-STATUS.md](CURRENT-STATUS.md). This file is not a startup core file: [AGENTS.md](../AGENTS.md) says when to read it. Word budget: 3,000 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
+What is live-proven in FontLab, and which version each feature needs. An entry is added only after a live run; what is stub-tested only is named as such. What is not proven or not built, and what comes next: [CURRENT-STATUS.md](CURRENT-STATUS.md). This file is not a startup core file: [AGENTS.md](../AGENTS.md) says when to read it. Word budget: 3,500 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
 
 ## Live-proven in FontLab
 
@@ -84,4 +84,4 @@ The areas follow the summary table in [CURRENT-STATUS.md](CURRENT-STATUS.md).
 | `get_kerning_groups` | 0.190 (live, KGL 1376–1379) | 0.75 |
 | `remove_kerning` | 0.192 (live, RK 1398–1402) | 0.76 |
 
-Listeners 0.122 and 0.123 add only gated research probes for kerning writes; listener 0.125 adds only the gated probe `/debug/tryopen`; listener 0.129 only `/debug/tryshapebox`; listener 0.131 only `/debug/trynotify`; listener 0.144 adds only the gated `title` stage of `/debug/trynames`, and 0.145 the `mark` switch of `construct_named`, which gives a create-font tool the save question for a named font; listener 0.188 adds only the gated `tuples` stage of `/debug/trykerngroups`, and 0.189 only its `items` stage; listener 0.191 adds only the gated probe `/debug/trydelkern` (live KD, KDC). Every other release, what it changed: [CHANGELOG.md](CHANGELOG.md).
+Listeners 0.122 and 0.123 add only gated research probes for kerning writes; listener 0.125 adds only the gated probe `/debug/tryopen`; listener 0.129 only `/debug/tryshapebox`; listener 0.131 only `/debug/trynotify`; listener 0.144 adds only the gated `title` stage of `/debug/trynames`, and 0.145 the `mark` switch of `construct_named`, which gives a create-font tool the save question for a named font; listener 0.188 adds only the gated `tuples` stage of `/debug/trykerngroups`, and 0.189 only its `items` stage; listener 0.191 adds only the gated probe `/debug/trydelkern` (live KD, KDC); listener 0.193 adds only class sides to that probe and `/debug/trysetkern` (live CW). Every other release, what it changed: [CHANGELOG.md](CHANGELOG.md).

@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.192)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.194)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -125,6 +125,10 @@ Routes (GET unless marked POST):
                                 len() one lower); a pair with no such entry is "no entry" and the request goes on; all checks
                                 before the first removal; stops at the first pair not confirmed; then the mark and the panel
                                 refresh of /kerning/set
+                                Both (v0.194): a side written '@name' is a kerning group, confirmed by groups.items() and
+                                getAllGroups() on a side that fits; key ((name, isClass), (name, isClass)); each class pair is
+                                verified by its exact entry and one sample glyph pair (kind, classes, sample, sample_verdict);
+                                a glyph side named like a kerning group gets same_name_group
     /kerning/pairs?pairs=A:V,T:o  or  ?text=AVATAR
                                 FontLab's effective kerning per pair from the current master's table
                                 (v0.104), class kerning included; source says which kind of entry
@@ -172,9 +176,12 @@ Routes (GET unless marked POST):
     /debug/trypkgkern     one pair from flPackage.kerning(master) next to font.kerning, 20 per listener run;
                           &mode=flags&flags=FF|FT|TF|TT asks get(((a, flag), (b, flag))); a side flagged T may name a class
     /debug/trysetkern     WRITES: a=A&b=B&value=N&form=tuple|flags: ONE set() of one glyph pair on flPackage.kerning(master),
-                          with get() before and after; glyph names only, no group of that name, |N| <= upm; 10 per listener run (v0.122)
+                          with get() before and after; glyph names only, no group of that name, |N| <= upm; 10 per listener run (v0.122);
+                          &left=glyph|class&right=glyph|class (v0.193, class needs form=flags): a class side names a kerning group
+                          confirmed by groups.items() and getAllGroups(), on a side that fits; set(((a, isClass), (b, isClass)), N)
     /debug/trydelkern     WRITES: a=A&b=B&form=tuple|flags: ONE remove() of one glyph pair on flPackage.kerning(master), with get()
-                          and len() before and after; glyph names only, no group of that name; no mark, no refresh; 10 per run (v0.191)
+                          and len() before and after; glyph names only, no group of that name; no mark, no refresh; 10 per run (v0.191);
+                          &left / &right as /debug/trysetkern (v0.193): remove(((a, isClass), (b, isClass)))
     /debug/trykernrefresh stage=container|update|changed: ONE flPackage.kerningContainer(), then fontlab.Update(container) or
                           container.changed(); flags and table size before and after; 6 per listener run (v0.123)
     /debug/trykerngroups  stage=all|modes|tuples|items&contains=a,b,c or stage=glyph&name=N: kerning group members and sides
@@ -276,7 +283,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.192"
+VERSION = "0.194"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -736,11 +743,16 @@ def _mark_font_changed_after_kerning(font, results):
             return {"called": False, "reason": "no kerning entry is known to have changed"}
         candidates, seen = [], set()
         for entry in changed:
-            for name in (entry.get("left"), entry.get("right")):
+            sample = entry.get("sample", False)      # v0.194: a pair with a class side is marked through its sample glyphs, never a class name
+            names = (entry.get("left"), entry.get("right")) if sample is False else ((sample["left"], sample["right"]) if isinstance(sample, dict) else ())
+            for name in names:
                 if name != ".notdef" and name not in seen:
                     seen.add(name)
                     candidates.append(name)
         if not candidates:
+            if any(e.get("sample", False) is None for e in changed):
+                return {"called": False, "reason": "no glyph of a changed pair can take the mark: a changed class entry's group has no member "
+                                                   "that is a glyph of the font, and the other glyphs are only .notdef"}
             return {"called": False, "reason": "the changed pairs name only .notdef, which is not used as a target"}
         return _mark_through_first(font, candidates[:_MARK_DELETE_MAX_TRIES], "kerning")
     except Exception as exc:
@@ -4314,9 +4326,101 @@ def _kern_exact(getter, key):
     return None, f"kerning.get returned {type(value).__name__} {value!r}, not a finite number"
 
 
+# --------------------------------------------------------------------------
+# v0.194 - class sides in /kerning/set and /kerning/remove (the design of 2026-11-20, DECISIONS.md; research CW 1409-1417,
+# topics/kerning.md section 17). A side written '@name' names a kerning group; any other side is a glyph, exactly as before, so a
+# glyph-only request takes the same path, calls and reply. A request with a class side reads ONE getAllGroups() and ONE items() on
+# the master's kerning groups before the first write; each class must be confirmed by both and stand on a side that fits. The key
+# is ((name, isClass), (name, isClass)). Each class pair is verified by its exact entry and by ONE sample glyph pair (the first
+# member of each class side that is a glyph of the font), read with _kern_effective before and after: the sample takes the value
+# from the new entry ("applied"), or an entry of higher rank of its own answers it ("covered", an exception), else the pair fails.
+# --------------------------------------------------------------------------
+
+_KERN_KIND_RANK = {"glyph : glyph": 0, "glyph : class": 1, "class : glyph": 2, "class : class": 3}     # FontLab's order (section 9.9)
+
+
+def _kern_side_ok(name):
+    """A glyph name, or '@' and a kerning group name, each 1 to 63 characters from A-Z a-z 0-9 . _ - (v0.194)."""
+    return isinstance(name, str) and (_kern_name_ok(name) or (name[:1] == "@" and _kern_name_ok(name[1:])))
+
+
+def _kern_kind(left, right):
+    """The kind of entry a pair names (v0.194)."""
+    return ("class" if left[:1] == "@" else "glyph") + " : " + ("class" if right[:1] == "@" else "glyph")
+
+
+def _kern_class_targets(pkg, kerning, sides, by_name):
+    """({group name: {"side", "member_count", "sample"}}, None) or (None, error text), v0.194. sides: (side, '@name') of every class
+    side of the request. ONE getAllGroups() (_trysetkern_group_names: any entry of an unknown shape refuses) and ONE items() on the
+    master's kerning groups (_kgr_from_items, never called on the container itself); each group must be a kerning group of the class
+    list, confirmed by both sources (_kgr_group) and of a side that fits the side it stands on. sample: its first member that is a
+    glyph of the font, or None."""
+    all_names, kern, list_twice, err = _trysetkern_group_names(pkg)
+    if err is not None:
+        return None, f"FontLab's class list could not be read ({err})"
+    for side, raw in sides:
+        if raw[1:] not in kern:
+            what = "is a class of the font but not a kerning group" if raw[1:] in all_names else "is not the name of any kerning group of the font"
+            return None, f"{raw!r} on the {side} side {what}"
+    try:
+        container = kerning.groups
+    except Exception as exc:
+        return None, f"the master's kerning groups are not reachable ({type(exc).__name__}: {exc})"
+    if callable(container):
+        return None, "the master's kerning groups attribute is callable; it was not called"
+    from_items, items_twice, _malformed, err = _kgr_from_items(container)
+    if err is not None:
+        return None, err
+    found = {}
+    for side, raw in sides:
+        g = _kgr_group(raw[1:], from_items, kern, None, items_twice | list_twice)
+        if g.get("confirmed") is not True:
+            return None, f"the kerning group {raw!r} is not confirmed by both of FontLab's sources ({g.get('mismatch')})"
+        if g.get("side") not in _TRYKERN_SIDE_FITS[side]:
+            return None, f"the kerning group {raw!r} is a {g.get('side')} group, so it cannot stand on the {side} side of a pair"
+        members = g.get("members") or []
+        found[raw[1:]] = {"side": g.get("side"), "member_count": len(members), "sample": next((m for m in members if m in by_name), None)}
+    return found, None
+
+
+def _kern_sample(left, right, classes):
+    """The sample glyph pair of a pair with a class side (v0.194): a glyph side is itself, a class side its group's sample; None when
+    a class has no member that is a glyph of the font."""
+    a = classes[left[1:]]["sample"] if left[:1] == "@" else left
+    b = classes[right[1:]]["sample"] if right[:1] == "@" else right
+    return {"left": a, "right": b} if a is not None and b is not None else None
+
+
+def _kern_sample_verdict(kind, left, right, value, after):
+    """'applied' when the sample takes value from the new entry (its kind and its classes), 'covered' when an entry of higher rank
+    answers for the sample (its own exception), otherwise None (v0.194)."""
+    source = after.get("source")
+    if (source == kind and after.get("value") == value and (left[:1] != "@" or after.get("left_class") == left[1:])
+            and (right[:1] != "@" or after.get("right_class") == right[1:])):
+        return "applied"
+    if source in _KERN_KIND_RANK and _KERN_KIND_RANK[source] < _KERN_KIND_RANK[kind]:
+        return "covered"
+    return None
+
+
+def _kern_same_name_notes(results, groups):
+    """v0.194: a glyph side whose name is also a kerning group's name gets same_name_group (the reply's note: write '@name' to kern
+    the group). Only the class list a request already read is used (groups, read by _kern_effective when a glyph of the request has a
+    class id): no FontLab call is added, so a glyph in no kerning group gets no note."""
+    found = groups.get("answer")
+    if not found or found[1] is not None:
+        return
+    names = {found[0][0][gid] for gid in found[0][0]}
+    for entry in results:
+        hits = [side for side in ("left", "right") if entry.get(side, "@")[:1] != "@" and entry.get(side) in names]
+        if hits:
+            entry["same_name_group"] = hits
+
+
 def set_kerning_pairs(pairs):
     """v0.124 - WRITES glyph : glyph kerning pairs into the current master's table of the current font (P2.9; research KW
-    542-564, topics/kerning.md section 13). pairs: a list of [left, right, value], glyph names only, each pair once. Every
+    542-564, topics/kerning.md section 13). pairs: a list of [left, right, value], each pair once; since v0.194 a side written
+    '@name' is a kerning group (the class-side block above _KERN_KIND_RANK); what follows describes a glyph : glyph pair. Every
     check runs before the first write, and a failed one refuses the whole request with nothing set: the font and its table are
     matched as /kerning/pairs matches them (_kern_table_target), both names are glyphs of the font, and |value| <= the
     package's upm. Then per pair, in order: the effective value before (_kern_effective, as /kerning/pairs reads it) and the
@@ -4335,7 +4439,7 @@ def set_kerning_pairs(pairs):
         return _kern_bad('"pairs" must be a non-empty list of [left, right, value]')
     wanted, seen = [], set()
     for i, item in enumerate(pairs):
-        if not isinstance(item, list) or len(item) != 3 or not _kern_name_ok(item[0]) or not _kern_name_ok(item[1]):
+        if not isinstance(item, list) or len(item) != 3 or not _kern_side_ok(item[0]) or not _kern_side_ok(item[1]):
             return _kern_bad(f"pair {i + 1} must be [left, right, value] with two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -")
         if not _kern_value_ok(item[2]):
             return _kern_bad(f"pair {i + 1} ({item[0]}:{item[1]}): the value must be a finite number")
@@ -4368,12 +4472,18 @@ def set_kerning_pairs(pairs):
     upm, err = _pkg_get(pkg, "upm")
     if err is not None or not _kern_value_ok(upm) or not upm > 0:
         return {"open": True, "error": "the font's units per em could not be read as a positive number, so the values cannot be checked; nothing was set"}
-    missing = sorted(set(nm for a, b, _v in wanted for nm in (a, b) if nm not in by_name))
+    missing = sorted(set(nm for a, b, _v in wanted for nm in (a, b) if nm[:1] != "@" and nm not in by_name))
     if missing:
         return {"open": True, "error": "no glyph named " + ", ".join(repr(m) for m in missing) + " in the current font; nothing was set"}
     too_big = [f"{a}:{b} {v}" for a, b, v in wanted if abs(v) > upm]
     if too_big:
         return {"open": True, "error": f"larger than the font's {upm:g} units per em, either way: " + ", ".join(too_big[:5]) + "; nothing was set"}
+    class_sides = [(side, nm) for a, b, _v in wanted for side, nm in (("left", a), ("right", b)) if nm[:1] == "@"]
+    classes = {}
+    if class_sides:                              # v0.194: only a request with a class side reads the groups here
+        classes, why = _kern_class_targets(pkg, kerning, class_sides, by_name)
+        if classes is None:
+            return {"open": True, "error": f"{why}; nothing was set"}
     try:
         setter = kerning.set
     except Exception as exc:
@@ -4389,10 +4499,17 @@ def set_kerning_pairs(pairs):
         if stopped:
             entry["status"] = "not attempted"
             continue
-        key = ((left, False), (right, False))
-        before = _kern_effective(getter, by_name, pkg, groups, left, right)
+        kind = _kern_kind(left, right)
+        key = ((left.lstrip("@"), left[:1] == "@"), (right.lstrip("@"), right[:1] == "@"))
+        sample = {"left": left, "right": right}
+        if kind != "glyph : glyph":                  # v0.194: a class side is checked through one sample glyph pair
+            sample = _kern_sample(left, right, classes)
+            entry.update(kind=kind, classes={nm[1:]: {k: classes[nm[1:]][k] for k in ("side", "member_count")} for nm in (left, right) if nm[:1] == "@"},
+                         sample=sample)
+        before = _kern_effective(getter, by_name, pkg, groups, sample["left"], sample["right"]) if sample else {}
         exact_before, err_before = _kern_exact(getter, key)
-        entry["before"] = before
+        if sample:
+            entry["before"] = before
         if "error" in before or err_before is not None:
             entry.update(status="failed", set=False, changed=False,
                          reason="the value before could not be read, so nothing was set for this pair: " + (before.get("error") or err_before))
@@ -4404,16 +4521,25 @@ def set_kerning_pairs(pairs):
         except Exception as exc:
             call_error = f"{type(exc).__name__}: {exc}"
         exact_after, err_after = _kern_exact(getter, key)
-        after = _kern_effective(getter, by_name, pkg, groups, left, right)
-        entry["after"] = after
+        after = _kern_effective(getter, by_name, pkg, groups, sample["left"], sample["right"]) if sample else {}
+        if sample:
+            entry["after"] = after
         if err_after is not None:
             new_entries = None                   # whether this pair added an entry is unknown, so the growth cannot be checked
         elif exact_before is None and exact_after is not None and new_entries is not None:
             new_entries += 1
-        ok = (call_error is None and err_after is None and exact_after == value
-              and after.get("source") == "glyph : glyph" and after.get("value") == value)
-        entry.update(status="set" if ok else "failed", set=ok, changed=None if err_after is not None else exact_after != exact_before,
-                     exception_over_class=before.get("source") in _KERN_CLASS_SOURCES)
+        verdict = None
+        if kind == "glyph : glyph":
+            ok = (call_error is None and err_after is None and exact_after == value
+                  and after.get("source") == "glyph : glyph" and after.get("value") == value)
+        else:
+            verdict = _kern_sample_verdict(kind, left, right, value, after) if sample else "no sample"
+            entry["sample_verdict"] = verdict
+            entry["entry_before"] = exact_before         # the class entry's own value before (None: no entry), for a revert
+            ok = call_error is None and err_after is None and exact_after == value and verdict is not None
+        entry.update(status="set" if ok else "failed", set=ok, changed=None if err_after is not None else exact_after != exact_before)
+        if kind == "glyph : glyph":
+            entry["exception_over_class"] = before.get("source") in _KERN_CLASS_SOURCES
         if call_error is not None:
             entry["call_error"] = call_error
         if not ok:
@@ -4426,10 +4552,16 @@ def set_kerning_pairs(pairs):
             elif "error" in after:
                 why = f"the value FontLab applies could not be read back: {after['error']}"
             else:
-                why = f"FontLab applies {after.get('value')} from the {after.get('source')} entry, not the new glyph : glyph entry"
+                if kind == "glyph : glyph":
+                    why = f"FontLab applies {after.get('value')} from the {after.get('source')} entry, not the new {kind} entry"
+                else:
+                    named = " : ".join(after[k] for k in ("left_class", "right_class") if isinstance(after.get(k), str))
+                    why = (f"FontLab applies {after.get('value')} from the {after.get('source')} entry" + (f" of {named}" if named else "")
+                           + f", not the new {kind} entry (sample pair {sample['left']}:{sample['right']})")
             entry["reason"] = why
             stopped = True
     len_after = _kern_len(kerning)
+    _kern_same_name_notes(results, groups)
     mark = _mark_font_changed_after_kerning(font, results)
     refresh = _refresh_kerning_panel(pkg, results)      # after the mark, so that a repaint comes after FontLab has counted the change
     return {"open": True, "fonts_open": count, "matched_by": target["matched_by"], "family_name": _kern_family(font), "master": master,
@@ -4442,8 +4574,9 @@ def set_kerning_pairs(pairs):
 
 def remove_kerning_pairs(pairs):
     """v0.192 - REMOVES glyph : glyph kerning entries from the current master's table of the current font (the design of 2026-11-19,
-    DECISIONS.md; research KD 1380-1390, KDC 1391-1397, topics/kerning.md section 16). pairs: a list of [left, right], glyph names only,
-    each pair once. Every check runs before the first removal, and a failed one refuses the whole request with nothing removed: the font
+    DECISIONS.md; research KD 1380-1390, KDC 1391-1397, topics/kerning.md section 16). pairs: a list of [left, right], each pair once;
+    since v0.194 a side written '@name' is a kerning group (the class-side block above _KERN_KIND_RANK); what follows describes a
+    glyph : glyph pair. Every check runs before the first removal, and a failed one refuses the whole request with nothing removed: the font
     and its table are matched as /kerning/pairs matches them (_kern_table_target), both names are glyphs of the font, and remove is
     reachable. Then per pair, in order: the effective value before (_kern_effective) and the exact glyph : glyph entry. No such entry:
     "no entry", nothing called, and the request goes on (the class and value that still apply are in 'before'). Otherwise ONE
@@ -4459,7 +4592,7 @@ def remove_kerning_pairs(pairs):
         return _kern_bad('"pairs" must be a non-empty list of [left, right]')
     wanted, seen = [], set()
     for i, item in enumerate(pairs):
-        if not isinstance(item, list) or len(item) != 2 or not _kern_name_ok(item[0]) or not _kern_name_ok(item[1]):
+        if not isinstance(item, list) or len(item) != 2 or not _kern_side_ok(item[0]) or not _kern_side_ok(item[1]):
             return _kern_bad(f"pair {i + 1} must be [left, right] with two glyph names of 1 to 63 characters from A-Z a-z 0-9 . _ -")
         if (item[0], item[1]) in seen:
             return _kern_bad(f"pair {i + 1} ({item[0]}:{item[1]}) is asked more than once in this request")
@@ -4487,9 +4620,15 @@ def remove_kerning_pairs(pairs):
     if target is None:
         return {"open": True, "error": f"{why}; nothing was removed"}
     pkg, master, kerning, getter, by_name = target["pkg"], target["master"], target["kerning"], target["getter"], target["by_name"]
-    missing = sorted(set(nm for a, b in wanted for nm in (a, b) if nm not in by_name))
+    missing = sorted(set(nm for a, b in wanted for nm in (a, b) if nm[:1] != "@" and nm not in by_name))
     if missing:
         return {"open": True, "error": "no glyph named " + ", ".join(repr(m) for m in missing) + " in the current font; nothing was removed"}
+    class_sides = [(side, nm) for a, b in wanted for side, nm in (("left", a), ("right", b)) if nm[:1] == "@"]
+    classes = {}
+    if class_sides:                              # v0.194: only a request with a class side reads the groups here
+        classes, why = _kern_class_targets(pkg, kerning, class_sides, by_name)
+        if classes is None:
+            return {"open": True, "error": f"{why}; nothing was removed"}
     try:
         remover = kerning.remove
     except Exception as exc:
@@ -4505,10 +4644,17 @@ def remove_kerning_pairs(pairs):
         if stopped:
             entry["status"] = "not attempted"
             continue
-        key = ((left, False), (right, False))
-        before = _kern_effective(getter, by_name, pkg, groups, left, right)
+        kind = _kern_kind(left, right)
+        key = ((left.lstrip("@"), left[:1] == "@"), (right.lstrip("@"), right[:1] == "@"))
+        sample = {"left": left, "right": right}
+        if kind != "glyph : glyph":                  # v0.194: what applies after is shown on one sample glyph pair
+            sample = _kern_sample(left, right, classes)
+            entry.update(kind=kind, classes={nm[1:]: {k: classes[nm[1:]][k] for k in ("side", "member_count")} for nm in (left, right) if nm[:1] == "@"},
+                         sample=sample)
+        before = _kern_effective(getter, by_name, pkg, groups, sample["left"], sample["right"]) if sample else {}
         exact_before, err_before = _kern_exact(getter, key)
-        entry["before"] = before
+        if sample:
+            entry["before"] = before
         if "error" in before or err_before is not None:
             entry.update(status="failed", removed=False, changed=False,
                          reason="the value before could not be read, so nothing was removed for this pair: " + (before.get("error") or err_before))
@@ -4517,6 +4663,8 @@ def remove_kerning_pairs(pairs):
         if exact_before is None:
             entry.update(status="no entry", removed=False, changed=False)
             continue
+        if kind != "glyph : glyph":
+            entry["entry_before"] = exact_before         # the class entry's own value, for a restore with /kerning/set
         size_before = _kern_len(kerning)
         call_error = None
         try:
@@ -4525,8 +4673,9 @@ def remove_kerning_pairs(pairs):
             call_error = f"{type(exc).__name__}: {exc}"
         exact_after, err_after = _kern_exact(getter, key)
         size_after = _kern_len(kerning)
-        after = _kern_effective(getter, by_name, pkg, groups, left, right)
-        entry["after"] = after
+        after = _kern_effective(getter, by_name, pkg, groups, sample["left"], sample["right"]) if sample else {}
+        if sample:
+            entry["after"] = after
         ok = (call_error is None and err_after is None and exact_after is None
               and type(size_before) is int and type(size_after) is int and size_after == size_before - 1)
         entry.update(status="removed" if ok else "failed", removed=ok, changed=None if err_after is not None else exact_after != exact_before,
@@ -4548,6 +4697,7 @@ def remove_kerning_pairs(pairs):
             stopped = True
     len_after = _kern_len(kerning)
     removed_count = sum(1 for e in results if e.get("removed") is True)
+    _kern_same_name_notes(results, groups)
     mark = _mark_font_changed_after_kerning(font, results)
     refresh = _refresh_kerning_panel(pkg, results)      # after the mark, as in set_kerning_pairs
     return {"open": True, "fonts_open": count, "matched_by": target["matched_by"], "family_name": _kern_family(font), "master": master,
@@ -12600,6 +12750,12 @@ def debug_try_pkg_kern(a, b, master, go, mode="tuple", flags=None):
 #   &form=flags    set(((a, False), (b, False)), value), the form get accepts (186-188); not in set's docstring
 # Not called, ever: remove, clear, setPlainPairs, add*, delete*, rename*, scale, asDict, getPlainPairs*, items, keys, values, has_key,
 # font.update(), glyph.update(), fontlab.Update(); no save. Whether FontLab's KERNING panel shows the pair is what the live test checks.
+# v0.193 (class-write research, CW): &left=glyph|class&right=glyph|class, default glyph. A class side needs form=flags and is sent as
+# (name, True): set(((a, isClass), (b, isClass)), value); get() reads that same key before and after. Before the first kerning call it
+# must name a kerning group of the ONE getAllGroups() (flag True); after it, the master's kerning groups (kerning.groups, never called)
+# get len() and ONE items() (_kgr_from_items, the reader of /kerning/groups), and the group must be confirmed by both sources
+# (_kgr_group) with a side that fits: KernLeft or KernBothSide on the left, KernRight or KernBothSide on the right. Anything else
+# refuses with nothing set. The reply adds left, right, classes and the groups' len() before and after. A glyph side is checked as before.
 # --------------------------------------------------------------------------
 
 _TRYSETKERN = {"calls": 0}
@@ -12621,28 +12777,83 @@ def _trysetkern_value(text):
     return (int(value) if value == int(value) else value), None
 
 
+_TRYKERN_KINDS = ("glyph", "class")                                  # v0.193: what each side of a probe's pair names
+_TRYKERN_SIDE_FITS = {"left": ("left", "both"), "right": ("right", "both")}   # the group sides that may stand on each side of a pair
+
+
 def _trysetkern_group_names(pkg):
-    """(set of every group name, None) or (None, error text), from ONE pkg.getAllGroups(). Every group counts, kerning group or not:
-    the probe refuses a glyph name that any group also carries. Only a real list or tuple of 5-item entries with a str name is accepted;
-    any other shape refuses, since then a collision cannot be ruled out."""
+    """(set of every group name, {kerning group name: {"id", "members"}}, kerning group names listed twice, None) or (None, None, None,
+    error text), from ONE pkg.getAllGroups(). Every group counts for the name set, kerning group or not: the probes refuse a glyph name
+    that any group also carries. Only a real list or tuple of 5-item entries with a str name is accepted; any other shape refuses, since
+    then a collision cannot be ruled out. The kerning groups (flag True, v0.193) are what a class side is checked against."""
     try:
         getter = pkg.getAllGroups
         if not callable(getter):
-            return None, "flPackage.getAllGroups is not callable"
+            return None, None, None, "flPackage.getAllGroups is not callable"
         groups = getter()
     except Exception as exc:
-        return None, f"flPackage.getAllGroups() failed ({type(exc).__name__}: {exc})"
+        return None, None, None, f"flPackage.getAllGroups() failed ({type(exc).__name__}: {exc})"
     if groups is None:
-        return set(), None                           # documented as ".../Nothing": a font without groups
+        return set(), {}, set(), None                # documented as ".../Nothing": a font without groups
     if not isinstance(groups, (list, tuple)):
-        return None, f"flPackage.getAllGroups() returned a {type(groups).__name__}, not a list"
+        return None, None, None, f"flPackage.getAllGroups() returned a {type(groups).__name__}, not a list"
     for entry in groups:
         if not isinstance(entry, (list, tuple)) or len(entry) != 5 or not isinstance(entry[1], str):
-            return None, "flPackage.getAllGroups() returned an entry of an unknown shape, so a name collision cannot be ruled out"
-    return {entry[1] for entry in groups}, None
+            return None, None, None, "flPackage.getAllGroups() returned an entry of an unknown shape, so a name collision cannot be ruled out"
+    kern, twice = {}, set()
+    for entry in groups:
+        if entry[0] is not True:
+            continue
+        if entry[1] in kern:
+            twice |= {entry[1]}
+        kern[entry[1]] = {"id": entry[2] if type(entry[2]) is int else None, "members": _kgr_names(entry[4])}
+    return {entry[1] for entry in groups}, kern, twice, None
 
 
-def debug_try_set_kern(a, b, value, form, go):
+def _trykern_sides_ok(a, b, left, right, form, font_names, all_names, kern, verb):
+    """None, or the error text that refuses a probe request before any kerning call (v0.193). A glyph side names a glyph of the font
+    that no group carries (defect B); a class side names a kerning group of FontLab's class list and needs form=flags."""
+    if left not in _TRYKERN_KINDS or right not in _TRYKERN_KINDS:
+        return 'left and right must each be "glyph" or "class"'
+    if form == "tuple" and "class" in (left, right):
+        return "form=tuple names two glyphs; a class side needs form=flags"
+    for side, nm, kind in (("left", a, left), ("right", b, right)):
+        if kind == "glyph" and nm in all_names:
+            return f"a group of the font has the same name as {nm!r} (defect B: a plain name pair may then mean the group); nothing was {verb}"
+        if kind == "class" and nm not in kern:
+            what = "is a class of the font but not a kerning group" if nm in all_names else "is not the name of any group of the font"
+            return f"the {side} side {nm!r} {what}; nothing was {verb}"
+    return None
+
+
+def _trykern_confirm_classes(kerning, a, b, left, right, kern, list_twice):
+    """(classes, container, groups len before, None) or (classes, container, groups len before, error text), v0.193. For the class
+    sides of a probe request: the master's kerning groups (kerning.groups, never called), its len(), then ONE items() through
+    _kgr_from_items; each class must be confirmed by both sources (_kgr_group) and its side must fit the side of the pair it stands on."""
+    classes = {}
+    try:
+        container = kerning.groups
+    except Exception as exc:
+        return classes, None, None, f"the master's kerning groups are not reachable ({type(exc).__name__}: {exc})"
+    if callable(container):
+        return classes, None, None, "the master's kerning groups attribute is callable; it was not called"
+    groups_len = _trypkgkern_len(container)
+    from_items, items_twice, _malformed, err = _kgr_from_items(container)
+    if err is not None:
+        return classes, container, groups_len, err
+    for side, nm, kind in (("left", a, left), ("right", b, right)):
+        if kind != "class":
+            continue
+        g = _kgr_group(nm, from_items, kern, None, items_twice | list_twice)
+        classes[side] = {k: g[k] for k in ("name", "side", "fontlab_side", "members", "id", "confirmed", "mismatch") if k in g}
+        if g.get("confirmed") is not True:
+            return classes, container, groups_len, f"the kerning group {nm!r} is not confirmed by both of FontLab's sources ({g.get('mismatch')})"
+        if g.get("side") not in _TRYKERN_SIDE_FITS[side]:
+            return classes, container, groups_len, f"the kerning group {nm!r} is a {g.get('side')} group, so it cannot stand on the {side} side of a pair"
+    return classes, container, groups_len, None
+
+
+def debug_try_set_kern(a, b, value, form, go, left="glyph", right="glyph"):
     import sys as _sys
     if go != "yes":
         return {"error": "this probe WRITES one kerning pair: flPackage.kerning(master).set(key, value) ONCE, with get() before and after; "
@@ -12651,7 +12862,9 @@ def debug_try_set_kern(a, b, value, form, go):
         if not _kern_name_ok(nm):
             return {"error": f"{label} must be 1 to 63 characters from A-Z a-z 0-9 . _ -"}
     if form not in _TRYSETKERN_FORMS:
-        return {"error": 'form must be "tuple" (set((a, b), value)) or "flags" (set(((a, False), (b, False)), value))'}
+        return {"error": 'form must be "tuple" (set((a, b), value)) or "flags" (set(((a, isClass), (b, isClass)), value))'}
+    if left not in _TRYKERN_KINDS or right not in _TRYKERN_KINDS or (form == "tuple" and "class" in (left, right)):
+        return {"error": _trykern_sides_ok(a, b, left, right, form, set(), set(), {}, "set")}
     number, err = _trysetkern_value(value)
     if err is not None:
         return {"error": err}
@@ -12663,7 +12876,7 @@ def debug_try_set_kern(a, b, value, form, go):
     if font is None:
         return {"open": False}
     names = set(str(g.name) for g in font.glyphs)
-    missing = [nm for nm in (a, b) if nm not in names]
+    missing = [nm for nm, kind in ((a, left), (b, right)) if kind == "glyph" and nm not in names]
     if missing:
         return {"open": True, "error": "no glyph with this name in the current font: " + ", ".join(repr(m) for m in missing),
                 "calls_so_far": _TRYSETKERN["calls"]}
@@ -12687,13 +12900,12 @@ def debug_try_set_kern(a, b, value, form, go):
     if _TRYSETKERN["calls"] >= _TRYSETKERN_MAX:
         return {"open": True, "error": f"the limit of {_TRYSETKERN_MAX} requests per listener run is used up; restart the listener to continue",
                 "calls_so_far": _TRYSETKERN["calls"], "max_calls": _TRYSETKERN_MAX}
-    groups, err = _trysetkern_group_names(pkg)
+    groups, kern, kern_twice, err = _trysetkern_group_names(pkg)
     if err is not None:
         return {"open": True, "error": err + "; nothing was set", "calls_so_far": _TRYSETKERN["calls"]}
-    clash = [nm for nm in (a, b) if nm in groups]
-    if clash:
-        return {"open": True, "error": "a group of the font has the same name as " + ", ".join(repr(c) for c in clash)
-                + " (defect B: a plain name pair may then mean the group); nothing was set", "calls_so_far": _TRYSETKERN["calls"]}
+    why = _trykern_sides_ok(a, b, left, right, form, names, groups, kern, "set")
+    if why is not None:
+        return {"open": True, "error": why, "calls_so_far": _TRYSETKERN["calls"]}
     try:
         kerning_of = pkg.kerning
     except Exception as exc:
@@ -12706,9 +12918,16 @@ def debug_try_set_kern(a, b, value, form, go):
     except Exception as exc:
         return {"open": True, "error": f"flPackage.kerning(master) failed: {type(exc).__name__}: {exc}", "master_used": current,
                 "calls_so_far": _TRYSETKERN["calls"], "max_calls": _TRYSETKERN_MAX}
-    exact = ((a, False), (b, False))
+    with_class = "class" in (left, right)
+    classes, container, groups_len_before = {}, None, None
+    if with_class:
+        classes, container, groups_len_before, why = _trykern_confirm_classes(kerning, a, b, left, right, kern, kern_twice)
+        if why is not None:
+            return {"open": True, "error": why + "; nothing was set", "left": left, "right": right, "classes": classes, "master_used": current,
+                    "calls_so_far": _TRYSETKERN["calls"], "max_calls": _TRYSETKERN_MAX}
+    exact = ((a, left == "class"), (b, right == "class"))
     before = _trypkgkern_get(kerning, exact)
-    key, key_text = ((a, b), "(a, b)") if form == "tuple" else (exact, "((a, False), (b, False))")
+    key, key_text = ((a, b), "(a, b)") if form == "tuple" else (exact, f"((a, {left == 'class'}), (b, {right == 'class'}))")
     returned, set_error = None, None
     if before["call_error"] is not None:
         set_error = "not called: the read before it failed, so the result could not be checked"
@@ -12722,16 +12941,19 @@ def debug_try_set_kern(a, b, value, form, go):
             set_error = f"{type(exc).__name__}: {exc}"
     after = _trypkgkern_get(kerning, exact)
     len_before, len_after = before["len_before"], after["len_after"]
-    return {"open": True, "a": a, "b": b, "form": form, "value_asked": number, "units_per_em": upm, "master_used": current,
-            "masters": list(masters), "call": f"flPackage.kerning(master).set({key_text}, value)", "set_error": set_error,
-            "set_returned_type": type(returned).__name__, "set_returned": _tryfont_plain(returned),
-            "exact_before": {k: before[k] for k in ("call_error", "value_type", "value")},
-            "exact_after": {k: after[k] for k in ("call_error", "value_type", "value")},
-            "read_back_matches": set_error is None and after["call_error"] is None and after["value"] == number,
-            "len_before": len_before, "len_after": len_after,
-            "table_size_changed": (len_before != len_after) if (len_before is not None and len_after is not None) else None,
-            "calls_so_far": _TRYSETKERN["calls"], "max_calls": _TRYSETKERN_MAX,
-            "note": "RESEARCH: the font in memory may have changed. Compare with FontLab's KERNING panel and a text line; nothing is saved by Glyphbridge"}
+    out = {"open": True, "a": a, "b": b, "form": form, "value_asked": number, "units_per_em": upm, "master_used": current,
+           "masters": list(masters), "call": f"flPackage.kerning(master).set({key_text}, value)", "set_error": set_error,
+           "set_returned_type": type(returned).__name__, "set_returned": _tryfont_plain(returned),
+           "exact_before": {k: before[k] for k in ("call_error", "value_type", "value")},
+           "exact_after": {k: after[k] for k in ("call_error", "value_type", "value")},
+           "read_back_matches": set_error is None and after["call_error"] is None and after["value"] == number,
+           "len_before": len_before, "len_after": len_after,
+           "table_size_changed": (len_before != len_after) if (len_before is not None and len_after is not None) else None,
+           "calls_so_far": _TRYSETKERN["calls"], "max_calls": _TRYSETKERN_MAX,
+           "note": "RESEARCH: the font in memory may have changed. Compare with FontLab's KERNING panel and a text line; nothing is saved by Glyphbridge"}
+    if with_class:
+        out = dict(out, left=left, right=right, classes=classes, groups_len_before=groups_len_before, groups_len_after=_trypkgkern_len(container))
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -12746,6 +12968,7 @@ def debug_try_set_kern(a, b, value, form, go):
 # before, reads None after, and len() dropped by exactly 1. Not called, ever: set, clear, setPlainPairs, add*, delete*, rename*, scale,
 # asDict, getPlainPairs*, items, keys, values, has_key, groups, font.update(), glyph.update(), fontlab.Update(), the mark
 # (notifyChangesApplied) and the panel refresh (notifyPackageContentUpdated); no save.
+# v0.193: &left / &right as /debug/trysetkern, with the same class checks: remove(((a, isClass), (b, isClass))), and get() of that key.
 # --------------------------------------------------------------------------
 
 _TRYDELKERN = {"calls": 0}
@@ -12753,7 +12976,7 @@ _TRYDELKERN_MAX = 10
 _TRYDELKERN_FORMS = ("tuple", "flags")
 
 
-def debug_try_del_kern(a, b, form, go):
+def debug_try_del_kern(a, b, form, go, left="glyph", right="glyph"):
     import sys as _sys
     if go != "yes":
         return {"error": "this probe WRITES: it removes one kerning pair, flPackage.kerning(master).remove(key) ONCE, with get() before and "
@@ -12762,7 +12985,9 @@ def debug_try_del_kern(a, b, form, go):
         if not _kern_name_ok(nm):
             return {"error": f"{label} must be 1 to 63 characters from A-Z a-z 0-9 . _ -"}
     if form not in _TRYDELKERN_FORMS:
-        return {"error": 'form must be "tuple" (remove((a, b))) or "flags" (remove(((a, False), (b, False))))'}
+        return {"error": 'form must be "tuple" (remove((a, b))) or "flags" (remove(((a, isClass), (b, isClass))))'}
+    if left not in _TRYKERN_KINDS or right not in _TRYKERN_KINDS or (form == "tuple" and "class" in (left, right)):
+        return {"error": _trykern_sides_ok(a, b, left, right, form, set(), set(), {}, "removed")}
     mod = _sys.modules.get("fontlab") or fl
     ws, pkg, why = _trysync_target(mod)
     if ws is None:
@@ -12771,7 +12996,7 @@ def debug_try_del_kern(a, b, form, go):
     if font is None:
         return {"open": False}
     names = set(str(g.name) for g in font.glyphs)
-    missing = [nm for nm in (a, b) if nm not in names]
+    missing = [nm for nm, kind in ((a, left), (b, right)) if kind == "glyph" and nm not in names]
     if missing:
         return {"open": True, "error": "no glyph with this name in the current font: " + ", ".join(repr(m) for m in missing),
                 "calls_so_far": _TRYDELKERN["calls"]}
@@ -12788,13 +13013,12 @@ def debug_try_del_kern(a, b, form, go):
     if _TRYDELKERN["calls"] >= _TRYDELKERN_MAX:
         return {"open": True, "error": f"the limit of {_TRYDELKERN_MAX} requests per listener run is used up; restart the listener to continue",
                 "calls_so_far": _TRYDELKERN["calls"], "max_calls": _TRYDELKERN_MAX}
-    groups, err = _trysetkern_group_names(pkg)
+    groups, kern, kern_twice, err = _trysetkern_group_names(pkg)
     if err is not None:
         return {"open": True, "error": err + "; nothing was removed", "calls_so_far": _TRYDELKERN["calls"]}
-    clash = [nm for nm in (a, b) if nm in groups]
-    if clash:
-        return {"open": True, "error": "a group of the font has the same name as " + ", ".join(repr(c) for c in clash)
-                + " (defect B: a plain name pair may then mean the group); nothing was removed", "calls_so_far": _TRYDELKERN["calls"]}
+    why = _trykern_sides_ok(a, b, left, right, form, names, groups, kern, "removed")
+    if why is not None:
+        return {"open": True, "error": why, "calls_so_far": _TRYDELKERN["calls"]}
     try:
         kerning_of = pkg.kerning
     except Exception as exc:
@@ -12807,9 +13031,16 @@ def debug_try_del_kern(a, b, form, go):
     except Exception as exc:
         return {"open": True, "error": f"flPackage.kerning(master) failed: {type(exc).__name__}: {exc}", "master_used": current,
                 "calls_so_far": _TRYDELKERN["calls"], "max_calls": _TRYDELKERN_MAX}
-    exact = ((a, False), (b, False))
+    with_class = "class" in (left, right)
+    classes, container, groups_len_before = {}, None, None
+    if with_class:
+        classes, container, groups_len_before, why = _trykern_confirm_classes(kerning, a, b, left, right, kern, kern_twice)
+        if why is not None:
+            return {"open": True, "error": why + "; nothing was removed", "left": left, "right": right, "classes": classes, "master_used": current,
+                    "calls_so_far": _TRYDELKERN["calls"], "max_calls": _TRYDELKERN_MAX}
+    exact = ((a, left == "class"), (b, right == "class"))
     before = _trypkgkern_get(kerning, exact)
-    key, key_text = ((a, b), "(a, b)") if form == "tuple" else (exact, "((a, False), (b, False))")
+    key, key_text = ((a, b), "(a, b)") if form == "tuple" else (exact, f"((a, {left == 'class'}), (b, {right == 'class'}))")
     returned, remove_error, remove_called = None, None, False
     if before["call_error"] is not None:
         remove_error = "not called: the read before it failed, so the result could not be checked"
@@ -12826,16 +13057,19 @@ def debug_try_del_kern(a, b, form, go):
     len_before, len_after = before["len_before"], after["len_after"]
     removed = (remove_error is None and before["value"] is not None and after["call_error"] is None and after["value_type"] == "NoneType"
                and type(len_before) is int and type(len_after) is int and len_after == len_before - 1)
-    return {"open": True, "a": a, "b": b, "form": form, "master_used": current, "masters": list(masters),
-            "call": f"flPackage.kerning(master).remove({key_text})", "remove_called": remove_called, "remove_error": remove_error,
-            "remove_returned_type": type(returned).__name__, "remove_returned": _tryfont_plain(returned),
-            "exact_before": {k: before[k] for k in ("call_error", "value_type", "value")},
-            "exact_after": {k: after[k] for k in ("call_error", "value_type", "value")},
-            "removed": removed, "len_before": len_before, "len_after": len_after,
-            "table_size_changed": (len_before != len_after) if (len_before is not None and len_after is not None) else None,
-            "calls_so_far": _TRYDELKERN["calls"], "max_calls": _TRYDELKERN_MAX,
-            "note": "RESEARCH: the font in memory may have changed. Compare with FontLab's KERNING panel and a text line; the font is not "
-                    "marked as changed and the panel is not asked to refresh; nothing is saved by Glyphbridge"}
+    out = {"open": True, "a": a, "b": b, "form": form, "master_used": current, "masters": list(masters),
+           "call": f"flPackage.kerning(master).remove({key_text})", "remove_called": remove_called, "remove_error": remove_error,
+           "remove_returned_type": type(returned).__name__, "remove_returned": _tryfont_plain(returned),
+           "exact_before": {k: before[k] for k in ("call_error", "value_type", "value")},
+           "exact_after": {k: after[k] for k in ("call_error", "value_type", "value")},
+           "removed": removed, "len_before": len_before, "len_after": len_after,
+           "table_size_changed": (len_before != len_after) if (len_before is not None and len_after is not None) else None,
+           "calls_so_far": _TRYDELKERN["calls"], "max_calls": _TRYDELKERN_MAX,
+           "note": "RESEARCH: the font in memory may have changed. Compare with FontLab's KERNING panel and a text line; the font is not "
+                   "marked as changed and the panel is not asked to refresh; nothing is saved by Glyphbridge"}
+    if with_class:
+        out = dict(out, left=left, right=right, classes=classes, groups_len_before=groups_len_before, groups_len_after=_trypkgkern_len(container))
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -14022,14 +14256,16 @@ def _route(method, full_path, body=b""):
         if path == "/debug/trysetkern":
             try:
                 return _build_response(200, debug_try_set_kern((query.get("a") or [""])[0], (query.get("b") or [""])[0], (query.get("value") or [""])[0],
-                                                               (query.get("form") or ["tuple"])[0], (query.get("go") or [""])[0]))
+                                                               (query.get("form") or ["tuple"])[0], (query.get("go") or [""])[0],
+                                                               (query.get("left") or ["glyph"])[0], (query.get("right") or ["glyph"])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
         if path == "/debug/trydelkern":
             try:
                 return _build_response(200, debug_try_del_kern((query.get("a") or [""])[0], (query.get("b") or [""])[0],
-                                                               (query.get("form") or ["tuple"])[0], (query.get("go") or [""])[0]))
+                                                               (query.get("form") or ["tuple"])[0], (query.get("go") or [""])[0],
+                                                               (query.get("left") or ["glyph"])[0], (query.get("right") or ["glyph"])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

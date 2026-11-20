@@ -4,6 +4,16 @@ Active decisions only, newest first. Each entry gives the date, the decision and
 
 **Budget changes are not recorded here** (the user's choice of 2026-11-20, unlike HOW-TO-GET-ORGANIZED.md): each one, with its date and reason, goes to "Budget history" in [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md); current values are in [MARKDOWN-MAP.md](MARKDOWN-MAP.md). *Reason:* a budget's history is not an active decision, and its rules are in [AGENTS.md](../AGENTS.md).
 
+## 2026-11-20: class kerning in `set_kerning` and `remove_kerning` (research listener 0.193, CW 1409–1417; built listener 0.194 / server 0.78)
+
+- **The two tools are extended; no new tools.** *Reason:* a class entry is the same call with a different key (CW); one place for agents, and the mark, refresh, approval and stop rules carry over. Glyph-only calls keep their path, calls and replies.
+- **A side written `@name` (the ASCII `@`) is a kerning group;** it must be confirmed by `items()` and `getAllGroups()` and stand on a side that fits (left or both on the left, right or both on the right), else the request is refused before any write. *Reason:* `@` cannot occur in a glyph name; it replaces "class names are not accepted" with "accepted only when marked and confirmed".
+- **The 250 approval counts entries;** the reply names each class's side and member count and says how far the value reaches; member pairs are not read.
+- **A class pair is verified by its exact entry and one sample glyph pair** (the first member of each class side that is a glyph of the font): `applied`, or `covered` by the sample's own exception; `entry_before` allows a revert.
+- **A glyph side named like a kerning group is written as the glyph, with a note** (`write @name to kern the group`). Limit, found in the build: only the class list the request already read is used, so no FontLab call is added; a glyph that is not a member of its namesake group gets no note.
+- **Whole units:** the existing refusal of a fraction covers class values, so FontLab's rounding of them needs no research.
+- *Reason for the rest:* the user's answers, one question at a time.
+
 ## 2026-11-20: CODEX.md, notes for Codex only
 
 A root file beside CLAUDE.md, named in AGENTS.md's startup line. *Reason:* Codex loads only one instruction file per folder (AGENTS.md here) and has no import syntax, per its documentation; named CODEX.md after the agent, not the app. Rules for every agent stay in AGENTS.md.
