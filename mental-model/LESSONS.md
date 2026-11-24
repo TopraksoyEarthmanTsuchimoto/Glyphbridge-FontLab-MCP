@@ -125,3 +125,7 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 ## Group-editing research (2026-11-20, GE–GK 1505–1545)
 
 - **Save a probe's reply to a file before parsing it, and start each command with an absolute `cd`.** In GK 1539 a command ran from the folder an earlier command had left; the parsing step failed, and the reply of a write was lost, though the write ran. The state had to be re-read instead (1539b).
+
+## Change-log session (2026-11-24, CL 1618–1629)
+
+- **A restart request names each part.** 1628 needed only Claude Desktop restarted, with the listener still running so its change log kept `clg3`. The step said "after Claude Desktop is fully quit and reopened" but not to leave the listener alone. After "restarted everything", `changes_by_font` was missing and `other_changes` was empty, most likely because the listener was restarted too. That voided the test. Rule: [AGENTS.md](../AGENTS.md).
