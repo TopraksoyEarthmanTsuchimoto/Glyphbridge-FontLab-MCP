@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.85)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.86)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -43,7 +43,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.85"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.86"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -562,32 +562,43 @@ def check_status() -> dict:
                                "(not tracked per font). FontLab is not asked whether the font was saved, so this does not show whether "
                                f"anything is unsaved now. Glyphbridge never saves: the person saves with the File menu or {SAVE_SHORTCUT}.")
     if listener is not None and listener >= _CHANGE_LOG_MIN_LISTENER:
-        by_font = _changes_by_font()
-        if by_font:
-            result.update(by_font)
+        result.update(_changes_by_font())
     return result
+
+
+def _changes_by_font_unknown(reason: str) -> dict:
+    return {"changes_by_font": "unknown", "changes_by_font_note": (
+        f"FontLab's listener did not give its change record ({reason}), so the changes per font are not known; this is not zero.")}
 
 
 def _changes_by_font() -> dict:
     """v0.85: each font's running total from the listener's change log (listener 0.204), for fontlab_status. Reads the log only;
-    the bookmark of finish_changes is not moved. {} when the log has nothing or cannot be read."""
+    the bookmark of finish_changes is not moved. v0.86: always answers (rule 3, unknown is said, never zero): the rows; [] when
+    the listener recorded nothing since it started; "unknown" with the reason when the record cannot be read."""
     try:
         data = _call_listener_post("/changes", {"server_run": SERVER_RUN, "ask_ids": []})
-    except Exception:
-        return {}
+    except Exception as exc:
+        return _changes_by_font_unknown(str(exc) or type(exc).__name__)
     totals = data.get("totals") if isinstance(data, dict) else None
     if not isinstance(totals, list):
-        return {}
+        return _changes_by_font_unknown("its reply held no readable totals")
+    started = (data.get("run_started") if isinstance(data, dict) else None) or "an unknown time"
+    if not totals:
+        return {"changes_by_font": [], "changes_by_font_note": (
+            f"No change recorded since FontLab's listener started at {started}; changes before that start are not known.")}
     rows = []
     for t in totals:
         if isinstance(t, dict) and (type(t.get("changed")) is int or type(t.get("unknown")) is int):
             rows.append({"font": t.get("font") or "a font without a name", "changes": t.get("changed") or 0,
                          "uncertain": t.get("unknown") or 0})
     if not rows:
-        return {}
-    return {"changes_by_font": rows, "changes_by_font_note": (
-        f"Changes FontLab's listener recorded per font since it started at {data.get('run_started') or 'an unknown time'}, from every "
-        "app and session. Glyphbridge cannot see whether the person saved, so these are not unsaved changes.")}
+        return _changes_by_font_unknown("its reply held no readable totals")
+    note = (f"Changes FontLab's listener recorded per font since it started at {started}, from every "
+            "app and session. Glyphbridge cannot see whether the person saved, so these are not unsaved changes.")
+    unread = len(totals) - len(rows)
+    if unread:
+        note += f" {unread} {'entry' if unread == 1 else 'entries'} of the record could not be read."
+    return {"changes_by_font": rows, "changes_by_font_note": note}
 
 
 def read_current_font() -> dict:
@@ -4795,6 +4806,8 @@ def fontlab_status(ctx: Context | None = None) -> dict[str, Any]:
     changes made through Glyphbridge in this session (see save_note: it cannot know whether the person saved).
     With listener 0.204 or newer, changes_by_font gives each font's changes recorded by FontLab's listener since it started,
     from every app and session (not unsaved changes: whether the person saved cannot be seen).
+    changes_by_font is [] when the listener recorded no change since it started (changes before that start are not known),
+    and "unknown" when its record could not be read (not zero); changes_by_font_note says which.
     """
     _note_client(ctx)
     return _with_font(check_status)

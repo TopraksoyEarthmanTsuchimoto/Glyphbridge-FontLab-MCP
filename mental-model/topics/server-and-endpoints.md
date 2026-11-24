@@ -52,7 +52,7 @@ Tool names as Claude sees them: [CLAUDE.md](../../CLAUDE.md). After a server upd
   person saved, so the numbers never claim the font is unsaved). The listener is unchanged. A test (part 8 of `create_unicode_tests.py`) guards the policy: a spy font whose save-like members
   record any call, plus a static scan of both scripts for `.save(`, `.export...(` and `.generate...(`; both were mutation-tested (a planted save call is caught). Only a live run through Claude Desktop shows
   whether the agent really says it once (section 13, item 9).
-  **The change log (listener 0.204 / server 0.85, 2026-11-24, stub-tested only; [DECISIONS.md](../DECISIONS.md), 2026-11-24):** both counts
+  **The change log (listener 0.204 / server 0.85, 2026-11-24, run live CL 1618–1634, [LIVE-TESTS.md](../LIVE-TESTS.md); [DECISIONS.md](../DECISIONS.md), 2026-11-24):** both counts
   are kept, and the listener's decides. The listener logs every product write before its reply goes out: verdict yes / no / unknown from
   the route's reply by general rules (`_change_verdict`), the request and server-run IDs, client, kind, target, the font in front (package
   `fgId`) and one sequence number per listener run; the last 1,000 entries are kept, each font's total never trimmed. `POST /changes`
@@ -61,7 +61,9 @@ Tool names as Claude sees them: [CLAUDE.md](../../CLAUDE.md). After a server upd
   stands, `counts_disagree`); `change_record` is `complete`, `incomplete` (listener restarted, entries dropped; the server's count is
   used) or `unavailable` (listener older than 0.204); only this server's bookmark moves; `other_changes` (another app, or an earlier
   server process) are named and bring a reminder on their own, "they may already have been saved". `fontlab_status` adds
-  `changes_by_font` from the totals without moving the bookmark.
+  `changes_by_font` from the totals without moving the bookmark. Since server 0.86 it always answers (rule 3): `[]` when the
+  listener recorded nothing since it started (the note names that start; earlier changes are not known), `"unknown"` with the
+  reason when `/changes` fails or its reply holds no readable totals, and the note counts any unreadable entries beside readable ones.
   **No save question from FontLab (live 2026-11-03, S1, tests 460–472, [LIVE-TESTS.md](../LIVE-TESTS.md)):** when a font was changed only through the tools (a create, a Unicode
   change, a width change), FontLab closed it, or quit, without asking whether to save; after the person's own Font > New Glyph it asked "Save changes to … before closing?" (470).
   So a person who closes FontLab after an agent's changes loses them without a warning from FontLab; the chat reminder is the only one. Why, and what is still open:

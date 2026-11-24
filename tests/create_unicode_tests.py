@@ -3756,6 +3756,31 @@ _bm = (srv._CHANGE_LOG["run"], srv._CHANGE_LOG["since"])
 s = srv.check_status()
 print("51r changes_by_font             ->", s.get("changes_by_font"), "| note starts:", s.get("changes_by_font_note", "")[:40])
 print("51r bookmark untouched          ->", (srv._CHANGE_LOG["run"], srv._CHANGE_LOG["since"]) == _bm)
+print("-- v0.86: changes_by_font always answers (rule 3): [] for an empty record, 'unknown' when it cannot be read")
+
+
+def _fail51r(path, payload, timeout=0):
+    if path == "/changes":
+        raise srv.OutcomeUnknown("The FontLab listener did not answer /changes within 5 s")
+    return wire51_post(path, payload, timeout)
+
+
+_row51 = {"font": "R51 Regular", "changed": 2, "unknown": 1, "font_key": "k1"}
+for label, fake in (
+        ("51r2 empty record             ", lambda p, pl, timeout=0: {"run": "r", "run_started": "12:00:00", "totals": []}),
+        ("51r3 empty, no start time     ", lambda p, pl, timeout=0: {"run": "r", "totals": []}),
+        ("51r4 the call fails           ", _fail51r),
+        ("51r5 no totals in the reply   ", lambda p, pl, timeout=0: {"run": "r", "run_started": "12:00:00"}),
+        ("51r6 totals not a list        ", lambda p, pl, timeout=0: {"run": "r", "totals": "x"}),
+        ("51r7 only unusable rows       ", lambda p, pl, timeout=0: {"run": "r", "totals": [{"font": "X"}, "y"]}),
+        ("51r8 one usable, two not      ", lambda p, pl, timeout=0: {"run": "r", "run_started": "12:00:00",
+                                                                     "totals": [_row51, {"font": "X"}, 7]}),
+        ("51r9 one usable, one not      ", lambda p, pl, timeout=0: {"run": "r", "run_started": "12:00:00",
+                                                                     "totals": [_row51, {"font": "X", "changed": "3"}]})):
+    srv._call_listener_post = fake
+    s = srv.check_status()
+    print(label, "->", s.get("changes_by_font", "<absent>"), "|", s.get("changes_by_font_note", "<no note>"))
+srv._call_listener_post = wire51_post
 print("-- POST /changes refuses bad bodies; it reads the log only")
 for label, body in (("since -1      ", {"since": -1}), ("since '3'     ", {"since": "3"}), ("run 5         ", {"run": 5}),
                     ("ask_ids 'x'   ", {"ask_ids": "x"}), ("ask_ids [1]   ", {"ask_ids": [1]}), ("unknown key   ", {"x": 1}),
@@ -3776,7 +3801,7 @@ srv._call_listener_post = wire51_post
 print("51u (path, ID sent)             ->", _seen51, "| none pending after:", srv._CHANGE_LOG["pending_id"] is None)
 _fd, _sd = " ".join((srv.finish_changes.__doc__ or "").split()), " ".join((srv.fontlab_status.__doc__ or "").split())
 print("51v descriptions                -> finish_changes:", [w for w in ("other_changes", "may already be saved", "change_record") if w not in _fd],
-      "| fontlab_status:", [w for w in ("changes_by_font", "not unsaved changes") if w not in _sd])
+      "| fontlab_status:", [w for w in ("changes_by_font", "not unsaved changes", "changes_by_font is []", '"unknown" when its record could not be read') if w not in _sd])
 print("51w versions                    ->", ns["VERSION"], srv.SERVER_VERSION, "| change log needs", srv._CHANGE_LOG_MIN_LISTENER)
 
 
