@@ -4,12 +4,27 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Server v0.88 (2026-11-24, listener unchanged at v0.205): a full stop before the font note
+
+**Built as proposed and approved** (found in WF 1646).
+
+- Server: `_with_font` adds the `font_note` to a refusal's text after `. ` when the text does not already end with `.`, `!` or `?`, and after one space when it does; trailing spaces of the text are dropped. Before, a plain space ran the two together ("… get_glyph_outline) 2 fonts are open …"). This applies to every tool.
+- Tests: four stub harnesses PASS at 5536 + 58 + 121 + 1850 lines; the deployed listener copy is identical. Changed: 22o, 22w, 22y; new: 22w4 (a refusal that already ends with a full stop keeps one space, no ".."). Mutation run: the plain space failed 22o, 22w and 22y; always adding `. ` failed 22w4 (it passed the suite before 22w4 was added); the control passed. Run live FN 1648–1649 ([LIVE-TESTS.md](LIVE-TESTS.md)); the already-punctuated branch is stub-tested only.
+
+## Listener v0.205 / server v0.87 (2026-11-24): two wording fixes
+
+**Built as proposed and approved** (P2.7 candidates found in 1363 and 43h).
+
+- Server: the list form's underscore refusal (`_COMP_UNDERSCORE_NOTE`) no longer advises the single form "into an empty glyph" (the single form places beside existing content since 0.186); it says the single form was seen live into an empty glyph, not yet beside existing content. `remove_component`'s refusal goes through `_comp_refusal`, so it says "nothing was changed" once (it said it twice).
+- Listener: the same advice in the list refusal of POST `/glyph/component`, reached only by direct callers (the server refuses first).
+- Tests: four stub harnesses PASS at 5536 + 58 + 121 + 1849 lines; the deployed listener copy is identical. Changed: 2466a–e, 40a–e, 43h; 45g now checks that `remove_component` uses `_comp_refusal` (it checked that it did not). Mutation run: putting the double wording back failed 43h and 45g; the control passed. Run live WF 1641–1647 ([LIVE-TESTS.md](LIVE-TESTS.md)); not run: an underscore name placed with the single form beside existing content.
+
 ## Server v0.86 (2026-11-24): `changes_by_font` always answers
 
 **Built as proposed and approved** (the user's choice B of 2026-11-24; settles the watch point "`changes_by_font` absent: empty log or unreadable?", CL 1618). The listener stays at 0.204.
 
 - Server: `fontlab_status` (listener 0.204 or newer) always carries `changes_by_font`, by rule 3 of the change log ("unknown is said, never zero"): the rows as before; `[]` when the listener's totals are empty, with a note naming the listener's start and saying earlier changes are not known; `"unknown"` with the reason when `/changes` fails, its reply has no `totals` list, or no row can be read. Readable rows beside unreadable ones are shown, and the note counts the unreadable entries. The `fontlab_status` description says what `[]` and `"unknown"` mean. Before, all of these left the field out.
-- Tests: four stub harnesses PASS at 5536 + 58 + 121 + 1849 lines; the deployed listener copy is identical. New: `create_unicode_tests.py` 51r2–51r9; 51v also checks the new description words. Mutation run: 10 of 10 caught, the no-change control not. **Not yet run in FontLab.**
+- Tests: four stub harnesses PASS at 5536 + 58 + 121 + 1849 lines; the deployed listener copy is identical. New: `create_unicode_tests.py` 51r2–51r9; 51v also checks the new description words. Mutation run: 10 of 10 caught, the no-change control not. Run live CB 1635–1640 ([LIVE-TESTS.md](LIVE-TESTS.md)); the `"unknown"` case is stub-tested only.
 
 ## Listener v0.204 / server v0.85 (2026-11-24): the change log, both counts
 

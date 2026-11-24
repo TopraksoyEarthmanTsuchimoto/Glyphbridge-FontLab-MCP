@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.86)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.88)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -43,7 +43,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.86"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.88"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -452,7 +452,9 @@ def _with_font(fn: Any, *args: Any) -> Any:
         _FONT_CALLS.clear()
         fields = _font_fields(calls, result)
         if refusal is not None and fields.get("font_note"):
-            refusal.args = (f"{refusal} {fields['font_note']}",) + refusal.args[1:]
+            text = str(refusal)
+            sep = " " if text.rstrip().endswith((".", "!", "?")) else ". "   # v0.88: a full stop before the note (WF 1646 ran them together)
+            refusal.args = (f"{text.rstrip()}{sep}{fields['font_note']}",) + refusal.args[1:]
     if isinstance(result, dict) and fields:
         result.update(fields)
     return result
@@ -2677,7 +2679,7 @@ def _comp_checks_ok(checks: dict) -> bool:
 
 def _comp_refusal(clean: str, reason: str) -> ToolError:
     """v0.74: the ToolError for an add_component call that changed nothing, saying "nothing was changed" once (the listener's reason
-    ends with it; live 1351 showed it twice)."""
+    ends with it; live 1351 showed it twice). v0.87: remove_component uses it too (its refusal said it twice, test 43h)."""
     tail = ": nothing was changed"
     text = reason[:-len(tail)] if isinstance(reason, str) and reason.endswith(tail) else reason
     return ToolError(f"Glyph '{clean}': nothing was changed: {text}")
@@ -2770,8 +2772,9 @@ _COMP_LIST_UNCONFIRMED_INSTRUCTION = (
     "which components are left in the glyph; any they do not want can be removed with remove_component (after reading the glyph with "
     "get_glyph_outline) or deleted in FontLab. Do NOT repair, remove or repeat anything on your own: ask the person first.")
 _COMP_UNDERSCORE_NOTE = ("FontLab's recipe build of several glyphs reads a name with an underscore as a ligature of its parts (\"a_b\" as a "
-                         "and b): it drops the glyph, or places the parts instead if they exist (seen live, 1234). Place such a glyph on "
-                         "its own with component, x and y, into an empty glyph.")
+                         "and b): it drops the glyph, or places the parts instead if they exist (seen live, 1234). Place such a glyph "
+                         "with the single form (component, x and y); that was seen live into an empty glyph, not yet beside existing "
+                         "content.")
 
 
 def _comp_width_fields(result: dict, data: dict, with_cleanup: bool) -> None:
@@ -3067,7 +3070,7 @@ def write_glyph_remove_components(name: str, entries: list, form: str) -> dict:
     changed = data.get("changed")
     reason = data.get("reason") or "the re-read does not confirm the removal"
     if changed is not True and changed != "unknown":
-        raise ToolError(f"Glyph '{clean}': nothing was changed: {reason}")
+        raise _comp_refusal(clean, reason)
     raw_states = data.get("entry_states") if isinstance(data.get("entry_states"), list) else []
     states = [{"index": st.get("index"), "component": st.get("component"),
                "state": st.get("state") if st.get("state") in _REMOVE_STATES else "unknown"} for st in raw_states if isinstance(st, dict)]

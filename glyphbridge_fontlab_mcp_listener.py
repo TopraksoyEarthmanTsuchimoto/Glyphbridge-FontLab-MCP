@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.204)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.205)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -318,7 +318,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.204"
+VERSION = "0.205"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -2892,8 +2892,8 @@ def add_components(name, entries, confirmed):
     if under:       # v0.175: FontLab's recipe of several glyphs reads "a_b" as a ligature of a and b (AC2u 1216-1235, 1234)
         return _done(dict(base, underscore_refused=True, reason=(
             f"components[{under[0]}] {names[under[0]]!r} has an underscore, which FontLab's recipe build of several glyphs reads as a "
-            "ligature of its parts (it drops the glyph or places the parts instead); the single form places such a glyph alone into an "
-            "empty glyph: nothing was changed")))
+            "ligature of its parts (it drops the glyph or places the parts instead); the single form (one call per glyph) placed such "
+            "a glyph into an empty glyph in testing, not yet beside existing content: nothing was changed")))   # v0.205: was "alone into an empty glyph"
     if len(entries) > _COMP_SOFT_LIMIT:
         base["untested_size_note"] = _COMP_UNTESTED_NOTE
         if confirmed is not True:

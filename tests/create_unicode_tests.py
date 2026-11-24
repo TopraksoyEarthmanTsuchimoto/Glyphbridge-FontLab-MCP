@@ -1587,6 +1587,13 @@ for lbl, seen, hdr, fn in (("22w a refusal after a switch         ", ("testfont 
     srv22._FONT_SEEN.update(name=seen[0], key=seen[1], seen=True); H22["queue"][:] = [hdr]
     try: srv22._with_font(fn)
     except srv22.ToolError as e: print(lbl, ":", type(e).__name__, "|", str(e), "| args", len(e.args))
+# v0.88: the note follows a full stop; a refusal that already ends with one keeps a single space (no "..").
+def _refuse_stop22():
+    srv22._call_listener("/glyph/width?name=A"); raise srv22.ToolError("refused, nothing was changed.")
+srv22._FONT_SEEN.update(name="testfont Regular", key="b2b2b2b2b2b2", seen=True); H22["queue"][:] = [_hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2)]
+try: srv22._with_font(_refuse_stop22)
+except srv22.ToolError as e: print("22w4 a refusal ending with a full stop: one space before the note:", "changed. 2 fonts are open" in str(e),
+                                   "| no '..':", ".." not in str(e))
 srv22._FONT_SEEN.update(name="testfont Regular", key="b2b2b2b2b2b2", seen=True)
 H22["queue"][:] = [_hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2), _hdr22("Arial", "Regular", "a1a1a1a1a1a1", 2)]
 try: srv22._with_font(_refuse22)
@@ -3048,7 +3055,7 @@ ac38("45f a reason without the tail        ", {"open": True, "placed": False, "c
 print("45g description:", "exactly ONE layer, the active one" in srv.add_component.__doc__, "| 0.187 named:",
       "the one-layer rule for every target needs listener 0.187" in srv.add_component.__doc__, "| the seen case:",
       "listener 0.187 refuses any glyph with more than one layer instead" in srv.add_component.__doc__,
-      "| remove_component's refusal untouched:", "raise _comp_refusal(" not in _inspect.getsource(srv.write_glyph_remove_components),
+      "| remove_component's refusal uses it too (0.87):", "raise _comp_refusal(clean, reason)" in _inspect.getsource(srv.write_glyph_remove_components),
       "| _comp_refusal in add_component's three refusals:", sum(_inspect.getsource(f).count("raise _comp_refusal(clean, reason)")
                                                                  for f in (srv.write_glyph_component, srv._comp_beside_reply, srv.write_glyph_components)))
 

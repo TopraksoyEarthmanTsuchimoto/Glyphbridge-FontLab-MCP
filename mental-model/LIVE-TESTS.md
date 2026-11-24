@@ -1635,3 +1635,61 @@ The live checks of listener 0.204 / server 0.85 (the change log, both counts; [C
 | 1634 | `finish_changes` again (control) | 0, reminder null, no `other_changes` | as predicted, `complete` |
 
 Reading (one run each): the listener's log and the server's count agree on a package; the bookmark moves, so a second call counts nothing; a change from another client is named in `other_changes` and brings the reminder on its own; after a listener restart the record is called incomplete even though the restart fell between packages and nothing was lost, as rule 2 ("when in doubt, remind") intends: the server cannot know that. The CL font `Unnamed1` (unsaved): `.notdef`, `clg1` (width 500), `clg2`, `clg3`; nothing to keep. 1628 is void: the person was asked to restart Claude Desktop, reported "restarted everything", and the listener's log was empty afterwards; 1630–1634 repeat it with the restart named. After 1630 the CL font also holds `clg4`. 1632–1634 answer what 1628 could not: with only Claude Desktop restarted, a new server process finds the earlier process's change in the listener's log, names it in `other_changes` and brings the reminder once; a second call counts nothing. Not tested: a font that was really saved in between.
+
+### CB: `changes_by_font` always answers, live (2026-11-24, listener 0.204 / server 0.86, FontLab 8.9.5 in Demo mode, through Claude Code in Claude Desktop's Code tab)
+
+The live check of server 0.86 (`changes_by_font` always answers; [CHANGELOG.md](CHANGELOG.md)). FontLab ran with two fonts open, the CL font `Unnamed1 Regular` in front; the session's server process was 0.86 from its start. Every prediction was stated in chat before its call or step; 1635's had two branches, because whether the listener had been restarted since 1634 was not known. The person restarted only the listener (1636) and reported the OUTPUT panel by screenshot. No stage needed a save. Nothing was saved.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1635 | `fontlab_status` | 0.204 / 0.86, no `compatibility_note`; nothing counted this session; `changes_by_font` either one row `Unnamed1 Regular` 1 (`clg4`, the listener run of 1632 still going) or `[]` with a note naming the listener's start (restarted since); never absent | the first branch: one row `Unnamed1 Regular` 1, uncertain 0; the note names the start 21:28:01 |
+| 1636 | the person stops the listener (PowerShell `/shutdown`) and starts it again from the Scripting panel; FontLab with both fonts, Claude Desktop and the session keep running | a new 0.204 run in OUTPUT | as predicted: "Listener stopped." and a new 0.204 run; 1635 shows there as reads at 22:10:57 |
+| 1637 | `fontlab_status` | 0.204 / 0.86; **`changes_by_font` `[]`**, the note naming the new start and saying earlier changes are not known (0.85 left the field out: 1618, 1627b) | as predicted: `[]`, "No change recorded since FontLab's listener started at 22:11:20; changes before that start are not known." |
+| 1638 | `create_glyph cbf1` | created in `Unnamed1 Regular`, 5 → 6, layer `Regular`, no Unicode | as predicted; synced, `fontlab_changed_mark` called |
+| 1639 | `fontlab_status` | this session 1, uncertain 0; `changes_by_font` one row `Unnamed1 Regular` 1, uncertain 0, the note naming 22:11:20 | as predicted |
+| 1640 | `finish_changes` | 1, uncertain 0; `fonts_changed` `Unnamed1 Regular`; reminder; no `other_changes`; `change_record` `incomplete` (the listener restarted during this server process, as in 1627) | as predicted, with "FontLab's listener was restarted (its record starts at 22:11:20)" |
+
+Reading (one run): after a listener restart with no change, `changes_by_font` answers `[]` with a note instead of being left out; after one change it shows the row. Not run live: `"unknown"` (an unreadable `/changes`), which cannot be caused without a code change; stub-tested only. The CL font `Unnamed1` (unsaved) now also holds `cbf1`; nothing to keep.
+
+### WF: two wording fixes live (2026-11-24, listener 0.205 / server 0.87, FontLab 8.9.5 in Demo mode, through Claude Code in Claude Desktop's Code tab)
+
+The live check of listener 0.205 / server 0.87 (the underscore refusal's advice and `remove_component`'s single "nothing was changed"; [CHANGELOG.md](CHANGELOG.md)). Before 1641 the person restarted the listener (v0.205 in OUTPUT, by screenshot) and then Claude Desktop; FontLab and both fonts stayed open. The CL font `Unnamed1 Regular` was in front, prefix `cbf`. Every prediction was stated in chat before its call. No stage needed a save. Nothing was saved.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1641 | `fontlab_status` | listener 0.205, no `compatibility_note`; server 0.87 if Claude Desktop was restarted, 0.86 if not; `changes_by_font` `[]`, the note naming the new start | 0.205 / 0.87; `[]`, the start 22:34:16 |
+| 1642 | `create_glyph cbfs`; `draw_polygon cbfs` (0,0)–(50,200), counterclockwise | created, 6 → 7, layer `Regular`, no Unicode; `verified`, 1 contour, 4 nodes, nothing rounded | as predicted |
+| 1643 | `add_component cbf1`, list `[cbfs (0,0), cbf_x (0,0)]` | the server's refusal before any request, ending "Place such a glyph with the single form (component, x and y); that was seen live into an empty glyph, not yet beside existing content."; no OUTPUT line | as predicted, word for word |
+| 1644 | the same list as a direct POST `/glyph/component` (curl, client `curl-test`) | 200, `placed: false`, `underscore_refused: true`, the reason ending "the single form (one call per glyph) placed such a glyph into an empty glyph in testing, not yet beside existing content: nothing was changed"; an OUTPUT line not predicted | as predicted; OUTPUT showed "[curl-test > Glyphbridge] … NOT DONE component cbf1 (2 components): components[1] 'cbf_x' has an underscore …" (seen in the screenshot of ED3 1655) |
+| 1645 | `add_component cbf1`, single form, `cbfs` at (0, 0) | placed, `verified`, `placement` "empty layer", width unchanged | as predicted; width 0 |
+| 1646 | `remove_component cbf1`, index 0, expected `clg1` at (0, 0) (the source there is `cbfs`) | refused, nothing changed: "Glyph 'cbf1': nothing was changed: entry 0 (index 0): element 0 is a component of 'cbfs', not 'clg1' (read the glyph again with get_glyph_outline)", "nothing was changed" once | as predicted. Not predicted: the server's `font_note` follows the reason with no full stop ("… get_glyph_outline) 2 fonts are open …"); the join is older than 0.87 |
+| 1647 | `finish_changes` | 3, uncertain 0, `complete`, no `other_changes` (1644 was a refusal), `fonts_changed` `Unnamed1 Regular`, reminder | as predicted |
+
+Reading (one run each): both copies of the underscore advice read as built; `remove_component`'s refusal says "nothing was changed" once. Not run: an underscore name placed with the single form beside existing content. The CL font `Unnamed1` (unsaved) now also holds `cbfs` (a 50 by 200 rectangle) and `cbf1` with one component of `cbfs`; nothing to keep.
+
+### FN: a full stop before the font note, live (2026-11-24, listener 0.205 / server 0.88, FontLab 8.9.5 in Demo mode, through Claude Code in Claude Desktop's Code tab)
+
+The live check of server 0.88 ([CHANGELOG.md](CHANGELOG.md)). Before 1648 the person restarted only Claude Desktop; FontLab with both fonts and the listener kept running (the listener did not change). The CL font `Unnamed1 Regular` was in front. Every prediction was stated in chat before its call. Nothing was changed or saved.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1648 | `fontlab_status` | 0.205 / 0.88, no `compatibility_note`; `changes_by_font` one row `Unnamed1 Regular` 3, uncertain 0, the start 22:34:16 | as predicted |
+| 1649 | `remove_component cbf1`, index 0, expected `clg1` at (0, 0), as in WF 1646 | refused, nothing changed; "… (read the glyph again with get_glyph_outline). 2 fonts are open in FontLab; …", a full stop where 1646 had none | as predicted, word for word |
+
+Reading (one run): the font note now follows a refusal with a full stop. Not run live: a refusal that already ends with a full stop (stub test 22w4 only). `finish_changes` was not called: nothing was changed.
+
+### ED3: adding a contour beside a cubic outline, by probe (2026-11-24, listener 0.205 / server 0.88, FontLab 8.9.5 in Demo mode, through Claude Code in Claude Desktop's Code tab)
+
+Research for P2.2 (an add-contour tool) with the existing gated probe `/debug/tryedit?stage=addcontour` (listener 0.151, unchanged); results in [topics/geometry.md](topics/geometry.md) "Editing existing outlines". The probe needs exactly one font open: before 1650 the person closed the SD font `Unnamed` without saving (gone); `fontlab_status` then read one font, `Unnamed1 Regular`. Nothing was restarted. Prefix `edp3_`. The probe calls went through curl (client `curl-ed3`). Every prediction was stated in chat before its call or step. No stage needed a save. Nothing was saved.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1650 | `create_glyph edp3_a`; `draw_path edp3_a`, a circle of radius 200 around (200, 200), 4 smooth points, counterclockwise | created, 7 → 8, layer `Regular`; `verified`, `nodes_match`, 1 contour of 12 nodes, nothing rounded | as predicted |
+| 1651 | `/debug/tryedit?stage=addcontour&name=edp3_a&go=yes` | the fixed square (600–650) added as contour 1; the circle unchanged node by node, handles and smooth flags included; `mismatches` empty; glyph count 8; no side effect; synced; marked; call 1 of the run | as predicted; the probe's margins after it still read rsb −400 (the nodes give −650) |
+| 1652 | `get_glyph_outline edp3_a` | both contours as built; `unverified` (stale sidebearings); `inkBox()` current, top 650 | as predicted: ink width 400 against the nodes' 650; `inkBox()` 0–650 |
+| 1653 | control: `create_glyph edp3_b` (8 → 9), `draw_polygon` (100, 100)–(500, 500), then the probe | `verified`; the square added after the first, no mismatches, glyph count 9, no side effect, synced, marked, call 2 (as ED2 973) | as predicted; margins after it rsb −500 (the nodes give −650) |
+| 1654 | `finish_changes` | 4 (two creates, two drawings), uncertain 0, `complete`; the probe edits not in the change log; `other_changes` the earlier 0.87 process's 3 (WF); `fonts_changed` `Unnamed1 Regular`; reminder | as predicted: `other_changes` `local-agent-mode`, 3, 22:34:59–22:35:18; no `curl-ed3` entry |
+| 1655 | the person opened `edp3_a` and pressed Edit > Undo once (screenshot) | the added square stays (as `move_nodes`, 1023) | as predicted: Undo greyed out. Seen as well: the glyph panel read LSB 0, RSB −650 (caught up after the glyph was opened) |
+| 1656 | `get_glyph_outline edp3_a` | `verified`, both contours unchanged, ink width 650, rsb −650 | as predicted |
+
+Reading (one run each): `shape.shapeData.addContour` leaves an existing cubic contour exactly as it was, smooth flags included; FontLab's sidebearings lag after the add until a GUI event (here opening the glyph), as in ED2; Edit > Undo offers nothing; the probe's edits mark the font but are not in the listener's change log (debug routes). Not tested: a curved or open contour added (the probe adds only its fixed square), a shape with its own transform, several shapes, components, Power Brush. The CL font `Unnamed1` (unsaved) now also holds `edp3_a` (circle and square) and `edp3_b` (two squares); nothing to keep.
