@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.84)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.85)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -32,6 +32,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
+import uuid
 from urllib.parse import quote, unquote
 from typing import Any
 
@@ -42,7 +43,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.84"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.85"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -90,6 +91,9 @@ def _client_headers() -> dict:
     headers = {"X-Glyphbridge-Client": quote(_CLIENT["name"], safe="")} if _CLIENT["name"] else {}
     if _LAUNCHER["value"]:
         headers["X-Glyphbridge-Launcher"] = quote(_LAUNCHER["value"], safe="")
+    headers["X-Glyphbridge-Server-Run"] = SERVER_RUN                  # v0.85: this server process, for the change log
+    if _CHANGE_LOG["pending_id"]:
+        headers["X-Glyphbridge-Request-Id"] = _CHANGE_LOG["pending_id"]   # v0.85: set by _write_post for one write
     return headers
 
 
@@ -241,6 +245,13 @@ class OutcomeUnknown(ToolError):
 
 # ---- save policy (v0.18): Glyphbridge never saves; the person does. Counters live in this server process only. ----
 _CHANGES = {"package": 0, "package_unsure": 0, "session": 0, "session_unsure": 0}
+# ---- v0.85 (DECISIONS.md, 2026-11-24: both counts, through a change log): the listener (0.204) logs every write it executed; this
+# server keeps its own counts above as well. SERVER_RUN names this process; the bookmark ("run", "since") is the listener run and the
+# last sequence number already reported by finish_changes; "unsure_ids" are writes whose reply never came; "runs_seen" are the
+# listener runs that answered during this package (two runs = the listener was restarted). The five rules are in finish_change_package.
+SERVER_RUN = uuid.uuid4().hex
+_CHANGE_LOG: dict = {"run": None, "since": 0, "pending_id": None, "unsure_ids": [], "runs_seen": []}
+_CHANGE_LOG_MIN_LISTENER = (0, 204)
 
 _SAVE_INSTRUCTION = ("The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. "
                      "Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE "
@@ -254,6 +265,17 @@ _CHANGED_BY_ERROR_NOTE = ("The font HAS been modified by this, so it counts as a
 def _reset_change_tracking() -> None:
     for key in _CHANGES:
         _CHANGES[key] = 0
+    _CHANGE_LOG.update(run=None, since=0, pending_id=None, unsure_ids=[], runs_seen=[])
+
+
+def _note_run_header(headers: Any) -> None:
+    """v0.85: remember which listener run answered (X-Glyphbridge-Run, listener 0.204). Never raises."""
+    try:
+        run = headers.get("X-Glyphbridge-Run") if headers is not None else None
+        if isinstance(run, str) and run.strip() and len(run) <= 64 and run not in _CHANGE_LOG["runs_seen"]:
+            _CHANGE_LOG["runs_seen"].append(run.strip())
+    except Exception:
+        pass
 
 
 def _note_change(sure: bool = True) -> None:
@@ -280,14 +302,20 @@ def _mark_modified(result: dict, modified: bool) -> None:
 
 
 def _write_post(path: str, payload: dict, timeout=None) -> dict:
-    """POST a write to the listener; an outcome that cannot be known is counted as an uncertain change and said so."""
+    """POST a write to the listener; an outcome that cannot be known is counted as an uncertain change and said so. v0.85: each
+    write carries a new request ID; an ID whose outcome is unknown is kept, so finish_changes can ask the listener about it."""
+    rid = uuid.uuid4().hex
+    _CHANGE_LOG["pending_id"] = rid
     try:
         if timeout is None:
             return _call_listener_post(path, payload)
         return _call_listener_post(path, payload, timeout=timeout)
     except OutcomeUnknown as exc:
         _note_change(sure=False)
+        _CHANGE_LOG["unsure_ids"].append(rid)
         raise OutcomeUnknown(f"{exc} {_UNSURE_NOTE}") from exc
+    finally:
+        _CHANGE_LOG["pending_id"] = None
 
 
 # --------------------------------------------------------------------------
@@ -309,6 +337,7 @@ def _do_request(req_or_url, path: str, timeout: float = TIMEOUT_SECONDS) -> dict
         with _opener.open(req_or_url, timeout=timeout) as resp:
             raw = resp.read()
             _note_font_headers(getattr(resp, "headers", None))
+            _note_run_header(getattr(resp, "headers", None))
     except urllib.error.HTTPError as exc:
         try:
             detail = exc.read().decode("utf-8", "replace")[:300]
@@ -532,7 +561,33 @@ def check_status() -> dict:
         result["save_note"] = ("These count the changes made through Glyphbridge since this server started, in whichever font was open "
                                "(not tracked per font). FontLab is not asked whether the font was saved, so this does not show whether "
                                f"anything is unsaved now. Glyphbridge never saves: the person saves with the File menu or {SAVE_SHORTCUT}.")
+    if listener is not None and listener >= _CHANGE_LOG_MIN_LISTENER:
+        by_font = _changes_by_font()
+        if by_font:
+            result.update(by_font)
     return result
+
+
+def _changes_by_font() -> dict:
+    """v0.85: each font's running total from the listener's change log (listener 0.204), for fontlab_status. Reads the log only;
+    the bookmark of finish_changes is not moved. {} when the log has nothing or cannot be read."""
+    try:
+        data = _call_listener_post("/changes", {"server_run": SERVER_RUN, "ask_ids": []})
+    except Exception:
+        return {}
+    totals = data.get("totals") if isinstance(data, dict) else None
+    if not isinstance(totals, list):
+        return {}
+    rows = []
+    for t in totals:
+        if isinstance(t, dict) and (type(t.get("changed")) is int or type(t.get("unknown")) is int):
+            rows.append({"font": t.get("font") or "a font without a name", "changes": t.get("changed") or 0,
+                         "uncertain": t.get("unknown") or 0})
+    if not rows:
+        return {}
+    return {"changes_by_font": rows, "changes_by_font_note": (
+        f"Changes FontLab's listener recorded per font since it started at {data.get('run_started') or 'an unknown time'}, from every "
+        "app and session. Glyphbridge cannot see whether the person saved, so these are not unsaved changes.")}
 
 
 def read_current_font() -> dict:
@@ -3192,10 +3247,120 @@ def delete_existing_glyph(name: str) -> dict:
     return result
 
 
+def _read_change_log(ask_ids: list) -> tuple:
+    """v0.85: (the listener's /changes reply, None) or (None, why). Never raises: without the log the server's own counts stand."""
+    payload: dict = {"server_run": SERVER_RUN, "since": _CHANGE_LOG["since"], "ask_ids": list(ask_ids)}
+    if _CHANGE_LOG["run"] is not None:
+        payload["run"] = _CHANGE_LOG["run"]
+    try:
+        data = _call_listener_post("/changes", payload)
+    except Exception as exc:
+        text = str(exc)
+        if "404" in text or "unknown endpoint" in text:
+            return None, "the listener is older than 0.204 and keeps no change log"
+        return None, f"the listener's change log could not be read ({text[:160]})"
+    if (not isinstance(data, dict) or not isinstance(data.get("run"), str) or type(data.get("newest")) is not int
+            or not isinstance(data.get("groups"), list) or not isinstance(data.get("asked", {}), dict)):
+        return None, "the listener's change log answered in an unexpected shape"
+    return data, None
+
+
+def _change_record(sure: int, unsure: int, unsure_ids: list) -> dict:
+    """v0.85: the five rules (DECISIONS.md, 2026-11-24), applied to the server's own counts and the listener's log.
+    1. the listener decides whether a change happened; an unanswered request ID is asked about;
+    2. when in doubt, remind: either side's change counts, matched by the server-run ID, never added together;
+    3. unknown is said, never zero: an incomplete log (restart, dropped entries) is reported and the server's count stands;
+    4. bookmarks, no reset: only this server's bookmark moves, the listener's log is never cleared;
+    5. another client's changes are named, not hidden (A: also those made before this server process started)."""
+    log, why = _read_change_log(unsure_ids)
+    runs_seen = list(_CHANGE_LOG["runs_seen"])
+    _CHANGE_LOG["runs_seen"] = []
+    _CHANGE_LOG["unsure_ids"] = []
+    out: dict = {}
+    if log is None:
+        out.update(sure=sure, unsure=unsure, others=[], fonts=[],
+                   record={"change_record": "unavailable", "change_record_note": f"Counted by this server only: {why}."})
+        return out
+    first = _CHANGE_LOG["run"] is None
+    complete = ((first or log.get("same_run") is True) and not log.get("dropped_after_since")
+                and all(r == log["run"] for r in runs_seen))
+    groups = [g for g in log["groups"] if isinstance(g, dict)]
+    mine = [g for g in groups if g.get("by_this_server") is True]
+    theirs = [g for g in groups if g.get("by_this_server") is not True]
+    num = lambda g, k: g.get(k) if type(g.get(k)) is int and g.get(k) >= 0 else 0
+    mine_yes, mine_unknown = sum(num(g, "changed") for g in mine), sum(num(g, "unknown") for g in mine)
+    asked = log.get("asked") if isinstance(log.get("asked"), dict) else {}
+    answers = [asked.get(rid) for rid in unsure_ids]
+    still_open = sum(1 for a in answers if a in ("not_seen_or_dropped", None) or (a == "not_seen" and not complete))
+    record: dict = {}
+    expected = sure + sum(1 for a in answers if a == "changed")      # an unanswered write the listener confirms is no disagreement
+    if complete:
+        changes, uncertain = mine_yes, mine_unknown + still_open
+        record["change_record"] = "complete"
+        if mine_yes != expected:
+            record["counts_disagree"] = {"listener": mine_yes, "server": expected}
+            record["counts_note"] = (f"FontLab's listener recorded {mine_yes} change(s) from this server process, while this server counted "
+                                     f"{expected}. Say both numbers if the person asks about the count.")
+            changes = max(mine_yes, expected)    # rule 2: when in doubt, remind
+    else:
+        changes, uncertain = max(sure, mine_yes), max(unsure, mine_unknown + still_open)
+        reasons = []
+        if (not first and log.get("same_run") is not True) or len(set(runs_seen) | {log["run"]}) > 1:
+            reasons.append(f"FontLab's listener was restarted (its record starts at {log.get('run_started') or 'an unknown time'})")
+        if log.get("dropped_after_since"):
+            reasons.append(f"{log['dropped_after_since']} older entries were dropped past the limit of {log.get('log_limit')}")
+        record.update(change_record="incomplete", change_record_note=("The listener's record of this package is incomplete: "
+                      + "; ".join(reasons or ["reason not reported"]) + ". This server's own count is used where it is higher."))
+    resolved = {rid: a for rid, a in zip(unsure_ids, answers) if a in ("changed", "unchanged", "unknown", "not_seen")}
+    if resolved:
+        record["uncertain_requests_checked"] = resolved
+    others = []
+    for g in theirs:
+        n, u = num(g, "changed"), num(g, "unknown")
+        if n or u:
+            others.append({"by": g.get("client") or "a client that sent no name", "font": g.get("font") or "a font without a name",
+                           "changes": n, "uncertain": u, "from": g.get("first"), "until": g.get("last")})
+    fonts = list(dict.fromkeys(str(g.get("font") or "a font without a name") for g in groups if num(g, "changed") or num(g, "unknown")))
+    _CHANGE_LOG.update(run=log["run"], since=log["newest"])           # rule 4: only this bookmark moves
+    out.update(sure=changes, unsure=uncertain, others=others, fonts=fonts, record=record)
+    return out
+
+
+_OTHER_CHANGES_NOTE = ("FontLab's listener also recorded changes NOT made through this server process (another app, or an earlier "
+                       "session, possibly before this conversation): see other_changes. They may already have been saved; Glyphbridge "
+                       "cannot see that. Mention them ONCE, briefly, with the reminder: who made them, in which font, and that they may "
+                       "already be saved.")
+
+
 def finish_change_package() -> dict:
-    """End of a task package: report how many changes were made since the last call and return the save reminder ONCE."""
+    """End of a task package: report how many changes were made since the last call and return the save reminder ONCE.
+    v0.85: the listener's change log is asked as well (_change_record); a change seen by either side brings the reminder."""
     sure, unsure = _CHANGES["package"], _CHANGES["package_unsure"]
+    unsure_ids = list(_CHANGE_LOG["unsure_ids"])
     _CHANGES["package"] = _CHANGES["package_unsure"] = 0
+    rec = _change_record(sure, unsure, unsure_ids)
+    result = _finish_reply(rec["sure"], rec["unsure"])
+    result.update(rec["record"])
+    if rec["fonts"]:
+        result["fonts_changed"] = rec["fonts"]
+    if rec["others"]:
+        result["other_changes"] = rec["others"]
+        if result.get("save_reminder") is None:
+            result.update(save_reminder=SAVE_REMINDER, agent_instruction=(
+                "Nothing was changed through this server process in this package, but FontLab's listener recorded the changes in "
+                "other_changes. Show the person save_reminder now, ONCE, in bold exactly as written, with one sentence about "
+                "other_changes. Glyphbridge has not saved anything and cannot; no dialog is shown in FontLab."))
+            result.pop("note", None)
+        result["other_changes_note"] = _OTHER_CHANGES_NOTE
+    if result.get("counts_note") or result.get("change_record_note"):
+        result["agent_instruction"] = result.get("agent_instruction", "") + (
+            " The change record has a note (counts_note / change_record_note): say it in one sentence only if the person asks about "
+            "the count, or when change_record is 'incomplete'.")
+    return result
+
+
+def _finish_reply(sure: int, unsure: int) -> dict:
+    """The reply of finish_changes for these counts (the wording of server 0.84)."""
     if not sure and not unsure:
         result = {"changes_in_package": 0, "uncertain_changes_in_package": 0, "save_reminder": None,
                   "note": ("Nothing was changed through Glyphbridge since the last finish_changes call (or since the server started), so "
@@ -4628,6 +4793,8 @@ def fontlab_status(ctx: Context | None = None) -> dict[str, Any]:
     server_version and listener_version (and a compatibility_note when the
     listener is older than this server expects). After changes it also counts the
     changes made through Glyphbridge in this session (see save_note: it cannot know whether the person saved).
+    With listener 0.204 or newer, changes_by_font gives each font's changes recorded by FontLab's listener since it started,
+    from every app and session (not unsaved changes: whether the person saved cannot be seen).
     """
     _note_client(ctx)
     return _with_font(check_status)
@@ -5398,6 +5565,12 @@ def finish_changes(ctx: Context | None = None) -> dict[str, Any]:
     deletions), and never per step. It counts the changes made through Glyphbridge since the last call and returns
     'save_reminder': show it to the person in the chat in bold, exactly as written, after your summary. If nothing was
     changed, save_reminder is null and you say nothing about saving.
+
+    With listener 0.204 or newer the count is checked against FontLab's listener, which records every change it carries out.
+    other_changes lists changes NOT made through this server process (another app, or an earlier session): then a reminder
+    comes even if this package changed nothing; mention them once, saying they may already be saved. change_record says
+    whether the listener's record of this package is 'complete', 'incomplete' (a listener restart, entries dropped) or
+    'unavailable'; follow agent_instruction.
 
     Glyphbridge never saves the font and never opens a dialog for this: saving is the person's job (File menu or SAVE_KEYS),
     and the reminder appears only in the chat. This tool changes nothing in FontLab.

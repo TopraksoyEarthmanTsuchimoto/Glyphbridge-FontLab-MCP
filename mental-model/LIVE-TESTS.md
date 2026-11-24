@@ -1576,3 +1576,34 @@ Research for the countdown of the self-closing dialog design ([DECISIONS.md](DEC
 | 1598 | `seconds=20&countdown=yes`; the person clicks Yes | Yes; the countdown changes nothing | as predicted: Yes at 4.985 s, 4 ticks to "No (16)", no error |
 
 Reading (one run each): a second `QTimer` owned by the dialog relabels its button visibly once a second while `exec_()` waits; the closing timer is unaffected, and a click before the end counts as usual. The clicked button's label reads correctly as the property `text` (the flaw of SC 1591, 1592). 3 of the probe's 10 runs were used.
+
+### SD: self-closing dialogs and the `.notdef` notice live (2026-11-24, listener 0.203 / server 0.84, FontLab 8.9.5 in Demo mode, through Claude Code in Claude Desktop's Code tab)
+
+The live checks of listener 0.203 / server 0.83 (self-closing dialogs, the `.notdef` notice without a dialog) and server 0.84 (an empty `.notdef` in a font in progress left alone). A new session; no font open at the start; one font open throughout. Every prediction was stated in chat before its call or GUI step. The person acted only on the dialogs and in the Classes panel, and reported the dialogs and the OUTPUT panel by screenshot. No stage needed a save. Nothing was saved.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1599 | `fontlab_status` | 0.203 / 0.84, no `compatibility_note` | as predicted; no font open |
+| 1600 | `create_font`, no family | `Unnamed Regular`; no `notdef_note`, no mention of `.notdef` | as predicted |
+| 1601 | `get_current_font` | `notdef` `empty`, `font_mature` false, `noted_in_output_panel` false, "Say nothing about .notdef"; no `.notdef` line in OUTPUT | as predicted (0 of 52 letters) |
+| 1602 | `check_notdef` | the same; the instruction begins "If the person asked about .notdef" | as predicted; OUTPUT for 1601–1602: only "reads: font info 1, .notdef check 2" |
+| 1603 | `create_glyph sdc1` | created, layer `Regular`, no Unicode | as predicted |
+| 1604 | `delete_glyph sdc1`; no answer | Yes/No, default No; the No button counts down; the text says what happens without an answer; closes at about 45 s; `not_answered_in_time`, nothing changed; one OUTPUT line | as predicted: the person's screenshot showed "No (10)" and "…closes by itself in 45 seconds and nothing is…"; OUTPUT "delete sdc1: not answered within 45 s, nothing deleted"; the call returned within the Code tab's 60 s. Seen: the Claude window partly covered the dialog ([WATCH-POINTS.md](WATCH-POINTS.md)) |
+| 1604a | `list_glyphs` | `.notdef`, `sdc1` | as predicted |
+| 1605 | `delete_glyph sdc1`; the person clicks No below "No (40)" | declined, expected behaviour, nothing changed | as predicted; OUTPUT "you answered No in FontLab, nothing deleted" |
+| 1606 | `create_glyph sdc2` | created, layer `Regular`; 3 glyphs | as predicted |
+| 1607 | `delete_glyph sdc1`; the person clicks Yes | deleted 3 → 2, marked `via_glyph` `sdc2`, no `save_question_note` | as predicted; OUTPUT "deleted after your Yes (verified, glyphs 3 -> 2)" |
+| 1608 | `delete_glyph .notdef`; the person screenshots, then clicks No | its own warning (every font needs `.notdef` as glyph 0); default No, countdown; declined | as predicted: "This is the .notdef glyph. Every font needs one as glyph 0 … Deleting it leaves the font without one."; "No (25)"; OUTPUT "delete .notdef: you answered No in FontLab, nothing deleted" |
+| 1609 | `create_glyph sdc3` | created, layer `Regular`; 3 glyphs | as predicted |
+| 1609a | the person makes `sdcL` (Kerning Left: `sdc2`, `sdc3`) in the Classes panel | — | made; the panel shows `sdcL`, size 2 |
+| 1610 | `get_kerning_groups sdcL` | `left`, `sdc2` `sdc3`, `confirmed` | as predicted, id 5116 |
+| 1611 | `remove_kerning_group sdcL`, `pairs=delete`; no answer | the dialog names the group, side, members and that its entries are deleted; countdown; closes at about 45 s; `not_answered_in_time`, nothing changed; one OUTPUT line | as predicted: "(Kerning Left, 2 members: sdc2, sdc3)", "Its kerning entries are deleted with it.", "No Glyphbridge tool can bring a removed group back.", "No (33)"; OUTPUT "kerning group remove sdcL: not answered within 45 s, nothing removed" |
+| 1611a | `get_kerning_groups sdcL` | unchanged | as predicted, id 5116 |
+| 1612 | `create_glyph` `A`–`Z`, `a`–`z` (52 calls) | each created, layer `Regular`, its own codepoint assigned by FontLab; 55 glyphs; 52 OUTPUT lines | every reply as predicted. **OUTPUT not as predicted:** three lines, then "create: 49 more like this, all verified", the listener's documented folding of repeated lines ([topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4); the prediction was wrong, not the code |
+| 1613 | `get_current_font` (control: every letter, none drawn) | `letters_present` 52, `font_mature` false, not noted, "Say nothing" | as predicted (`letters_checked_for_outline` 52) |
+| 1614 | `draw_polygon n` [[50,0],[450,0],[450,500],[50,500]] | `verified`, 1 shape, 1 contour, 4 nodes; width unchanged | as predicted; advance width 0 (a tool-made glyph's start) |
+| 1615 | `get_current_font` | `font_mature` true, `noted_in_output_panel` true, the "may have been overlooked" instruction; one OUTPUT line | as predicted (`drawn_letter` `n`, `letters_checked_for_outline` 1, `already_noted` false); OUTPUT ".notdef is empty; … this font has every letter A-Z and a-z, so it may have been overlooked" |
+| 1616 | `get_current_font` again | `already_noted` true, nothing noted, no second line | as predicted: "Mention .notdef again only if it is relevant"; no second line. The read summary after it said ".notdef check 2" for one call; perhaps the re-check of 1615's note is counted there (not tested) |
+| 1617 | `finish_changes` | `changes_in_package` 58 (the font 1, glyphs 55, the delete 1, the drawing 1), if no app replaced the server | as predicted: 58, `uncertain` 0 |
+
+Reading (one run each): both dialog tools close an unanswered dialog by themselves at 45 s with a visible countdown, before the Code tab's 60 s limit, and report `not_answered_in_time` with nothing changed; No and Yes within the time act as before; deleting `.notdef` gets its own text. An empty `.notdef` is not raised in a new font nor in one with every letter but none drawn; it is raised once, in chat and in OUTPUT, once a letter is drawn, then stays quiet. Not run: a font without `.notdef` (it needs a Yes to delete it). The SD font `Unnamed` (unsaved): `.notdef`, `sdc2`, `sdc3`, `A`–`Z`, `a`–`z` (`n` drawn), the class `sdcL`; nothing to keep.

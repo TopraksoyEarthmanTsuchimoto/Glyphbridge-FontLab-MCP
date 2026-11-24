@@ -52,7 +52,8 @@ The areas follow the summary table in [CURRENT-STATUS.md](CURRENT-STATUS.md).
 
 ### Other
 
-- **`.notdef`** check and one-time dialog (until listener 0.202; since 0.203 an OUTPUT line instead, stub-tested only). → [topics/notdef.md](topics/notdef.md)
+- **`.notdef`** check and notice: a one-time dialog until listener 0.202; since 0.203 / 0.84 no dialog, and an empty `.notdef` is raised only in a mature font, once, in chat and as one OUTPUT line (SD 1599–1616, one run each: a new font and a font with every letter but none drawn left alone, the notice once a letter was drawn, then silence). Not run: a font without `.notdef`. → [topics/notdef.md](topics/notdef.md)
+- **Self-closing dialogs** (listener 0.203 / server 0.83, SD 1604–1611a, one run each): the Yes/No of `delete_glyph` and `remove_kerning_group` counts down on its No button and closes by itself at 45 s, before the Code tab's 60 s limit, reported as `not_answered_in_time` with nothing changed; No and Yes in time act as before; deleting `.notdef` gets its own warning. → [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §2
 - **Activity log** in FontLab's OUTPUT panel: one line per change and one summary of reads, naming the client (`local-agent-mode`) and, once, the program that started the server (`| CLAUDE`); live tests 190, 191, 225–229, 236–242. Stub-tested only: REFUSED / FAILED lines, unsynced or warned results, the `writes` / `off` modes, the flush at `/shutdown`. → [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4
 
 ## Which version each feature needs

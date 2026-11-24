@@ -86,6 +86,18 @@ Merged on 2026-11-24; each entry in full: [archive/DECISIONS-ARCHIVE.md](archive
 - **`GLYPHBRIDGE_NOTDEF_WARN=0` switches the automatic checks off; it is a setting for scripts and automation,** documented in [topics/server-and-endpoints.md](topics/server-and-endpoints.md) only; `check_notdef` still answers on request. *Reason:* the user's choice (a line in the root README was too insignificant); with fonts in progress left alone, designers have nothing to switch off.
 - Open: whether a missing `.notdef` is a real issue depends on what FontLab's export does without one (not seen live; an export is probably blocked in Demo mode).
 
+### 2026-11-24: both counts, through a change log
+
+- **The change count is kept on both sides; the listener's record decides.** Supersedes nothing: it refines option (i) of 2026-11-21. *Reason:* the user's choice after the discussion of 2026-11-24. The listener knows what FontLab executed, per font and client; only the server knows which replies never came back.
+- **The mechanism: a change log with an ID per write.** The server sends a unique ID with each write, and a server-run ID made once per server process. The listener logs what it executed (ID, font `fgId`, client, kind, one sequence number per listener run, a run ID). The server keeps the IDs that got no reply and a bookmark per font. *Reason:* one mechanism resolves every disagreement, saving development time (the user's aim).
+- **Five general rules:**
+  1. The listener decides whether a change happened; an unanswered ID is asked about.
+  2. When in doubt, remind; changes are matched by ID, never added together.
+  3. Unknown is said, never zero.
+  4. Bookmarks, no reset.
+  5. Another client's changes are named, not hidden.
+- **The user's choices (2026-11-24), one question at a time:** the log keeps the last **1,000 entries** per listener run (about 1 MB, estimated, to be measured), each font's running total always kept, older entries reported as dropped; **one sequence number per listener run**, so the server keeps one bookmark; a server process without a bookmark **reminds once about earlier changes still in the log**, saying they may already be saved. *Reason:* a new session and a replaced server process look the same to the server, and staying silent would bring back TO 1582.
+
 ### 2026-11-21: dialogs and AI apps' time limits (research TO, TO2, SC, CD 1577–1598; built, listener 0.203 / server 0.83)
 
 Merged on 2026-11-24; each entry in full: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Merged and condensed on 2026-11-24").

@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.203)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.204)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -40,6 +40,12 @@ KERNING PANEL (v0.136): after a kerning write that changed an entry, and after i
 makes FontLab's KERNING panel list the change at once (live 738, 741-743, one font, one master). The reply says what was done (fontlab_panel_refresh),
 never what the panel shows. _REFRESH_KERNING_PANEL = False switches it off.
 
+CHANGE LOG (v0.204): every product write that reaches the listener is judged from its own reply (changed: yes / no /
+unknown, _change_verdict) and kept in a log of at most _CHANGE_LOG_MAX entries for this listener run, with the request's
+X-Glyphbridge-Request-Id and X-Glyphbridge-Server-Run, the client, the font in front (package fgId) and one sequence number
+per listener run; each font's running total is never trimmed. Every reply carries X-Glyphbridge-Run (this run's ID).
+POST /changes answers the server's bookmark and unanswered IDs. Bookkeeping only: nothing here touches a glyph.
+
 NO FONT OPEN (v0.105): every product route answers {"open": false} when CountFonts() is 0 (see _open_font):
 with no font open, CurrentFont() still returns a placeholder font.
 
@@ -66,6 +72,11 @@ Routes (GET unless marked POST):
     POST /font/create           {"family"?} (v0.146): ONE new font through flPackage(), also with other fonts open; with a family,
                                 the four names Build Names gives and the legacy family, each read back, then ONE changed mark on
                                 the new package; "notes" says what FontLab will not show (also printed in the OUTPUT panel)
+    POST /changes               {"run"?, "since"?, "server_run"?, "ask_ids"?} (v0.204): the change log after "since" when "run" is
+                                this run (else the whole run), grouped by font and by who sent it (this server_run or others),
+                                entries dropped past the limit, each font's running total, and a verdict for each asked
+                                request ID (changed / unchanged / unknown / not_seen / not_seen_or_dropped). Reads the log
+                                only, never FontLab
     /shutdown, POST /shutdown   stops the listener; FontLab keeps running
 
   Reading glyphs
@@ -307,7 +318,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.203"
+VERSION = "0.204"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -14804,6 +14815,221 @@ def create_font(family=None):
     return out
 
 
+# ---- v0.204: the change log (DECISIONS.md, 2026-11-24: both counts, through a change log). The listener judges each product write
+# from its own reply and keeps the last _CHANGE_LOG_MAX entries of this listener run; each font's running total is never trimmed.
+# Bookkeeping only: one read of the font in front (its package fgId and names) after a write that changed or may have changed it,
+# nothing else is called on FontLab. The server asks through POST /changes; the five rules live in the server.
+_CHANGE_LOG_MAX = 1000          # the user's choice (2026-11-24)
+_CHANGE_ASK_MAX = 2000          # most request IDs one /changes request may ask about
+_CHANGE_ID_MAX = 64             # longest request / server-run ID kept (the server sends 32 hex digits)
+_CHANGE_RUN = None              # this listener run's ID, set below
+_CHANGE_LOG = []                # entries, oldest first
+_CHANGE_STATE = {"seq": 0, "dropped": 0, "dropped_upto": 0, "started": ""}
+_CHANGE_TOTALS = {}             # font key -> {"font", "changed", "unknown"}; never trimmed
+_CHANGE_EXCLUDED = ("/font/notdef/warn",)     # writes in _ACT_WRITES that never change the font
+
+
+def _change_new_run():
+    """A fresh, empty log with a new run ID (called once when the listener file runs)."""
+    global _CHANGE_RUN
+    _CHANGE_RUN = hashlib.sha1(f"{time.time()}-{id(_CHANGE_LOG)}-{time.perf_counter()}".encode("ascii")).hexdigest()[:16]
+    del _CHANGE_LOG[:]
+    _CHANGE_TOTALS.clear()
+    _CHANGE_STATE["seq"] = _CHANGE_STATE["dropped"] = _CHANGE_STATE["dropped_upto"] = 0    # plain assignments: the static scans of
+    _CHANGE_STATE["started"] = datetime.datetime.now().strftime("%H:%M:%S")                # nearby probes forbid any update call
+
+
+_change_new_run()
+
+
+def _change_same(before, after):
+    """True when two read-back values are the same (numbers within 0.01). Never raises."""
+    nb, na = _num(before), _num(after)
+    if nb is not None and na is not None:
+        return abs(nb - na) < 0.01
+    return before == after
+
+
+def _change_verdict(path, code, reply):
+    """"yes", "no" or "unknown": did this write change the font? General rules, in order, from the route's own reply only:
+    a refusal (HTTP 400) is no; another failure or an unreadable reply is unknown; no font, a No or no answer in a dialog is no;
+    kerning entries decide by their own "changed" / "removed"; an explicit "changed" decides; a success flag of a change is yes;
+    a glyph created under another name is yes; a re-read before / after decides (and a created layer is a change); a refusal
+    with a reason is no; anything else is unknown, which counts on the safe side."""
+    if code == 400:
+        return "no"
+    if code != 200 or not isinstance(reply, dict):
+        return "unknown"
+    if reply.get("open") is False or reply.get("user_declined") is True or reply.get("not_answered") is True:
+        return "no"
+    results = reply.get("results")
+    if isinstance(results, list):
+        entries = [e for e in results if isinstance(e, dict)]
+        if any(e.get("changed") is True or e.get("removed") is True for e in entries):
+            return "yes"
+        if any(e.get("changed") == "unknown" for e in entries):
+            return "unknown"
+        return "no"
+    changed = reply.get("changed")
+    if changed is True:
+        return "yes"
+    if changed == "unknown":
+        return "unknown"
+    if changed is False:
+        return "no"
+    if any(reply.get(k) is True for k in ("created", "deleted", "drawn", "moved", "placed", "removed", "renamed")):
+        return "yes"
+    if reply.get("created_under_other_names"):
+        return "yes"
+    if reply.get("layer_created"):
+        return "yes"
+    if "before" in reply and "after" in reply:
+        return "no" if _change_same(reply.get("before"), reply.get("after")) else "yes"
+    if reply.get("reason") or reply.get("error") or reply.get("bad_request"):
+        return "no"
+    return "unknown"
+
+
+def _change_id(raw):
+    """A request or server-run ID as sent (printable ASCII, no spaces, at most _CHANGE_ID_MAX characters), or None."""
+    if not isinstance(raw, str):
+        return None
+    raw = raw.strip()
+    if not raw or len(raw) > _CHANGE_ID_MAX or any(not (33 <= ord(c) <= 126) for c in raw):
+        return None
+    return raw
+
+
+def _change_font():
+    """(key, name) of the font in front, read once: key is the package fgId as text ("fgId:5"), or the path hash when the
+    fgId cannot be read, or None. Never raises."""
+    try:
+        counter = getattr(fl, "CountFonts", None)
+        count = counter() if callable(counter) else None
+        if type(count) is int and count == 0:
+            return None, None
+    except Exception:
+        pass
+    name = None
+    try:
+        font = fl.CurrentFont()
+        info = font.info if font is not None else None
+        if info is not None:
+            name = " ".join(x for x in (_font_text(info, "familyName"), _font_text(info, "styleName")) if x) or None
+    except Exception:
+        font = None
+    key, _err = _notdef_font_key()
+    if key is not None:
+        return f"fgId:{key}", name
+    try:
+        path = font.path if font is not None else None
+        if isinstance(path, str) and path:
+            return "path:" + hashlib.sha1(path.encode("utf-8")).hexdigest()[:12], name
+    except Exception:
+        pass
+    return None, name
+
+
+def _change_target(path, payload):
+    """A short name for what the write addressed (a glyph, a group, the number of pairs), or None."""
+    if not isinstance(payload, dict):
+        return None
+    for key in ("name", "group", "family"):
+        if isinstance(payload.get(key), str) and payload[key].strip():
+            return _act_text(payload[key].strip())
+    pairs = payload.get("pairs")
+    if isinstance(pairs, list):
+        return f"{len(pairs)} pair{'' if len(pairs) == 1 else 's'}"
+    return None
+
+
+def _change_log_note(method, path, body, response, headers):
+    """Log one served product write (called by _handle with the reply about to be sent). Never raises."""
+    try:
+        path = urlsplit(path).path
+        if method != "POST" or path not in _ACT_WRITES or path in _CHANGE_EXCLUDED:
+            return
+        try:
+            code = int(response[9:12])
+        except Exception:
+            code = 0
+        try:
+            reply = json.loads(response.partition(b"\r\n\r\n")[2].decode("utf-8"))
+        except Exception:
+            reply = None
+        verdict = _change_verdict(path, code, reply)
+        rid = _change_id(headers.get("x-glyphbridge-request-id")) if isinstance(headers, dict) else None
+        if verdict == "no" and rid is None:
+            return                                  # nothing to count and nobody can ask about it
+        try:
+            payload = json.loads(body.decode("utf-8")) if body else {}
+        except Exception:
+            payload = None
+        key, name = _change_font() if verdict != "no" else (None, None)
+        _CHANGE_STATE["seq"] += 1
+        entry = {"seq": _CHANGE_STATE["seq"], "id": rid,
+                 "server_run": _change_id(headers.get("x-glyphbridge-server-run")) if isinstance(headers, dict) else None,
+                 "client": _act_client(headers.get("x-glyphbridge-client")) if isinstance(headers, dict) else None,
+                 "kind": _ACT_WRITES[path], "target": _change_target(path, payload), "changed": verdict,
+                 "font_key": key, "font": name, "time": datetime.datetime.now().strftime("%H:%M:%S")}
+        _CHANGE_LOG.append(entry)
+        if verdict != "no":
+            total = _CHANGE_TOTALS.setdefault(key or "unknown font", {"font": name, "changed": 0, "unknown": 0})
+            total["changed" if verdict == "yes" else "unknown"] += 1
+            if name:
+                total["font"] = name
+        while len(_CHANGE_LOG) > _CHANGE_LOG_MAX:
+            gone = _CHANGE_LOG.pop(0)
+            _CHANGE_STATE["dropped"] += 1
+            _CHANGE_STATE["dropped_upto"] = gone["seq"]
+    except Exception:
+        pass
+
+
+def changes_report(run=None, since=None, server_run=None, ask_ids=None):
+    """POST /changes (v0.204): what the log holds after the server's bookmark. Reads the log only, never FontLab."""
+    if run is not None and not isinstance(run, str):
+        return {"bad_request": '"run" must be a string'}
+    if since is not None and (type(since) is not int or since < 0):
+        return {"bad_request": '"since" must be a whole number of 0 or more'}
+    if server_run is not None and not isinstance(server_run, str):
+        return {"bad_request": '"server_run" must be a string'}
+    if ask_ids is not None and (not isinstance(ask_ids, list) or len(ask_ids) > _CHANGE_ASK_MAX
+                                or any(not isinstance(i, str) for i in ask_ids)):
+        return {"bad_request": f'"ask_ids" must be a list of at most {_CHANGE_ASK_MAX} strings'}
+    same_run = run is not None and run == _CHANGE_RUN
+    since_used = since if (same_run and since is not None) else 0
+    mine = _change_id(server_run)
+    groups = {}
+    for e in _CHANGE_LOG:
+        if e["seq"] <= since_used or e["changed"] == "no":
+            continue
+        own = mine is not None and e.get("server_run") == mine
+        gkey = (e.get("font_key"), "this server" if own else (e.get("server_run"), e.get("client")))
+        g = groups.get(gkey)
+        if g is None:
+            g = groups[gkey] = {"font": e.get("font"), "font_key": e.get("font_key"), "by_this_server": own,
+                                "client": e.get("client"), "changed": 0, "unknown": 0, "first": e["time"], "last": e["time"]}
+        g["changed" if e["changed"] == "yes" else "unknown"] += 1
+        g["last"] = e["time"]
+        if e.get("font"):
+            g["font"] = e["font"]
+    asked = {}
+    if ask_ids:
+        by_id = {e["id"]: e for e in _CHANGE_LOG if e.get("id")}
+        for rid in ask_ids:
+            e = by_id.get(rid)
+            if e is not None:
+                asked[rid] = {"yes": "changed", "no": "unchanged"}.get(e["changed"], "unknown")
+            else:
+                asked[rid] = "not_seen_or_dropped" if _CHANGE_STATE["dropped"] else "not_seen"
+    dropped_after = max(0, _CHANGE_STATE["dropped_upto"] - since_used)    # entries after the bookmark that the limit dropped
+    return {"run": _CHANGE_RUN, "run_started": _CHANGE_STATE["started"], "same_run": same_run, "since_used": since_used,
+            "newest": _CHANGE_STATE["seq"], "log_limit": _CHANGE_LOG_MAX, "entries_kept": len(_CHANGE_LOG),
+            "dropped_after_since": dropped_after, "groups": list(groups.values()), "asked": asked,
+            "totals": [dict(v, font_key=k) for k, v in _CHANGE_TOTALS.items()]}
+
+
 # --------------------------------------------------------------------------
 # HTTP plumbing (stdlib only; no background thread - see module docstring)
 # --------------------------------------------------------------------------
@@ -14815,6 +15041,7 @@ def _build_response(status, payload):
         "Content-Type: application/json\r\n"
         f"Content-Length: {len(body)}\r\n"
         + _font_headers() +
+        f"X-Glyphbridge-Run: {_CHANGE_RUN}\r\n" +     # v0.204: this listener run, so the server can see a restart
         "Connection: close\r\n\r\n"
     )
     return head.encode("ascii") + body
@@ -15468,6 +15695,19 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
+        if path == "/changes":                 # v0.204: the change log (bookkeeping only; never touches FontLab)
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            if not isinstance(payload, dict) or set(payload) - {"run", "since", "server_run", "ask_ids"}:
+                return _build_response(400, {"error": 'the body must be a JSON object with optional "run", "since", "server_run" and '
+                                                      '"ask_ids", and nothing else'})
+            result = changes_report(payload.get("run"), payload.get("since"), payload.get("server_run"), payload.get("ask_ids"))
+            if "bad_request" in result:
+                return _build_response(400, {"error": result["bad_request"]})
+            return _build_response(200, result)
+
         if path == "/font/notdef/warn":
             try:
                 payload = json.loads(body.decode("utf-8")) if body else {}
@@ -15863,7 +16103,8 @@ _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/wid
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
               "/font/current": "font info", "/font/notdef": ".notdef check", "/font/notdef/warn": ".notdef check",
-              "/font/nonempty": "empty-glyph scan", "/kerning/pairs": "kerning", "/kerning/groups": "kerning groups"}
+              "/font/nonempty": "empty-glyph scan", "/kerning/pairs": "kerning", "/kerning/groups": "kerning groups",
+              "/changes": "change log"}
 _ACT_SILENT = ("/health", "/version", "/shutdown")
 
 
@@ -16316,6 +16557,7 @@ def _handle(conn):
         _request_launcher = _act_launcher(headers.get("x-glyphbridge-launcher"))
         response = _route(method, path, body)
         # before sending: a change is logged even if the client is gone
+        _change_log_note(method, path, body, response, headers)     # v0.204; never raises
         _activity_note(method, path, body, response, headers.get("x-glyphbridge-client"), headers.get("x-glyphbridge-launcher"))
         conn.sendall(response)
         if method == "GET" and path == "/shutdown":

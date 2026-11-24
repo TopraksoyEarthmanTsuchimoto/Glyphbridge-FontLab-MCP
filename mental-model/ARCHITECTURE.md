@@ -22,6 +22,7 @@ FontLab 8
    - Request timeout: 5 s by default, longer for kerning reads and for dialogs that wait for a click.
    - Every request carries the app's own name and, read once at startup from the operating system, the file name of the program that started the server (`X-Glyphbridge-Client`, `X-Glyphbridge-Launcher`; v0.34, v0.35 / v0.36).
    - Every listener reply that used a font names it in three headers: family and style, a short hash of its path, and the number of open fonts (`X-Glyphbridge-Font`, `-Font-Key`, `-Fonts-Open`; v0.113 / v0.38). The server adds `font` and `fonts_open` to each tool reply, and `font_note` when several fonts are open or the font in front changed. These headers never carry the path; `fontlab_status` and `get_current_font` do report it (test 273).
+   - Change log (listener 0.204 / server 0.85): each write carries a request ID and every request the server process's ID (`X-Glyphbridge-Request-Id`, `-Server-Run`); every reply names the listener run (`X-Glyphbridge-Run`). The listener logs what it executed; `finish_changes` compares that log with the server's own count: [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §2.
 
 Effect of the split: the AI app starts the server in its own Python with its own libraries. FontLab access stays in one small HTTP surface, so every FontLab call is easy to audit and can be tested with stubs.
 
@@ -58,7 +59,7 @@ Every write is reported as successful only after a re-read agrees. Drawings are 
 | geometry | `set_glyph_width`, `set_glyph_sidebearings`, `draw_polygon`, `draw_path`, `move_nodes` | `/glyph/width`, `/glyph/sidebearings`, `/glyph/polygon`, `/glyph/path`, `/glyph/move` | [geometry](topics/geometry.md) |
 | components | `add_component` (one component or a `components` list, underscore names refused in a list; into an empty glyph, or beside what it holds through a temporary layer; the target needs exactly one layer, the active one; the width written back), `remove_component` | POST `/glyph/component`, POST `/glyph/component/remove` | [reading](topics/reading.md) |
 | kerning | `get_kerning`, `set_kerning`, `get_kerning_groups`, `remove_kerning`; class sides `@name` in both writes; `rename_kerning_group`, `remove_kerning_group` (a Yes/No in FontLab) | GET/POST `/kerning/pairs`, POST `/kerning/set`, GET/POST `/kerning/groups`, POST `/kerning/remove`, POST `/kerning/group/rename`, POST `/kerning/group/remove`; `@name` sides on both (the current master's table of the font in front; with several fonts open, matched by path) | [kerning](topics/kerning.md) |
-| save policy | `finish_changes` | none (server bookkeeping) | [server-and-endpoints](topics/server-and-endpoints.md) §2 |
+| save policy | `finish_changes` | POST `/changes` (the change log, read only; also for `fontlab_status`) | [server-and-endpoints](topics/server-and-endpoints.md) §2 |
 | research | none | `/debug/...` probes, gated by `go=yes` where they change anything | [server-and-endpoints](topics/server-and-endpoints.md) §3 |
 
 Which version brought each tool and feature: [WHAT-WORKS.md](WHAT-WORKS.md); what each release changed: [CHANGELOG.md](CHANGELOG.md).

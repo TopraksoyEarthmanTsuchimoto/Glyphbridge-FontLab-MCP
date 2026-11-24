@@ -141,6 +141,11 @@ sys.modules["mcp.server.mcpserver"].Context = type("Context", (), {})  # server 
 sys.modules["mcp.server.mcpserver.exceptions"].ToolError = ToolError
 spec = importlib.util.spec_from_file_location("srv", find("glyphbridge_mcp_server.py"))
 srv = importlib.util.module_from_spec(spec); spec.loader.exec_module(srv)
+# server 0.85: finish_changes and fontlab_status also ask the listener's change log. The parts before 51 test the counts of this server
+# alone, so the log is "not asked" there (change_record "unavailable"); part 51 restores the real functions.
+_real_read_change_log, _real_changes_by_font = srv._read_change_log, srv._changes_by_font
+srv._read_change_log = lambda ids: (None, "not asked in this test part")
+srv._changes_by_font = lambda: {}
 
 REPLY = {}
 
@@ -1418,8 +1423,11 @@ for tag, ctx in (("name only", ctx20("claude-code")), ("title wins", ctx20("clau
                  ("no client_info", ctx20(info=False)), ("no client_params", ctx20(params=False)), ("session raises", _Boom20()), ("ctx None", None)):
     srv._CLIENT["name"] = "before"; srv._note_client(ctx)
     print(f"20b note {tag:16}->", srv._CLIENT["name"])
-srv._CLIENT["name"] = None; print("20c headers, no name      ->", srv._client_headers())
-srv._CLIENT["name"] = "Test App é"; print("20c headers, UTF-8 name   ->", srv._client_headers())
+def _hdr20(h):    # server 0.85: the server-run ID is random per process, so it is shown by its shape only
+    return {k: ("<32 hex digits>" if k == "X-Glyphbridge-Server-Run" and len(v) == 32 and all(c in "0123456789abcdef" for c in v) else v)
+            for k, v in h.items()}
+srv._CLIENT["name"] = None; print("20c headers, no name      ->", _hdr20(srv._client_headers()))
+srv._CLIENT["name"] = "Test App é"; print("20c headers, UTF-8 name   ->", _hdr20(srv._client_headers()))
 SENT20 = []
 class _Resp20(_io20.BytesIO):
     def __enter__(self): return self
@@ -3555,3 +3563,235 @@ print("50zg delete_glyph description    : missing", [w for w in ("closes by itse
                                                                   "Deleting .notdef gets its own warning") if w not in _dd],
       "| stale", [w for w in ("two minutes", "120 s") if w in _dd])
 srv._call_listener, srv._call_listener_post = _save50
+
+# ---------------------------------------------------------------- part 51: the change log (listener 0.204 / server 0.85) ----
+print("\n==== 51. the change log: stub FontLab -> real listener (route + log, as _handle does) -> real server ====")
+srv._read_change_log, srv._changes_by_font = _real_read_change_log, _real_changes_by_font
+_save51 = (srv._call_listener, srv._call_listener_post)
+L51 = {"fail": None}          # None, "before" (never reaches the listener) or "after" (executed, reply lost)
+
+
+def _resp51(resp):
+    head, _, body = resp.partition(b"\r\n\r\n")
+    hdrs = {}
+    for line in head.decode("latin-1").split("\r\n")[1:]:
+        k, _, v = line.partition(":")
+        hdrs[k.strip()] = v.strip()
+    srv._note_run_header(hdrs)
+    return int(head.split()[1]), json.loads(body)
+
+
+def wire51_post(path, payload, timeout=0):
+    sent = {k.lower(): v for k, v in srv._client_headers().items()}
+    if L51["fail"] == "before" and path != "/changes":
+        L51["fail"] = None; raise srv.OutcomeUnknown("timed out (test: the request never reached the listener)")
+    body = json.dumps(payload).encode()
+    resp = ns["_route"]("POST", path, body)
+    ns["_change_log_note"]("POST", path, body, resp, sent)
+    if L51["fail"] == "after" and path != "/changes":
+        L51["fail"] = None; raise srv.OutcomeUnknown("timed out (test: executed, the reply was lost)")
+    code, data = _resp51(resp)
+    if code != 200:
+        raise srv.OutcomeUnknown(f"The FontLab listener returned HTTP {code} for {path}: {json.dumps(data)}")
+    return data
+
+
+def wire51_get(path):
+    code, data = _resp51(ns["_route"]("GET", path))
+    if code != 200: raise ToolError(f"HTTP {code}")
+    return data
+
+
+def other51(path, payload, client="other-app", run="b" * 32):
+    """A write from another client (as a PowerShell POST would send it), logged by the listener."""
+    body = json.dumps(payload).encode()
+    resp = ns["_route"]("POST", path, body)
+    ns["_change_log_note"]("POST", path, body, resp, {"x-glyphbridge-client": client, "x-glyphbridge-server-run": run,
+                                                       "x-glyphbridge-request-id": "c" * 32})
+
+
+def fin51(tag):
+    r = srv.finish_change_package()
+    keys = ("changes_in_package", "uncertain_changes_in_package", "change_record", "counts_disagree", "fonts_changed")
+    shown = {k: r[k] for k in keys if k in r}
+    shown["reminder"] = r.get("save_reminder") is not None
+    if r.get("other_changes"):
+        shown["other_changes"] = [{k: o[k] for k in ("by", "changes", "uncertain")} for o in r["other_changes"]]
+    if r.get("uncertain_requests_checked"):
+        shown["checked"] = sorted(r["uncertain_requests_checked"].values())
+    print(f"{tag} ->", shown)
+    return r
+
+
+def log51():
+    return [(e["seq"], e["kind"], e["target"], e["changed"], "this" if e["server_run"] == srv.SERVER_RUN else e["client"] or e["server_run"])
+            for e in ns["_CHANGE_LOG"]]
+
+
+srv._call_listener, srv._call_listener_post = wire51_get, wire51_post
+srv._CLIENT["name"] = "test-app"
+print("-- the listener's verdict, general rules (no font call)")
+V = ns["_change_verdict"]
+for label, code, reply in (
+        ("refused (400)                ", 400, {"error": "bad"}),
+        ("failed (500)                 ", 500, {"error": "boom"}),
+        ("unreadable reply             ", 200, None),
+        ("no font open                 ", 200, {"open": False}),
+        ("answered No                  ", 200, {"open": True, "deleted": False, "user_declined": True}),
+        ("not answered in time         ", 200, {"open": True, "deleted": False, "not_answered": True}),
+        ("kerning: one entry changed   ", 200, {"open": True, "results": [{"set": True, "changed": False}, {"set": True, "changed": True}]}),
+        ("kerning: same value again    ", 200, {"open": True, "results": [{"set": True, "changed": False}]}),
+        ("kerning: one removed         ", 200, {"open": True, "results": [{"removed": True}, {"status": "no entry"}]}),
+        ("kerning: unknown entry       ", 200, {"open": True, "results": [{"changed": "unknown"}]}),
+        ("changed True (width moved)   ", 200, {"open": True, "set": False, "changed": True, "before": 500, "after": 520}),
+        ("changed unknown (move)       ", 200, {"open": True, "moved": False, "changed": "unknown"}),
+        ("changed False (already so)   ", 200, {"open": True, "set": True, "changed": False}),
+        ("created                      ", 200, {"open": True, "created": True}),
+        ("created under another name   ", 200, {"open": True, "created": False, "created_under_other_names": ["eacut"]}),
+        ("deleted                      ", 200, {"open": True, "deleted": True}),
+        ("width set, 500 -> 520        ", 200, {"open": True, "set": True, "before": 500.0, "after": 520.0}),
+        ("width set, 500 -> 500        ", 200, {"open": True, "set": True, "before": 500.0, "after": 500.0}),
+        ("width same, layer created    ", 200, {"open": True, "set": True, "before": 500.0, "after": 500.0, "layer_created": "Regular"}),
+        ("unicode None -> 57344        ", 200, {"open": True, "set": True, "before": None, "after": 57344}),
+        ("unicode 66 -> 66             ", 200, {"open": True, "set": True, "before": 66, "after": 66}),
+        ("refusal with a reason        ", 200, {"open": True, "created": False, "reason": "a glyph with this name already exists"}),
+        ("nothing to judge by          ", 200, {"open": True})):
+    print("51a", label, "->", V("/glyph/x", code, reply))
+
+print("-- one package from this server")
+ns["_change_new_run"](); srv._reset_change_tracking()
+CUR["font"] = Font(glyphs=[Gl(".notdef"), Gl("A", 65)])
+srv.create_new_glyph("B"); srv.create_new_glyph("zz51")
+srv.set_glyph_unicode("zz51", 0xE000); srv.set_glyph_unicode("zz51", 0xE000)
+try:
+    srv.create_new_glyph("B")
+except ToolError as e:
+    print("51b create B again refused     ->", str(e)[:44])
+print("51b log                         ->", log51())
+print("51b requests carried an ID      ->", all(e["id"] and len(e["id"]) == 32 for e in ns["_CHANGE_LOG"]))
+r = fin51("51c finish (3 changes)        ")
+print("51c instruction unchanged       ->", r.get("agent_instruction", "")[:60], "| no counts note:", "counts_note" not in r)
+fin51("51d finish again (nothing)    ")
+print("-- another client writes (as a PowerShell POST would)")
+other51("/glyph/create", {"name": "oc51"})
+fin51("51e finish: other_changes     ")
+r = fin51("51f finish again              ")
+print("-- the AI app replaces the server process (a new SERVER_RUN, no bookmark): earlier changes are reminded once (choice A)")
+_old_run = srv.SERVER_RUN; srv.SERVER_RUN = "d" * 32; srv._reset_change_tracking()
+r = fin51("51g first finish, new process ")
+print("51g note says may be saved      ->", "may already have been saved" in r.get("other_changes_note", ""), "| instruction:", r.get("agent_instruction", "")[:70])
+fin51("51h second finish             ")
+print("-- the listener is restarted between two packages")
+srv.create_new_glyph("rs51a")
+fin51("51i before the restart        ")
+ns["_change_new_run"]()
+srv.create_new_glyph("rs51b")
+r = fin51("51j after the restart         ")
+print("51j note                        ->", r.get("change_record_note", "").replace(ns["_CHANGE_STATE"]["started"], "HH:MM:SS"))
+fin51("51k next package (complete)   ")
+print("-- the listener is restarted INSIDE a package, before this server process has a bookmark")
+srv._reset_change_tracking()
+srv.create_new_glyph("rs51c"); ns["_change_new_run"](); srv.create_new_glyph("rs51d")
+r = fin51("51j2 restart inside a package ")
+print("51j2 note                       ->", r.get("change_record_note", "").replace(ns["_CHANGE_STATE"]["started"], "HH:MM:SS"))
+print("-- a write whose reply never came")
+L51["fail"] = "after"
+try:
+    srv.create_new_glyph("uk51a")
+except srv.OutcomeUnknown as e:
+    print("51l executed, reply lost        -> OutcomeUnknown | server unsure:", srv._CHANGES["package_unsure"], "| IDs kept:", len(srv._CHANGE_LOG["unsure_ids"]))
+fin51("51l finish asks the listener  ")
+L51["fail"] = "before"
+try:
+    srv.create_new_glyph("uk51b")
+except srv.OutcomeUnknown as e:
+    print("51m never reached the listener  -> OutcomeUnknown | server unsure:", srv._CHANGES["package_unsure"])
+fin51("51m finish asks the listener  ")
+print("-- the server counted a change the listener did not record (rule 2: remind)")
+srv._note_change()
+r = fin51("51n disagreement              ")
+print("51n counts_note                 ->", r.get("counts_note", "")[:90])
+print("-- the size limit (1000 entries), entries dropped after the bookmark")
+print("51o limit                       ->", ns["_CHANGE_LOG_MAX"])
+ns["_change_new_run"](); srv._reset_change_tracking()
+srv.create_new_glyph("lim51")
+_resp_ok = ns["_build_response"](200, {"open": True, "created": True})
+for i in range(1004):
+    ns["_change_log_note"]("POST", "/glyph/create", json.dumps({"name": f"g{i}"}).encode(), _resp_ok,
+                           {"x-glyphbridge-client": "bulk", "x-glyphbridge-server-run": "e" * 32})
+print("51o kept / dropped / newest     ->", len(ns["_CHANGE_LOG"]), ns["_CHANGE_STATE"]["dropped"], ns["_CHANGE_STATE"]["newest"] if "newest" in ns["_CHANGE_STATE"] else ns["_CHANGE_STATE"]["seq"])
+r = fin51("51o finish (first, bookmark 0)")
+print("51o note                        ->", r.get("change_record_note"))
+print("51o totals kept for the font    ->", [(t["changed"], t["unknown"]) for t in ns["changes_report"]()["totals"]])
+
+
+def _deep51(o, seen=None):
+    seen = set() if seen is None else seen
+    if id(o) in seen: return 0
+    seen.add(id(o)); size = sys.getsizeof(o)
+    if isinstance(o, dict): size += sum(_deep51(k, seen) + _deep51(v, seen) for k, v in o.items())
+    elif isinstance(o, (list, tuple)): size += sum(_deep51(x, seen) for x in o)
+    return size
+
+
+_kb = _deep51(ns["_CHANGE_LOG"]) / 1024
+print("51p memory of 1000 entries      ->", f"about {round(_kb / 50) * 50} KB (Python {sys.version_info[0]}.{sys.version_info[1]}, rounded to 50 KB)",
+      "| under 1 MB:", _kb < 1024)
+print("-- an older listener (no /changes route)")
+
+
+def old51(path, payload, timeout=0):
+    if path == "/changes":
+        raise srv.OutcomeUnknown('The FontLab listener returned HTTP 404 for /changes: {"error": "unknown endpoint", "path": "/changes"}')
+    return wire51_post(path, payload, timeout)
+
+
+srv._call_listener_post = old51; srv._reset_change_tracking()
+srv.create_new_glyph("old51")
+r = fin51("51q older listener            ")
+print("51q note                        ->", r.get("change_record_note"))
+srv._call_listener_post = wire51_post
+print("-- fontlab_status: changes per font from the listener (0.204), the bookmark untouched")
+_bm = (srv._CHANGE_LOG["run"], srv._CHANGE_LOG["since"])
+s = srv.check_status()
+print("51r changes_by_font             ->", s.get("changes_by_font"), "| note starts:", s.get("changes_by_font_note", "")[:40])
+print("51r bookmark untouched          ->", (srv._CHANGE_LOG["run"], srv._CHANGE_LOG["since"]) == _bm)
+print("-- POST /changes refuses bad bodies; it reads the log only")
+for label, body in (("since -1      ", {"since": -1}), ("since '3'     ", {"since": "3"}), ("run 5         ", {"run": 5}),
+                    ("ask_ids 'x'   ", {"ask_ids": "x"}), ("ask_ids [1]   ", {"ask_ids": [1]}), ("unknown key   ", {"x": 1}),
+                    ("ask_ids 2001  ", {"ask_ids": ["a"] * 2001})):
+    code, data = _resp51(ns["_route"]("POST", "/changes", json.dumps(body).encode()))
+    print("51s", label, "->", code, data.get("error", "")[:60])
+_n = ns["_CHANGE_STATE"]["seq"]; ns["_route"]("POST", "/changes", b"{}")     # the sequence number: the log itself is full (51o)
+ns["_change_log_note"]("POST", "/font/notdef/warn", b"{}", ns["_build_response"](200, {"noted": True}), {})
+ns["_change_log_note"]("GET", "/glyph/width?name=A", b"", ns["_build_response"](200, {"width": 500}), {})
+ns["_change_log_note"]("POST", "/glyph/create", b'{"name": "B"}', ns["_build_response"](400, {"error": "x"}), {})
+print("51t not logged: /changes, .notdef note, a read, a refusal without ID ->", ns["_CHANGE_STATE"]["seq"] == _n)
+print("51t every reply names the run   ->", b"X-Glyphbridge-Run: " + ns["_CHANGE_RUN"].encode() in ns["_route"]("GET", "/health"))
+print("-- the request ID goes with writes only")
+_seen51 = []
+srv._call_listener_post = lambda p, pl, timeout=0: (_seen51.append((p, "X-Glyphbridge-Request-Id" in srv._client_headers())), wire51_post(p, pl, timeout))[1]
+srv.create_new_glyph("id51"); srv.finish_change_package()
+srv._call_listener_post = wire51_post
+print("51u (path, ID sent)             ->", _seen51, "| none pending after:", srv._CHANGE_LOG["pending_id"] is None)
+_fd, _sd = " ".join((srv.finish_changes.__doc__ or "").split()), " ".join((srv.fontlab_status.__doc__ or "").split())
+print("51v descriptions                -> finish_changes:", [w for w in ("other_changes", "may already be saved", "change_record") if w not in _fd],
+      "| fontlab_status:", [w for w in ("changes_by_font", "not unsaved changes") if w not in _sd])
+print("51w versions                    ->", ns["VERSION"], srv.SERVER_VERSION, "| change log needs", srv._CHANGE_LOG_MIN_LISTENER)
+
+
+class _Opener51:      # the real _do_request reads the run header (fake opener, as in part 8)
+    def open(self, req, timeout=None):
+        class R:
+            headers = {"X-Glyphbridge-Run": "run51x"}
+            def __enter__(s): return s
+            def __exit__(s, *a): return False
+            def read(s): return b'{"a": 1}'
+        return R()
+
+
+_ro51 = srv._opener; srv._opener = _Opener51(); srv._CHANGE_LOG["runs_seen"] = []
+srv._do_request("http://x", "/p", 1.0); srv._opener = _ro51
+print("51x _do_request notes the run   ->", srv._CHANGE_LOG["runs_seen"])
+srv.SERVER_RUN = _old_run; srv._CLIENT["name"] = None; srv._reset_change_tracking()
+srv._call_listener, srv._call_listener_post = _save51

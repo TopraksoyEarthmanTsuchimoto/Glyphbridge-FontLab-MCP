@@ -50,7 +50,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 4 | Back To PS Curves round trip | TODO |
 | 5 | The "To Line" route itself (straight polygons already read back) | PARTLY |
 | 16 | Other empty glyphs (e.g. `space`): zero layers like `.notdef`? | PARTLY: Arial's `space` has one empty layer (`Regular`, 0 nodes), unlike the layerless `.notdef` of a File > New Font font; API and Layers panel agree (1405–1408, one run). A glyph made with Font > New Glyph… > Create Blank has a modern layer, width 500 (1471–1473, one run). Open: other imported fonts |
-| 18 | `.notdef` remainders: explicit `check_notdef` through Claude, a drawn `.notdef`, the `missing` dialog, waits of 90–120 s and over 120 s | PARTLY: a drawn `.notdef`: `draw_path`, 3 contours, layer created, verified (926, one run) |
+| 18 | `.notdef` remainders: explicit `check_notdef` through Claude, a drawn `.notdef`, a missing `.notdef` | PARTLY: a drawn `.notdef`: `draw_path`, 3 contours, layer created, verified (926, one run); `check_notdef` through Claude Code (SD 1602). Open: a missing `.notdef`, not run |
 
 ## Writing gaps
 
@@ -64,7 +64,6 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 31 | Draw into, or edit, an existing outline | PARTLY: `move_nodes` (0.154 / 0.64) moves nodes and control points `verified`, refuses a lone smooth node and a component (1016–1022); Edit > Undo does not revert it (1023). Open: adding, removing and redrawing contours, Power Brush glyphs, several shapes ([topics/geometry.md](topics/geometry.md)) |
 | 43 | `draw_path` in a quadratic font | TODO, low (T8) |
 | 44 | `set_glyph_width` with an existing but inactive layer | TODO (T10), stub-tested |
-| 19 | A write that times out while a dialog is open: applied after OK? | PARTLY: the client ends such a call at 60 s (Code tab) or about 80 s (Desktop chat, 1585) and FontLab acts on a later answer: a No after the limit was obeyed (1566, 1580), also after the server's own 120 s (1585); a Yes after the limit not run ([topics/server-and-endpoints.md](topics/server-and-endpoints.md) §2) |
 | 39 | Smooth gate leftovers: very short handles, zero-length handle on a non-smooth node | optional (P2.5) |
 
 ## Last block (by the user's decision)

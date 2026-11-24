@@ -4773,7 +4773,7 @@ def fh_setup(font, count=1):
 def fh_head(method, path, body=b""):
     raw = ns["_route"](method, path, body) if method == "GET" else ns["_route"](method, path, body)
     head = raw.partition(b"\r\n\r\n")[0].decode("ascii")
-    return {k: v for k, v in (l.split(": ", 1) for l in head.split("\r\n")[1:]) if k.startswith("X-Glyphbridge")}, head
+    return {k: v for k, v in (l.split(": ", 1) for l in head.split("\r\n")[1:]) if k.startswith("X-Glyphbridge") and k != "X-Glyphbridge-Run"}, head   # v0.204: the run ID is random (tested in create_unicode 51t)
 fh_setup(FHFont(), 1); h, head = fh_head("GET", "/font/current")
 print("1510 one font, /font/current         :", h)
 print("1510b key is sha1(path)[:12]           :", h.get("X-Glyphbridge-Font-Key") == _hl113.sha1(b"C:/fonts/arial.vfc").hexdigest()[:12], "| path not in the head:", "arial.vfc" not in head and "C:/fonts" not in head)
@@ -4796,7 +4796,7 @@ fh_setup(FHFont("Arial", "Regular", ":/Arial: Normal"), 2); h, _ = fh_head("GET"
 print("1518 the kerning route names its font   :", h)
 fh_setup(FHFont(), 1); ns["_route"]("GET", "/font/current"); _r = ns["_build_response"](200, {"x": 1})
 print("1519 _build_response keeps the font of the request until the next one:", b"X-Glyphbridge-Font:" in _r)
-ns["_route"]("GET", "/version"); print("1519b the next request forgets it       :", b"X-Glyphbridge-" not in ns["_build_response"](200, {"x": 1}))
+ns["_route"]("GET", "/version"); print("1519b the next request forgets it       :", b"X-Glyphbridge-Font" not in ns["_build_response"](200, {"x": 1}))
 print("1519c _handle forgets it in finally     :", "_forget_request_font()" in src[src.index("def _handle("):src.index("def _poll(")])
 fl.CurrentFont = _fh_saved[0]
 if _fh_saved[1] is not None: fl.CountFonts = _fh_saved[1]

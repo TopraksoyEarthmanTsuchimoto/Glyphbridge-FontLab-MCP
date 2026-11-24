@@ -2,6 +2,8 @@
 
 Rows closed since the v11 matrix, moved from [CHECKLIST.md](../CHECKLIST.md) on 2026-11-06, newest first. Each row's scenario is in [scenarios-checklist-v11.md](scenarios-checklist-v11.md); the evidence is in the topic files and [LIVE-TESTS.md](../LIVE-TESTS.md). When a row is closed, add its date, number and tests here.
 
+Closed on 2026-11-24: row 19 (a write that times out while a dialog is open: applied after OK?), by the user's choice: since listener 0.203 / server 0.83 the dialog closes itself at 45 s, before any client's limit, so a late answer can no longer arrive (SD 1604, 1611). The row as it stood: PARTLY: the client ends such a call at 60 s (Code tab) or about 80 s (Desktop chat, 1585) and FontLab acts on a later answer: a No after the limit was obeyed (1566, 1580), also after the server's own 120 s (1585); a Yes after the limit not run ([topics/server-and-endpoints.md](../topics/server-and-endpoints.md) §2).
+
 Closed on 2026-11-20: row 36 (the layer guard's own refusal path; stub-only, accepted as not worth more live effort, closed by the user's choice; no live test).
 
 Trimmed on 2026-11-20 (still open in [CHECKLIST.md](../CHECKLIST.md), cut there to their status, open items and a link to the evidence, approved by the user): rows 63 and 85 as they stood, unchanged except for the link paths.
