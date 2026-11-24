@@ -217,7 +217,7 @@ Condensed on 2026-11-24; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECIS
 
 ### 2026-11-24: refusals tracked in one register
 
-- **Every case a tool refuses, or no tool supports yet, is listed in [topics/refusals.md](topics/refusals.md), with what would lift it. When a case becomes possible in one tool, the agent proposes lifting it in every other tool that refuses it, or says why not ([AGENTS.md](../AGENTS.md)). A shared table in the code of what each edit tool accepts, with a stub test of every tool against every case, is to be proposed with the add-contour tool.** *Reason:* the user's choice; the add-contour tool is the third edit tool to refuse the same cases, and a lifted case was remembered nowhere.
+- **Every case a tool refuses, or no tool supports yet, is listed in [topics/refusals.md](topics/refusals.md), with what would lift it. When a case becomes possible in one tool, the agent proposes lifting it in every other tool that refuses it, or says why not ([AGENTS.md](../AGENTS.md)). A shared table in the code of what each edit tool accepts, with a stub test of every tool against every case, was built with the add-contour tool (`_EDIT_ACCEPTS`, listener 0.207).** *Reason:* the user's choice; the add-contour tool is the third edit tool to refuse the same cases, and a lifted case was remembered nowhere.
 
 ### 2026-11-20: version history lives in WHAT-WORKS.md and CHANGELOG.md
 
