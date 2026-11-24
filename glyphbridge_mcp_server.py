@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.82)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.84)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -19,7 +19,7 @@ Logging goes to stderr.
 Self-check without Claude (listener must be running in FontLab):
     python glyphbridge_mcp_server.py --check
     python glyphbridge_mcp_server.py --check --outline A      (also dumps one glyph's analysed outline)
-    python glyphbridge_mcp_server.py --check --notdef-warn    (also runs check_notdef: MAY SHOW the warning dialog in FontLab)
+    python glyphbridge_mcp_server.py --check --notdef-warn    (also runs check_notdef: MAY add a .notdef line to FontLab's OUTPUT panel)
     python glyphbridge_mcp_server.py --check --with-write-test (creates, widens and deletes TEST glyphs: FontLab asks you to
                                                               confirm the deletions)
 """
@@ -42,13 +42,15 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.82"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.84"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
 SAVE_REMINDER = f"**You must save if you want to keep these changes: use the File menu or press {SAVE_SHORTCUT} in FontLab.**"   # shown in CHAT only, never as a FontLab dialog
-DELETE_CONFIRM_TIMEOUT_SECONDS = 120.0  # time to let a human see and answer the FontLab dialog
-NOTDEF_DIALOG_TIMEOUT_SECONDS = 120.0   # the .notdef warning dialog also waits for a person to click OK
+# v0.83 (DECISIONS 2026-11-21): a FontLab dialog closes by itself after DIALOG_SECONDS (sent with each request), and the server
+# waits DIALOG_WAIT_SECONDS for the answer, so a call with its dialog stays under the shortest AI-app time limit seen (60 s).
+DIALOG_SECONDS = 45
+DIALOG_WAIT_SECONDS = DIALOG_SECONDS + 10.0
 BASE_URL = f"http://{LISTENER_HOST}:{LISTENER_PORT}"
 
 logging.basicConfig(level=logging.INFO)  # default handler writes to stderr
@@ -295,9 +297,7 @@ def _write_post(path: str, payload: dict, timeout=None) -> dict:
 def _timeout_message(path: str, timeout: float) -> str:
     return (
         f"The FontLab listener did not answer {path} within {timeout:g}s. "
-        "This happens, for example, when a Glyphbridge dialog (the .notdef notice or a delete "
-        "confirmation) is waiting for an answer in FontLab: answer or close it there. "
-        "It can also mean FontLab is busy or frozen. "
+        f"FontLab is probably busy or frozen (Glyphbridge's own dialogs close by themselves within {DIALOG_SECONDS} s). "
         "If you asked for a change, it may or may not have been applied: "
         "check the font's current state before repeating it."
     )
@@ -896,6 +896,7 @@ def create_new_font(family: Any = None) -> dict:
     }
     instruction = ("A new, unsaved font was made in FontLab and is now the font in front. Tell the person every item of person_notes, "
                    "in your own words but leaving none out (FontLab's OUTPUT panel shows them too). " + _OUTPUT_PANEL_INSTRUCTION)
+    # v0.84 (DECISIONS 2026-11-24): no word about the new font's empty .notdef; that is normal while a font is in progress
     if family is not None:
         result["family_requested"] = family
         result["names_set"] = data.get("names_set") is True
@@ -2142,13 +2143,24 @@ def rename_group_write(group: Any, new_name: Any) -> dict:
     return reply
 
 
+def _not_answered_error(what: str, dialog: Any) -> ToolError:
+    """v0.83 - the reply when a self-closing FontLab dialog closed unanswered (DECISIONS 2026-11-21): nothing changed, and the agent
+    asks the person before trying again, never on its own."""
+    secs = dialog.get("seconds") if isinstance(dialog, dict) else None
+    secs = secs if isinstance(secs, int) and not isinstance(secs, bool) else DIALOG_SECONDS
+    return ToolError(f"{what} (not_answered_in_time): nobody answered in FontLab within {secs} seconds, so the question closed by itself. "
+                     "Nothing was changed. Tell the person that the question closed unanswered and ask in the chat whether they want to try "
+                     f"again; if they do, tell them FontLab will give them {secs} seconds to click Yes. Do not try again on your own.")
+
+
 def remove_group_write(group: Any, pairs: Any) -> dict:
     name = _kge_name(group, "group")
     if pairs not in ("keep", "delete"):
         raise ToolError('pairs is required and must be "keep" (the group\'s kerning stays, as entries of its members) or "delete" (its kerning '
                         'entries go with it). Ask the person which they want if they have not said. Nothing was changed.')
-    _require_listener((0, 200), "remove_kerning_group")
-    data = _write_post("/kerning/group/remove", {"group": name, "pairs": pairs}, timeout=DELETE_CONFIRM_TIMEOUT_SECONDS)
+    _require_listener((0, 203), "remove_kerning_group")   # v0.83: only a listener whose dialog closes by itself
+    data = _write_post("/kerning/group/remove", {"group": name, "pairs": pairs, "dialog_seconds": DIALOG_SECONDS},
+                       timeout=DIALOG_WAIT_SECONDS)
     if not data.get("open"):
         raise ToolError(NO_FONT)
     if isinstance(data.get("error"), str) and data["error"]:
@@ -2160,6 +2172,8 @@ def remove_group_write(group: Any, pairs: Any) -> dict:
     if data.get("user_declined") is True and data.get("removed") is False:
         raise ToolError(f"Removal of the kerning group '{name}' was not approved in FontLab. A person needs to click Yes on the confirmation "
                         "dialog for this to proceed - this is expected behavior, not an error. Nothing was changed.")
+    if data.get("not_answered") is True and data.get("removed") is False:
+        raise _not_answered_error(f"The kerning group '{name}' was NOT removed", data.get("dialog"))
     if data.get("removed") is not True:
         _kge_failed(data, "remove", "removal")
     before = _kge_group_fields(data.get("group_before"))
@@ -3133,9 +3147,10 @@ def delete_existing_glyph(name: str) -> dict:
     if not clean:
         raise ToolError("Glyph name must not be empty.")
 
-    # This call blocks until a human answers a Yes/No dialog inside
-    # FontLab, so it needs a much longer timeout than a normal request.
-    data = _write_post("/glyph/delete", {"name": clean}, timeout=DELETE_CONFIRM_TIMEOUT_SECONDS)
+    # This call waits for a human's Yes/No in FontLab. v0.83: only a listener whose dialog closes by itself after
+    # DIALOG_SECONDS (0.203); the server waits DIALOG_WAIT_SECONDS, still under the AI apps' time limits.
+    _require_listener((0, 203), "delete_glyph")
+    data = _write_post("/glyph/delete", {"name": clean, "dialog_seconds": DIALOG_SECONDS}, timeout=DIALOG_WAIT_SECONDS)
 
     if not data.get("open"):
         raise ToolError(NO_FONT)
@@ -3147,6 +3162,11 @@ def delete_existing_glyph(name: str) -> dict:
                 "A person needs to click Yes on the confirmation dialog for this to proceed - "
                 "this is expected behavior, not an error."
             )
+        if data.get("not_answered") is True:
+            raise _not_answered_error(f"The glyph '{clean}' was NOT deleted", data.get("dialog"))
+        if data.get("dialog_error"):
+            raise ToolError(f"Glyph '{clean}' was NOT deleted: the confirmation dialog could not be shown in FontLab "
+                            f"({data['dialog_error']}). Nothing was changed.")
         reason = data.get("reason")
         call_error = data.get("call_error")
         if reason and call_error:
@@ -3164,6 +3184,10 @@ def delete_existing_glyph(name: str) -> dict:
         "glyph_count_after": data.get("after_count"),
     }
     _add_guard_fields(result, data)
+    if clean == ".notdef":   # v0.83: the font now has no .notdef
+        result["notdef_missing_now"] = True
+        result["agent_instruction"] = ("The person deleted the .notdef glyph. Tell them the font now has no .notdef: every font needs "
+                                       "one as glyph 0, because it is what shows when a character is missing from the font.")
     _mark_modified(result, True)
     return result
 
@@ -3228,23 +3252,60 @@ def _notdef_summary(data: dict) -> dict:
     return out
 
 
-def _notdef_instruction(out: dict):
+# v0.83 (DECISIONS 2026-11-21): no dialog; the person hears it from the agent (and one OUTPUT line), with an urgency set by the
+# font's state, not the person's skill. The agent adapts the explanation to the person.
+_NOTDEF_ADAPT = (" Explain what .notdef is for in one sentence and offer to say more; skip the explanation if the person has shown "
+                 "experience in font production.")
+
+
+# v0.84 (DECISIONS 2026-11-24): an empty .notdef in a font still in progress is not an issue, so it is not raised. The automatic
+# checks stay silent; check_notdef answers only when the person asked.
+_NOTDEF_SILENT = "Say nothing about .notdef: an empty .notdef is normal while a font is in progress."
+_NOTDEF_IF_ASKED = ("If the person asked about .notdef, tell them it is empty, which is normal for a font in progress, and offer to "
+                    "explain what it is for. Otherwise say nothing about it.")
+
+
+def _notdef_is_issue(status: Any, maturity: Any) -> bool:
+    """v0.84 - only a missing .notdef, or an empty one in a mature font, is raised (and noted in FontLab's OUTPUT panel)."""
+    if status == "missing":
+        return True
+    if status == "empty":
+        found = _notdef_maturity(maturity)
+        return found is not None and found["mature"] is True
+    return False
+
+
+def _notdef_instruction(out: dict, asked: bool = False):
     status = out.get("status")
-    if status in ("missing", "empty"):
-        what = "missing" if status == "missing" else "empty (it has no lines or shapes)"
-        if out.get("dialog_shown"):
-            return (f"A dialog explaining this was just shown to the user in FontLab. Also tell the user in your reply "
-                    f"that the .notdef glyph is {what}, and what .notdef is for. Do not present it as an error.")
-        if out.get("already_warned"):
-            return ("The user was already shown the warning dialog earlier in this session (it is shown once per "
-                    "font). Mention it again only if it is relevant.")
-        if out.get("dialog_error"):
-            return (f"The warning dialog could NOT be shown ({out['dialog_error']}). Tell the user in your reply that "
-                    f"the .notdef glyph is {what}, and what .notdef is for.")
-        return f"Tell the user in your reply that the .notdef glyph is {what}, and what .notdef is for."
+    if status in ("missing", "empty") and out.get("already_noted"):
+        return ("This was already noted for this font earlier in this session. Mention .notdef again only if it is relevant to "
+                "what the person is doing now.")
+    if status == "missing":
+        return ("Tell the person clearly that the font has no .notdef glyph: every font needs one as glyph 0, because it is what "
+                "shows when a character is missing from the font." + _NOTDEF_ADAPT)
+    if status == "empty":
+        if out.get("font_mature") is True:
+            return ("The font has every letter A-Z and a-z, at least one of them drawn, but its .notdef is still empty: tell the person "
+                    "it may have been overlooked, and in one sentence why it matters (a missing character would show as nothing, like "
+                    "a space). Skip the explanation if the person has shown experience in font production.")
+        return _NOTDEF_IF_ASKED if asked else _NOTDEF_SILENT
     if status == "unknown":
         return ("Do not tell the user that .notdef is missing or empty: it could not be determined (see 'evidence').")
     return None
+
+
+def _notdef_maturity(raw: Any) -> dict | None:
+    """v0.83 - the listener's maturity of a font with an empty .notdef, in the reply's words; None when it sent none."""
+    if not isinstance(raw, dict):
+        return None
+    out = {"mature": raw.get("mature") if isinstance(raw.get("mature"), bool) else None}
+    for key in ("letters_present", "unreadable", "letters_checked_for_outline"):
+        if isinstance(raw.get(key), int) and not isinstance(raw.get(key), bool):
+            out[key] = raw[key]
+    for key in ("letters_missing", "drawn_letter", "error"):
+        if isinstance(raw.get(key), str) and raw[key]:
+            out[key] = raw[key]
+    return out
 
 
 def read_notdef_status() -> dict:
@@ -3255,27 +3316,48 @@ def read_notdef_status() -> dict:
     return _notdef_summary(data)
 
 
-def check_notdef_glyph() -> dict:
-    """Check .notdef and, if it is missing or empty, make FontLab show the warning dialog (once per font per session)."""
+def check_notdef_glyph(asked: bool = False) -> dict:
+    """Check .notdef. v0.84: only an issue (missing, or empty in a mature font) is noted once per font in FontLab's OUTPUT panel;
+    an empty .notdef in a font still in progress is not noted, and the agent says nothing unless the person asked (asked=True:
+    the check_notdef tool and --notdef-warn). Never a dialog, so this call never waits for a click."""
     data = _call_listener("/font/notdef")
     if not data.get("open"):
         raise ToolError(NO_FONT)
     out = _notdef_summary(data)
-    if out["status"] in ("missing", "empty"):
-        # This call blocks until a person clicks OK in FontLab, so it needs the long timeout (like delete).
-        warn = _call_listener_post("/font/notdef/warn", {}, timeout=NOTDEF_DIALOG_TIMEOUT_SECONDS)
+    maturity = data.get("maturity")
+    issue = _notdef_is_issue(out["status"], maturity)
+    older = False
+    if out["status"] == "empty" and not issue:
+        out["noted_in_output_panel"] = False   # v0.84: not an issue while the font is in progress
+    if issue:
+        try:
+            _require_listener((0, 203), "the .notdef note")   # an older listener would show its blocking dialog
+        except ToolError:
+            older = True
+            out["noted_in_output_panel"] = False
+            out.setdefault("notes", []).append("The running listener is older than 0.203, so nothing was noted in FontLab and no "
+                                               "dialog was shown.")
+    if issue and not older:
+        warn = _call_listener_post("/font/notdef/warn", {})   # v0.83: no dialog with listener 0.203, so the normal time limit
         if not warn.get("open"):
             raise ToolError(NO_FONT)
         fresh = warn.get("status")
         if fresh in NOTDEF_MEANING and fresh != out["status"]:
-            # the listener re-checks before showing anything; trust its fresh answer if .notdef changed in between
+            # the listener re-checks before noting anything; trust its fresh answer if .notdef changed in between
             out = _notdef_summary({"status": fresh, "evidence": warn.get("evidence")})
             out.setdefault("notes", []).append("The status changed between the two reads; the later one is reported.")
-        out["dialog_shown"] = bool(warn.get("dialog_shown"))
-        out["already_warned"] = bool(warn.get("already_warned"))
-        if warn.get("dialog_error"):
-            out["dialog_error"] = str(warn["dialog_error"])
-    instruction = _notdef_instruction(out)
+        if "maturity" in warn:
+            maturity = warn.get("maturity")
+        out["noted_in_output_panel"] = warn.get("noted") is True
+        out["already_noted"] = warn.get("already_noted") is True or warn.get("already_warned") is True
+        if warn.get("dialog_shown") is True:   # an older listener (before 0.203) still shows its dialog
+            out["dialog_shown"] = True
+    if out["status"] == "empty":
+        found = _notdef_maturity(maturity)
+        if found is not None:
+            out["font_maturity"] = found
+            out["font_mature"] = found["mature"]
+    instruction = _notdef_instruction(out, asked)
     if instruction:
         out["agent_instruction"] = instruction
     return out
@@ -4498,8 +4580,8 @@ def read_glyph_outline(name: str) -> dict:
             notes.append("FontLab holds no layer at all for this glyph, which means it has no outline data.")
         result = {"name": clean, "empty": True, "contour_count": 0, "node_count": 0, "notes": notes}
         if clean == ".notdef":
-            notes.append(".notdef is the glyph shown when a character is missing from the font. An empty .notdef is valid "
-                         "but not recommended; see check_notdef.")
+            notes.append(".notdef is the glyph shown when a character is missing from the font. An empty .notdef is normal "
+                         "while a font is in progress.")
             if _notdef_auto_enabled():
                 result["notdef_check"] = _notdef_check_best_effort()
         return result
@@ -4562,9 +4644,8 @@ def get_current_font(ctx: Context | None = None) -> dict[str, Any]:
     (postscript_names_source says where they came from; legacy_* fields appear when FontLab's older view differs). Whether a
     name was typed by a person or filled in by FontLab is not known: do not call a name 'unset' or 'a placeholder'.
 
-    Also checks the font's .notdef glyph (see check_notdef): the result has a 'notdef' entry, and if .notdef is missing or
-    empty a warning dialog is shown to the person in FontLab (once per font per session). In that case this call can
-    take up to two minutes while the dialog waits for a click; that is normal, not a hang.
+    Also checks the font's .notdef glyph (see check_notdef): the result has a 'notdef' entry with an 'agent_instruction' on
+    what to tell the person. No dialog is shown and the call does not wait for anyone.
     """
     _note_client(ctx)
     return _with_font(read_current_font_checked)
@@ -4638,7 +4719,7 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     described above still applies.
 
     .notdef: this is the mandatory glyph shown when a character is missing from the font; it may legitimately be empty
-    (an empty one comes back as empty: true, plus a warning dialog in FontLab). If a glyph's layer cannot be read at all,
+    (an empty one comes back as empty: true, with notdef_check saying what to tell the person). If a glyph's layer cannot be read at all,
     the tool raises an error that says so; that is NOT the same as the glyph being empty.
     """
     _note_client(ctx)
@@ -4647,20 +4728,22 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
 
 @_tool()
 def check_notdef(ctx: Context | None = None) -> dict[str, Any]:
-    """Check whether the open font has a proper .notdef glyph, and warn the person in FontLab if it does not.
+    """Check whether the open font has a proper .notdef glyph.
 
     Every font must contain a .notdef glyph (glyph 0): it is what is shown when a character that is typed is not in
     the font. It should have a visible outline, usually a rectangle, often with a question mark or an X inside. A new
     FontLab font starts with an EMPTY .notdef, so an empty one is normal for a font in progress, but not recommended.
 
     Returns 'status': 'missing', 'empty' (exists but has no lines or shapes), 'has_outline', or 'unknown' (could not be
-    determined; then say nothing about it being missing or empty). If it is missing or empty, a warning dialog is shown
-    inside FontLab (once per font per session) and you should ALSO tell the person in your reply; follow
-    'agent_instruction'. While the dialog waits for a click this call can take up to two minutes; that is normal.
-    get_current_font runs this check automatically.
+    determined; then say nothing about it being missing or empty). For an empty .notdef, 'font_mature' says whether the font
+    has every letter A-Z and a-z with at least one drawn: then an empty .notdef may have been overlooked. Missing, or empty in a
+    mature font, is noted once per font in FontLab's OUTPUT panel; an empty .notdef in a font still in progress is not, and is
+    mentioned only if the person asked. No dialog is shown. Follow 'agent_instruction': how strongly depends on the font's state,
+    how much you explain depends on the person. get_current_font runs this check automatically and then says nothing about an
+    empty .notdef in a font still in progress.
     """
     _note_client(ctx)
-    return _with_font(check_notdef_glyph)
+    return _with_font(check_notdef_glyph, True)
 
 
 @_tool()
@@ -4934,14 +5017,15 @@ def remove_kerning_group(group: str, pairs: str, ctx: Context | None = None) -> 
     which, ask them; never choose for them. Read the group first with get_kerning_groups. A group that is not a kerning group confirmed by
     both of FontLab's sources is refused before anything is asked. Otherwise this shows a Yes/No question inside FontLab (default No) that
     names the group, its members and what happens to its kerning, and only proceeds if a person clicks Yes there: this tool cannot remove
-    anything on its own. Expect the call to take a while (up to two minutes) while the question waits; that is normal, not a hang. The
+    anything on its own. The question closes by itself after 45 seconds, counted as no answer, so the call takes at most about a
+    minute; then the reply says not_answered_in_time and nothing was changed: ask the person before trying again. The
     removal is verified by re-reading both of FontLab's sources; the kerning entries themselves are not read (table_size_before and
     table_size_after give the size of the table). No Glyphbridge tool can bring a removed group back. After the removal FontLab is told
     that the font changed (fontlab_changed_mark) and asked to refresh its panels (fontlab_panel_refresh); fontlab_caught_up says whether
     one member glyph already left the group - if not, FontLab's panels and get_kerning for the members may show the old state until the
     person switches to another font and back. Edit > Undo is not known to take it back. It changes the current font, the one whose window
     is in front; with several fonts open it refuses when that font cannot be matched to its kerning table (for example a new, unsaved font).
-    Other masters are not changed. Needs listener v0.200.
+    Other masters are not changed. Needs listener v0.203.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). The reply's font_modified says whether the font really changed. Do not remind the person
@@ -5288,8 +5372,10 @@ def delete_glyph(name: str, ctx: Context | None = None) -> dict[str, Any]:
 
     This shows a Yes/No confirmation dialog inside FontLab itself, and only
     proceeds if a person clicks Yes there - this tool cannot delete anything
-    on its own. Expect this call to take a while (up to two minutes) if the
-    dialog is waiting on a response; that is normal, not a hang. Deletion is
+    on its own. The question closes by itself after 45 seconds, counted as
+    no answer, so the call takes at most about a minute; then the reply says
+    not_answered_in_time and nothing was changed: ask the person before
+    trying again. Deleting .notdef gets its own warning in the dialog. Deletion is
     permanent for this editing session and cannot be undone through this
     bridge. Success is only ever reported after re-checking the font's
     glyph list confirms the glyph is really gone.
@@ -5347,8 +5433,8 @@ def _self_check() -> None:
 
     if "--notdef-warn" in sys.argv:
         try:
-            print(f"[OK]     check_notdef (may show a dialog in FontLab): "
-                  f"{json.dumps(check_notdef_glyph(), ensure_ascii=False, indent=2)}")
+            print(f"[OK]     check_notdef (may add a line to FontLab's OUTPUT panel): "
+                  f"{json.dumps(check_notdef_glyph(asked=True), ensure_ascii=False, indent=2)}")
         except ToolError as exc:
             print(f"[FAILED] check_notdef: {exc}")
 

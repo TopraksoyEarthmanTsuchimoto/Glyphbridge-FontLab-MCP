@@ -2372,7 +2372,7 @@ def g87_setup(mode=None, refs=(("ref", "test_font"),), empties=("fresh",), **cfg
     p72_setup(mode=mode, refs=refs, empties=empties); G87["calls"].clear(); G87["cfg"] = dict(cfg)
     for _g in TS.values(): _g.update = (lambda n=_g.name: G87["calls"].append("glyph.update"))
     ns["_UNSYNCED"].update(font=None, overflow=False); ns["_UNSYNCED"]["glyphs"].clear(); ns["_UNSYNCED_MAX"] = 500
-    ns["_confirm_deletion"] = lambda n: True
+    ns["_confirm_deletion"] = lambda n, s=45: {"answer": "yes", "seconds": s}   # v0.203: the dialog's result
     _fm.CurrentFont = lambda: G87Font()
     ns["_MODERN_CACHE"].clear(); ns["_MODERN_CACHE_FONT"][0] = None
 def g87_sync(name, nodes, width=None):
@@ -3813,10 +3813,12 @@ al("POST", "/glyph/create", {"name": "kn2E"}, 200, {"open": False})
 al("POST", "/glyph/create", b"{not json", 400, {"error": "request body was not valid JSON"})
 al("POST", "/glyph/delete", {}, 400, {"error": '"name" must be a non-empty string'})
 al("POST", "/glyph/create", {"name": "x" * 200}, 400, {"error": "e" * 300})
-al_reset(); al_case("1343 .notdef warning: dialog shown / dialog error / no dialog (counted as a read):")
-al("POST", "/font/notdef/warn", {}, 200, {"open": True, "status": "missing", "evidence": [], "dialog_shown": True, "already_warned": False})
-al("POST", "/font/notdef/warn", {}, 200, {"open": True, "status": "empty", "evidence": [], "dialog_shown": False, "already_warned": False, "dialog_error": "RuntimeError: no box"})
-al("POST", "/font/notdef/warn", {}, 200, {"open": True, "status": "has_outline", "evidence": [], "dialog_shown": False, "already_warned": False})
+al_reset(); al_case("1343 .notdef note (v0.203: one OUTPUT line, no dialog): missing / empty early / empty mature / already noted / drawn (counted as a read):")
+al("POST", "/font/notdef/warn", {}, 200, {"open": True, "status": "missing", "evidence": [], "noted": True, "already_noted": False})
+al("POST", "/font/notdef/warn", {}, 200, {"open": True, "status": "empty", "evidence": [], "noted": True, "already_noted": False, "maturity": {"mature": False}})
+al("POST", "/font/notdef/warn", {}, 200, {"open": True, "status": "empty", "evidence": [], "noted": True, "already_noted": False, "maturity": {"mature": True}})
+al("POST", "/font/notdef/warn", {}, 200, {"open": True, "status": "empty", "evidence": [], "noted": False, "already_noted": True})
+al("POST", "/font/notdef/warn", {}, 200, {"open": True, "status": "has_outline", "evidence": [], "noted": False, "already_noted": False})
 print("1343 pending reads:", ns["_ACT"]["reads"])
 al_case("1344 gated probes: answered / refused by the probe / HTTP error; a probe without go=yes is a read:")
 al("GET", "/debug/trypkgkern?a=kn1L&b=kn1R&go=yes", None, 200, {"open": True, "package": {}, "legacy": {}})
@@ -4731,7 +4733,8 @@ lc("/font/current", {"open": True}, "claude-code", "x.exe%0A%5Bglyphbridge%5D%20
 lc("/font/current", {"open": True}, "claude-code", "y" * 120)
 print("1498 start() clears the pairs:", "_announced_clients.clear()" in src[src.index("def start("):],
       "| _handle resets the request launcher:", "_request_client = _request_launcher = None" in src[src.index("def _handle("):src.index("def _poll(")])
-print("1499 .notdef texts end:", [t[-40:] for t in ns["_NOTDEF_DIALOG_TEXT"].values()], "| 'AI agent' in the source:", "an AI agent read" in src)
+print("1499 .notdef notes end (v0.203: OUTPUT lines, no dialog):", [t[-40:] for t in ns["_NOTDEF_OUTPUT"].values()],
+      "| 'AI agent' in the source:", "an AI agent read" in src)
 for k, v in _lc_saved.items(): ns[k] = v
 ns["_announced_clients"].clear(); ns["_connection_announced"] = False
 al_reset(_al_saved["_ACTIVITY_LOG"])
@@ -4821,21 +4824,40 @@ dd("1528b control character in the file name", "claude-code", FHFont("Ctl", "Reg
 print("1529 the client name is the log's cleaned name:", [ns["_act_client"](raw) for raw in ("local-agent-mode-glyphbridge-fontlab", "x%0A%5Bfake%5D", "c" * 80)])
 ns["_forget_request_font"](); ns["_request_client"] = "claude-code"
 print("1530 no font noted in this request     :", repr(ns["_deletion_text"]("w6a_one")))
-class DDBox:                                  # recording QMessageBox
+class DDButton:
+    def __init__(self, t): self.text = t
+    def setText(self, t): self.text = t
+class DDBox:                                  # recording QMessageBox (v0.203: the self-closing dialog's members too)
     Warning, Yes, No = "Warning", 16384, 65536
     seen = []
     answer = 16384
-    def __init__(self, icon, title, text, buttons): DDBox.seen.append((icon, title, text, buttons))
+    def __init__(self, icon, title, text, buttons):
+        DDBox.seen.append((icon, title, text, buttons)); self.btns = {16384: DDButton("&Yes"), 65536: DDButton("&No")}
     def setDefaultButton(self, b): DDBox.seen.append(("default", b))
+    def button(self, which): return self.btns[which]
+    def clickedButton(self): return self.btns[DDBox.answer]
     def exec_(self): return DDBox.answer
-ns["QMessageBox"] = DDBox
+class DDTimer:                                # never fires: the person answers in time
+    def __init__(self, parent): pass
+    def setSingleShot(self, v): pass
+    def setInterval(self, ms): pass
+    def connect(self, *a): return True
+    def start(self): pass
+    def stop(self): pass
+_dd_timer = getattr(ns["QtCore"], "QTimer", None)
+ns["QMessageBox"] = DDBox; ns["QtCore"].QTimer = DDTimer
 fh_setup(FHFont("Unnamed", "Regular", ""), 2); ns["_forget_request_font"](); ns["_request_client"] = "local-agent-mode"; ns["_open_font"]()
 yes = ns["_confirm_deletion"]("w6a_one"); DDBox.answer = 65536; no = ns["_confirm_deletion"]("w6a_one")
-print("1531 the dialog shows that text        :", DDBox.seen[0][1], "|", DDBox.seen[0][2] == ns["_deletion_text"]("w6a_one"), "| default", DDBox.seen[1], "| Yes ->", yes, "| No ->", no)
+print("1531 the dialog shows that text        :", DDBox.seen[0][1], "|", DDBox.seen[0][2].startswith(ns["_deletion_text"]("w6a_one")),
+      "| default", DDBox.seen[1], "| Yes ->", yes["answer"], "| No ->", no["answer"], "| then:", DDBox.seen[0][2].split("\n\n")[-1])
+DDBox.answer = 16384; DDBox.seen.clear(); ns["_confirm_deletion"](".notdef")
+print("1531b .notdef gets its own warning      :", DDBox.seen[0][2].split("\n\n")[1])
+if _dd_timer is None: del ns["QtCore"].QTimer
+else: ns["QtCore"].QTimer = _dd_timer
 fh_setup(FHFont("testfont", "Regular", "D:/fonts/savedtestfont-b.vfc"), 2); h, head = fh_head("GET", "/font/current")
 print("1532 the file name never goes into a header:", "savedtestfont-b" not in head, "| headers:", h)
 print("1533 no fixed agent name in the listener:", "Claude" not in src, "| _confirm_deletion uses _deletion_text:", "_deletion_text(name)" in src[src.index("def _confirm_deletion("):src.index("def delete_glyph(")],
-      "| delete_glyph reads the font before the dialog:", src.index("_open_font()", src.index("def delete_glyph(")) < src.index("_confirm_deletion(name)", src.index("def delete_glyph(")))
+      "| delete_glyph reads the font before the dialog:", src.index("_open_font()", src.index("def delete_glyph(")) < src.index("_confirm_deletion(name,", src.index("def delete_glyph(")))
 fl.CurrentFont = _dd_saved[0]; ns["QMessageBox"] = _dd_saved[2]; ns["_request_client"] = None
 if _dd_saved[1] is not None: fl.CountFonts = _dd_saved[1]
 elif hasattr(fl, "CountFonts"): del fl.CountFonts
@@ -7040,7 +7062,8 @@ def mk_delete(tag, names, target="b", confirm=True, removes=True, raises=False, 
             if raises: raise RuntimeError("remove boom")
         def update(s): MK["seq"].append("update")
     f = F()
-    ns.update(_open_font=lambda: f, _guard_decide=lambda x: (guard_ok, {}), _confirm_deletion=lambda n: confirm)
+    ns.update(_open_font=lambda: f, _guard_decide=lambda x: (guard_ok, {}),
+              _confirm_deletion=lambda n, s=45: {"answer": "yes" if confirm else "no", "seconds": s})   # v0.203: the dialog's result
     r = ns["delete_glyph"](target)
     print(tag, ":", r.get("deleted"), "| mark", r.get("fontlab_changed_mark", "<no field>"), "| call_error", r.get("call_error"), "| order", MK["seq"])
 mk_delete("2264 verified delete             ", [".notdef", "a", "b"])
@@ -10765,9 +10788,11 @@ _gp_keep = {k: ns[k] for k in ("_confirm_group_removal", "_mark_through_first")}
 def _gp_mark(font, candidates, how):
     GP["marks"].append((list(candidates), how)); GP["order"].append("mark")
     return {"called": True, "via_glyph": candidates[0] if candidates else None, "glyph_has_changes": True}
-def _gp_dialog(text):
-    GP["dialogs"].append(text); GP["order"].append("dialog")
-    return GP["cfg"].get("answer", True)
+def _gp_dialog(text, seconds=45):
+    GP["dialogs"].append(text); GP["order"].append("dialog"); GP["dialog_seconds"] = seconds
+    answer = GP["cfg"].get("answer", True)          # v0.203: the dialog's result; True / False are Yes / No
+    answer = {True: "yes", False: "no"}.get(answer, answer)
+    return {"answer": answer, "seconds": seconds} if answer != "not_shown" else {"answer": answer, "seconds": seconds, "error": "set-up boom"}
 def gp_setup(**cfg):
     GP["cfg"] = dict(cfg)
     GP["groups"] = {"geL": {"kern": True, "id": 5140, "members": ["ge1", "ge2"], "side": "left"},
@@ -10882,16 +10907,307 @@ print("2851 static scan                 : container members used:", sorted(set(_
       "| renamer( calls:", len(_re83.findall(r"\brenamer\(", _gp_body)), "| remover( calls:", len(_re83.findall(r"\bremover\(", _gp_body)),
       "| pkg members:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _gp_body))), "| kerning members:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _gp_body))),
       "| forbidden syntax:", _re83.findall(r"\.(?:save\w*|close|export\w*|release|set|update\w*|Update\w*|add\w*|clear\w*|keys|values|assign\w*|replace\w*|delete\w*|deleteGroups|asDict|getPlain\w*|setPlain\w*|scale|renameGroup|addGroup|deleteGroup)\(",
-                                         _gp_body.replace("out.update(", "").replace("check.update(", "").replace("twice.add(", "").replace("other.add(", "")),
+                                         _gp_body.replace("out.update(", "").replace("check.update(", "").replace("twice.add(", "").replace("other.add(", "")
+                                         .replace("refused.update(", "")),
       "| del statements:", len(_re83.findall(r"\bdel\b", _gp_body)),
       "| names subscripted:", sorted(set(_re83.findall(r"\b(\w+)\[", _gp_body))),
       "| scanned chars > 9000:", len(_gp_src) > 9000)
 print("2852 routes, docstring, log, mark:", src.count('if path in ("/kerning/group/rename", "/kerning/group/remove"):') == 1,
       "| in the module docstring:", all(p in src[:src.index('"""', 3)] for p in ("POST /kerning/group/rename", "POST /kerning/group/remove")),
       "| write log kinds:", ns["_ACT_WRITES"].get(_RN), "/", ns["_ACT_WRITES"].get(_RM), "| mark title:", ns["_MARK_TITLES"].get("kerning_group"),
-      "| dialog default No:", "box.setDefaultButton(QMessageBox.No)" in src[src.index("def _confirm_group_removal("):src.index("# v0.200 - renaming")])
+      "| the dialog is the self-closing one:", "_ask_yes_no(" in src[src.index("def _confirm_group_removal("):src.index("# v0.200 - renaming")],
+      "| its default No:", "box.setDefaultButton(QMessageBox.No)" in src[src.index("def _ask_yes_no("):src.index("def _confirm_deletion(")])
 ns.update(_gp_keep)
 for _m, _a, _v in _gp_saved:
     if _v is None:
         if hasattr(_m, _a): delattr(_m, _a)
     else: setattr(_m, _a, _v)
+
+# ================= v0.201: /debug/trydialogtimeout (gated research probe, UI only: a dialog that closes itself) =================
+print("\n==== v0.201 /debug/trydialogtimeout ====")
+DT = {"boxes": [], "timers": [], "mode": "timeout", "connect": "ok", "exec": "ok", "open_font_calls": 0,
+      "button": "ok", "connect_tick": "ok", "ticks_before_click": 0}
+class DTButton:                               # as in PythonQt (SC 1591, 1592): text is a property, setText a method
+    def __init__(s, t): s.text = t; s.sets = []
+    def setText(s, t):
+        s.sets.append(t)
+        if DT["button"] == "raise_set" or (DT["button"] == "raise_set_late" and len(s.sets) == 3) or \
+                (DT["button"] == "raise_set_from3" and len(s.sets) >= 3): raise RuntimeError("setText boom " + str(len(s.sets)))
+        s.text = t
+class DTButtonM:                              # a binding where text is a method
+    def __init__(s, t): s._t = t; s.sets = []
+    def text(s): return s._t
+    def setText(s, t): s.sets.append(t); s._t = t
+class DTBox:                                  # recording QMessageBox: the timer's reject() or a click ends exec_()
+    Question, Yes, No = "Question", 16384, 65536
+    def __init__(s, icon, title, text, buttons):
+        s.icon, s.title, s.text, s.buttons = icon, title, text, buttons
+        s.default = None; s.rejected = 0; s.clicked = None; s.res = None; s.execs = 0
+        kind = DTButtonM if DT["button"] == "method" else DTButton
+        s.btns = {DTBox.Yes: kind("&Yes"), DTBox.No: kind("&No")}
+        DT["boxes"].append(s)
+    def setDefaultButton(s, b): s.default = b
+    def reject(s): s.rejected += 1; s.res = 0
+    def clickedButton(s): return s.clicked
+    def result(s): return s.res
+    def button(s, which): return None if DT["button"] == "none" else s.btns.get(which)
+    def exec_(s):
+        s.execs += 1
+        if DT["exec"] == "raise": raise RuntimeError("exec boom")
+        close = [t for t in DT["timers"] if t.single is True][-1]
+        n = close.interval // 1000 - (0 if DT.get("tick_at_close") else 1) if DT["mode"] == "timeout" else DT["ticks_before_click"]
+        for t in [t for t in DT["timers"] if t.single is False]:
+            for _ in range(n): t.fire()
+        if DT["mode"] == "timeout":
+            close.fire()
+            return 0 if s.rejected else -1
+        s.clicked = s.btns[DTBox.Yes if DT["mode"] == "yes" else DTBox.No]; s.res = DTBox.Yes if DT["mode"] == "yes" else DTBox.No
+        return s.res
+class DTTimer:                                # recording QtCore.QTimer
+    def __init__(s, parent):
+        s.parent = parent; s.single = None; s.interval = None; s.active = False; s.signal = None; s.target = None; s.stops = 0
+        s.starts = 0; s.fired = 0
+        DT["timers"].append(s)
+    def setSingleShot(s, v): s.single = v
+    def setInterval(s, ms): s.interval = ms
+    def connect(s, signal, *target):
+        if DT["connect"] == "raise": raise TypeError("connect boom")
+        if DT["connect"] == "false": return False
+        if s.single is False and DT["connect_tick"] == "false": return False
+        s.signal, s.target = signal, target
+        return True
+    def start(s): s.active = True; s.starts += 1
+    def stop(s): s.active = False; s.stops += 1
+    def isActive(s): return s.active
+    def fire(s):
+        if not s.active: return
+        if s.single: s.active = False
+        s.fired += 1
+        if len(s.target) == 2:
+            if s.target[1] == "reject()": s.target[0].reject()
+        else:
+            s.target[0]()
+_dt_saved = (ns["QMessageBox"], getattr(ns["QtCore"], "QTimer", None), ns["_open_font"])
+def _dt_open_font(*a, **k):
+    DT["open_font_calls"] += 1
+    return _dt_saved[2](*a, **k)
+ns["QMessageBox"] = DTBox; ns["QtCore"].QTimer = DTTimer; ns["_open_font"] = _dt_open_font
+def dt(q, mode="timeout", connect="ok", exec_="ok", button="ok", connect_tick="ok", ticks_before_click=0):
+    DT.update(mode=mode, connect=connect, exec=exec_, button=button, connect_tick=connect_tick, ticks_before_click=ticks_before_click)
+    DT["boxes"].clear(); DT["timers"].clear()
+    return call("/debug/trydialogtimeout?" + q)
+def _dt_keys(d, *keys): return {k: d.get(k) for k in keys}
+ns["_TRYDIALOGTIMEOUT"]["calls"] = 0
+c, d = dt("how=slot&seconds=10")
+print("2853 without go              :", c, "| dialog_started", d["dialog_started"], "| plan:", d.get("plan"), "| dialogs made", len(DT["boxes"]),
+      "| calls", d["calls_so_far"], "/", d["max_calls"])
+_dt_bad = []
+for q in ("how=bogus&seconds=10&go=yes", "how=&seconds=10&go=yes", "how=slot&seconds=2&go=yes", "how=slot&seconds=51&go=yes",
+          "how=slot&seconds=abc&go=yes", "how=slot&go=yes", "how=slot&seconds=%EF%BC%91%EF%BC%90&go=yes", "how=slot&seconds=010&go=yes",
+          "how=python&seconds=-5&go=yes"):
+    c, d = dt(q); _dt_bad.append((q.replace("&go=yes", ""), c, d.get("error")))
+print("2854 refusals                :", _dt_bad, "| dialogs made", len(DT["boxes"]), "| calls", ns["_TRYDIALOGTIMEOUT"]["calls"])
+c, d = dt("how=slot&seconds=10&go=yes")
+b, t = DT["boxes"][0], DT["timers"][0]
+print("2855 slot, no click          :", c, _dt_keys(d, "dialog_started", "connected", "exec_result", "result_is_yes", "clicked_button",
+      "closed_without_click", "dialog_result", "timer_active_after", "calls_so_far", "font_touched"),
+      "| elapsed is a number:", isinstance(d.get("elapsed_s"), float), "| timer_fired in the reply:", "timer_fired" in d)
+print("2856 the dialog and its timer:", b.icon, "|", b.title, "|", b.text.splitlines()[0], "|", b.text.splitlines()[-1], "| buttons", b.buttons,
+      "| default", b.default, "| timer owned by the dialog:", t.parent is b, "| single shot", t.single, "| interval", t.interval,
+      "| connected", t.signal, "to the dialog:", t.target[0] is b, t.target[1], "| stopped", t.stops, "| rejected", b.rejected, "| exec_", b.execs)
+c, d = dt("how=slot&seconds=20&go=yes", mode="yes")
+print("2857 slot, Yes clicked       :", c, _dt_keys(d, "exec_result", "result_is_yes", "clicked_button", "closed_without_click", "dialog_result",
+      "timer_active_after"), "| stopped", DT["timers"][0].stops, "| rejected", DT["boxes"][0].rejected)
+c, d = dt("how=python&seconds=10&go=yes")
+t = DT["timers"][0]
+print("2858 python, no click        :", c, _dt_keys(d, "connected", "exec_result", "result_is_yes", "clicked_button", "closed_without_click",
+      "timer_fired", "timer_active_after"), "| fired after is a number:", isinstance(d.get("timer_fired_after_s"), float),
+      "| connected to a Python function:", len(t.target) == 1 and callable(t.target[0]), t.signal, "| rejected", DT["boxes"][0].rejected)
+c, d = dt("how=python&seconds=20&go=yes", mode="no")
+print("2859 python, No clicked      :", c, _dt_keys(d, "exec_result", "result_is_yes", "clicked_button", "closed_without_click", "timer_fired",
+      "timer_fired_after_s", "timer_active_after"), "| stopped", DT["timers"][0].stops)
+c, d = dt("how=slot&seconds=10&go=yes", connect="false")
+print("2860 connect returns False   :", c, _dt_keys(d, "connected", "dialog_started", "error", "calls_so_far"), "| exec_", DT["boxes"][0].execs)
+c, d = dt("how=python&seconds=10&go=yes", connect="raise")
+print("2861 connect raises          :", c, _dt_keys(d, "dialog_started", "error", "calls_so_far"), "| exec_", DT["boxes"][0].execs)
+c, d = dt("how=slot&seconds=10&go=yes", exec_="raise")
+print("2862 the dialog raises       :", c, _dt_keys(d, "dialog_started", "error", "calls_so_far", "font_touched"), "| stopped", DT["timers"][0].stops)
+_dt_calls = ns["_TRYDIALOGTIMEOUT"]["calls"]
+ns["_TRYDIALOGTIMEOUT"]["calls"] = 10
+c, d = dt("how=slot&seconds=10&go=yes")
+print("2863 the cap                 : calls counted before the dialog, also for a failed one:", _dt_calls, "| at 10:", c,
+      _dt_keys(d, "refused", "error", "dialog_started", "calls_so_far"), "| dialogs made", len(DT["boxes"]))
+_dt_src = src[src.index("# /debug/trydialogtimeout (v0.201)"):src.index("def _read_elements(")]
+_dt_body = "\n".join(l.split("#")[0] for l in _re83.sub(r'(?s)"""(.*?)"""', '', _dt_src).splitlines()).replace("out.update(", "")
+print("2864 no font call            : _open_font calls", DT["open_font_calls"], "| font names in the code:",
+      _re83.findall(r"\bfl\.\w+|\bfontlab\b|CurrentFont|CountFonts|_open_font|_REQUEST_FONT|\.save\w*\(|\.update\(", _dt_body),
+      "| route dispatched once:", src.count('if path == "/debug/trydialogtimeout":') == 1,
+      "| in the module docstring:", "/debug/trydialogtimeout" in src[:src.index('"""', 3)], "| default No:", "box.setDefaultButton(QMessageBox.No)" in _dt_src)
+# v0.202: the countdown on the No button (visual only), and the clicked button's label read as a property
+print("\n==== v0.202 /debug/trydialogtimeout countdown ====")
+ns["_TRYDIALOGTIMEOUT"]["calls"] = 0
+c, d = dt("how=slot&seconds=10&countdown=yes")
+print("2865 countdown without go    :", c, "| plan:", d.get("plan"), "| countdown", d["countdown"], "| dialogs made", len(DT["boxes"]))
+c, d = dt("how=slot&seconds=10&countdown=maybe&go=yes")
+print("2866 countdown=maybe         :", c, d.get("error"), "| dialogs made", len(DT["boxes"]), "| calls", ns["_TRYDIALOGTIMEOUT"]["calls"])
+c, d = dt("how=slot&seconds=10&countdown=yes&go=yes")
+b = DT["boxes"][0]; close = [t for t in DT["timers"] if t.single is True]; tick = [t for t in DT["timers"] if t.single is False]
+print("2867 slot, countdown, no click:", c, _dt_keys(d, "countdown", "countdown_ticks", "countdown_last_label", "countdown_label_after", "countdown_error",
+      "closed_without_click", "result_is_yes", "exec_result", "calls_so_far"))
+print("2868 the countdown timer     : No labels set", b.btns[DTBox.No].sets, "| Yes untouched:", b.btns[DTBox.Yes].sets == [],
+      "| timers: closing", len(close), "countdown", len(tick), "| owned by the dialog:", tick[0].parent is b, "| interval", tick[0].interval,
+      "| connected to a Python function:", len(tick[0].target) == 1 and callable(tick[0].target[0]), "| started", tick[0].starts, "| stopped", tick[0].stops,
+      "| the closing still a Qt connection:", close[0].target[0] is b, close[0].target[1])
+c, d = dt("how=slot&seconds=20&countdown=yes&go=yes", mode="no", ticks_before_click=5)
+print("2869 countdown, No clicked   :", c, _dt_keys(d, "result_is_yes", "exec_result", "clicked_button", "closed_without_click", "countdown_ticks",
+      "countdown_last_label", "countdown_label_after", "countdown_error"), "| countdown stopped", [t.stops for t in DT["timers"] if t.single is False])
+c, d = dt("how=slot&seconds=20&countdown=yes&go=yes", mode="yes", ticks_before_click=3)
+print("2870 countdown, Yes clicked  :", c, _dt_keys(d, "result_is_yes", "exec_result", "clicked_button", "countdown_ticks", "countdown_last_label",
+      "countdown_error"))
+c, d = dt("how=python&seconds=10&countdown=yes&go=yes")
+print("2871 python, countdown       :", c, _dt_keys(d, "timer_fired", "countdown_ticks", "countdown_last_label", "closed_without_click", "countdown_error"))
+c, d = dt("how=slot&seconds=10&countdown=yes&go=yes", button="none")
+print("2872 no No button            :", c, _dt_keys(d, "dialog_started", "closed_without_click", "countdown_ticks", "countdown_last_label", "countdown_error",
+      "countdown_label_after_error"), "| countdown timers made", len([t for t in DT["timers"] if t.single is False]))
+c, d = dt("how=slot&seconds=10&countdown=yes&go=yes", button="raise_set_late")
+print("2873 relabel fails at tick 2 :", c, _dt_keys(d, "closed_without_click", "countdown_ticks", "countdown_last_label", "countdown_error"),
+      "| labels tried", DT["boxes"][0].btns[DTBox.No].sets)
+c, d = dt("how=slot&seconds=10&countdown=yes&go=yes", button="raise_set")
+print("2874 first relabel fails     :", c, _dt_keys(d, "dialog_started", "closed_without_click", "countdown_ticks", "countdown_last_label", "countdown_error"),
+      "| countdown timers made", len([t for t in DT["timers"] if t.single is False]))
+c, d = dt("how=slot&seconds=10&countdown=yes&go=yes", connect_tick="false")
+print("2875 countdown connect False :", c, _dt_keys(d, "dialog_started", "closed_without_click", "countdown_ticks", "countdown_last_label", "countdown_error"),
+      "| countdown timer started", [t.starts for t in DT["timers"] if t.single is False])
+c, d = dt("how=slot&seconds=20&go=yes", mode="yes", button="method")
+print("2876 label as a method       :", c, _dt_keys(d, "clicked_button", "result_is_yes", "countdown"), "| countdown fields:",
+      sorted(k for k in d if k.startswith("countdown_")), "| timers", len(DT["timers"]))
+c, d = dt("how=slot&seconds=10&countdown=no&go=yes")
+print("2877 countdown=no            :", c, _dt_keys(d, "countdown", "closed_without_click"), "| countdown fields:", sorted(k for k in d if k.startswith("countdown_")),
+      "| timers", len(DT["timers"]), "| labels set", DT["boxes"][0].btns[DTBox.No].sets, "| calls", d["calls_so_far"])
+ns["_TRYDIALOGTIMEOUT"]["calls"] = 0
+DT["tick_at_close"] = True                    # the last tick comes just before the closing timer, both at 10 s
+c, d = dt("how=slot&seconds=10&countdown=yes&go=yes")
+DT["tick_at_close"] = False
+print("2880 a tick at the closing   :", c, _dt_keys(d, "countdown_ticks", "countdown_last_label", "countdown_label_after", "closed_without_click"),
+      "| labels set", DT["boxes"][0].btns[DTBox.No].sets[-2:])
+c, d = dt("how=slot&seconds=10&countdown=yes&go=yes", button="raise_set_from3")
+print("2881 relabels fail from tick 2:", c, _dt_keys(d, "countdown_ticks", "countdown_last_label", "countdown_error", "closed_without_click"))
+c, d = dt("how=slot&seconds=10&countdown=yes&go=yes", exec_="raise")
+print("2878 dialog raises, countdown:", c, _dt_keys(d, "dialog_started", "error"), "| both timers stopped", [t.stops for t in DT["timers"]])
+_dt_src2 = src[src.index("# /debug/trydialogtimeout (v0.201)"):src.index("def _read_elements(")]
+_dt_body2 = "\n".join(l.split("#")[0] for l in _re83.sub(r'(?s)"""(.*?)"""', '', _dt_src2).splitlines()).replace("out.update(", "")
+print("2879 static scan             : font names in the code:",
+      _re83.findall(r"\bfl\.\w+|\bfontlab\b|CurrentFont|CountFonts|_open_font|_REQUEST_FONT|\.save\w*\(|\.update\(", _dt_body2),
+      "| _open_font calls", DT["open_font_calls"], "| .text() calls:", len(_re83.findall(r"\.text\(\)", _dt_body2)),
+      "| countdown in the docstring:", "&countdown=yes" in src[:src.index('"""', 3)], "| version", ns["VERSION"])
+ns["_TRYDIALOGTIMEOUT"]["calls"] = 0
+ns["QMessageBox"], ns["_open_font"] = _dt_saved[0], _dt_saved[2]
+if _dt_saved[1] is None:
+    if hasattr(ns["QtCore"], "QTimer"): delattr(ns["QtCore"], "QTimer")
+else: ns["QtCore"].QTimer = _dt_saved[1]
+
+# ================= v0.203: self-closing Yes/No dialogs in delete_glyph and remove_kerning_group =================
+print("\n==== v0.203 self-closing Yes/No dialogs ====")
+_sc_saved = {k: ns[k] for k in ("QMessageBox", "_open_font", "_guard_decide", "_mark_font_changed_after_delete", "_confirm_group_removal",
+                                "_mark_through_first", "_now_hms", "_clock")}
+_sc_timer = getattr(ns["QtCore"], "QTimer", None)
+ns["QMessageBox"] = DTBox; ns["QtCore"].QTimer = DTTimer
+DTBox.Warning = "Warning"                     # the product dialogs' icon
+DT["clicked_raises"] = False
+_dtbox_clicked = DTBox.clickedButton
+def _sc_clicked(s):
+    if DT["clicked_raises"]: raise RuntimeError("clickedButton boom")
+    return _dtbox_clicked(s)
+DTBox.clickedButton = _sc_clicked
+def ask(mode="timeout", seconds=12, button="ok", connect="ok", connect_tick="ok", exec_="ok", ticks_before_click=0, clicked_raises=False):
+    DT.update(mode=mode, connect=connect, exec=exec_, button=button, connect_tick=connect_tick, ticks_before_click=ticks_before_click,
+              clicked_raises=clicked_raises)
+    DT["boxes"].clear(); DT["timers"].clear()
+    r = ns["_ask_yes_no"]("T", "Question?", seconds, "deleted")
+    return {k: v for k, v in r.items() if k != "elapsed_s"}, ("elapsed_s" in r)
+print("2882 dialog_seconds          :", [ns["_dialog_seconds"](v) for v in (None, 30, 5, 99, True, "45", 45.0)])
+r, el = ask()
+b = DT["boxes"][0]; close = [t for t in DT["timers"] if t.single is True][0]; tick = [t for t in DT["timers"] if t.single is False][0]
+print("2883 no answer               :", r, "| elapsed measured:", el, "| text ends:", b.text.split("\n\n")[-1], "| default", b.default)
+print("2884 its timers              : closing owned by the dialog:", close.parent is b, "| single", close.single, "| interval", close.interval,
+      "| to the dialog's", close.target[1], "| countdown interval", tick.interval, "| labels", b.btns[DTBox.No].sets[:3], "...", b.btns[DTBox.No].sets[-1],
+      "| both stopped:", close.stops, tick.stops)
+print("2884b both timers started    :", close.starts, tick.starts)
+DT["tick_at_close"] = True
+r, _ = ask(seconds=3)
+print("2884c a tick lands at the close: labels", DT["boxes"][0].btns[DTBox.No].sets, "| no 'No (0)':", "No (0)" not in DT["boxes"][0].btns[DTBox.No].sets, "|", r)
+DT["tick_at_close"] = False
+print("2885 Yes in time             :", ask("yes", ticks_before_click=2)[0])
+print("2886 No in time              :", ask("no", ticks_before_click=4)[0])
+r, _ = ask(connect="false")
+print("2887 closing timer not connected:", r, "| exec_ calls:", DT["boxes"][0].execs)
+r, _ = ask(connect="raise")
+print("2888 connect raises          :", r, "| exec_ calls:", DT["boxes"][0].execs)
+print("2889 the dialog raises       :", ask(exec_="raise")[0])
+print("2890 no No button (countdown off), Yes:", ask("yes", button="none")[0])
+print("2891 countdown connect False, no answer:", ask(connect_tick="false")[0])
+print("2892 click unreadable        :", ask("no", clicked_raises=True)[0])
+# delete_glyph and its route
+class SCFont:
+    def __init__(s, names): s.gl = [types.SimpleNamespace(name=n) for n in names]; s.removed = []
+    glyphs = property(lambda s: list(s.gl))
+    def removeGlyph(s, n): s.removed.append(n); s.gl = [g for g in s.gl if g.name != n]
+    def update(s): pass
+SC = {"font": None}
+ns.update(_open_font=lambda: SC["font"], _guard_decide=lambda f: (True, {}),
+          _mark_font_changed_after_delete=lambda f, after: {"called": True, "via_glyph": after[0] if after else None})
+def scdel(payload, mode="timeout", names=(".notdef", "a", "b"), **kw):
+    SC["font"] = SCFont(names)
+    DT.update(mode=mode, connect="ok", exec="ok", button="ok", connect_tick="ok", ticks_before_click=1, clicked_raises=False); DT.update(kw)
+    DT["boxes"].clear(); DT["timers"].clear()
+    h, _, body = ns["_route"]("POST", "/glyph/delete", json.dumps(payload).encode()).partition(b"\r\n\r\n")
+    d = json.loads(body)
+    if isinstance(d.get("dialog"), dict): d["dialog"].pop("elapsed_s", None)
+    return h.split(b"\r\n")[0].decode()[9:12], d, SC["font"].removed
+_SCK = ("deleted", "user_declined", "not_answered", "dialog_error", "reason", "dialog", "notdef_deleted", "before_count", "after_count", "error")
+def scshow(tag, res): c, d, removed = res; print(tag, ":", c, {k: d[k] for k in _SCK if k in d}, "| removed", removed)
+scshow("2893 delete, no answer      ", scdel({"name": "a", "dialog_seconds": 12}))
+scshow("2894 delete, Yes            ", scdel({"name": "a", "dialog_seconds": 12}, mode="yes"))
+scshow("2895 delete, No             ", scdel({"name": "a"}, mode="no"))
+scshow("2896 dialog_seconds 99 -> 50", scdel({"name": "a", "dialog_seconds": 99}, mode="no"))
+scshow("2897 dialog_seconds '45'    ", scdel({"name": "a", "dialog_seconds": "45"}))
+scshow("2898 no dialog could be shown", scdel({"name": "a"}, connect="false"))
+scshow("2898b click unreadable: declined, not 'no answer'", scdel({"name": "a"}, mode="no", clicked_raises=True))
+scshow("2899 delete .notdef, Yes    ", scdel({"name": ".notdef"}, mode="yes"))
+c, d, _ = scdel({"name": ".notdef"}, mode="no")
+print("2900 the .notdef dialog text :", DT["boxes"][0].text.split("\n\n")[1][:60], "| default", DT["boxes"][0].default, "| title", DT["boxes"][0].title)
+# remove_kerning_group through its route (the GP fixture of the v0.200 section)
+_sc_gp_saved = [(_m, _a, getattr(_m, _a, None)) for _m in _tf_mods for _a in ("flWorkspace", "CountFonts", "CurrentFont", "flItems")]
+for tag, answer in (("2901 removal, no answer     ", "not_answered"), ("2902 removal, No           ", False),
+                    ("2903 removal, no dialog     ", "not_shown"), ("2904 removal, Yes          ", True)):
+    gp_setup(answer=answer)
+    d = gpp(tag, _RM, {"group": "geR", "pairs": "keep", "dialog_seconds": 20},
+            keys=("error", "removed", "changed", "user_declined", "not_answered", "dialog_error", "reason", "dialog"))
+print("2905 the seconds reach the dialog:", GP["dialog_seconds"], "| dialog_seconds 'x' ->",
+      gpp("     ", _RM, {"group": "geR", "pairs": "keep", "dialog_seconds": "x"}, keys=("error",)).get("error"))
+for _m, _a, _v in _sc_gp_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)
+# the OUTPUT lines
+ns["_now_hms"] = lambda: "12:00:00"; ns["_clock"] = lambda: 1000.0
+al_reset(); al_case("2906 OUTPUT lines: not answered / no dialog (delete, group removal):")
+al("POST", "/glyph/delete", {"name": "a"}, 200, {"open": True, "deleted": False, "not_answered": True, "dialog": {"answer": "not_answered", "seconds": 45},
+                                                  "reason": "nobody answered", "before_count": 3, "after_count": 3})
+al("POST", "/glyph/delete", {"name": "a"}, 200, {"open": True, "deleted": False, "dialog_error": "boom", "reason": "no dialog could be shown, so nothing was deleted",
+                                                  "before_count": 3, "after_count": 3})
+al("POST", "/kerning/group/remove", {"group": "geR", "pairs": "keep"}, 200, {"open": True, "group": "geR", "pairs": "keep", "removed": False,
+                                                                             "not_answered": True, "dialog": {"answer": "not_answered", "seconds": 45}})
+al("POST", "/kerning/group/remove", {"group": "geR", "pairs": "keep"}, 200, {"open": True, "group": "geR", "pairs": "keep", "removed": False,
+                                                                             "error": "set-up boom; nothing was removed"})
+ns["_activity_tick"]()
+_sc_src = src[src.index("def _ask_yes_no("):src.index("def _confirm_deletion(")]
+print("2907 static scan             : font names in the dialog:", _re83.findall(r"\bfl\.\w+|\bfontlab\b|CurrentFont|_open_font", _sc_src),
+      "| exec_ calls:", _sc_src.count(".exec_()"), "| the closing timer is a Qt connection:", 'closer.connect("timeout()", box, "reject()")' in _sc_src,
+      "| no other QMessageBox in the listener:", src.count("QMessageBox(") - src.count("QMessageBox(QMessageBox.Question, _TRYDIALOGTIMEOUT_TITLE") == 1,
+      "| version", ns["VERSION"])
+DTBox.clickedButton = _dtbox_clicked
+ns.update(_sc_saved)
+if _sc_timer is None:
+    if hasattr(ns["QtCore"], "QTimer"): delattr(ns["QtCore"], "QTimer")
+else: ns["QtCore"].QTimer = _sc_timer

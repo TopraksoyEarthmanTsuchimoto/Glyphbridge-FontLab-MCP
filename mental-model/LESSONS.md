@@ -75,7 +75,7 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 
 - **Start a timed read only after the person has read the steps and says "go".** In 769 the first timer ran out while the person was still reading, so its reads came before Apply and settled nothing.
 - **Read after each GUI change, not only at the end.** In 771 the scale was lost after two field edits in the small element panel, and which edit dropped it cannot be told.
-- **For an unattended read, ask the listener's route directly.** `--check` also calls `get_current_font`, which can open the `.notdef` dialog and block every request after it; `GET /glyph/outline?name=…` reads only the glyph (769).
+- **For an unattended read, ask the listener's route directly.** `--check` also calls `get_current_font`, which could open the `.notdef` dialog (until listener 0.202) and block every request after it; `GET /glyph/outline?name=…` reads only the glyph (769).
 
 ## Export and brush session (2026-11-10)
 

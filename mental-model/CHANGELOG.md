@@ -4,6 +4,35 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Server v0.84 (2026-11-24, listener unchanged at v0.203): an empty `.notdef` in a font in progress is left alone
+
+**Built as proposed and approved** ([DECISIONS.md](DECISIONS.md), 2026-11-24: speak only about real issues, when they matter).
+
+- Server: `check_notdef_glyph` asks the listener to note `.notdef` (`POST /font/notdef/warn`) only for an issue: missing, or empty with the first read's `maturity.mature` true. An empty `.notdef` in a font still in progress (not mature, or unknown) gets `noted_in_output_panel: false`, no request, no version check, and the instruction "Say nothing about .notdef" from the automatic checks, or "If the person asked about .notdef, …" from `check_notdef` and `--check --notdef-warn` (`asked=True`). `create_font` no longer returns `notdef_note` or asks the agent to mention it. `get_glyph_outline(".notdef")`'s note now says an empty `.notdef` is normal while a font is in progress; `check_notdef`'s description says what is noted and when the agent speaks.
+- Tests: four stub harnesses PASS at 5536 + 58 + 121 + 1756 lines. `notdef_tests.py` parts 4 and 5 revised (4b2, 4d3, 4w, 5e2 new: an early font left alone is raised once it becomes mature); section 36 of `create_unicode_tests.py` loses `notdef_note`. Mutation run: 15 of 15 caught, the no-change control not. **Not yet run in FontLab.**
+
+## Listener v0.203 / server v0.83 (2026-11-24): self-closing dialogs, and the `.notdef` notice without a dialog
+
+**Built as proposed and approved** (the two designs of 2026-11-21, [DECISIONS.md](DECISIONS.md)); research SC 1588–1593, CD 1594–1598. Started 2026-11-21, finished 2026-11-24 in a new session.
+
+- Listener: the Yes/No dialogs of `/glyph/delete` and `/kerning/group/remove` close by themselves after `dialog_seconds` (10–50, default 45), counted as no answer (`not_answered`), through a single-shot `QTimer` owned by the dialog and connected to its `reject()` slot; the No button counts down ("No (44)"); the text says what happens without an answer. If the closing timer cannot be set up, no dialog is shown (`dialog_error`). An unreadable click counts as declined. Deleting `.notdef` gets its own warning text. `POST /font/notdef/warn` shows no dialog: it notes a missing or empty `.notdef` once per font as one OUTPUT line, remembered by the package `fgId`; for an empty `.notdef` the reply adds the font's maturity (all 52 letters A–Z a–z by Unicode, one of them drawn). The OUTPUT panel also logs a dialog that was not answered or not shown.
+- Server: sends `dialog_seconds` 45 and waits 55 s (was 120 s); `delete_glyph` and `remove_kerning_group` need listener 0.203 (the general `MIN_LISTENER_VERSION` stays 0.82); a dialog that closed unanswered gives `not_answered_in_time`, nothing changed, and the agent asks the person before trying again. The `.notdef` instruction depends on the font's state: missing, clearly; empty in a mature font, a likely oversight; otherwise one light sentence. Nothing is noted through a listener older than 0.203. `create_font` mentions the new font's empty `.notdef` once (`notdef_note`). Every tool description and the timeout message were corrected, including `remove_kerning_group`'s "Needs listener v0.200" (now v0.203).
+- Tests: four stub harnesses PASS at 5536 + 58 + 113 + 1756 lines; the deployed listener copy is identical. New cases 2882–2907 (with 2884b, 2884c, 2898b), `notdef_tests.py` rewritten (4d2 added), `create_unicode_tests.py` 50o–50zg. Mutation run: 41 of 42 caught, the no-change control not; the one left (the maturity read for a missing `.notdef`) is equivalent, since a missing `.notdef` returns before that line. **Not yet run in FontLab.**
+
+## Listener v0.202 (2026-11-21, server unchanged at v0.82): a countdown in the self-closing test dialog
+
+**Built as proposed and approved.** Research for the countdown of the self-closing dialog design ([DECISIONS.md](DECISIONS.md), 2026-11-21); names only 1594, 1595.
+
+- Listener: `GET /debug/trydialogtimeout` takes `countdown=yes`: a second `QTimer` owned by the dialog, repeating each second, calls a Python function that relabels the No button "No (N)" through `button(QMessageBox.No).setText`. The first label is set only once that timer is connected; no "No (0)" is shown; the closing is unchanged. A countdown that fails is reported (`countdown_error`, the first error) and the dialog still closes on time. The reply adds `countdown_ticks`, `countdown_last_label`, `countdown_label_after`. The clicked button's label is now read as the property `text` (SC 1591, 1592).
+- Tests: four stub harnesses PASS at 5498 + 58 + 90 + 1740 lines; the deployed listener copy is identical. New cases 2865–2881; the fake button now has `text` as a property, as PythonQt does. Mutation run: 36 of 36 caught (two needed the new cases 2880 and 2881), the no-change control not. Run live CD 1596–1598 ([LIVE-TESTS.md](LIVE-TESTS.md)): the No button counted down visibly once a second, the dialog closed on time, and Yes and No in time counted as usual; the clicked button's label reads correctly.
+
+## Listener v0.201 (2026-11-21, server unchanged at v0.82): gated probe for a dialog that closes itself
+
+**Built as proposed and approved.** Research for the user's choice of 2026-11-21 (option C): a dialog that closes itself before an AI app's time limit ends the call (TO, TO2, [LIVE-TESTS.md](LIVE-TESTS.md)); names only 1588, 1589.
+
+- Listener: `GET /debug/trydialogtimeout?how=slot|python&seconds=3..50&go=yes` ([topics/server-and-endpoints.md](topics/server-and-endpoints.md) §3): UI only, no font call. ONE test Yes/No dialog (default No) with a single-shot `QTimer` owned by the dialog; `slot` connects its `timeout()` to the dialog's `reject()`, `python` to a Python function that calls it. The reply gives the elapsed time, the dialog's result, the clicked button (or none) and, for `python`, whether the timer fired. 10 requests per listener run, counted before the dialog; a failed `connect` shows no dialog.
+- Tests: four stub harnesses PASS at 5479 + 58 + 90 + 1740 lines; the deployed listener copy is identical. New cases 2853–2864 (a recording dialog and timer; a spy and a static scan for any font call). Mutation run: 20 of 20 caught, the no-change control not. Run live SC 1590–1593 ([LIVE-TESTS.md](LIVE-TESTS.md)): both forms close a waiting dialog on time; reading the clicked button's label fails (`text` is a property in PythonQt), which the product does not need.
+
 ## Listener v0.200 / server v0.82 (2026-11-20): `rename_kerning_group` and `remove_kerning_group`
 
 **Built as proposed and approved** (the design of 2026-11-20, [DECISIONS.md](DECISIONS.md)). Research: GE0–GK 1499–1545 ([topics/kerning.md](topics/kerning.md) §18).

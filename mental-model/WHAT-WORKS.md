@@ -52,7 +52,7 @@ The areas follow the summary table in [CURRENT-STATUS.md](CURRENT-STATUS.md).
 
 ### Other
 
-- **`.notdef`** check and one-time dialog. → [topics/notdef.md](topics/notdef.md)
+- **`.notdef`** check and one-time dialog (until listener 0.202; since 0.203 an OUTPUT line instead, stub-tested only). → [topics/notdef.md](topics/notdef.md)
 - **Activity log** in FontLab's OUTPUT panel: one line per change and one summary of reads, naming the client (`local-agent-mode`) and, once, the program that started the server (`| CLAUDE`); live tests 190, 191, 225–229, 236–242. Stub-tested only: REFUSED / FAILED lines, unsynced or warned results, the `writes` / `off` modes, the flush at `/shutdown`. → [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §4
 
 ## Which version each feature needs

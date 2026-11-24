@@ -20,7 +20,7 @@
 1u  scan_unicode '66' (ignored)               -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1v  scan_unicode 1114112 (ignored)            -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1h  no font open                       -> (200, {'open': False})
-1i  /version                           -> {'version': '0.200'}
+1i  /version                           -> {'version': '0.203'}
 
 ==== 2. server create_glyph: fields and agent_instruction (faked listener replies) ====
 2a  'B' assigned 66 (matches)             -> {'unicode': 66, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': True}
@@ -311,7 +311,7 @@
 9zc width, legacy reply (empty glyph) -> route: legacy_empty_glyph | display_note absent: True | font_modified: True
 9zd tool surface     -> set_glyph_sidebearings: True | get_glyph_sidebearings: True | NEVER saves in set docstring: True | outline moved explained: True | right defaults to left: True | width tool says advance only: True
 9ze signature        -> (name: str, left: float, right: float | None = None, ctx: __main__.Context | None = None) -> dict[str, typing.Any] | (name: str, ctx: __main__.Context | None = None) -> dict[str, typing.Any]
-9zf MIN_LISTENER_VERSION -> (0, 82) | server 0.82
+9zf MIN_LISTENER_VERSION -> (0, 82) | server 0.84
 9zg 437.5 rounded    -> sent [('/glyph/width', {'name': 'tri', 'width': 438})] | {'width_before': 437, 'width_after': 438, 'width_rounded': {'requested': 437.5, 'written': 438}, 'font_modified': True} | note: FontLab keeps advance widths in whole units, as its own widt | changes 1
 9zh 437.4 rounded    -> sent {'name': 'tri', 'width': 437} | {'requested': 437.4, 'written': 437} | font_modified False
 9zi whole number     -> sent {'name': 'tri', 'width': 700} | width_rounded absent: True | rounding_note absent: True
@@ -496,7 +496,7 @@
 16f instruction keeps the create text and the save reminder: True | True | tail ok True
 16g failed create still raises ToolError: Glyph 'g1' was NOT created: x
 16i a broken reply never raises, adds nothing: {'x': 1}
-16h version / MIN_LISTENER_VERSION: 0.82 (0, 82)
+16h version / MIN_LISTENER_VERSION: 0.84 (0, 82)
 
 ==== 17. server 0.28: stale legacy view answered from the modern layer when the listener (0.88) sends margins_agree false (faked listener replies) ====
 17a stale margins + modern_outline -> source modern layer | verified | legacy_view_was_stale True | stale_legacy_view None | extra sidebearing reads 0
@@ -517,7 +517,7 @@
 17p old listener (no margins_agree): v0.25 behaviour -> unverified | check mismatch | stale_legacy_view True | extra reads 1 | source None
 17q docs                  -> modern answer explained: True | v0.25 text kept: True
 17r no write, no save     -> posts sent: []
-17s version / MIN_LISTENER_VERSION: 0.82 (0, 82)
+17s version / MIN_LISTENER_VERSION: 0.84 (0, 82)
 
 ==== 18. server 0.29: fontlab_sync of listener 0.89 is forwarded, type-checked; the editor-tab advice only when the sync attempt failed (faked listener replies) ====
 18a synced set_glyph_width        : synced_with_fontlab True | fontlab_sync {'attempted': True, 'synced': True, 'verdict': 'synced'} | secret False | failed-sync sentence False | unsynced sentence False | editor advice False
@@ -536,7 +536,7 @@
 18h older listener                  : synced_with_fontlab False | fontlab_sync None | secret False | failed-sync sentence False | unsynced sentence True | editor advice True
 18i synced: no agent_instruction about sync: True | font_modified True
 18j a broken reply never raises  : {'x': 1}
-18k version / MIN_LISTENER_VERSION: 0.82 (0, 82)
+18k version / MIN_LISTENER_VERSION: 0.84 (0, 82)
 
 ==== 19. server 0.30 / 0.31: get_kerning reads selected pairs through POST /kerning/pairs; no upper limit, approval above 250 (faked listener replies) ====
 19a pairs, tidy numbers          : {'mode': 'pairs', 'fonts_open': None, 'matched_by': None, 'family_name': None, 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048, 'table_size': 1370, 'count': 4, 'errors': 0} | instruction True
@@ -707,7 +707,7 @@
 19ck wrapper equals read_kerning (pairs): True
 19cl wrapper equals read_kerning (text) : True | both None -> ToolError: Give exactly one of pairs (a 
 19cl2 wrapper passes the approval flag : refused / 251
-19cm MIN_LISTENER_VERSION unchanged / server version: (0, 82) 0.82
+19cm MIN_LISTENER_VERSION unchanged / server version: (0, 82) 0.84
 19dn two fonts, matched by path   : {'fonts_open': 2, 'matched_by': 'path', 'family_name': 'Arial'} | names the font: True True | say which: True
 19do one font                     : {'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Arial'} | names the font: False False | say which: False
 19dp two fonts, no family name    : {'fonts_open': 2, 'matched_by': 'path', 'family_name': None} | names the font: True False | say which: True
@@ -856,7 +856,7 @@
 25t dx 10 on a square            -> modern layer | verified | y_extent_checked False | box {'box_left': 10, 'lsb': 10, 'box_width': 100, 'ink_width': 100, 'left_ok': True, 'width_ok': True} | reason  | requests ['/glyph/outline?name=A']
 25u GLYPHBRIDGE_MODERN=0        -> ['/glyph/outline?name=grd83a&modern=no'] | F1 note: ["GLYPHBRIDGE_MODERN=0: this outline was read through FontLab'"]
 25v an older listener (no source) -> verified | F1 note: False
-25w version / MIN_LISTENER_VERSION: 0.82 (0, 82)
+25w version / MIN_LISTENER_VERSION: 0.84 (0, 82)
 
 ==== 26. server 0.43: exact quadratic extents; the vertical extent checked against FontLab's ink box (listener 0.121, layer.inkBox()) ====
 26a testglyph3, quadratic (live 525/526) -> verified | y_extent_checked True | bbox {'left': 101.87, 'right': 383, 'bottom': 203.238, 'top': 414} exact True | vs FontLab {'box_bottom': 203.238, 'box_top': 414, 'fontlab_bottom': 203.238, 'fontlab_top': 414, 'y_ok': True} | reason  | y note 
@@ -894,7 +894,7 @@
 26z7 three cubic handles        -> None
 26z8 quad extremes              -> peak [(50.0, 50.0)] | monotonic [] | x only (y linear) [(50.0, 100.0)] | at an end (t=0) []
 26z9 docs                       -> quadratic extents: True | FontLab's ink box: True | old 'quadratic stays unverified' gone: True
-26zz version / MIN_LISTENER_VERSION: 0.82 (0, 82)
+26zz version / MIN_LISTENER_VERSION: 0.84 (0, 82)
 
 ==== 27. server 0.44: set_kerning (faked listener replies) ====
 27a one new pair                 : {'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 1000, 'count': 1, 'set_count': 1, 'table_size_before': 2, 'table_size_after': 3, 'font_modified': True} | changes (1, 0)
@@ -979,7 +979,7 @@
 27zq read refusal: stop added     : Kerning could not be read: 2 fonts are open; close the others.
 27zr read refusal: one stop only  : Kerning could not be read: the table is not reachable.
 27zs read refusal: question mark : Kerning could not be read: was another window brought to the front?
-27zz version / MIN_LISTENER_VERSION: 0.82 (0, 82)
+27zz version / MIN_LISTENER_VERSION: 0.84 (0, 82)
 
 ==== 28. server 0.46: open contours (live 581 / 583) ====
 28a open V (live 581)                -> verified | y_extent_checked True | bbox {'left': 24, 'right': 228, 'bottom': 69, 'top': 482} exact True | vs FontLab {'box_bottom': 69, 'box_top': 482, 'fontlab_bottom': 69, 'fontlab_top': 482, 'y_ok': True} | reason  | y note 
@@ -1024,7 +1024,7 @@
 28n parser, closed flag None       -> None
 28o svg, open / closed            -> M 0 0 L 10 0 | M 0 0 L 10 0 Z
 28p docs                           -> open contours: True | no direction: True
-28z version / MIN_LISTENER_VERSION: 0.82 (0, 82)
+28z version / MIN_LISTENER_VERSION: 0.84 (0, 82)
 
 ==== 29. server 0.47: draw_path with open contours (faked listener replies) ====
 29a open V                     -> {'drawn': True, 'verified': True, 'closed': [False], 'contours': 1, 'nodes': 3} | posts 1
@@ -1060,7 +1060,7 @@
 29ze FontLab closes it on attach -> ToolError: Glyph 'od': something was drawn, but the layer does not match the request: layer contour 0: closed reads True, an open contour was requested. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save. | posts 1
 29zf  the change is counted     -> {'changes': 1, 'uncertain': 0, 'reminder_given': True}
 29zg docs                       -> open contours: True | object form: True | listener 0.126: True | export drops them: True | old 'not been tested' gone: True | signature: (name: str, contours: list[list[dict[str, typing.Any]] | dict[str, typing.Any]], ctx: __main__.Context | None = None) -> dict[str, typing.Any]
-29zz version / MIN_LISTENER_VERSION: 0.82 (0, 82)
+29zz version / MIN_LISTENER_VERSION: 0.84 (0, 82)
 
 ==== 30. listener 0.127 / server 0.48: create_glyph gives the new glyph its layer (live 612-619 are the reason; stubs only) ====
 30a one master, layer made -> {'layer_created': 'Regular', 'layer_name_source': 'other glyphs', 'synced_with_fontlab': True} | calls: ['target(g30, create_layer=True)', 'guard(g30, layer_created)']
@@ -1115,7 +1115,7 @@
 31u element list unavailable -> verified | {} | notes: ["FontLab's element transforms could not be read (no list), so none was applied. Whether this glyph contains components is therefore unknown."]
 31v -0 in a description -> scale 100.00% horizontally, 100.00% vertically; offset (0, 30) | scale 100.00% horizontally, 100.00% vertically; offset (40, 0) | scale 200.00% horizontally, 100.00% vertically; offset (-100, 30)
 31w docs -> outline names is_component: True | names source: True | old claim only for legacy: True | draw_polygon corrected: True | still explains layer_created: True
-31z version / MIN_LISTENER_VERSION: 0.82 (0, 82)
+31z version / MIN_LISTENER_VERSION: 0.84 (0, 82)
 
 ==== 32. listener 0.130 / server 0.50: a box per component, an accent inside its base, a composite behind its source (live 633-650 are the reason; stubs only) ====
 32a two components -> [{'ink_box': (50.0, 650.0, 0.0, 700.0), 'source_ink_box': (50.0, 650.0, 0.0, 700.0)}, {'ink_box': (220.0, 480.0, 780.0, 880.0), 'source_ink_box': (70.0, 330.0, 780.0, 880.0)}] | inkBox [(0, ()), (1, ())] | source [('Regular', ()), ('Regular', ())] | forbidden []
@@ -1166,7 +1166,7 @@
 32zpb a plain element carrying boxes gets no verdict -> verified | element_boxes_checked absent | note absent | reason none | in step [True, 'absent'] | step notes [] | instruction none
 32zpc a box with an error beside its numbers -> unverified | element_boxes_checked False | note FontLab's box of element 1 could not be used: partial read | reason the coordinates match FontLab's horizontal margins and its ink box both with and without the element transform, so which reading is right cannot be told | in step [True, 'unknown'] | step notes ["FontLab's box of this element could not be used: partial read"] | instruction none
 32zq docs -> outline names source_in_step: True | element_boxes_checked: True | sidebearings warns: True True
-32zr listener / server versions: 0.200 0.82 | MIN_LISTENER_VERSION: (0, 82)
+32zr listener / server versions: 0.203 0.84 | MIN_LISTENER_VERSION: (0, 82)
 
 ==== 33. server 0.51: fontlab_changed_mark and save_question_note (stubs only) ====
 33a confirmed                    -> {'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}, 'font_modified': True}
@@ -1688,7 +1688,7 @@
 49j no font                    : ToolError: FontLab is running and the listener answered, but no font is open. Open a font in FontLab and try again. | sent ['/glyph/width?name=g1']
 49k a bool width is no number  : ToolError: The width of glyph 'g1' could not be read: the listener gave no width. This is not a width of 0. | sent ['/glyph/width?name=g1']
 49l docstring                   : []
-49m version / MIN_LISTENER_VERSION: 0.82 (0, 82)
+49m version / MIN_LISTENER_VERSION: 0.84 (0, 82)
 
 ==== 50. server 0.82: rename_kerning_group and remove_kerning_group (faked listener replies) ====
 --- rename
@@ -1718,23 +1718,39 @@
 50m timeout                    : ToolError: The FontLab listener did not answer The request may or may not have been applied, so the font may have been modified: check its state before repeating the change, and when your task package is finished call finish_changes once so the person is reminded to save. | changes (0, 1) | sent [('/kerning/group/rename', {'group': 'kgeL', 'new_name': 'kgeL2'})]
 --- remove
 50n removed, keep              : {'removed': True, 'group': 'kgeL', 'pairs': 'keep', 'side': 'left', 'member_count': 2, 'members': ['kge1', 'kge2'], 'id': 5140, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Unnamed', 'master': 'Regular', 'master_count': 1, 'table_size_before': 2, 'table_size_after': 3, 'fontlab_changed_mark': {'called': True, 'via_glyph': 'kge1', 'glyph_has_changes': True}, 'fontlab_panel_refresh': {'called': True}, 'fontlab_caught_up': {'checked': True, 'caught_up': True, 'glyph': 'kge1', 'group_id_read': 0, 'expected': 0}, 'table_size_change': 1, 'font_modified': True} | changes (1, 0)
-50o request                      : [('/kerning/group/remove', {'group': 'kgeL', 'pairs': 'keep'}, 120.0)] | timeout is the dialog's: True
+50o request                      : [('/kerning/group/remove', {'group': 'kgeL', 'pairs': 'keep', 'dialog_seconds': 45}, 55.0)] | timeout is the dialog's wait: True | dialog_seconds sent: True | 45 / 55: 45 55.0
 50p instruction, keep            : The kerning group was removed from the current master (master names it) after the person answered Yes in FontLab, and verified by re-reading both of FontLab's sources. pairs was 'keep': FontLab kept its kerning by turning each class entry into entries of its members, with the same values (seen live): a class : glyph or glyph : class entry became one glyph pair per member, a class : class entry became one class : glyph (or glyph : class) entry per member of the removed group, and member pairs that already had a glyph entry kept it. Tell the person that the kerning still applies, now as separate entries, so the table may have grown. The kerning entries themselves were not read: table_size_before and table_size_after give the number of entries in the table. NO Glyphbridge tool can bring a removed group back (the person can make it again in FontLab's Classes panel, and its kerning would have to be set again). FontLab was told that the font changed through one member glyph, whose content did not change (fontlab_changed_mark), and asked to refresh its panels (fontlab_panel_refresh); fontlab_caught_up says whether one member glyph already carries the group's new state. If caught_up is not true, tell the person that FontLab's Classes and KERNING panels, and get_kerning for the group's members, may show the old state until they switch to another open font and back (with one font open: File > New Font, then back to this font's tab; the new font can be closed without saving). Whether FontLab asks to save after a group edit alone was not tested: do not promise it. Edit > Undo was not tested for this either. Only the current master's kerning groups are covered. The font was changed in FontLab's memory only: no Glyphbridge tool saves anything, saving is the person's job. Do NOT remind the person after every step. When your whole task package is finished, call finish_changes ONCE and show the person the save_reminder it returns, in bold, exactly as written.
 50q delete                       : -1 | pairs was 'delete': the group's own kerning entries were deleted with it. Tell the person how many entries the table los
-50r answered No                : ToolError: Removal of the kerning group 'kgeL' was not approved in FontLab. A person needs to click Yes on the confirmation dialog for this to proceed - this is expected behavior, not an error. Nothing was changed. | changes (0, 0) | sent [('/kerning/group/remove', {'group': 'kgeL', 'pairs': 'keep'})]
+50r answered No                : ToolError: Removal of the kerning group 'kgeL' was not approved in FontLab. A person needs to click Yes on the confirmation dialog for this to proceed - this is expected behavior, not an error. Nothing was changed. | changes (0, 0) | sent [('/kerning/group/remove', {'group': 'kgeL', 'pairs': 'keep', 'dialog_seconds': 45})]
+50r2 not answered in time      : ToolError: The kerning group 'kgeL' was NOT removed (not_answered_in_time): nobody answered in FontLab within 45 seconds, so the question closed by itself. Nothing was changed. Tell the person that the question closed unanswered and ask in the chat whether they want to try again; if they do, tell them FontLab will give them 45 seconds to click Yes. Do not try again on your own. | changes (0, 0) | sent [('/kerning/group/remove', {'group': 'kgeL', 'pairs': 'keep', 'dialog_seconds': 45})]
+50r3 not answered, 20 s          : True | asks before retrying: True | nothing changed: True | change count (0, 0)
+50r4 not answered, no dialog info: True | seconds True -> True
+50r5 not_answered but removed   : {'removed': True, 'group': 'kgeL', 'pairs': 'keep', 'side': 'left', 'member_count': 2, 'members': ['kge1', 'kge2'], 'id': 5140, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Unnamed', 'master': 'Regular', 'master_count': 1, 'table_size_before': 2, 'table_size_after': 3, 'fontlab_changed_mark': {'called': True, 'via_glyph': 'kge1', 'glyph_has_changes': True}, 'fontlab_panel_refresh': {'called': True}, 'fontlab_caught_up': {'checked': True, 'caught_up': True, 'glyph': 'kge1', 'group_id_read': 0, 'expected': 0}, 'table_size_change': 1, 'font_modified': True} | changes (1, 0)
 --- remove: refused, nothing sent
 50s pairs missing             : ToolError: pairs is required and must be "keep" (the group's kerning stays, as entries of its members) or "delete" (its kerning entries go with it). Ask the person which they want if they have not said. Nothing was changed. | changes (0, 0) | sent []
 50s2 pairs 'all'               : ToolError: pairs is required and must be "keep" (the group's kerning stays, as entries of its members) or "delete" (its kerning entries go with it). Ask the person which they want if they have not said. Nothing was changed. | changes (0, 0) | sent []
 50s3 pairs True               : ToolError: pairs is required and must be "keep" (the group's kerning stays, as entries of its members) or "delete" (its kerning entries go with it). Ask the person which they want if they have not said. Nothing was changed. | changes (0, 0) | sent []
 50s4 bad group                : ToolError: group must be 1 to 63 characters from A-Z a-z 0-9 . _ - (an optional leading '@' is allowed); got ''. Nothing was changed. | changes (0, 0) | sent []
-50t listener 0.199            : ToolError: remove_kerning_group needs listener v0.200 or newer; the running listener is v0.199. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | changes (0, 0) | sent []
+50t listener 0.199            : ToolError: remove_kerning_group needs listener v0.203 or newer; the running listener is v0.199. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | changes (0, 0) | sent []
+50t2 listener 0.202 (no self-closing dialog) : ToolError: remove_kerning_group needs listener v0.203 or newer; the running listener is v0.202. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | changes (0, 0) | sent []
+50t3 nothing sent to 0.202       : []
 --- remove: the listener's answers
-50u refused by the listener    : ToolError: The kerning group was NOT removed: 'kgeQ' is not the name of a kerning group in the current master of this font; nothing was removed. | changes (0, 0) | sent [('/kerning/group/remove', {'group': 'kgeQ', 'pairs': 'keep'})]
-50v answer for other pairs     : ToolError: The listener's answer to remove_kerning_group did not match the request, so whether the group was removed is not known. The request may or may not have been applied, so the font may have been modified: check its state before repeating the change, and when your task package is finished call finish_changes once so the person is reminded to save. | changes (0, 1) | sent [('/kerning/group/remove', {'group': 'kgeL', 'pairs': 'keep'})]
-50w not confirmed, changed      : ToolError: The kerning group was changed, but the removal was NOT confirmed: the re-read does not confirm the removal: the number of kerning groups did not drop by one. Read the groups with get_kerning_groups and tell the person what is there now. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to  | changes (1, 0) | sent [('/kerning/group/remove', {'group': 'kgeL', 'pairs': 'keep'})]
-50w2 not confirmed, unchanged   : ToolError: The kerning group was NOT removed: FontLab's remove raised an error (RuntimeError: remove boom); the re-read shows the group still listed. Nothing was changed. | changes (0, 0) | sent [('/kerning/group/remove', {'group': 'kgeL', 'pairs': 'keep'})]
+50u refused by the listener    : ToolError: The kerning group was NOT removed: 'kgeQ' is not the name of a kerning group in the current master of this font; nothing was removed. | changes (0, 0) | sent [('/kerning/group/remove', {'group': 'kgeQ', 'pairs': 'keep', 'dialog_seconds': 45})]
+50v answer for other pairs     : ToolError: The listener's answer to remove_kerning_group did not match the request, so whether the group was removed is not known. The request may or may not have been applied, so the font may have been modified: check its state before repeating the change, and when your task package is finished call finish_changes once so the person is reminded to save. | changes (0, 1) | sent [('/kerning/group/remove', {'group': 'kgeL', 'pairs': 'keep', 'dialog_seconds': 45})]
+50w not confirmed, changed      : ToolError: The kerning group was changed, but the removal was NOT confirmed: the re-read does not confirm the removal: the number of kerning groups did not drop by one. Read the groups with get_kerning_groups and tell the person what is there now. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to  | changes (1, 0) | sent [('/kerning/group/remove', {'group': 'kgeL', 'pairs': 'keep', 'dialog_seconds': 45})]
+50w2 not confirmed, unchanged   : ToolError: The kerning group was NOT removed: FontLab's remove raised an error (RuntimeError: remove boom); the re-read shows the group still listed. Nothing was changed. | changes (0, 0) | sent [('/kerning/group/remove', {'group': 'kgeL', 'pairs': 'keep', 'dialog_seconds': 45})]
 50x no catch-up check reported  : {'removed': True, 'group': 'kgeL', 'pairs': 'keep', 'side': 'left', 'member_count': 2, 'members': ['kge1', 'kge2'], 'id': 5140, 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Unnamed', 'master': 'Regular', 'master_count': 1, 'table_size_before': 2, 'table_size_after': 3, 'fontlab_changed_mark': {'called': True, 'via_glyph': 'kge1', 'glyph_has_changes': True}, 'fontlab_panel_refresh': {'called': True}, 'fontlab_caught_up': {'checked': False, 'reason': 'the listener did not report the check'}, 'table_size_change': 1, 'font_modified': True} | changes (1, 0)
 --- descriptions and source
+50y2 rename_kerning_group : stale words []
 50y rename_kerning_group  : missing words []
+50y2 remove_kerning_group : stale words []
 50y remove_kerning_group  : missing words []
-50z source                       : POSTs 2 | requires 0.200 twice True | save False | the dialog timeout on remove True
+50z source                       : POSTs 2 | requires 0.200 once (rename) True | requires 0.203 once (remove) True | save False | the dialog wait on remove True
+--- delete_glyph (v0.83)
+50za deleted                     : True | sent [('/glyph/delete', {'name': 'kge1', 'dialog_seconds': 45}, 55.0)] | wait is the dialog's: True | change count (1, 0)
+50zb listener 0.202              : ToolError: delete_glyph needs listener v0.203 or newer; the running listener is v0.202. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | sent []
+50zc not answered                : ToolError: The glyph 'kge1' was NOT deleted (not_answered_in_time): nobody answered in FontLab within 45 seconds, so the question closed by itself. Nothing was changed. Tell the person that the question closed unanswered and ask in the chat whether they want to try again; if they do, tell them FontLab will give them 45 seconds to click Yes. Do not try again on your own. | change count (0, 0)
+50zd answered No                 : ToolError: Deletion of glyph 'kge1' was not approved in FontLab. A person needs to click Y | not the timeout text: True
+50ze no dialog shown             : ToolError: Glyph 'kge1' was NOT deleted: the confirmation dialog could not be shown in FontLab (boom). Nothing was changed.
+50zf .notdef deleted             : {'deleted': True, 'notdef_missing_now': True} | tells the person: True
+50zg delete_glyph description    : missing [] | stale []

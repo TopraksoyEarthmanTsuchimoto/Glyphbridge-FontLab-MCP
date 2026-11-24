@@ -1,8 +1,8 @@
-# .notdef check and warning dialog
+# .notdef check and notice
 
 > Moved from milestone summary v11 (§7) on 2026-11-01, edited only where the chat-era workflow or a personal path no longer applies. The original section numbers are kept, so older cross-references such as "section 8p" still resolve: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md) lists which file holds each section. Snapshot: [archive/milestone-summary-v11.md](../archive/milestone-summary-v11.md).
 
-## 7. `.notdef` check and warning dialog (v0.46 / v0.10)
+## 7. `.notdef` check and notice (v0.46 / v0.10; no dialog since v0.203 / v0.83)
 
 **Why:** every font must have `.notdef` as glyph 0; the OpenType spec recommends a visible outline (rectangle, with or without a
 question mark or X). A new FontLab font starts with an EMPTY `.notdef`: empty is valid, a normal state for a font in progress,
@@ -15,11 +15,13 @@ but not recommended. Agents must expect `.notdef` in every font and must never t
 | `missing` | no glyph named `.notdef` (evidence names glyph 0) |
 | `empty` | exactly 0 layers and 0 components; or exactly 1 readable body layer with 0 nodes, contours, shapes and 0 components |
 | `has_outline` | any node, shape or component |
-| `unknown` | no verdict: `len(glyph.layers)` unreadable, 2+ layers, layer unreachable although it exists, any count not a plain number. **Never triggers a dialog** |
+| `unknown` | no verdict: `len(glyph.layers)` unreadable, 2+ layers, layer unreachable although it exists, any count not a plain number. **Never triggers a notice** |
 
 `.notdef` not at index 0 only adds a note. Fonts without a glyph named `.notdef` are reported `missing` even if glyph 0 is differently named.
 
-**Dialog:** `POST /font/notdef/warn` re-checks inside the listener (never on the caller's say-so) and shows a modal
+**Notice (since listener 0.203 / server 0.83, 2026-11-24; stub-tested only, not yet run live; the design: [DECISIONS.md](../DECISIONS.md), 2026-11-21):** `POST /font/notdef/warn` re-checks inside the listener and shows NO dialog: a missing or empty `.notdef` is noted once per font as one OUTPUT line, remembered by the package `fgId` (`_NOTDEF_NOTED`; an unreadable `fgId` is not remembered, so the note may repeat but is never wrongly held back); `force: true` repeats it. For an empty `.notdef` the reply carries the font's maturity (`_font_maturity`: all 52 letters A–Z a–z by Unicode, and one of them drawn, checked from n o H O on). The server's instruction: missing, said clearly; empty in a mature font, a likely oversight. **Since server 0.84 (2026-11-24, [DECISIONS.md](../DECISIONS.md)), an empty `.notdef` in a font still in progress (not mature, or unknown) is left alone:** the server does not ask the listener to note it, the automatic checks tell the agent to say nothing, and `check_notdef` answers only if the person asked (0.83 gave one light sentence). A listener older than 0.203 is not asked to note anything. Deleting `.notdef` through `delete_glyph` gets its own warning in the self-closing Yes/No dialog.
+
+**Dialog (until listener 0.202):** `POST /font/notdef/warn` re-checked inside the listener (never on the caller's say-so) and showed a modal
 `QMessageBox.Information` with an OK button (title "Glyphbridge: .notdef glyph"; wording in `_NOTDEF_DIALOG_TEXT`, one text for
 `empty`, one for `missing`; since 0.109 without the closing line that said it is shown once and that "an AI agent" read the font). At most once per font **path** per listener
 run (`_NOTDEF_WARNED`); `force: true` repeats it. Fonts with an empty or shared path share one memory slot. While the dialog is

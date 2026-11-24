@@ -4,6 +4,11 @@ Superseded decisions, and decisions no longer relevant to current work. Active d
 
 | Date | Decision | Reason | Superseded by |
 |---|---|---|---|
+| 2026-11-21 | From "the `.notdef` notice", first bullet, full text of its second sentence: **A missing or empty `.notdef` reaches the person through the chat (the agent's instruction) and one line in FontLab's OUTPUT panel, once per font.** | The user's choice: the dialog blocked FontLab and the call, repeated the chat, and made agents avoid `get_current_font`; OUTPUT is the place for Glyphbridge warnings (2026-11-13). | 2026-11-24, "speak only about real issues": an empty `.notdef` only in a mature font |
+| 2026-11-21 | From "the `.notdef` notice", the urgency bullet, its first sentence in full: **Urgency by the font's state, not the person's skill: missing is always flagged clearly; empty is called a likely oversight only in a mature font, otherwise one light sentence.** | The user's choice over kerning and a glyph count. | 2026-11-24: otherwise not raised |
+| 2026-11-21 | From "the `.notdef` notice", the explanation bullet: **`create_font`'s reply mentions the new font's empty `.notdef` once.** | The user's choice. | 2026-11-24: no mention |
+| 2026-11-21 | From "the `.notdef` notice", full text: **Experts switch the automatic checks off with `GLYPHBRIDGE_NOTDEF_WARN=0`, documented in the install guide; `check_notdef` still answers on request.** | (none given) | 2026-11-24: a setting for scripts, documented in topics/server-and-endpoints.md only |
+| 2026-11-21 | From "self-closing dialogs, the design": the `.notdef` notice was one of the self-closing dialogs ("OK (44)" on its button), and **a `.notdef` notice that closed by itself counts as shown for that font; the agent tells the person in the chat.** | The user's choice; otherwise the notice could return at every tool call. | "The `.notdef` notice: no dialog from reads" (2026-11-21, [DECISIONS.md](../DECISIONS.md)): the notice is no longer a dialog. |
 | 2026-11-18 | One layer for every `add_component` target (listener 0.187 / server 0.74), full text: **Both routes, both forms, accept only a glyph with exactly one layer, the active one; anything else is refused before any change.** | In NB 1353 an empty active layer beside a full one took the empty route, and the component named that layer as its source's. The user chose this rule (A) over requiring only the master layer active (B): it is the rule proven in 1351. | Not superseded: in force. Merged on 2026-11-18 into "`add_component` for a glyph that is not empty" ([DECISIONS.md](../DECISIONS.md)). |
 | 2026-11-18 | `add_component` for a glyph that is not empty (listener 0.186 / server 0.73), full text: **`add_component` is extended, not joined by a new tool:** an empty target keeps its route, a target with content gets the temporary-layer route inside the same request (`placement`). *Reason:* one tool for agents; run C showed the route is safe only when nothing falls between its steps. **A failure partway restores the glyph fully:** the components the call added are removed with `removeShape`, the temporary layer removed, the width written back, and a re-read confirms (`restore.restored`). *Reason:* `removeShape` is proven exact (RM, RC); a half-built glyph is left to nobody. **A target may hold contours, components and Power Brush shapes; Power Brush was researched first** (listener 0.185, PB 1328–1345). No `inkBox()` is called on a brush shape. **The full sync check for every target, brush targets included.** *Reason:* PB-F kept its brush through two updates; one rule for all writes. F1 is not isolated: a brush flattened in later use reopens this. **Both forms on a target with content,** with the list form's rules (soft limit 30, no underscore names). The list form there is stub-tested only until its first live check. | The user's answers, one question at a time; the build approved as proposed. In the build, the reply field is `placement` (`route` already existed), and each new component names its source's own layer. | Not superseded: in force. Merged on 2026-11-18 into "`add_component` for a glyph that is not empty" ([DECISIONS.md](../DECISIONS.md)); the list form ran live in NB 1350. |
 | 2026-11-18 | Placing components into a glyph that is not empty (research, listener 0.180–0.184), full text: **Scope: a target holding contours, components or both.** *Reason:* the user's choice. **Not by the recipe build on that glyph:** it replaced the layer's contents (NE 1268, [topics/reading.md](../topics/reading.md)). **Routes in this order: a temporary layer in the target glyph; then setting the shapes aside and putting them back; then a component shape made directly. A scratch glyph only if all three fail.** | The user's choice; a scratch glyph would need a hidden delete in every call (the F1 risk of `delete_glyph`) and could be left behind by a failure. | Not superseded: in force; the scope widened to Power Brush shapes (0.185 / 0.186). Merged on 2026-11-18 into "`add_component` for a glyph that is not empty" ([DECISIONS.md](../DECISIONS.md)). |
@@ -146,6 +151,94 @@ Merged on 2026-11-18 from three entries; full text: [archive/DECISIONS-ARCHIVE.m
 - **A composite found behind its source reads `unverified`, with both boxes and an instruction to tell the person.** *Reason:* its numbers match what FontLab holds, but can change at the next GUI edit (638–653). The user approved the design as proposed.
 - **The per-element and in-step checks cover plain offsets only;** anything else stays as before and says `"unknown"`. *Reason:* only offsets were tested.
 
+## Merged and condensed on 2026-11-24, each entry in full
+
+Moved from [DECISIONS.md](../DECISIONS.md) when it was regrouped by theme (the user's choice of 2026-11-24), unchanged except for the link paths and the heading level. The `.notdef` entries of 2026-11-21 and 2026-11-24, the two dialog entries of 2026-11-21, and the two exceptions to the rule against personal data were merged there; the five tool entries (kerning groups renamed and removed, class kerning, `remove_kerning`, `get_kerning_groups`, `create_font`) were condensed to decision and reason. The `.notdef` entry of 2026-11-21 is the version narrowed on 2026-11-24; its earlier wording is in the table at the top of this file.
+
+### 2026-11-24: speak only about real issues, when they matter (built, server 0.84)
+
+- **Glyphbridge raises only what stands in the way of the person's progress, at the moment it matters; chores are never pushed.** An empty `.notdef` in a font still in progress (not mature, or maturity unknown) is not raised: the automatic checks tell the agent to say nothing, and nothing is noted in FontLab's OUTPUT panel. It is raised once per font when the font is mature; a missing `.notdef` is still said clearly. *Reason:* the user's goal of 2026-11-24: guidance only when issues show up, no chores unless needed to make progress.
+- **`check_notdef` answers about an empty `.notdef` only when the person asked;** an agent that calls it on its own says nothing about one in a font in progress. *Reason:* a question deserves an answer; an unasked check is still a chore.
+- **`create_font` no longer mentions the new font's empty `.notdef`.** *Reason:* normal for a new font, and nobody asked.
+- **`GLYPHBRIDGE_NOTDEF_WARN=0` is a setting for scripts and automation,** documented in [topics/server-and-endpoints.md](../topics/server-and-endpoints.md) only. *Reason:* the user's choice (a line in the root README was too insignificant); with fonts in progress left alone, designers have nothing to switch off.
+- Open: whether a missing `.notdef` is a real issue depends on what FontLab's export does without one (not seen live; an export is probably blocked in Demo mode).
+
+### 2026-11-21: the `.notdef` notice: no dialog from reads, urgency by the font's state (built, listener 0.203 / server 0.83; narrowed 2026-11-24, above)
+
+- **No read tool shows a `.notdef` dialog** (`get_current_font`, `get_glyph_outline(".notdef")`, `check_notdef`). A missing `.notdef`, or an empty one in a mature font, reaches the person through the chat (the agent's instruction) and one line in FontLab's OUTPUT panel, once per font (an empty one in any font until 2026-11-24). *Reason:* the user's choice: the dialog blocked FontLab and the call, repeated the chat, and made agents avoid `get_current_font`; OUTPUT is the place for Glyphbridge warnings (2026-11-13).
+- **The one dialog kept: deleting `.notdef`.** `delete_glyph(".notdef")` gets its own confirmation text (every font needs it as glyph 0), default No. *Reason:* the person is at a decision point in FontLab already.
+- **Urgency by the font's state, not the person's skill:** missing is always flagged clearly; empty is called a likely oversight only in a mature font, otherwise not raised (2026-11-24). **Mature:** the font has all 26 uppercase and 26 lowercase English letters (by Unicode, U+0041–005A and U+0061–007A) and at least one of them is drawn (a node or a component on its modern layer). *Reason:* the user's choice over kerning (a monospaced font may be finished without it) and a glyph count (placeholders); the drawn check stops at the first drawn letter and runs only when `.notdef` is empty.
+- **The agent adapts the explanation:** by default one sentence and an offer to say more; none for a person who shows font-production experience; an empty `.notdef` in an early font is never presented as an error. *Reason:* the user's choice; no skill profile is stored.
+- **The automatic checks can be switched off with `GLYPHBRIDGE_NOTDEF_WARN=0`** (a setting for scripts since 2026-11-24); `check_notdef` still answers on request.
+- **"Already noted" is remembered per font by its package `fgId`, not its file path.** *Reason:* all unsaved fonts shared one slot, and the agent was then told a notice had been shown for a font that never had one (found 2026-11-21).
+
+### 2026-11-21: self-closing dialogs (research SC 1588–1593; built, listener 0.203 / server 0.83)
+
+- **Every Glyphbridge dialog (the Yes/No of `delete_glyph` and `remove_kerning_group`) closes by itself after 45 s, counted as no answer.** *Reason:* the user's choice over 40 s; with the server's margin the whole call stays under the shortest AI-app limit (60 s), and the slowest answer seen took 34 s (GT 1568).
+- **The default button counts down ("No (44)"), and the text says what happens without an answer.** *Reason:* the user's choice over a fixed sentence, so a dialog never vanishes by surprise. A label changed once a second while the dialog waits was seen live (CD 1596–1598). The closing itself uses the pure Qt connection (SC 1590–1592), so it never depends on the countdown.
+- **No answer in time: the reply says so and that nothing changed (`not_answered_in_time`); the agent tells the person and asks before trying again, saying they will have 45 s.** *Reason:* the user's choice over one automatic retry.
+- **The server waits 55 s (was 120 s); the 45 s is set in the server and sent with each request; the dialog tools refuse a listener without self-closing dialogs.** *Reason:* the user's choice; the listener answers right after its dialog closes, so past 55 s FontLab is busy or frozen, reported as an unknown outcome while the AI app still listens.
+- The `.notdef` notice is no longer a dialog (the next entry above).
+
+### 2026-11-21: AI apps' time limits: a dialog that closes itself, and the change count in the listener (research TO, TO2, SC 1577–1593)
+
+- **No tool call may outlast a fixed time budget below the shortest limit of any AI app: a dialog the listener shows closes by itself within that budget and counts as no answer (option C).** *Reason:* the user's choice over handing the answer to a second call (options A, B): one call, one honest outcome, and a late Yes can no longer act unseen. The limits differ by app and version (Code tab 60 s, Desktop chat about 80 s, ChatGPT Desktop documented 60 s) and are out of Glyphbridge's control, so no app-specific tests are needed. SC 1590–1593: both timer forms close a waiting dialog on time. The budget and the wording are a design to come.
+- **The change count behind the save reminder moves from the server into the listener, per font (option i).** *Reason:* the user's choice: an AI app can replace the server process at any time, losing the count and the reminder (TO 1582), and one server can serve two apps (TO2 1587); the reminder concerns the font, whichever app changed it. Reading FontLab's own unsaved state (option ii) stays a later refinement; its reset on save cannot be proven in Demo mode.
+
+### 2026-11-20: renaming and removing kerning groups (research listener 0.199, GE0–GK 1499–1545; built listener 0.200 / server 0.82)
+
+- **Two tools, `rename_kerning_group` and `remove_kerning_group`, one group per call.** *Reason:* the user's choices (A, A); removing is a different act from renaming, as with `remove_kerning` (2026-11-19).
+- **`remove_kerning_group` takes `pairs`, required, `"keep"` or `"delete"`, with no default.** *Reason:* the user's choice; the two change kerning a lot in opposite directions (GE 1518, 1520; GL; GK).
+- **A removal asks Yes/No in FontLab, default No; a rename asks nothing.** *Reason:* the user's choice; no tool can bring a removed group back, while a rename is undone by renaming back.
+- **A new name that is also a glyph's name is allowed, with a note (`same_name_glyph`); one that is any group's or class's name is refused.** *Reason:* the user's choice; FontLab names classes after a member, and the kerning tools mark a class side with `@`.
+- **After a change: the mark through one member glyph, ONE `notifyPackageContentUpdated(<package fgId>)`, and a read of one member's group id (`fontlab_caught_up`).** *Reason:* without the refresh FontLab's panels and the glyphs' ids lag until a font switch (GE 1512–1516); with it they caught up (GR, GL, GK). The rename reports the new id (GE 1511).
+
+### 2026-11-20: the repository's GitHub address
+
+The rule against personal data in live files ([AGENTS.md](../../AGENTS.md)) gets a second exception: the repository's own GitHub address, which contains the owner's account name, where install instructions or links need it (today the root README). *Reason:* a public repository cannot be installed or linked without its address.
+
+### 2026-11-20: class kerning in `set_kerning` and `remove_kerning` (research listener 0.193, CW 1409–1417; built listener 0.194 / server 0.78)
+
+- **The two tools are extended; no new tools.** *Reason:* a class entry is the same call with a different key (CW); one place for agents, and the mark, refresh, approval and stop rules carry over. Glyph-only calls keep their path, calls and replies.
+- **A side written `@name` (the ASCII `@`) is a kerning group;** it must be confirmed by `items()` and `getAllGroups()` and stand on a side that fits (left or both on the left, right or both on the right), else the request is refused before any write. *Reason:* `@` cannot occur in a glyph name; it replaces "class names are not accepted" with "accepted only when marked and confirmed".
+- **The 250 approval counts entries;** the reply names each class's side and member count and says how far the value reaches; member pairs are not read.
+- **A class pair is verified by its exact entry and one sample glyph pair** (the first member of each class side that is a glyph of the font): `applied`, or `covered` by the sample's own exception; `entry_before` allows a revert.
+- **A glyph side named like a kerning group is written as the glyph, with a note** (`write @name to kern the group`). Limit, found in the build: only the class list the request already read is used, so no FontLab call is added; a glyph that is not a member of its namesake group gets no note.
+- **Whole units:** the existing refusal of a fraction covers class values, so FontLab's rounding of them needs no research.
+- *Reason for the rest:* the user's answers, one question at a time.
+
+### 2026-11-19: removing kerning pairs, `remove_kerning` (research listener 0.191, KD 1380–1390, KDC 1391–1397; built listener 0.192 / server 0.76)
+
+- **A tool of its own; `set_kerning` stays unchanged.** *Reason:* removing is a different act from setting a value; a separate name keeps an agent from removing a pair by passing 0; `set_kerning` is live-proven.
+- **A pair with no glyph : glyph entry gets a note, not an error; the other pairs go on.** When a class gives the pair its value, the note names the class and the value that still applies.
+- **A glyph : glyph exception over a class may be removed; the reply reports the class value that applies again** (`class_value_applies`). *Reason:* KDC 1395–1397 ([topics/kerning.md](../topics/kerning.md) §16): only the exception went, the class value applied again, the panel showed the class row.
+- **More than 250 pairs need the person's approval** (`confirmed_large_write`), as `set_kerning`.
+- **The first removal that cannot be confirmed stops the request;** the pairs before it are reported removed, the rest `not attempted`, as `set_kerning`.
+- **The call is `remove(((left, False), (right, False)))`; its return value is ignored, only the re-read counts** (the entry `None` after, `len()` one lower). *Reason:* defect B; the return value follows the form, not the outcome (1387, 1390).
+- **After a removal that changed the table: the mark (`notifyChangesApplied`) and the panel refresh (`notifyPackageContentUpdated`), as `set_kerning`;** no change, no calls. The mark for a removal alone is untested (Demo mode).
+- *Reason for the rest:* the user's answers, one question at a time.
+
+### 2026-11-19: the author's name in LICENSE
+
+The rule against personal data in live files ([AGENTS.md](../../AGENTS.md)) gets one exception: the author's name as the copyright holder in the LICENSE file. Nothing else personal goes there or anywhere else (no e-mail address, user name or path). Reason: a license needs a named copyright holder; the user's choice before adding LICENSE.
+
+### 2026-11-19: kerning group membership, `get_kerning_groups` (P1.6; research listener 0.188–0.189; built listener 0.190 / server 0.75)
+
+- **The side comes from the modern `items()` of the master's kerning groups (route C), not from the legacy `kerningLeft` / `kerningRight` nor from `values()` matched by members.** *Reason:* the user's choice; one modern call gives name, members and side (KG 1373–1375, [topics/kerning.md](../topics/kerning.md) §9.10).
+- **A read tool of its own; `get_kerning` stays unchanged.** *Reason:* separate reply shapes and limits; `get_kerning` is live-proven.
+- **Every kerning group may be listed; above 250 groups only after the person's approval** (`confirmed_large_read`, the rule of 2026-10-27). **The full list includes members.**
+- **Kerning groups only.** OpenType classes and Glyph tags are not read by this tool. **Glyphbridge must eventually work with OpenType classes too, through a tool of their own** ([ROADMAP.md](../ROADMAP.md) P1.7).
+- **Every read is cross-checked with `getAllGroups()`;** a group whose sources disagree is reported with both versions, never settled by the tool.
+- **An unknown name is an error for that name only;** the other names are read, and a glyph in no kerning group gets a plain note.
+- *Reason for the rest:* the user's answers, one question at a time; the font and master matching follow `get_kerning`.
+
+### 2026-11-12: the create-font tool (listener 0.146 / server 0.60)
+
+- **`create_font` works whether or not other fonts are open, and may make more than one font per listener run;** the once-per-run limit stays on the probe. *Reason:* the user's choice; 834 and 835 made two fonts in one FontLab session, and the native reference belongs to FontLab, not to the listener.
+- **A named font also gets the legacy `font.info.familyName`,** written only when the font in front reads the new font's own family. *Reason:* the user's choice (option A): the server names a font from it, and the FONTS panel gave the font its own line only with it (885). Risk: it reverted once (872).
+- **A family name gives a PostScript name of at most 63 characters and holds none of `[](){}<>/%`; one check serves `create_font` and the `/debug/tryfont` probe.** *Reason:* the user's approval; the approved "58 characters" let the PostScript name reach 66, and PostScript names may not hold those characters.
+- **What can be improved goes to [ROADMAP.md](../ROADMAP.md) (P0.5c, P0.9, P0.10); what cannot is told to the person, in the agent's reply and in FontLab's OUTPUT panel.** *Reason:* the user's rule.
+
 ## Budget history (moved from MARKDOWN-MAP on 2026-11-17)
 
 The budget history as MARKDOWN-MAP.md held it, moved unchanged except for the link paths. Later changes: [DECISIONS.md](../DECISIONS.md) until 2026-11-20; since then the section "Budget changes since 2026-11-13" at the end of this file.
@@ -157,6 +250,18 @@ Not core, but budgeted: the root [README.md](../../README.md), the end-user inst
 ## Budget changes since 2026-11-13
 
 Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
+
+### 2026-11-24: DECISIONS.md budget 5,500 → 6,250
+
+The user's choice, at 4,869 words, right after the file was regrouped by theme (11 entries merged or condensed, their full text in "Merged and condensed on 2026-11-24" above). Reference totals now 19,150 and 18,350.
+
+### 2026-11-24: DECISIONS.md budget 5,250 → 5,500
+
+The user's choice, at 5,296 words, after the entry "speak only about real issues, when they matter" (server 0.84); chosen over moving the 2026-11-12 create-font tool entry (185 words, still in force) to this archive. Reference totals now 18,400 and 17,600.
+
+### 2026-11-21: DECISIONS.md budget 4,500 → 5,250
+
+The user's choice, at 4,479 words, after the entry on AI apps' time limits (a dialog that closes itself, the change count in the listener) and before the designs of both. Reference totals now 18,150 and 17,350.
 
 ### 2026-11-20: WATCH-POINTS.md budget 2,500 → 3,250
 

@@ -12,27 +12,38 @@
 1k  NO glyph named .notdef (glyph 0 is 'A')             -> missing | no glyph named '.notdef' among the 2 glyphs of this font (glyph 0 is named 'A'
 1l  .notdef is glyph 2 (not first)                      -> has_outline | notes: ['.notdef is glyph number 2; the OpenType spec wants it to be glyph 0']
 1m  no font open                                        -> (200, {'open': False})
-1n  GET never shows a dialog                            -> dialogs shown: 0
+1n  GET never makes a dialog                            -> dialogs made: 0
 
-==== 2. warning dialog (POST /font/notdef/warn) ====
-2a  empty -> shown: True | already_warned: False | dialogs: 1
-    icon: Information | buttons: Ok 
-    title: Glyphbridge: .notdef glyph 
-    text : "It looks like you haven't created a proper .notdef glyph yet. The .notdef is the glyph that shows when your font doesn't contain a character that is being typed. It is usually drawn as a rectangle, often with a question mark or an X inside, as the OpenType specification recommends."
-2b  second call, same font -> shown: False | already_warned: True | dialogs: 1
-2c  force=true -> shown: True | dialogs: 2
-2d  force="yes" (not boolean true) -> shown: False | already_warned: True
-2e  different font path -> shown: True | dialogs: 3
-2f  missing -> shown: True | status: missing 
-    text : "Your font has no glyph named .notdef. Every font needs one (it must be glyph 0). The .notdef is the glyph that shows when your font doesn't contain a character that is being typed. It is usually drawn as a rectangle, often with a question mark or an X inside, as the OpenType specification recommends."
-2g  drawn    -> status: has_outline | shown: False | dialogs: 0 | no warning needed: .notdef has an outline
-2g  unknown  -> status: unknown | shown: False | dialogs: 0 | could not be determined, so no warning was shown
-2g  two lyrs -> status: unknown | shown: False | dialogs: 0 | could not be determined, so no warning was shown
-2g  comp     -> status: has_outline | shown: False | dialogs: 0 | no warning needed: .notdef has an outline
-2h  dialog raises -> shown: False | dialog_error: RuntimeError: no GUI available | remembered as warned: False
-    next call tries again -> shown: True
-2i  bad JSON -> 400 | JSON list -> 400
-2j  no font open -> (200, {'open': False})
+-- maturity of a font with an empty .notdef (v0.203)
+1o  only A and B                     -> empty | {'letters_present': 2, 'letters_missing': 'CDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 'unreadable': 0, 'mature': False}
+1p  all 52, none drawn (placeholders) -> empty | {'letters_present': 52, 'letters_missing': '', 'unreadable': 0, 'mature': False, 'drawn_letter': None, 'letters_checked_for_outline': 52}
+1q  all 52, n drawn                  -> empty | {'letters_present': 52, 'letters_missing': '', 'unreadable': 0, 'mature': True, 'drawn_letter': 'n', 'letters_checked_for_outline': 1}
+1r  all 52, only z drawn             -> empty | {'letters_present': 52, 'letters_missing': '', 'unreadable': 0, 'mature': True, 'drawn_letter': 'z', 'letters_checked_for_outline': 52}
+1s  51 letters, one glyph unreadable -> empty | {'letters_present': 51, 'letters_missing': 'Q', 'unreadable': 1, 'mature': None}
+1t  all 52 and one unreadable glyph  -> empty | {'letters_present': 52, 'letters_missing': '', 'unreadable': 1, 'mature': True, 'drawn_letter': 'H', 'letters_checked_for_outline': 3}
+1u  A by name only, no codepoint     -> empty | {'letters_present': 51, 'letters_missing': 'A', 'unreadable': 0, 'mature': False}
+1v  A twice: the first holder counts -> empty | {'letters_present': 52, 'letters_missing': '', 'unreadable': 0, 'mature': False, 'drawn_letter': None, 'letters_checked_for_outline': 52}
+1w  missing .notdef has no maturity : False | drawn .notdef has none            : False
+
+==== 2. the note (POST /font/notdef/warn): one OUTPUT line per font, NO dialog (v0.203) ====
+2a  empty ->  {'status': 'empty', 'noted': True, 'already_noted': False, 'already_warned': False, 'dialog_shown': False} | maturity: {'letters_present': 0, 'letters_missing': 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 'unreadable': 0, 'mature': False} | dialogs made: 0 | memory: {5: 'empty'}
+2b  second call, same font -> noted: False | already_noted: True | already_warned: True
+2c  force=true -> noted: True
+2d  force="yes" (not boolean true) -> noted: False | already_noted: True
+2e  a second UNSAVED font (same empty path, its own fgId) -> noted: True | already_noted: False | memory: {8: 'empty', 9: 'empty'}
+    back to the first unsaved font -> already_noted: True
+2f  missing -> noted: True | status: missing | maturity in reply: False
+    the same font noted as empty before, now missing -> noted: True
+2g  drawn    -> status: has_outline | noted: False | no note needed: .notdef has an outline | memory: {}
+2g  unknown  -> status: unknown | noted: False | could not be determined, so nothing was noted | memory: {}
+2g  two lyrs -> status: unknown | noted: False | could not be determined, so nothing was noted | memory: {}
+2g  comp     -> status: has_outline | noted: False | no note needed: .notdef has an outline | memory: {}
+2h  fgId unreadable -> noted: True True (never wrongly held back) | memory: {} 
+    memory_note: not remembered for this font: currentPackage could not be read (RuntimeError: no workspace package)
+2i  mature font -> noted: True | maturity: {'letters_present': 52, 'letters_missing': '', 'unreadable': 0, 'mature': True, 'drawn_letter': 'o', 'letters_checked_for_outline': 2}
+2j  bad JSON -> 400 | JSON list -> 400
+2k  no font open -> (200, {'open': False})
+2l  dialogs made in part 2: 0 | the dialog code is gone: True
 
 ==== 3. /glyph/outline for a layerless / unreachable glyph ====
 3a  zero layers -> 200 {'node_count': 0, 'layer_count': 0, 'contours': [], 'component_count': 0} | error: None
@@ -41,50 +52,70 @@
 
 ==== 4. server (listener faked) ====
 4a  has_outline -> status: has_outline | calls: [('GET', '/font/notdef')] | agent_instruction: None
-4b  empty, dialog shown -> shown: True | calls: [('GET', '/font/notdef'), ('POST', '/font/notdef/warn', 120.0)]
-    instruction: A dialog explaining this was just shown to the user in FontLab. Also tell the user in your reply that the .notdef glyph is empty (it has no lines or shapes), and what .notdef is for. Do not present it as an error.
-4c  already warned -> True | The user was already shown the warning dialog earlier in this session 
-4d  dialog failed -> RuntimeError: no GUI | The warning dialog could NOT be shown (RuntimeError: no GUI)
-4e  unknown -> calls: [('GET', '/font/notdef')] | Do not tell the user that .notdef is missing or empty: it 
-4f  missing -> shown: True | A dialog explaining this was just shown to the user in FontLab. Also
-4g  changed between reads -> status: has_outline | ['The status changed between the two reads; the later one is reported.']
-4h  malformed status -> ToolError: The listener's .notdef reply was malformed, so it was not trusted.
-4i  no font open -> ToolError: FontLab is running and the li
+4b  empty, early font (v0.84: not an issue) -> noted_in_output_panel: False | already_noted: None | font_mature: False | calls: [('GET', '/font/notdef')]
+    instruction: Say nothing about .notdef: an empty .notdef is normal while a font is in progress. | the silent one: True
+    font_maturity: {'mature': False, 'letters_present': 2, 'unreadable': 0, 'letters_missing': 'CDEFGHIJKLMNOPQRSTUVWXYZcdefghijklmnopqrstuvwxyz'}
+4b2 the same, asked (check_notdef) -> POSTs: [] | instruction: If the person asked about .notdef, tell them it is empty, which is normal for a font in progress, and offer to explain what it is for. Otherwise say nothing about it. | the asked one: True
+4d  empty, mature font -> noted: True | font_mature: True | font_maturity: {'mature': True, 'letters_present': 52, 'unreadable': 0, 'letters_checked_for_outline': 1, 'drawn_letter': 'n'} | calls: [('GET', '/font/notdef'), ('GET', '/version'), ('POST', '/font/notdef/warn', 5.0)]
+    instruction: The font has every letter A-Z and a-z, at least one of them drawn, but its .notdef is still empty: tell the person it may have been overlooked, and in one sentence why it matters (a missing character would show as nothing, like a space). Skip the explanation if the person has shown experience in font production.
+    asked: the same instruction -> True
+4c  mature, already noted -> True | This was already noted for this font earlier in this session. Mention .notdef again only if it is relevant to what the person is doing now.
+    an older listener's already_warned counts too -> True
+    maturity unknown (None) -> font_mature: None | POSTs: [] | silent: True
+    maturity not a bool -> font_mature: None | POSTs: [] | silent: True
+    maturity absent -> font_mature: None | POSTs: [] | silent: True
+4d2 the first read decides (GET early, a later read would say mature) -> POSTs: [] | font_mature: False
+4d3 the listener's re-check is reported (GET mature, warn early) -> font_mature: False | letters_present: 2
+4e  older listener (0.202), early font -> calls: [('GET', '/font/notdef')] | notes: None | silent: True
+    older listener, mature font -> calls: [('GET', '/font/notdef'), ('GET', '/version')] | noted: False | notes: ['The running listener is older than 0.203, so nothing was noted in FontLab and no dialog was shown.']
+    older listener, missing     -> calls: [('GET', '/font/notdef'), ('GET', '/version')] | noted: False
+4f  unknown -> calls: [('GET', '/font/notdef')] | Do not tell the user that .notdef is missing or empty: it 
+4g  missing -> noted: True | font_mature in reply: False 
+    instruction: Tell the person clearly that the font has no .notdef glyph: every font needs one as glyph 0, because it is what shows when a character is missing from the font. Explain what .notdef is for in one sentence and offer to say more; skip the explanation if the person has shown experience in font production.
+4h  changed between reads -> status: has_outline | ['The status changed between the two reads; the later one is reported.'] | instruction: None
+4i  malformed status -> ToolError: The listener's .notdef reply was malformed, so it was not trusted.
+4j  no font open -> ToolError: FontLab is running and the li
 
 -- get_current_font automatic check
-4j  auto on, drawn -> notdef status: has_outline | calls: ['/font/current', '/font/notdef']
-4k  GLYPHBRIDGE_NOTDEF_WARN=0 -> 'notdef' key: False | calls: ['/font/current']
-4l  notdef check fails -> font still returned: F | notdef: check_failed | The FontLab listener did not answe
-4m  no font open -> still raises: ToolError: FontLab is running and the li
+4k  auto on, drawn -> notdef status: has_outline | calls: ['/font/current', '/font/notdef']
+4l  GLYPHBRIDGE_NOTDEF_WARN=0 -> 'notdef' key: False | calls: ['/font/current']
+4m  notdef check fails -> font still returned: F | notdef: check_failed | The FontLab listener did not answe
+4n  no font open -> still raises: ToolError: FontLab is running and the li
+4o  no dialog wait left in the server: True | the .notdef POST uses the normal time limit: True
+4w  v0.84 source: no 'light sentence': True | no new-font .notdef note: True | check_notdef asks: True | --notdef-warn asks: True
 
 -- get_glyph_outline wording
-4n  unreachable (not .notdef): ToolError: The outline of 'Q' could not be read: FontLab did not hand over its layer through the API (layer route 'body' was None on every attempt; FontLab reports 1 layer(s) for it). This does NOT mean the glyph is empty - its contents are simply unknown.
-4o  unreachable (.notdef)     : ToolError: The outline of '.notdef' could not be read: FontLab did not hand over its layer through the API (layer route 'body' was None on every attempt; FontLab reports 1 layer(s) for it). This does NOT mean the glyph is empty - its contents are simply unknown. .notdef is a mandatory glyph that every font has (glyph 0); do not report it as missing or empty on this basis. Call check_notdef to check it a different way.
-4p  other error unchanged     : ToolError: The outline of 'R' could not be read: boom
-4q  .notdef empty -> empty: True | notdef_check: empty dialog_shown: True 
-    notes: ['This glyph has no contours of its own.', 'FontLab holds no layer at all for this glyph, which means it has no outline data.', '.notdef is the glyph shown when a character is missing from the font. An empty .notdef is valid but not recommended; see check_notdef.']
-4r  another empty glyph -> notdef_check present: False | calls: ['/glyph/outline?name=space']
-4s  .notdef empty, env off -> notdef_check present: False
-4t  list_glyphs never checks .notdef -> calls: ['/font/glyphs']
+4p  unreachable (not .notdef): ToolError: The outline of 'Q' could not be read: FontLab did not hand over its layer through the API (layer route 'body' was None on every attempt; FontLab reports 1 layer(s) for it). This does NOT mean the glyph is empty - its contents are simply unknown.
+4q  unreachable (.notdef)     : ToolError: The outline of '.notdef' could not be read: FontLab did not hand over its layer through the API (layer route 'body' was None on every attempt; FontLab reports 1 layer(s) for it). This does NOT mean the glyph is empty - its contents are simply unknown. .notdef is a mandatory glyph that every font has (glyph 0); do not report it as missing or empty on this basis. Call check_notdef to check it a different way.
+4r  other error unchanged     : ToolError: The outline of 'R' could not be read: boom
+4s  .notdef empty -> empty: True | notdef_check: empty noted: False | POSTs: [] | silent: True 
+    notes: ['This glyph has no contours of its own.', 'FontLab holds no layer at all for this glyph, which means it has no outline data.', '.notdef is the glyph shown when a character is missing from the font. An empty .notdef is normal while a font is in progress.']
+4t  another empty glyph -> notdef_check present: False | calls: ['/glyph/outline?name=space']
+4u  .notdef empty, env off -> notdef_check present: False
+4v  list_glyphs never checks .notdef -> calls: ['/font/glyphs']
 
 -- self-check flags
-    --check -> notdef check lines: ['[OK]     .notdef status (read-only): {"status"'] | POSTs: []
-    --notdef-warn -> notdef check lines: ['[OK]     .notdef status (read-only): {"status"', '[OK]     check_notdef (may show a dialog in Fo'] | POSTs: ['/font/notdef/warn']
+    --check empty -> notdef check lines: ['[OK]     .notdef status (read-only): {"status"'] | POSTs: []
+    --notdef-warn empty -> notdef check lines: ['[OK]     .notdef status (read-only): {"status"', '[OK]     check_notdef (may add a line to FontL'] | POSTs: []
+    --notdef-warn missing -> notdef check lines: ['[OK]     .notdef status (read-only): {"status"', '[OK]     check_notdef (may add a line to FontL'] | POSTs: ['/font/notdef/warn']
 
 ==== 5. end to end: stub FontLab -> real listener -> real server ====
-5a  get_current_font, empty .notdef  -> notdef: empty | dialogs: 1 | instruction: A dialog explaining this was just shown to the u
-5b  get_current_font again          -> already_warned: True | dialogs still: 1
-5c  list_glyphs                     -> dialogs still: 1
-5d  check_notdef tool               -> status: empty | dialogs still: 1 (once per font)
-5e  get_glyph_outline('.notdef'), new font -> empty: True | dialogs: 1 | notdef_check.dialog_shown: True
-5f  drawn .notdef                   -> notdef: has_outline | dialogs: 0 (none)
-5g  unreachable .notdef             -> notdef: unknown | dialogs: 0 (none) | Do not tell the user that .notdef is missing
-5h  font without .notdef            -> notdef: missing | dialogs: 1 | text starts: Your font has no glyph named .notdef. Ever
-5i  GLYPHBRIDGE_NOTDEF_WARN=0       -> 'notdef' key: False | dialogs: 0
-5j  ...but the explicit tool still works -> status: empty | dialogs: 1
+5a  get_current_font, empty .notdef, early font -> notdef: empty | noted: False | font_mature: False | silent: True | dialogs made: 0 | listener memory: {}
+5b  get_current_font again          -> noted: False | silent: True
+5c  list_glyphs                     -> dialogs made: 0
+5d  check_notdef tool               -> status: empty | noted: False | answers if asked: True
+5e  get_glyph_outline('.notdef'), another unsaved font -> empty: True | noted: False | dialogs made: 0
+5e2 the first font grows mature    -> noted: True | font_mature: True | listener memory: {1: 'empty'}
+    and again                       -> already_noted: True | noted: False
+5f  drawn .notdef                   -> notdef: has_outline | dialogs made: 0 (none)
+5g  unreachable .notdef             -> notdef: unknown | dialogs made: 0 (none) | Do not tell the user that .notdef is missing
+5h  font without .notdef            -> notdef: missing | noted: True | dialogs made: 0 | Tell the person clearly that the font has no .notdef
+5i  mature font, empty .notdef      -> noted: True | font_mature: True | drawn letter: O | The font has every letter A-Z and a-z, at least one of them drawn,
+5j  GLYPHBRIDGE_NOTDEF_WARN=0       -> 'notdef' key: False | dialogs made: 0
+5k  ...but the explicit tool still works -> status: empty | noted: False | answers if asked: True
 
 ==== 6. timeout wording (_do_request with a fake opener) ====
-6a  socket timeout       -> The FontLab listener did not answer /glyph/create within 5s. This happens, for example, when a Glyphbridge dialog (the .notdef notice or a delete confirmation) is waiting for an answer in FontLab: answer or close it there. It can also mean FontLab is busy or frozen. If you asked for a change, it may or may not have been applied: check the font's current state before repeating it.
-6b  URLError(timeout)    -> The FontLab listener did not answer /glyph/create within 5s. This happens, for example, when a Glyphbridge dialog (the .notdef notice or a delete confirmation) is waiting for an answer in FontLab: answer or close it there. It can also mean FontLab is busy or frozen. If you asked for a change, it may or may not have been applied: check the font's current state before repeating it.
+6a  socket timeout       -> The FontLab listener did not answer /glyph/create within 5s. FontLab is probably busy or frozen (Glyphbridge's own dialogs close by themselves within 45 s). If you asked for a change, it may or may not have been applied: check the font's current state before repeating it.
+6b  URLError(timeout)    -> The FontLab listener did not answer /glyph/create within 5s. FontLab is probably busy or frozen (Glyphbridge's own dialogs close by themselves within 45 s). If you asked for a change, it may or may not have been applied: check the font's current state before repeating it.
 6c  connection refused   -> Cannot reach the Glyphbridge listener at http://127.0.0.1:8765. Make sure FontLab 8 is running and that glyphbridge_fontlab_mcp_listener.py has been started from FontLab's Scripting panel (it must be started manually each FontLab session).
-6d  mentions a waiting dialog: True | still names busy/frozen: True | tells to check the state before repeating a change: True | path and seconds: True
+6d  says a dialog may be waiting: False | names busy/frozen: True | names the dialogs' own limit: True | tells to check the state before repeating a change: True | path and seconds: True

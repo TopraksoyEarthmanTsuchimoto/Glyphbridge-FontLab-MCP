@@ -1063,7 +1063,7 @@ srv._call_listener, srv._call_listener_post = wire_get, wire_post
 print("\n==== 16. server 0.27: guard fields of listener 0.87 are forwarded, type-checked, with short instructions (faked listener replies) ====")
 _save16 = (srv._call_listener, srv._call_listener_post)
 R16 = {}
-srv._call_listener = lambda path: {"version": "0.87"}
+srv._call_listener = lambda path: {"version": "0.203"}   # any listener from 0.87 on has the guard fields; delete_glyph needs 0.203 (v0.83)
 srv._call_listener_post = lambda path, payload, timeout=srv.TIMEOUT_SECONDS: R16[path]
 GK16 = ("synced_with_fontlab", "durability_note", "display_refresh", "display_refresh_note", "display_refresh_skipped_to_protect", "display_refresh_unreadable_glyphs", "layers_missing_since_drawn")
 GUARD16 = dict(synced_with_fontlab=False, durability_note="N", display_refresh="skipped", display_refresh_skipped_to_protect=["a"],
@@ -3413,7 +3413,7 @@ srv._call_listener = _save49
 # ==== 50. server 0.82: rename_kerning_group and remove_kerning_group through POST /kerning/group/rename and /kerning/group/remove (listener 0.200; faked listener replies) ====
 print("\n==== 50. server 0.82: rename_kerning_group and remove_kerning_group (faked listener replies) ====")
 _save50 = (srv._call_listener, srv._call_listener_post)
-K50 = {"version": "0.200", "reply": None, "paths": [], "posts": []}
+K50 = {"version": "0.203", "reply": None, "paths": [], "posts": []}   # v0.83: remove_kerning_group needs 0.203
 def _k50_get(path):
     K50["paths"].append(path)
     if path == "/version":
@@ -3425,7 +3425,7 @@ def _k50_post(path, payload, timeout=0):
     if isinstance(r, Exception): raise r
     return r
 srv._call_listener, srv._call_listener_post = _k50_get, _k50_post
-def k50(fn, reply=None, version="0.200", **call):
+def k50(fn, reply=None, version="0.203", **call):
     K50["reply"] = reply; K50["version"] = version; K50["paths"].clear(); K50["posts"] = []
     srv._reset_change_tracking()
     try:
@@ -3483,16 +3483,28 @@ row50("50l4 raised after renaming     ", k50(RN, rnreply(renamed=False, changed=
 row50("50m timeout                   ", k50(RN, srv.OutcomeUnknown("The FontLab listener did not answer"), group="kgeL", new_name="kgeL2"))
 print("--- remove")
 r = k50(RM, rmreply50(), group="kgeL", pairs="keep"); row50("50n removed, keep             ", r)
-print("50o request                      :", k50sent(), "| timeout is the dialog's:", k50sent()[0][2] == srv.DELETE_CONFIRM_TIMEOUT_SECONDS)
+print("50o request                      :", k50sent(), "| timeout is the dialog's wait:", k50sent()[0][2] == srv.DIALOG_WAIT_SECONDS,
+      "| dialog_seconds sent:", k50sent()[0][1].get("dialog_seconds") == srv.DIALOG_SECONDS, "| 45 / 55:", srv.DIALOG_SECONDS, srv.DIALOG_WAIT_SECONDS)
 print("50p instruction, keep            :", r["agent_instruction"])
 r = k50(RM, rmreply50(pairs="delete", table_size_after=1), group="kgeL", pairs="delete")
 print("50q delete                       :", r["table_size_change"], "|", r["agent_instruction"][r["agent_instruction"].index("pairs was"):][:120])
 row50("50r answered No               ", k50(RM, rmreply50(removed=False, changed=False, user_declined=True, reason="the removal was not approved in FontLab (dialog answered No or closed)"), group="kgeL", pairs="keep"))
+# v0.83: the dialog closed by itself, nobody answered
+_na50 = dict(removed=False, changed=False, not_answered=True, dialog={"answer": "not_answered", "seconds": 45}, reason="nobody answered in FontLab within 45 s")
+row50("50r2 not answered in time     ", k50(RM, rmreply50(**_na50), group="kgeL", pairs="keep"))
+r = k50(RM, rmreply50(**dict(_na50, dialog={"answer": "not_answered", "seconds": 20})), group="kgeL", pairs="keep")
+print("50r3 not answered, 20 s          :", "within 20 seconds" in r, "| asks before retrying:", "Do not try again on your own" in r, "| nothing changed:", "Nothing was changed" in r, "| change count", k50chg())
+r = k50(RM, rmreply50(**dict(_na50, dialog=None)), group="kgeL", pairs="keep")
+print("50r4 not answered, no dialog info:", "within 45 seconds" in r, "| seconds True ->",
+      "within 45 seconds" in k50(RM, rmreply50(**dict(_na50, dialog={"seconds": True})), group="kgeL", pairs="keep"))
+row50("50r5 not_answered but removed  ", k50(RM, rmreply50(not_answered=True), group="kgeL", pairs="keep"))
 print("--- remove: refused, nothing sent")
 for _lbl, _kw in (("50s pairs missing            ", dict(group="kgeL", pairs=None)), ("50s2 pairs 'all'              ", dict(group="kgeL", pairs="all")),
                   ("50s3 pairs True              ", dict(group="kgeL", pairs=True)), ("50s4 bad group               ", dict(group="", pairs="keep"))):
     row50(_lbl, k50(RM, rmreply50(), **_kw))
 row50("50t listener 0.199           ", k50(RM, rmreply50(), version="0.199", group="kgeL", pairs="keep"))
+row50("50t2 listener 0.202 (no self-closing dialog)", k50(RM, rmreply50(), version="0.202", group="kgeL", pairs="keep"))
+print("50t3 nothing sent to 0.202       :", k50sent())
 print("--- remove: the listener's answers")
 row50("50u refused by the listener   ", k50(RM, {"open": True, "error": "'kgeQ' is not the name of a kerning group in the current master of this font; nothing was removed"}, group="kgeQ", pairs="keep"))
 row50("50v answer for other pairs    ", k50(RM, rmreply50(pairs="delete"), group="kgeL", pairs="keep"))
@@ -3504,11 +3516,42 @@ for _n in ("rename_kerning_group", "remove_kerning_group"):
     _d = " ".join((getattr(srv, _n).__doc__ or "").split())
     _want = (("leading '@'", "new id", "same_name_glyph", "renaming back", "fontlab_caught_up", "switches to another font", "NEVER saves", "listener v0.200")
              if _n == "rename_kerning_group" else
-             ("REQUIRED", "\"keep\"", "\"delete\"", "never choose for them", "Yes/No question inside FontLab", "up to two minutes", "No Glyphbridge tool can bring",
-              "table_size_before", "fontlab_caught_up", "NEVER saves", "listener v0.200"))
+             ("REQUIRED", "\"keep\"", "\"delete\"", "never choose for them", "Yes/No question inside FontLab", "closes by itself after 45 seconds",
+              "not_answered_in_time", "ask the person before trying again", "No Glyphbridge tool can bring",
+              "table_size_before", "fontlab_caught_up", "NEVER saves", "listener v0.203"))
+    print(f"50y2 {_n:21}: stale words", [w for w in ("two minutes", "120 s", "listener v0.200" if _n == "remove_kerning_group" else "listener v0.203") if w in _d])
     print(f"50y {_n:22}: missing words", [w for w in _want if w not in _d])
 _src50 = open(srv.__file__, encoding="utf-8").read()
 _body50 = _src50[_src50.index("# v0.82 (listener 0.200): rename_kerning_group"):_src50.index("_POLY_MAX_CONTOURS, _POLY_MAX_TOTAL")]
-print("50z source                       : POSTs", len(_re19.findall(r"_write_post\(", _body50)), "| requires 0.200 twice", _body50.count("_require_listener((0, 200)") == 2,
-      "| save", bool(_re19.search(r"\.save\(|save\(", _body50)), "| the dialog timeout on remove", "timeout=DELETE_CONFIRM_TIMEOUT_SECONDS" in _body50)
+print("50z source                       : POSTs", len(_re19.findall(r"_write_post\(", _body50)), "| requires 0.200 once (rename)", _body50.count("_require_listener((0, 200)") == 1,
+      "| requires 0.203 once (remove)", _body50.count("_require_listener((0, 203)") == 1,
+      "| save", bool(_re19.search(r"\.save\(|save\(", _body50)), "| the dialog wait on remove", "timeout=DIALOG_WAIT_SECONDS" in _body50)
+# v0.83: delete_glyph - the same self-closing dialog, gate and reply
+print("--- delete_glyph (v0.83)")
+def d50(reply, version="0.203"):
+    K50["reply"] = reply; K50["version"] = version; K50["paths"].clear(); K50["posts"] = []
+    srv._reset_change_tracking()
+    try:
+        return srv.delete_existing_glyph("kge1")
+    except srv.ToolError as e:
+        return "ToolError: " + str(e)
+_dok = {"open": True, "deleted": True, "before_count": 5, "after_count": 4}
+r = d50(_dok); print("50za deleted                     :", r.get("deleted"), "| sent", k50sent(), "| wait is the dialog's:", k50sent()[0][2] == srv.DIALOG_WAIT_SECONDS, "| change count", k50chg())
+r = d50(_dok, version="0.202"); print("50zb listener 0.202              :", r, "| sent", k50sent())
+r = d50({"open": True, "deleted": False, "not_answered": True, "dialog": {"answer": "not_answered", "seconds": 45}, "before_count": 5, "after_count": 5})
+print("50zc not answered                :", r, "| change count", k50chg())
+r = d50({"open": True, "deleted": False, "user_declined": True, "not_answered": False, "before_count": 5, "after_count": 5})
+print("50zd answered No                 :", r[:90], "| not the timeout text:", "not_answered_in_time" not in r)
+r = d50({"open": True, "deleted": False, "dialog_error": "boom", "before_count": 5, "after_count": 5}); print("50ze no dialog shown             :", r)
+_rn = None
+try:
+    K50["reply"] = _dok; K50["version"] = "0.203"; K50["posts"] = []; srv._reset_change_tracking(); _rn = srv.delete_existing_glyph(".notdef")
+except srv.ToolError as e:
+    _rn = "ToolError: " + str(e)
+print("50zf .notdef deleted             :", {k: _rn.get(k) for k in ("deleted", "notdef_missing_now")} if isinstance(_rn, dict) else _rn,
+      "| tells the person:", isinstance(_rn, dict) and "every font needs one as glyph 0" in _rn.get("agent_instruction", ""))
+_dd = " ".join((srv.delete_glyph.__doc__ or "").split())
+print("50zg delete_glyph description    : missing", [w for w in ("closes by itself after 45 seconds", "not_answered_in_time", "ask the person before trying again",
+                                                                  "Deleting .notdef gets its own warning") if w not in _dd],
+      "| stale", [w for w in ("two minutes", "120 s") if w in _dd])
 srv._call_listener, srv._call_listener_post = _save50

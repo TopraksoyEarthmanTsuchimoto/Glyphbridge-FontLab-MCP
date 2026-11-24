@@ -45,7 +45,7 @@ Follow [mental-model/HOW-TO-GET-ORGANIZED.md](mental-model/HOW-TO-GET-ORGANIZED.
   - what changed
   - the deploy steps (restart the listener, restart the MCP client that runs the server as your agent-specific file says, read `fontlab_status`)
   - the next live checks
-- Start with `fontlab_status`, not `get_current_font`: the latter can open the `.notdef` dialog in FontLab.
+- Start with `fontlab_status`, not `get_current_font`: it reads the versions first, without touching the font.
 - **FontLab's GUI is the user's:** do not operate its window yourself (clicks, keystrokes, desktop control) unless the user asks. Requests to the user: one GUI action at a time, and say what NOT to touch. PowerShell commands go on single, complete lines, ready to paste.
 - **Git:** the user commits and pushes with GitHub Desktop. Do not commit, push or branch unless asked.
 

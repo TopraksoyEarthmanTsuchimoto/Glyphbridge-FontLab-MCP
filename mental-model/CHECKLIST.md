@@ -64,7 +64,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 31 | Draw into, or edit, an existing outline | PARTLY: `move_nodes` (0.154 / 0.64) moves nodes and control points `verified`, refuses a lone smooth node and a component (1016–1022); Edit > Undo does not revert it (1023). Open: adding, removing and redrawing contours, Power Brush glyphs, several shapes ([topics/geometry.md](topics/geometry.md)) |
 | 43 | `draw_path` in a quadratic font | TODO, low (T8) |
 | 44 | `set_glyph_width` with an existing but inactive layer | TODO (T10), stub-tested |
-| 19 | A write that times out while a dialog is open: applied after OK? | TODO (T10) |
+| 19 | A write that times out while a dialog is open: applied after OK? | PARTLY: the client ends such a call at 60 s (Code tab) or about 80 s (Desktop chat, 1585) and FontLab acts on a later answer: a No after the limit was obeyed (1566, 1580), also after the server's own 120 s (1585); a Yes after the limit not run ([topics/server-and-endpoints.md](topics/server-and-endpoints.md) §2) |
 | 39 | Smooth gate leftovers: very short handles, zero-length handle on a non-smooth node | optional (P2.5) |
 
 ## Last block (by the user's decision)

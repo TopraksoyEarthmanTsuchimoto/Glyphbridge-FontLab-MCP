@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.200)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.203)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -14,7 +14,8 @@ listening until FontLab is closed or /shutdown is called.
 
 Runs entirely on FontLab's main thread: a QTimer polls a non-blocking socket every 25 ms, so every
 fontlab API call happens on the main thread, which is the safe place for it. While a dialog opened
-by the listener waits for a click, no other request is served.
+by the listener waits for a click, no other request is served; since v0.203 every such dialog closes by itself
+(dialog_seconds, default 45 s), so it never outlasts an AI app's time limit.
 
 No route ever saves, closes, exports or generates a font. Every write is verified by re-reading
 before success is reported.
@@ -59,8 +60,9 @@ Routes (GET unless marked POST):
                                 listed as unreadable here, while /font/notdef and /glyph/outline call
                                 them empty (a known inconsistency)
     /font/notdef                read-only .notdef check: missing / empty / has_outline / unknown
-    POST /font/notdef/warn      re-checks, then shows ONE information dialog per font and listener run,
-                                only when .notdef is missing or empty; {"force": true} shows it again
+    POST /font/notdef/warn      re-checks; when .notdef is missing or empty, notes it ONCE per font (by its package fgId) and
+                                listener run as one OUTPUT line; {"force": true} notes it again. Since v0.203 NO dialog; an empty
+                                .notdef also gets the font's maturity (all 52 letters A-Z a-z present, one of them drawn)
     POST /font/create           {"family"?} (v0.146): ONE new font through flPackage(), also with other fonts open; with a family,
                                 the four names Build Names gives and the legacy family, each read back, then ONE changed mark on
                                 the new package; "notes" says what FontLab will not show (also printed in the OUTPUT panel)
@@ -86,7 +88,9 @@ Routes (GET unless marked POST):
     POST /glyph/create          {"name", "scan_unicode"?}: one empty glyph; reports unicode and
                                 unicode_status, duplicate_check, and created_under_other_names when
                                 FontLab altered the name
-    POST /glyph/delete          {"name"}: deletes one glyph after a Yes/No dialog in FontLab (default No)
+    POST /glyph/delete          {"name", "dialog_seconds"?}: deletes one glyph after a Yes/No dialog in FontLab (default No);
+                                since v0.203 the dialog closes by itself after dialog_seconds (10-50, default 45), counted as no
+                                answer (not_answered); .notdef gets its own text
     POST /glyph/width           {"name", "width"}: advance width through the modern API
     POST /glyph/sidebearings    {"name", "left", "right"}: moves the outline so LSB = left, RSB = right
     POST /glyph/unicode         {"name", "unicode"}: sets the primary codepoint (0 removes it);
@@ -135,8 +139,8 @@ Routes (GET unless marked POST):
                                 new name of any group or class is refused, a glyph's name is allowed (same_name_glyph); the id
                                 before and after (FontLab gives a renamed group a new id); then the mark, the panel refresh and
                                 one member glyph's group id read (fontlab_caught_up)
-    POST /kerning/group/remove  {"group", "pairs": "keep" | "delete"} (v0.200): removes ONE kerning group after a Yes/No dialog in
-                                FontLab (default No), groups.remove(group) or groups.remove(group, True); verified by re-reading
+    POST /kerning/group/remove  {"group", "pairs": "keep" | "delete", "dialog_seconds"?} (v0.200): removes ONE kerning group after a
+                                Yes/No dialog in FontLab (default No; since v0.203 it closes by itself as /glyph/delete's does), groups.remove(group) or groups.remove(group, True); verified by re-reading
                                 (gone from both sources, one group fewer); the table's size before and after; then the mark,
                                 the refresh and the member check of the rename
     /kerning/pairs?pairs=A:V,T:o  or  ?text=AVATAR
@@ -173,6 +177,11 @@ Routes (GET unless marked POST):
     /debug/trylayer       modern layer state; one layer-creation call on an empty glyph
     /debug/trymetrics     width and sidebearing experiments (glyph names starting with "tri")
     /debug/tryadvancewidth   names-only check, then one gated flGlyph.advanceWidth read (glyph names starting with "tri")
+    /debug/trydialogtimeout  how=slot|python&seconds=3..50&go=yes: UI only, no font call: ONE test Yes/No dialog (default No)
+                          with a single-shot QTimer owned by it, connected to the dialog's reject() slot (slot) or to a Python
+                          function that calls reject() (python); elapsed time, result and clicked button; 10 per listener run (v0.201);
+                          &countdown=yes: a second timer, every second, relabels the No button "No (N)" through a Python
+                          function (button(No).setText); visual only, the closing is unchanged (v0.202)
     /debug/tryshape       shape-building experiments (pen, modern and curve variants); superseded
                           by /glyph/polygon and /glyph/path
     /debug/tryfont        a new font through flPackage(), once per listener run; stage=construct_named&family=F (v0.142) names it
@@ -298,7 +307,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.200"
+VERSION = "0.203"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -1058,30 +1067,139 @@ def _deletion_text(name):
             where += f" ({'; '.join(details)})"
     else:
         where = "from the font whose window is in front"
+    if name == ".notdef":   # v0.203 (DECISIONS 2026-11-21): the one .notdef warning that stays a dialog
+        return (f"{who} the glyph '{name}' {where}.\n\n{_NOTDEF_DELETION_WARNING}\n\nAllow this deletion?")
     return f"{who} the glyph '{name}' {where}.\n\nAllow this deletion?"
 
 
-def _confirm_deletion(name):
-    """Blocking Yes/No dialog in FontLab. Runs on the main thread (this
-    whole listener does), so it is safe to block here: FontLab's UI is
-    simply waiting on the user, same as any other modal dialog."""
-    box = QMessageBox(
-        QMessageBox.Warning,
-        "Glyphbridge: Confirm Deletion",
-        _deletion_text(name),
-        QMessageBox.Yes | QMessageBox.No,
-    )
-    box.setDefaultButton(QMessageBox.No)  # Enter/closing the dialog = decline
-    return box.exec_() == QMessageBox.Yes
+_NOTDEF_DELETION_WARNING = ("This is the .notdef glyph. Every font needs one as glyph 0: it is what shows when a character is missing "
+                            "from the font. Deleting it leaves the font without one.")
+
+# v0.203 - self-closing Yes/No dialogs (DECISIONS 2026-11-21; research SC 1588-1593, CD 1594-1598). The server sends its own
+# dialog_seconds (45); the default serves an older server. Kept within 10-50 s, so a call with its dialog stays under the
+# shortest AI-app time limit seen (60 s).
+_DIALOG_SECONDS_DEFAULT = 45
+_DIALOG_SECONDS_MIN, _DIALOG_SECONDS_MAX = 10, 50
 
 
-def delete_glyph(name):
+def _dialog_seconds(value):
+    """(seconds, None) or (None, error): the request's dialog_seconds kept within 10-50; missing -> 45. Not a whole number -> error."""
+    if value is None:
+        return _DIALOG_SECONDS_DEFAULT, None
+    if type(value) is not int:
+        return None, '"dialog_seconds" must be a whole number of seconds'
+    return min(max(value, _DIALOG_SECONDS_MIN), _DIALOG_SECONDS_MAX), None
+
+
+def _ask_yes_no(title, text, seconds, outcome):
+    """v0.203 - ONE Yes/No dialog in FontLab (default No) that closes by itself after `seconds`, counted as no answer: a single-shot
+    QTimer owned by the dialog, connected straight to its reject() slot (a pure Qt connection, SC 1590-1592). A second timer relabels
+    the No button "No (N)" once a second through a Python function (CD 1596-1598); it is visual only, a failure is reported as
+    countdown_error and the dialog still closes on time. Runs on the main thread like the whole listener.
+    Returns {"answer": "yes" | "no" | "not_answered" | "unclear" | "not_shown", "seconds", "elapsed_s"?, "error"?, "countdown_error"?}.
+    "not_shown": the closing timer could not be set up, so NO dialog was shown (a dialog that cannot close itself could be answered
+    after the AI app gave up); "unclear": not Yes, but whether a button was clicked could not be read."""
+    out = {"answer": "not_shown", "seconds": seconds}
+    full = f"{text}\n\nIf you don't answer, this question closes by itself in {seconds} seconds and nothing is {outcome}."
+    try:
+        box = QMessageBox(QMessageBox.Warning, title, full, QMessageBox.Yes | QMessageBox.No)
+        box.setDefaultButton(QMessageBox.No)  # Enter = No
+        closer = QtCore.QTimer(box)           # owned by the dialog: it goes when the dialog goes
+        closer.setSingleShot(True)
+        closer.setInterval(seconds * 1000)
+        if closer.connect("timeout()", box, "reject()") is False:
+            raise RuntimeError("timer.connect returned False")
+    except Exception as exc:
+        out["error"] = f"the dialog could not be set up to close by itself ({type(exc).__name__}: {exc}); no dialog was shown"
+        return out
+    cd = {"ticks": 0, "error": None}
+    held = {"box": box}  # emptied after the dialog, so the countdown function keeps no dialog alive
+
+    def _tick():
+        cd["ticks"] += 1
+        left = seconds - cd["ticks"]
+        if left < 1 or held["box"] is None:
+            return  # the closing timer ends the dialog at 0; no "No (0)"
+        try:
+            held["box"].button(QMessageBox.No).setText(f"No ({left})")
+        except Exception as exc:
+            if cd["error"] is None:
+                cd["error"] = f"relabel at tick {cd['ticks']}: {type(exc).__name__}: {exc}"
+
+    ticker = None
+    try:
+        ticker = QtCore.QTimer(box)
+        ticker.setSingleShot(False)
+        ticker.setInterval(1000)
+        if ticker.connect("timeout()", _tick) is False:
+            raise RuntimeError("the countdown timer's connect returned False")
+        box.button(QMessageBox.No).setText(f"No ({seconds})")  # only once the countdown can run
+    except Exception as exc:
+        cd["error"] = f"countdown setup: {type(exc).__name__}: {exc}"
+        ticker = None
+    started = time.monotonic()
+    try:
+        closer.start()
+        if ticker is not None:
+            ticker.start()
+        answer = box.exec_()
+    except Exception as exc:
+        for t in (closer, ticker):
+            try:
+                if t is not None:
+                    t.stop()
+            except Exception:
+                pass
+        held["box"] = None
+        out["error"] = f"the dialog failed ({type(exc).__name__}: {exc})"
+        return out
+    out["elapsed_s"] = round(time.monotonic() - started, 3)
+    for t in (closer, ticker):
+        try:
+            if t is not None:
+                t.stop()
+        except Exception:
+            pass
+    if answer == QMessageBox.Yes:
+        out["answer"] = "yes"
+    else:
+        try:
+            clicked = box.clickedButton()
+            out["answer"] = "not_answered" if clicked is None else "no"
+        except Exception:
+            out["answer"] = "unclear"
+    if cd["error"]:
+        out["countdown_error"] = cd["error"]
+    held["box"] = None
+    return out
+
+
+def _confirm_deletion(name, seconds=_DIALOG_SECONDS_DEFAULT):
+    """The delete question (v0.203: closes by itself after `seconds`); returns _ask_yes_no's result."""
+    return _ask_yes_no("Glyphbridge: Confirm Deletion", _deletion_text(name), seconds, "deleted")
+
+
+def _dialog_refusal(dialog, what):
+    """v0.203 - the reply fields for a dialog that did not give a Yes. `what` is "deletion" or "removal"."""
+    answer = dialog.get("answer")
+    if answer == "no":
+        return {"user_declined": True, "reason": f"the {what} was not approved in FontLab (answered No)"}
+    if answer == "not_answered":
+        return {"not_answered": True, "reason": f"nobody answered in FontLab within {dialog.get('seconds')} s; the question closed by itself"}
+    if answer == "unclear":
+        return {"user_declined": True, "reason": f"the {what} was not approved in FontLab (No, or no answer in time: which one could not be read)"}
+    return {"dialog_error": str(dialog.get("error") or "the dialog could not be shown"),
+            "reason": f"no dialog could be shown, so nothing was {'deleted' if what == 'deletion' else 'removed'}"}
+
+
+def delete_glyph(name, seconds=_DIALOG_SECONDS_DEFAULT):
     """Delete one glyph, but only after a human confirms it in FontLab.
 
     Nothing is deleted unless (a) the glyph exists, (b) a Yes/No dialog
     was shown in FontLab and answered Yes, and (c) re-reading font.glyphs
     afterward confirms it is actually gone. Any other outcome is reported
     as deleted=False with a specific reason - never a guessed success.
+    v0.203: the dialog closes by itself after `seconds` (not_answered); "dialog" says what happened.
     """
     font = _open_font()
     if font is None:
@@ -1097,15 +1215,11 @@ def delete_glyph(name):
             "after_count": len(before),
         }
 
-    if not _confirm_deletion(name):
-        return {
-            "open": True,
-            "deleted": False,
-            "user_declined": True,
-            "reason": "the deletion was not approved in FontLab (dialog answered No or closed)",
-            "before_count": len(before),
-            "after_count": len(before),
-        }
+    dialog = _confirm_deletion(name, seconds)
+    if dialog.get("answer") != "yes":
+        refused = {"open": True, "deleted": False, "dialog": dialog, "before_count": len(before), "after_count": len(before)}
+        refused.update(_dialog_refusal(dialog, "deletion"))
+        return refused
 
     call_error = None
     try:
@@ -1128,6 +1242,7 @@ def delete_glyph(name):
         "deleted": deleted,
         "before_count": len(before),
         "after_count": len(after),
+        "dialog": dialog,
     }
     result.update(guard_report)
     if call_error:
@@ -1136,6 +1251,8 @@ def delete_glyph(name):
         result["reason"] = "removeGlyph() did not raise, but the glyph is still in font.glyphs afterward"
     if deleted:
         result["fontlab_changed_mark"] = _mark_font_changed_after_delete(font, after)
+        if name == ".notdef":
+            result["notdef_deleted"] = True   # v0.203: the font now has no .notdef
     return result
 
 
@@ -4784,12 +4901,10 @@ def remove_kerning_pairs(pairs):
             "results": results, "fontlab_changed_mark": mark, "fontlab_panel_refresh": refresh}
 
 
-def _confirm_group_removal(text):
-    """v0.200 - blocking Yes/No dialog in FontLab before a kerning group is removed, the pattern of _confirm_deletion: it runs on the
-    main thread, and Enter or closing the dialog declines. The section below (rename_kerning_group, remove_kerning_group) uses it."""
-    box = QMessageBox(QMessageBox.Warning, "Glyphbridge: Confirm Kerning Group Removal", text, QMessageBox.Yes | QMessageBox.No)
-    box.setDefaultButton(QMessageBox.No)
-    return box.exec_() == QMessageBox.Yes
+def _confirm_group_removal(text, seconds=_DIALOG_SECONDS_DEFAULT):
+    """v0.200 - the Yes/No dialog in FontLab before a kerning group is removed (default No); since v0.203 _ask_yes_no's dialog, which
+    closes by itself after `seconds`. Returns _ask_yes_no's result. The section below (remove_kerning_group) uses it."""
+    return _ask_yes_no("Glyphbridge: Confirm Kerning Group Removal", text, seconds, "removed")
 
 
 # v0.200 - renaming and removing ONE kerning group of the current master (the design of 2026-11-20, DECISIONS.md; research GE0 1499-1504,
@@ -5027,7 +5142,7 @@ def _kge_removal_text(group, before, pairs):
             f"{fate}\n\nNo Glyphbridge tool can bring a removed group back.\n\nAllow this removal?")
 
 
-def remove_kerning_group(group, pairs):
+def remove_kerning_group(group, pairs, seconds=_DIALOG_SECONDS_DEFAULT):
     """v0.200 - removes ONE kerning group of the current master after a Yes in a FontLab dialog (default No): container.remove(group)
     (pairs="keep": its class entries become glyph pairs or class : glyph entries of its members, GE 1518, GL 1530, GK 1539-1544) or
     container.remove(group, True) (pairs="delete": its entries go too, GE 1520). Verified by re-reading: the group gone from both sources,
@@ -5046,9 +5161,13 @@ def remove_kerning_group(group, pairs):
         return _kge_reply(ctx, {"error": f"the kerning groups' remove is not reachable ({type(exc).__name__}: {exc}); nothing was removed"})
     if not callable(remover):
         return _kge_reply(ctx, {"error": "the kerning groups' remove is not callable; nothing was removed"})
-    if not _confirm_group_removal(_kge_removal_text(group, before, pairs)):
-        return _kge_reply(ctx, {"group": group, "pairs": pairs, "removed": False, "changed": False, "user_declined": True,
-                                "reason": "the removal was not approved in FontLab (dialog answered No or closed)"})
+    dialog = _confirm_group_removal(_kge_removal_text(group, before, pairs), seconds)
+    if dialog.get("answer") != "yes":   # v0.203: No, no answer in time, or no dialog
+        refused = {"group": group, "pairs": pairs, "removed": False, "changed": False, "dialog": dialog}
+        refused.update(_dialog_refusal(dialog, "removal"))
+        if "dialog_error" in refused:
+            refused["error"] = f"{refused['dialog_error']}; nothing was removed"
+        return _kge_reply(ctx, refused)
     call_error, returned = None, None
     try:
         returned = remover(group) if pairs == "keep" else remover(group, True)
@@ -9660,21 +9779,23 @@ def _glyph_layer_count(glyph):
         return None
 
 
-# --- .notdef check and warning dialog (v0.46) ---------------------------------
+# --- .notdef check and note (v0.46; since v0.203 an OUTPUT line, no dialog) -----
 # Basis (real FontLab 8.4 session, read-only probes): the empty .notdef of the test font has len(glyph.layers) == 0 and
 # bodyLayer/activeLayer None on every attempt; Arial's drawn .notdef has 1 layer, 2 contours, 8 nodes and reads normally.
 # So "no layers" counts as "no outline data". A glyph whose layer cannot be reached although layers exist is 'unknown',
-# NEVER 'empty': the dialog appears only on POSITIVE evidence (missing or empty), never because a read failed.
-_NOTDEF_WARNED = {}      # font path -> status the user was already warned about during this listener run
-_NOTDEF_TITLE = "Glyphbridge: .notdef glyph"
-_NOTDEF_EXPLAIN = (
-    "The .notdef is the glyph that shows when your font doesn't contain a character that is being typed. "
-    "It is usually drawn as a rectangle, often with a question mark or an X inside, as the OpenType "
-    "specification recommends.")
-_NOTDEF_DIALOG_TEXT = {
-    "empty": "It looks like you haven't created a proper .notdef glyph yet. " + _NOTDEF_EXPLAIN,
-    "missing": "Your font has no glyph named .notdef. Every font needs one (it must be glyph 0). " + _NOTDEF_EXPLAIN,
+# NEVER 'empty': the note is made only on POSITIVE evidence (missing or empty), never because a read failed.
+# v0.203 (DECISIONS 2026-11-21): no dialog any more; one OUTPUT line per font and listener run, remembered by the font's
+# package fgId (all unsaved fonts shared the path "" before, so a second unsaved font was never noted).
+_NOTDEF_NOTED = {}       # package fgId -> the status already noted for that font during this listener run
+_NOTDEF_OUTPUT = {
+    "missing": "this font has no glyph named .notdef; every font needs one as glyph 0: it shows when a character is missing",
+    "empty": ".notdef is empty; it shows when a character is missing, usually as a rectangle, often with a ? or an X",
 }
+_NOTDEF_OUTPUT_MATURE = "; this font has every letter A-Z and a-z, so it may have been overlooked"
+# v0.203 - maturity of a font whose .notdef is empty: all 52 English letters present (by primary Unicode) and at least one of them
+# drawn. The drawn check reads the modern layer only (the count _notdef_modern_outline_counts makes) and stops at the first drawn letter.
+_LETTER_CODEPOINTS = tuple(range(0x41, 0x5B)) + tuple(range(0x61, 0x7B))
+_LETTERS_FIRST = (ord("n"), ord("o"), ord("H"), ord("O"))
 
 
 def _notdef_modern_outline_counts(glyph, font):
@@ -9781,41 +9902,88 @@ def check_notdef():
     result["evidence"] = evidence
     if notes:
         result["notes"] = notes
+    if status == "empty":
+        result["maturity"] = _font_maturity(font)   # v0.203
     return result
 
 
-def _show_notdef_dialog(status):
-    """Blocking information dialog in FontLab (same pattern as _confirm_deletion): runs on the main thread, so the
-    listener answers nothing else until the person clicks OK."""
-    box = QMessageBox(QMessageBox.Information, _NOTDEF_TITLE, _NOTDEF_DIALOG_TEXT[status], QMessageBox.Ok)
-    box.exec_()
+def _font_maturity(font):
+    """v0.203 - READ-ONLY. Is the font mature, so that an empty .notdef is likely an oversight? Mature: all 52 English letters
+    (U+0041-005A, U+0061-007A) are present as some glyph's primary Unicode, and at least one of those glyphs is drawn (a node or a
+    component on its modern active layer). The codepoint scan is the one _other_glyphs_with_unicode makes; the drawn check starts
+    with n o H O and stops at the first drawn letter. A glyph that cannot be read is counted ("unreadable"), never skipped
+    silently: when letters are missing and some glyphs were unreadable, "mature" is None (unknown). Never raises."""
+    try:
+        glyphs = list(font.glyphs)
+    except Exception as exc:
+        return {"mature": None, "error": f"the glyph list could not be read ({type(exc).__name__}: {exc})"}
+    wanted = set(_LETTER_CODEPOINTS)
+    holders, unreadable = {}, 0
+    for g in glyphs:
+        try:
+            cp = g.unicode
+        except Exception:
+            unreadable += 1
+            continue
+        if type(cp) is int and cp in wanted and cp not in holders:
+            holders[cp] = g
+    missing = [chr(cp) for cp in _LETTER_CODEPOINTS if cp not in holders]
+    out = {"letters_present": len(_LETTER_CODEPOINTS) - len(missing), "letters_missing": "".join(missing), "unreadable": unreadable}
+    if missing:
+        out["mature"] = None if unreadable else False
+        return out
+    order = list(_LETTERS_FIRST) + [cp for cp in _LETTER_CODEPOINTS if cp not in _LETTERS_FIRST]
+    checked = 0
+    for cp in order:
+        checked += 1
+        if _notdef_modern_outline_counts(holders[cp], font) is not None:
+            out.update(mature=True, drawn_letter=chr(cp), letters_checked_for_outline=checked)
+            return out
+    out.update(mature=False, drawn_letter=None, letters_checked_for_outline=checked)
+    return out
+
+
+def _notdef_font_key():
+    """v0.203 - (the current package's fgId, None) or (None, reason). flWorkspace.currentPackage follows the font in front (T5)."""
+    try:
+        ws = fl.flWorkspace.instance()
+    except Exception as exc:
+        return None, f"the workspace could not be reached ({type(exc).__name__}: {exc})"
+    pkg, err = _pkg_get(ws, "currentPackage")
+    if err is not None:
+        return None, err
+    if pkg is None:
+        return None, "the workspace has no current package"
+    return _package_fg_id(pkg, "the current package")
 
 
 def warn_notdef(force=False):
-    """Re-check .notdef HERE (a dialog is never shown on the caller's say-so), then show the dialog if, and only if,
-    .notdef is missing or empty and this font has not been warned about that status yet (unless force)."""
+    """Re-check .notdef HERE (nothing is noted on the caller's say-so). v0.203: NO dialog. When .notdef is missing or empty and this
+    font has not been noted for that status in this listener run (unless force), it is noted: the activity log prints one OUTPUT
+    line. Remembered by the font's package fgId; when the fgId cannot be read nothing is remembered, so the note may repeat but
+    is never wrongly held back. already_warned and dialog_shown stay in the reply for older servers."""
     font = _open_font()
     if font is None:
         return {"open": False}
     check = check_notdef()
     status = check.get("status")
     out = {"open": True, "status": status, "evidence": check.get("evidence", []),
-           "dialog_shown": False, "already_warned": False}
+           "noted": False, "already_noted": False, "already_warned": False, "dialog_shown": False}
+    if "maturity" in check:
+        out["maturity"] = check["maturity"]
     if status not in ("missing", "empty"):
-        out["reason"] = ("no warning needed: .notdef has an outline" if status == "has_outline"
-                         else "could not be determined, so no warning was shown")
+        out["reason"] = ("no note needed: .notdef has an outline" if status == "has_outline"
+                         else "could not be determined, so nothing was noted")
         return out
-    key = str(font.path or "")
-    if not force and _NOTDEF_WARNED.get(key) == status:
-        out["already_warned"] = True
+    key, key_error = _notdef_font_key()
+    if key_error:
+        out["memory_note"] = f"not remembered for this font: {key_error}"
+    if not force and key is not None and _NOTDEF_NOTED.get(key) == status:
+        out["already_noted"] = out["already_warned"] = True
         return out
-    try:
-        _show_notdef_dialog(status)
-    except Exception as exc:
-        out["dialog_error"] = f"{type(exc).__name__}: {exc}"
-        return out
-    _NOTDEF_WARNED[key] = status
-    out["dialog_shown"] = True
+    if key is not None:
+        _NOTDEF_NOTED[key] = status
+    out["noted"] = True
     return out
 
 
@@ -10913,6 +11081,169 @@ def debug_try_advance_width(name, stage, go):
     result.update(open=True, found=True, wrapper=how, glyph_count_before=count_before, glyph_count_after=count_after,
                   side_effect_detected=None if count_after is None else count_after != count_before)
     return result
+
+
+# /debug/trydialogtimeout (v0.201) - RESEARCH, UI ONLY: can a dialog of this listener close itself after N seconds while its
+# exec_() waits? Option C of the client time-limit research (TO 1577-1582, TO2 1583-1587): a dialog that outlives an AI app's
+# time limit is answered later without anyone being told. No FontLab font call at all. how=slot connects a single-shot QTimer
+# owned by the dialog straight to the dialog's reject() slot (a pure Qt connection; 1588: QTimer.connect(signal, receiver, slot,
+# type)); how=python connects it to a Python function that notes the firing and calls reject(). Qt does not fire a timer again
+# while its own handler still runs, which is why the poll timer serves nothing during a dialog; a separate timer may fire.
+# The dialog is the QMessageBox the product dialogs use (1589: PythonQt.QtGui). Gated by go=yes; 3 to 50 seconds; 10 per
+# listener run, counted before the dialog.
+_TRYDIALOGTIMEOUT_MAX = 10
+_TRYDIALOGTIMEOUT = {"calls": 0}
+_TRYDIALOGTIMEOUT_TITLE = "Glyphbridge test: self-closing question"
+
+
+def debug_try_dialog_timeout(how, seconds, go, countdown=""):
+    """Show ONE test Yes/No dialog that a QTimer closes after `seconds` unless the person answers first. No font is touched.
+    countdown=yes (v0.202): a second timer owned by the dialog relabels the No button "No (N)" once a second through a
+    Python function; it is visual only: the closing never depends on it, and a countdown that fails is reported."""
+    result = {"how": how, "seconds": seconds, "call": "QMessageBox.exec_() with a single-shot QTimer owned by the dialog",
+              "calls_so_far": _TRYDIALOGTIMEOUT["calls"], "max_calls": _TRYDIALOGTIMEOUT_MAX, "font_touched": False,
+              "dialog_started": False, "countdown": countdown == "yes"}
+    if how not in ("slot", "python"):
+        return dict(result, error="how must be slot or python")
+    if countdown not in ("", "no", "yes"):
+        return dict(result, error="countdown must be yes or no")
+    if not isinstance(seconds, str) or not (1 <= len(seconds) <= 2 and seconds.isascii() and seconds.isdigit()) \
+            or not 3 <= int(seconds) <= 50:
+        return dict(result, error="seconds must be a whole number from 3 to 50")
+    secs = int(seconds)
+    result["seconds"] = secs
+    if go != "yes":
+        return dict(result, plan=f"one test Yes/No dialog (default No) that closes by itself after {secs} s through how={how}"
+                                 + ("; the No button counts down once a second" if countdown == "yes" else "")
+                                 + "; no font is touched; add &go=yes to show it")
+    if _TRYDIALOGTIMEOUT["calls"] >= _TRYDIALOGTIMEOUT_MAX:
+        return dict(result, refused=True,
+                    error=f"the {_TRYDIALOGTIMEOUT_MAX} calls of this listener run are used up; restart the listener for more")
+    _TRYDIALOGTIMEOUT["calls"] += 1  # counted before the dialog
+    result["calls_so_far"] = _TRYDIALOGTIMEOUT["calls"]
+    text = (f"Glyphbridge test (listener probe): this question closes by itself in {secs} seconds.\n\n"
+            "Nothing in any font changes, whatever you answer.")
+    try:
+        box = QMessageBox(QMessageBox.Question, _TRYDIALOGTIMEOUT_TITLE, text, QMessageBox.Yes | QMessageBox.No)
+        box.setDefaultButton(QMessageBox.No)  # Enter / closing the dialog = No
+        timer = QtCore.QTimer(box)            # owned by the dialog: it goes when the dialog goes
+        timer.setSingleShot(True)
+        timer.setInterval(secs * 1000)
+    except Exception as exc:
+        return dict(result, error=f"the dialog or its timer could not be made: {type(exc).__name__}: {exc}; no dialog was shown")
+    fired = {"count": 0, "after_s": None}
+    held = {"box": box, "started": None}  # emptied after the dialog, so the Python function keeps no dialog alive
+
+    def _on_timeout():
+        fired["count"] += 1
+        if held["started"] is not None:
+            fired["after_s"] = round(time.monotonic() - held["started"], 3)
+        if held["box"] is not None:
+            held["box"].reject()
+
+    try:
+        if how == "slot":
+            connected = timer.connect("timeout()", box, "reject()")
+        else:
+            connected = timer.connect("timeout()", _on_timeout)
+    except Exception as exc:
+        held["box"] = None
+        return dict(result, error=f"timer.connect failed: {type(exc).__name__}: {exc}; no dialog was shown")
+    result["connected"] = connected if isinstance(connected, bool) else repr(connected)
+    if connected is False:
+        held["box"] = None
+        return dict(result, error="timer.connect returned False; no dialog was shown, since nothing would close it")
+    # v0.202: the countdown, visual only. A setup that fails leaves the dialog without it (countdown_error), never unshown.
+    cd = {"ticks": 0, "last_label": None, "error": None}
+    tick_timer = None
+
+    def _on_tick():
+        cd["ticks"] += 1
+        remaining = secs - cd["ticks"]
+        if remaining < 1 or held["box"] is None:
+            return  # the closing timer ends the dialog at 0; no "No (0)"
+        try:
+            label = f"No ({remaining})"
+            held["box"].button(QMessageBox.No).setText(label)
+            cd["last_label"] = label
+        except Exception as exc:
+            if cd["error"] is None:
+                cd["error"] = f"relabel at tick {cd['ticks']}: {type(exc).__name__}: {exc}"
+
+    if countdown == "yes":
+        try:
+            tick_timer = QtCore.QTimer(box)  # owned by the dialog, like the closing timer
+            tick_timer.setSingleShot(False)
+            tick_timer.setInterval(1000)
+            tick_connected = tick_timer.connect("timeout()", _on_tick)
+            if tick_connected is False:
+                raise RuntimeError("tick_timer.connect returned False")
+            # the first label only once the countdown can run, so a failed setup never leaves a number standing
+            first = f"No ({secs})"
+            no_button = box.button(QMessageBox.No)
+            if no_button is None:
+                raise RuntimeError("button(QMessageBox.No) gave no button")
+            no_button.setText(first)
+            cd["last_label"] = first
+        except Exception as exc:
+            cd["error"] = f"countdown setup: {type(exc).__name__}: {exc}"
+            tick_timer = None
+    try:
+        held["started"] = time.monotonic()
+        timer.start()
+        if tick_timer is not None:
+            tick_timer.start()
+        result["dialog_started"] = True
+        answer = box.exec_()
+        elapsed = time.monotonic() - held["started"]
+    except Exception as exc:
+        for t in (timer, tick_timer):
+            try:
+                if t is not None:
+                    t.stop()
+            except Exception:
+                pass
+        held["box"] = None
+        return dict(result, error=f"the dialog failed: {type(exc).__name__}: {exc}")
+    if tick_timer is not None:
+        try:
+            tick_timer.stop()
+        except Exception as exc:
+            if cd["error"] is None:
+                cd["error"] = f"countdown stop: {type(exc).__name__}: {exc}"
+    out = dict(result, elapsed_s=round(elapsed, 3), exec_result=answer if type(answer) is int else repr(answer),
+               result_is_yes=answer == QMessageBox.Yes)
+    try:
+        out["timer_active_after"] = bool(timer.isActive())
+        timer.stop()
+    except Exception as exc:
+        out["timer_stop_error"] = f"{type(exc).__name__}: {exc}"
+    try:
+        clicked = box.clickedButton()
+        if clicked is None:
+            out["clicked_button"] = None
+        else:
+            label = clicked.text  # a property in PythonQt, not a method (SC 1591, 1592); called only where it is one
+            out["clicked_button"] = str(label() if callable(label) else label)
+        out["closed_without_click"] = clicked is None
+    except Exception as exc:
+        out["clicked_button_error"] = f"{type(exc).__name__}: {exc}"
+    try:
+        code = box.result()
+        out["dialog_result"] = code if type(code) is int else repr(code)
+    except Exception as exc:
+        out["dialog_result_error"] = f"{type(exc).__name__}: {exc}"
+    if how == "python":
+        out.update(timer_fired=fired["count"], timer_fired_after_s=fired["after_s"])
+    if countdown == "yes":
+        out.update(countdown_ticks=cd["ticks"], countdown_last_label=cd["last_label"], countdown_error=cd["error"])
+        try:
+            label = box.button(QMessageBox.No).text
+            out["countdown_label_after"] = str(label() if callable(label) else label)
+        except Exception as exc:
+            out["countdown_label_after_error"] = f"{type(exc).__name__}: {exc}"
+    held["box"] = None
+    return out
 
 
 def _read_elements(glyph, font, legacy_layer_name, legacy_node_count):
@@ -14691,6 +15022,13 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
+        if path == "/debug/trydialogtimeout":     # v0.201: a dialog that closes itself (research, UI only, gated)
+            try:
+                return _build_response(200, debug_try_dialog_timeout((query.get("how") or [""])[0], (query.get("seconds") or [""])[0],
+                                                                     (query.get("go") or [""])[0], (query.get("countdown") or [""])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
         if path == "/debug/objdir":
             names = query.get("name")
             if not names or not names[0].strip():
@@ -15110,15 +15448,20 @@ def _route(method, full_path, body=b""):
         if path in ("/kerning/group/rename", "/kerning/group/remove"):      # v0.200
             rename = path == "/kerning/group/rename"
             keys = {"group", "new_name"} if rename else {"group", "pairs"}
+            optional = set() if rename else {"dialog_seconds"}     # v0.203
             try:
                 payload = json.loads(body.decode("utf-8")) if body else {}
             except (UnicodeDecodeError, json.JSONDecodeError):
                 return _build_response(400, {"error": "request body was not valid JSON"})
-            if not isinstance(payload, dict) or set(payload) != keys:
-                return _build_response(400, {"error": "the body must be a JSON object with " + " and ".join(f'"{k}"' for k in sorted(keys)) + " and nothing else"})
+            if not isinstance(payload, dict) or not (keys <= set(payload) <= keys | optional):
+                return _build_response(400, {"error": "the body must be a JSON object with " + " and ".join(f'"{k}"' for k in sorted(keys))
+                                         + (' (and optionally "dialog_seconds")' if optional else "") + " and nothing else"})
+            seconds, serr = _dialog_seconds(payload.get("dialog_seconds"))
+            if serr:
+                return _build_response(400, {"error": serr})
             try:
                 result = (rename_kerning_group(payload["group"], payload["new_name"]) if rename
-                          else remove_kerning_group(payload["group"], payload["pairs"]))
+                          else remove_kerning_group(payload["group"], payload["pairs"], seconds))
                 if "bad_request" in result:
                     return _build_response(400, {"error": result["bad_request"]})
                 return _build_response(200, result)
@@ -15177,8 +15520,11 @@ def _route(method, full_path, body=b""):
             name = payload.get("name") if isinstance(payload, dict) else None
             if not isinstance(name, str) or not name.strip():
                 return _build_response(400, {"error": '"name" must be a non-empty string'})
+            seconds, serr = _dialog_seconds(payload.get("dialog_seconds"))   # v0.203
+            if serr:
+                return _build_response(400, {"error": serr})
             try:
-                return _build_response(200, delete_glyph(name.strip()))
+                return _build_response(200, delete_glyph(name.strip(), seconds))
             except Exception as exc:
                 return _build_response(500, {"error": str(exc)})
 
@@ -15572,6 +15918,12 @@ def _act_announce(client, launcher):
     print(f"[glyphbridge] {client} | {launcher}" if client else f"[glyphbridge] {launcher}")
 
 
+def _act_dialog_seconds(reply):
+    """v0.203 - the seconds a self-closing dialog waited, from the reply's "dialog"; None when absent."""
+    dialog = reply.get("dialog") if isinstance(reply.get("dialog"), dict) else {}
+    return dialog.get("seconds")
+
+
 def _act_text(value):
     text = " ".join(str(value).split())
     return text if len(text) <= _ACTIVITY_TEXT_MAX else text[:_ACTIVITY_TEXT_MAX - 3] + "..."
@@ -15641,10 +15993,10 @@ def _act_describe_write(path, payload, code, reply):
     unsynced = reply.get("synced_with_fontlab") is False
     sync = ", NOT synced with FontLab" if unsynced else ""
     if kind == ".notdef":
-        if reply.get("dialog_shown") is True:
-            return f".notdef: warning dialog shown (.notdef is {_act_text(reply.get('status'))})", False
-        if reply.get("dialog_error"):
-            return f"FAILED .notdef warning: {_act_text(reply['dialog_error'])}", False
+        if reply.get("noted") is True and reply.get("status") in _NOTDEF_OUTPUT:   # v0.203: the note, no dialog
+            maturity = reply.get("maturity") if isinstance(reply.get("maturity"), dict) else {}
+            mature = _NOTDEF_OUTPUT_MATURE if reply["status"] == "empty" and maturity.get("mature") is True else ""
+            return f"note: {_NOTDEF_OUTPUT[reply['status']]}{mature}", False
         return None, False
     if kind == "create":
         if reply.get("created") is True:
@@ -15657,6 +16009,8 @@ def _act_describe_write(path, payload, code, reply):
             return f"{head}: deleted after your Yes (verified, glyphs {_act_num(reply.get('before_count'))} -> {_act_num(reply.get('after_count'))})", False
         if reply.get("user_declined") is True:
             return f"{head}: you answered No in FontLab, nothing deleted", False
+        if reply.get("not_answered") is True:   # v0.203
+            return f"{head}: not answered within {_act_num(_act_dialog_seconds(reply))} s, nothing deleted", False
         return f"NOT DONE {head}: {why}", False
     if kind == "width":
         if reply.get("set") is True:
@@ -15808,6 +16162,8 @@ def _act_describe_kerning_group(kind, payload, code, reply):
         return f"NOT DONE {head}: {_act_text(reply.get('reason') or reply.get('call_error') or 'not confirmed by the re-read')}", False
     if reply.get("user_declined") is True:
         return f"{head}: you answered No in FontLab, nothing removed", False
+    if reply.get("not_answered") is True:   # v0.203
+        return f"{head}: not answered within {_act_num(_act_dialog_seconds(reply))} s, nothing removed", False
     if reply.get("removed") is True:
         what = "its kerning kept as entries of its members" if reply.get("pairs") == "keep" else "its kerning deleted"
         return (f"{head}: removed after your Yes, {what} (verified, kerning entries {_act_num(reply.get('table_size_before'))} -> "
