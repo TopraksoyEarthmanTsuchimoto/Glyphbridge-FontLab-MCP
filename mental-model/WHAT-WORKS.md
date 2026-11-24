@@ -1,6 +1,6 @@
 # What works
 
-What is live-proven in FontLab, and which version each feature needs. An entry is added only after a live run; what is stub-tested only is named as such. What is not proven or not built, and what comes next: [CURRENT-STATUS.md](CURRENT-STATUS.md). This file is not a startup core file: [AGENTS.md](../AGENTS.md) says when to read it. Word budget: 3,500 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
+What is live-proven in FontLab, and which version each feature needs. An entry is added only after a live run; what is stub-tested only is named as such. What is not proven or not built, and what comes next: [CURRENT-STATUS.md](CURRENT-STATUS.md). This file is not a startup core file: [AGENTS.md](../AGENTS.md) says when to read it. Word budget: 4,750 ([MARKDOWN-MAP.md](MARKDOWN-MAP.md)).
 
 ## Live-proven in FontLab
 

@@ -136,6 +136,16 @@ Condensed on 2026-11-13; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECIS
 
 ## Glyphs
 
+### 2026-11-24: `add_contours`, the second edit tool (research listener 0.206, ED4 1657–1664; built listener 0.207 / server 0.89)
+
+- **A tool of its own, not a mode of `draw_path`.** *Reason:* `draw_path`'s refusal of a glyph that is not empty stays a safety net; adding is a different FontLab call (`shape.shapeData.addContour` on the existing shape) with a different check.
+- **Curved and open contours were researched by probe before the build** (choice B). *Reason:* each half was proven apart, their combination was not.
+- **A shape with its own transform, several shapes, a component and a Power Brush shape are refused**, as by `move_nodes` ([topics/refusals.md](topics/refusals.md)). *Reason:* only one plain shape without a transform was seen; Power Brush risks the person's work (F1).
+- **Verified as `move_nodes` is:** the re-read nodes; sidebearings computed from them, FontLab's lagging values shown apart; `undo_note`; marked whenever the outline changed. *Reason:* the same lag (ED2–ED4); one reply shape for both edit tools.
+- **`expected_contours` is required.** *Reason:* a contour placed against a stale read lands wrongly yet reads `verified`; a count needs nothing from FontLab that lags.
+- **`draw_path`'s input; new contours last, in order; 2,000 nodes counted over the whole glyph.** *Reason:* the cap protects the request time.
+- *Reason for all:* the user's answers, one question at a time.
+
 ### 2026-11-20: `get_glyph_width` reads `advanceWidth`, cross-checked with the legacy width (design B; listener 0.198 / server 0.81)
 
 - **The width is FontLab's modern `advanceWidth`; the legacy `glyph.width` is still read, and shown only when the two differ by 0.01 or more, with a note and an instruction to tell the person both and not choose one.** *Reason:* the user's choice (B over A, modern only): which value FontLab saves is open (AW 1449, [WATCH-POINTS.md](WATCH-POINTS.md)), so hiding a disagreement would break the design rule ([PROJECT.md](PROJECT.md)); the extra read is F1-safe (486–496) and AW4 (1470–1489) found both reads equal on the glyph kinds tried. The cross-check may be dropped once a save test settles the stored value, as a decision of its own.
@@ -204,6 +214,10 @@ Condensed on 2026-11-24; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECIS
 - **AI agents must be able to see which groups have which members** ([ROADMAP.md](ROADMAP.md) P1.6; proposed first and built only after approval). *Supersedes* "group membership is deliberately not read". *Reason:* K9 and the KERNING panel method depended on membership, which only FontLab's Classes panel could show; the members of one group are a small read.
 
 ## Repository and documents
+
+### 2026-11-24: refusals tracked in one register
+
+- **Every case a tool refuses, or no tool supports yet, is listed in [topics/refusals.md](topics/refusals.md), with what would lift it. When a case becomes possible in one tool, the agent proposes lifting it in every other tool that refuses it, or says why not ([AGENTS.md](../AGENTS.md)). A shared table in the code of what each edit tool accepts, with a stub test of every tool against every case, is to be proposed with the add-contour tool.** *Reason:* the user's choice; the add-contour tool is the third edit tool to refuse the same cases, and a lifted case was remembered nowhere.
 
 ### 2026-11-20: version history lives in WHAT-WORKS.md and CHANGELOG.md
 

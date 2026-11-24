@@ -17,7 +17,7 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 1,000 |
 | [CHECKLIST.md](CHECKLIST.md) | open scenarios | 1,750 |
 
-Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 800; [WATCH-POINTS.md](WATCH-POINTS.md) 3,250; [WHAT-WORKS.md](WHAT-WORKS.md) 3,500; [GLOSSARY.md](GLOSSARY.md) 500.
+Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 800; [WATCH-POINTS.md](WATCH-POINTS.md) 3,250; [WHAT-WORKS.md](WHAT-WORKS.md) 4,750; [GLOSSARY.md](GLOSSARY.md) 500.
 
 **Reference totals:** 19,150 words including the root README, and 18,350 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
 
@@ -25,7 +25,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 
 | File | Role |
 |---|---|
-| [WHAT-WORKS.md](WHAT-WORKS.md) | what is live-proven and which version each feature needs; read on the trigger in AGENTS.md (budget 3,500) |
+| [WHAT-WORKS.md](WHAT-WORKS.md) | what is live-proven and which version each feature needs; read on the trigger in AGENTS.md (budget 4,750) |
 | [HOW-TO-GET-ORGANIZED.md](HOW-TO-GET-ORGANIZED.md) | the workflow guide this repository follows |
 | [WATCH-POINTS.md](WATCH-POINTS.md) | what was seen but is not yet explained or settled, and how an entry is settled or dropped (budget 3,250) |
 | [GLOSSARY.md](GLOSSARY.md) | the project's short codes and terms, one line each, with a link to each one's home (budget 500) |
@@ -42,6 +42,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 | [topics/geometry.md](topics/geometry.md) | width, sidebearings, polygons, curves, layer guard, v8 live record |
 | [topics/fonts-and-sync.md](topics/fonts-and-sync.md) | new fonts, unsynced layers, guard, auto sync, GUI refresh |
 | [topics/kerning.md](topics/kerning.md) | how kerning is read and written, and its tests |
+| [topics/refusals.md](topics/refusals.md) | every case a tool refuses or no tool supports yet: which tools refuse it, which handle it, what would lift it |
 | [tests/README.md](../tests/README.md) | the test harnesses (kept in `tests/` by decision) |
 
 ## Archive

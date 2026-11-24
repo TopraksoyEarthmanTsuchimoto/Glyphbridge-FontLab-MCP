@@ -29,6 +29,7 @@ Follow [mental-model/HOW-TO-GET-ORGANIZED.md](mental-model/HOW-TO-GET-ORGANIZED.
 ## Working agreements
 
 - **Propose first, build after approval.** Code changes are built only after the user answers "Yes. Build vX as described." (or "Yes. Build vX / vY as described."), typed in full; a shortened reply or button does not count. Ask one question at a time.
+- **Refusals live in one register:** [mental-model/topics/refusals.md](mental-model/topics/refusals.md). When a build or live test makes a case possible in one tool, read the register and propose lifting that case in every other tool that refuses it, or say why not, in the same proposal.
 - **When correcting a claim, find every copy of it** (reply texts and tool descriptions in the code, and the docs) and correct them all in the same change.
 - **FontLab is the oracle.** Compare with FontLab's own numbers, and always say what was and was NOT tested in real FontLab. Stub tests passing is not the same as working in FontLab.
 - Change one variable per live test. **Write the predicted numbers in chat before the call.** A record's "Predicted" entries hold only predictions stated beforehand; otherwise say they were written after the run. Record a fact only after a run that rules out the obvious alternative, with a control where one is possible. Compare like with like (the same instrument; the same font where it matters), and never call a reading independent when it is not. Drop a theory as soon as an experiment contradicts it, and say so.

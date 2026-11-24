@@ -8054,6 +8054,47 @@ print("2319b route documented: ", "/debug/tryedit        stage=movenode|addconto
 te_setup()
 print("2320 draw_path still refuses a drawn glyph:", p72_post("/glyph/path", {"name": "edpb", "contours": [RRECT]})[1].get("reason", "")[:90].rstrip())
 
+# ---- v0.206: stage=addcontour&kind=square|cubic|open (a curved and an open contour added to an existing shape; square stays the default)
+print("\n==== v0.206 /debug/tryedit addcontour kinds ====")
+QA = QE + "stage=addcontour&name=edpb"
+EKK = ("kind",) + EK
+te_setup()
+te("2930a kind with stage=movenode     ", MV + "&kind=cubic&go=yes")
+te("2930b unknown kind                 ", QA + "&kind=circle&go=yes")
+te("2930c cubic without go             ", QA + "&kind=cubic")
+te("2930d open without go              ", QA + "&kind=open")
+te("2930e square without go            ", QA)
+print("2930f refusals counted no call      :", ns["_TRYEDIT"]["calls"])
+te_setup()
+d = te("2931 cubic beside a straight outline", QA + "&kind=cubic&go=yes", keys=EKK)
+print("2931a  after                    :", te_outline(d, "after"))
+print("2931b  sync, mark               :", d.get("synced_with_fontlab"), "| changed mark", d.get("fontlab_changed_mark"))
+te_setup()
+d = te("2932 open beside a straight outline", QA + "&kind=open&go=yes", keys=EKK)
+print("2932a  after                    :", te_outline(d, "after"))
+te_setup()
+call(QA + "&kind=cubic&go=yes")
+d = te("2933 open beside square + circle  ", QA + "&kind=open&go=yes", keys=EKK)
+print("2933a  before                   :", te_outline(d, "before"))
+print("2933b  after                    :", te_outline(d, "after"))
+print("2933c  old contours unchanged   :", (d.get("after") or {}).get("contours", [])[:2] == (d.get("before") or {}).get("contours"))
+te_setup()
+call(QA + "&kind=cubic&go=yes")
+d = te("2934 cubic beside square + circle ", QA + "&kind=cubic&go=yes", keys=EKK)
+print("2934a  contours after           :", len((d.get("after") or {}).get("contours", [])))
+te_setup(); d1 = call(QA + "&go=yes")[1]
+te_setup(); d2 = call(QA + "&kind=square&go=yes")[1]
+print("2935 default is square            :", d1.get("kind"), d2.get("kind"), "| same outline after:", d1.get("after") == d2.get("after"), "| edited", d1.get("edited"), d2.get("edited"))
+te_setup(); P72["mode"]["contour_raises"] = 1
+te("2936a builder raises (cubic)       ", QA + "&kind=cubic&go=yes", keys=EKK)
+te_setup(); P72["mode"]["smooth_ignored"] = 1
+te("2936b smooth not kept detached     ", QA + "&kind=cubic&go=yes", keys=EKK)
+te_setup(); P72["mode"]["noclose"] = 1
+te("2936c circle does not close detached", QA + "&kind=cubic&go=yes", keys=EKK)
+te_setup(mode={"add_first": 1})
+te("2936d the open arch lands first    ", QE + "stage=addcontour&name=edpa&kind=open&go=yes", keys=EKK)
+print("2937 spies over all cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
+
 # ---- v0.152: &refresh=R. The fake sidebearings stay stale after an edit (as live 968, 974, 980) until the ONE member named in
 # TE["mode"]["refresh_works"] is called; every refresh member logs into TE["refresh"].
 print("\n==== v0.152 /debug/tryedit refresh ====")
@@ -8232,11 +8273,11 @@ TELayer.resetInkBox = _te_rk
 TE_ALL_FORBIDDEN[:] = [f for f in TE_ALL_FORBIDDEN if f != "TELayer.resetInkBox"]     # expected in 2337f only: that case removed the member
 mv_setup(); TS["edpb"] = TsGlyph("edpb", [TsLayer(1, 3)])
 mv("2337g the legacy view lags: not synced", {"name": "edpb", "moves": [B1]}, keys=("moved", "synced_with_fontlab", "fontlab_changed_mark"))
-_srcmv = "\n".join(l for l in src[src.index("# POST /glyph/move (v0.153)"):src.index("# POST /glyph/component (v0.169)")].split("\n") if not l.lstrip().startswith("#"))
+_srcmv = "\n".join(l for l in src[src.index("# POST /glyph/move (v0.153)"):src.index("# POST /glyph/contours/add (v0.207)")].split("\n") if not l.lstrip().startswith("#"))
 print("2338 spies over the move cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
 print("2338a static scan of move_nodes: forbidden call syntax:",
       _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|clearContours|smartMove|smartSetXY|moveBy|decomposite|ejectTo|activateBuilder|resetMetrics\w*|applyTransform|replaceShape|addContour|removeContour)\s*\(|shapeBuilder|font\.update|getattr\(|resetInkBox", _srcmv),
-      "| every check before the first node.x:", max(_srcmv.index(s) for s in ("problems.append", "_move_shape_identity(shape)", "_move_smooth_bad(", "getNodeAt(ni)")) < _srcmv.index("nd.x = float(tx)"))
+      "| every check before the first node.x:", max(_srcmv.index(s) for s in ("problems.append", '_edit_case_check("move_nodes"', "_move_smooth_bad(", "getNodeAt(ni)")) < _srcmv.index("nd.x = float(tx)"))
 print("2338b route documented:", "POST /glyph/move" in src, "| dispatched:", 'if path == "/glyph/move":' in src, "| mark title:", ns["_MARK_TITLES"].get("move_nodes"),
       "| guard kind full:", "move_nodes" in ns["_GUARD_FULL_KINDS"], "| activity kind:", ns["_ACT_WRITES"].get("/glyph/move"))
 _ok_reply = {"open": True, "moved": True, "nodes_match": True, "synced_with_fontlab": True}
@@ -10290,6 +10331,136 @@ print("2583 static scan:", _re83.findall(r"\.(?:update|save\w*|setGlyphComponent
       "| restore only after an error:", 'if "error" in result and done:' in _ab, "| full check:", '_guard_mark(font, name, "add_component", result,' in _ab,
       "| hooked in both forms:", src.count("return _add_beside(base, name, ctx, state, layer, tel,"), src.count("return _done(_add_beside(base, name, ctx, state, layer, tel,"),
       "| route documented:", 'temporary-layer route in the same request (placement "temporary layer")' in src)
+# ================= v0.207: POST /glyph/contours/add (add_contours) and the _EDIT_ACCEPTS grid =================
+# The v0.186 fakes above (tls: the glyph cpp1 holds the shapes given; nk_legacy: the legacy view's node count, which the sync check
+# compares). TCShapeData gains addContour, which appends to the shape's own contour list; modes break it: addc_raises, addc_drops,
+# addc_first (the new contour lands first), addc_moves_old (an old node moves by 5), addc_extra_shape (an empty shape appears as well).
+print("\n==== v0.207 POST /glyph/contours/add (add_contours) ====")
+def _tcsd_addc(s, c):
+    TC["calls"].append("addContour")
+    m = TC["mode"]
+    if m.get("addc_raises"): raise RuntimeError("addContour boom")
+    if m.get("addc_drops"): return
+    if m.get("addc_moves_old") and s._contours: s._contours[0].rows[0]["x"] += 5.0
+    if m.get("addc_first"): s._contours.insert(0, c); return
+    if m.get("addc_extra_shape"): P72["layers"]["cpp1"]._shapes.append(TCShape([]))
+    s._contours.append(c)
+TCShapeData.addContour = _tcsd_addc
+AK = ("added", "nodes_match", "changed", "mismatches", "reason", "edit_case", "contours_found", "coordinates_rounded", "contour_sizes",
+      "nodes_before", "open_contours", "synced_with_fontlab", "fontlab_changed_mark", "error")
+def adc(tag, body, shapes=lambda: [_contour()], mode=None, keys=AK, legacy=8):
+    tls(shapes, mode=mode, legacy=legacy)
+    c, d = sbpost("/glyph/contours/add", body)
+    TC_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| calls", [x for x in TC["calls"] if x in ("addContour", "addShape")],
+          "| Update", TE["updates"], "| marks", TE["marks"])
+    return d
+def adc_after(d, key="after"):
+    return [("closed" if c["closed"] else "open", [(n["x"], n["y"], n["kind"][0], n["smooth"]) for n in c["nodes"]]) for c in d.get(key) or []]
+SQ_IN = [{"x": 100, "y": 100}, {"x": 100, "y": 200}, {"x": 200, "y": 200}, {"x": 200, "y": 100}]      # a clockwise counter inside TE_SQ
+ARCH = {"points": [{"x": 105, "y": 104}, {"x": 398, "y": 104, "c1": {"x": 105, "y": 280}, "c2": {"x": 398, "y": 255}}], "closed": False}
+A0 = {"name": "cpp1", "expected_contours": 1, "contours": [SQ_IN]}
+for tag, body in (("2910a no expected_contours        ", {"name": "cpp1", "contours": [SQ_IN]}),
+                  ("2910b an extra key                ", dict(A0, closed=True)),
+                  ("2910c expected_contours 0         ", dict(A0, expected_contours=0)),
+                  ("2910d expected_contours a bool    ", dict(A0, expected_contours=True)),
+                  ("2910e expected_contours 1.0       ", dict(A0, expected_contours=1.0)),
+                  ("2910f expected_contours 5001      ", dict(A0, expected_contours=5001)),
+                  ("2910g empty name                  ", dict(A0, name=" ")),
+                  ("2910h no contours                 ", dict(A0, contours=[])),
+                  ("2910i a point without y           ", dict(A0, contours=[[{"x": 1}, {"x": 2, "y": 2}, {"x": 3, "y": 0}]])),
+                  ("2910j c1 without c2               ", dict(A0, contours=[[{"x": 0, "y": 0}, {"x": 9, "y": 0, "c1": {"x": 1, "y": 1}}, {"x": 9, "y": 9}]])),
+                  ("2910k 21 contours                 ", dict(A0, contours=[SQ_IN] * 21))):
+    adc(tag, body, keys=("error",))
+c, d = ns["_route"]("POST", "/glyph/contours/add", b"{not json").partition(b"\r\n\r\n")[0][9:12], None
+print("2910l not JSON                     :", c.decode())
+d = adc("2911 a straight counter           ", A0)
+print("2911a  after                       :", adc_after(d), "| margins", d.get("margins"), "| repainted", d.get("display_refreshed"))
+print("2911b  no before / expected on success:", "before" not in d, "expected_after" not in d, "| guard kind", ns["_guard_state"](ns["_open_font"]())["glyphs"].get("cpp1"))
+d = adc("2912 a cubic circle beside       ", dict(A0, contours=[CIRC]), legacy=16)
+print("2912a  new contour                 :", adc_after(d)[1:])
+d = adc("2913 an open arch beside         ", dict(A0, contours=[ARCH]))
+print("2913a  new contour                 :", adc_after(d)[1:])
+d = adc("2914 a counter and an arch at once", dict(A0, contours=[SQ_IN, ARCH]), legacy=12)
+print("2914a  order after                 :", [(c[0], len(c[1])) for c in adc_after(d)])
+d = adc("2915 rule B                       ", dict(A0, contours=[[{"x": 100.5, "y": 100}, {"x": 100, "y": 200.4}, {"x": 200, "y": 200}, {"x": 200, "y": 100}]]))
+print("2915a  new contour                 :", adc_after(d)[1:])
+d = adc("2916a a stale expected_contours   ", dict(A0, expected_contours=2))
+for tag, shapes in (("2916b an empty layer             ", lambda: []),
+                    ("2916c two shapes                 ", lambda: [_contour(), TCShape([te_contour(TE_TRI)])]),
+                    ("2916d a component                ", lambda: [_tc_comp("cppsrc")]),
+                    ("2916e a Power Brush shape        ", lambda: [TCBrush()])):
+    adc(tag, A0, shapes=shapes)
+def _tx_contour(dx=10.0, m11=1.0):
+    sh = _contour(); sh._tx = TCQT(m11, 0, 0, 1, dx, 0); return sh
+adc("2916f an element offset           ", A0, shapes=lambda: [_tx_contour()])
+adc("2916g a scale                     ", A0, shapes=lambda: [_tx_contour(0.0, 2.0)])
+adc("2916h 1995 nodes + 4 new: allowed  ", A0, shapes=lambda: [TCShape([te_contour([(i, (i % 2) * 10) for i in range(1995)])])], legacy=1999)
+adc("2916i 1997 nodes + 4 new: refused  ", A0, shapes=lambda: [TCShape([te_contour([(i, (i % 2) * 10) for i in range(1997)])])])
+adc("2916j a smooth point off its line ", dict(A0, contours=[[{"x": 100, "y": 100}, {"x": 150, "y": 150, "smooth": True}, {"x": 200, "y": 100}]]))
+adc("2916k a glyph that does not exist ", dict(A0, name="cppzz"))
+adc("2916l an empty glyph without a layer", dict(A0, name="cppnolayer"), keys=AK + ("found",))
+class TCOddComposite(TCShape):
+    def isComposite(s): raise RuntimeError("isComposite boom")
+adc("2916m isComposite unreadable      ", A0, shapes=lambda: [TCOddComposite([te_contour(TE_SQ)])])
+for tag, mode in (("2917a addContour raises          ", {"addc_raises": 1}), ("2917b addContour does nothing     ", {"addc_drops": 1}),
+                  ("2917c the new contour lands first  ", {"addc_first": 1}), ("2917d an old node moves          ", {"addc_moves_old": 1})):
+    d = adc(tag, A0, mode=mode)
+    if not d.get("added"):
+        print("       before / expected / after  :", adc_after(d, "before"), "|", adc_after(d, "expected_after"), "|", adc_after(d))
+adc("2917e the legacy view lags: not synced", A0, legacy=4)
+adc("2917f an empty shape appears too  ", A0, mode={"addc_extra_shape": 1})
+tls(lambda: [_contour()], legacy=8); P72["mode"]["noclose"] = 1
+c, d = sbpost("/glyph/contours/add", A0)
+print("2917g a closed contour stays open detached:", c, {k: d.get(k) for k in ("added", "changed", "reason")}, "| addContour calls:", TC["calls"].count("addContour"))
+_srcac = "\n".join(l for l in src[src.index("# POST /glyph/contours/add (v0.207)"):src.index("# POST /glyph/component (v0.169)")].split("\n") if not l.lstrip().startswith("#"))
+print("2918 static scan of add_contours: forbidden call syntax:",
+      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|clearContours|addShape|replaceShape|removeContour|decomposite|ejectTo|activateBuilder|resetMetrics\w*|applyTransform)\s*\(|shapeBuilder|font\.update|resetInkBox", _srcac.replace("base.update(", "")),
+      "| every refusal before the first addContour:", _srcac.rindex("nothing was added") < _srcac.index("sd.addContour(contour)"),
+      "| one addContour call:", _srcac.count("sd.addContour(") == 1 and _srcac.count(".addContour(") == 2)
+print("2918a route documented:", "POST /glyph/contours/add" in src, "| dispatched:", 'if path == "/glyph/contours/add":' in src, "| mark title:",
+      ns["_MARK_TITLES"].get("add_contours"), "| guard kind full:", "add_contours" in ns["_GUARD_FULL_KINDS"], "| activity kind:", ns["_ACT_WRITES"].get("/glyph/contours/add"),
+      "| /glyph/path parses through the shared helper:", src.count("_route_path_contours(") == 3)
+_ok_add = {"open": True, "added": True, "nodes_match": True, "changed": True, "synced_with_fontlab": True}
+for tag, code, reply in (("2918b log, added              ", 200, _ok_add), ("2918c log, added, not synced  ", 200, dict(_ok_add, synced_with_fontlab=False)),
+                         ("2918d log, refused            ", 200, {"open": True, "added": False, "reason": "the glyph holds 2 contour(s), not the expected 1"}),
+                         ("2918e log, changed, not confirmed", 200, {"open": True, "added": False, "changed": True, "reason": "the re-read outline does not match the request"}),
+                         ("2918f log, HTTP 400           ", 400, {"error": '"expected_contours" must be a whole number from 1 to 5000'})):
+    print(tag, ":", ns["_act_describe_write"]("/glyph/contours/add", {"name": "cpp1", "expected_contours": 1, "contours": [SQ_IN, ARCH]}, code, reply),
+          "| change verdict:", ns["_change_verdict"]("/glyph/contours/add", code, reply))
+print("2918g log, one contour         :", ns["_act_describe_write"]("/glyph/contours/add", A0, 200, _ok_add))
+print("2919 spies over the add_contours cases:", TC_FORBIDDEN)
+
+# ---- v0.207: the _EDIT_ACCEPTS grid. Every tool in the table runs against a glyph of every case (remove_component: the case's shapes
+# plus the component it removes); a cell reads H (the tool reported success), R (refused, nothing changed) or X (anything else).
+# A cell that departs from the table is listed with the tool's reason.
+print("\n==== v0.207 the _EDIT_ACCEPTS grid: every edit tool against every case ====")
+GRID_CASES = {"empty": lambda: [], "one_plain_shape": lambda: [_contour()], "several_shapes": lambda: [_contour(), TCShape([te_contour(TE_TRI)])],
+              "component": lambda: [_tc_comp("cppsrc")], "composite": lambda: [TCBrush()], "shape_transform": lambda: [_tx_contour()]}
+GRID_CALLS = {"draw_polygon": ("/glyph/polygon", "drawn", lambda n: {"name": "cpp1", "points": [[600, 600], [700, 600], [700, 700]]}),
+              "draw_path": ("/glyph/path", "drawn", lambda n: {"name": "cpp1", "contours": [SQ_IN]}),
+              "move_nodes": ("/glyph/move", "moved", lambda n: {"name": "cpp1", "moves": [M(0, 1, (400, 0), (450, 0))]}),
+              "add_contours": ("/glyph/contours/add", "added", lambda n: A0),
+              "add_component": ("/glyph/component", "placed", lambda n: PB0),
+              "remove_component": ("/glyph/component/remove", "removed", lambda n: {"name": "cpp1", "index": n, "component": "cppsrc", "x": 0, "y": 0})}
+print("grid tools match the table:", sorted(GRID_CALLS) == sorted(ns["_EDIT_ACCEPTS"]), "| cases match:", tuple(GRID_CASES) == ns["_EDIT_CASES"])
+grid_departures = []
+for tool, (route, flag, body) in GRID_CALLS.items():
+    cells = []
+    for case, shapes in GRID_CASES.items():
+        made = (lambda s=shapes: s() + [_tc_comp("cppsrc")]) if tool == "remove_component" else shapes
+        n = len(shapes())
+        tls(made, mode={"build_names_layer": 1, "add_activates": 1}, legacy=3 if case == "empty" and tool != "remove_component" else 7)
+        TC["rm_calls"] = 0
+        c, d = sbpost(route, body(n))
+        TC_FORBIDDEN.extend(TE["forbidden"])
+        cell = "H" if d.get(flag) is True else ("R" if c == "200" and d.get("changed") in (None, False) and d.get(flag) is False else "X")
+        cells.append(f"{case}={cell}")
+        if (cell == "H") != ns["_EDIT_ACCEPTS"][tool][case]:
+            grid_departures.append((tool, case, cell, str(d.get("reason") or d.get("error"))[:110]))
+    print(f"{tool:17s}:", " ".join(cells))
+print("departures from _EDIT_ACCEPTS:", grid_departures)
+print("2920 spies over the grid:", TC_FORBIDDEN)
 TCShapeData.componentLayer = _tcsd_layer_orig
 TCLayer.buildAuto = _tc_build181
 del TCLayer.setActive; del TCLayer.isActive

@@ -3827,3 +3827,70 @@ srv._do_request("http://x", "/p", 1.0); srv._opener = _ro51
 print("51x _do_request notes the run   ->", srv._CHANGE_LOG["runs_seen"])
 srv.SERVER_RUN = _old_run; srv._CLIENT["name"] = None; srv._reset_change_tracking()
 srv._call_listener, srv._call_listener_post = _save51
+
+# ==== 52. server 0.89: add_contours through POST /glyph/contours/add (listener 0.207; faked listener replies) ====
+print("\n==== 52. server 0.89: add_contours (faked listener replies) ====")
+SQIN52 = [{"x": 100, "y": 100}, {"x": 100, "y": 200}, {"x": 200, "y": 200}, {"x": 200, "y": 100}]
+ARCH52 = {"points": [{"x": 105, "y": 104}, {"x": 398, "y": 104, "c1": {"x": 105, "y": 280}, "c2": {"x": 398, "y": 255}}], "closed": False}
+OLD52 = {"closed": True, "nodes": [on37(0, 0), on37(400, 0), on37(400, 300), on37(0, 300)]}
+NEW52 = {"closed": True, "nodes": [on37(100, 100), on37(100, 200), on37(200, 200), on37(200, 100)]}
+OPEN52 = {"closed": False, "nodes": [on37(105, 104), cv37(105, 280), cv37(398, 255), on37(398, 104)]}
+OK52 = {"open": True, "name": "adc1", "added": True, "route": "modern", "contours_requested": 1, "expected_contours": 1, "coordinates_rounded": [],
+        "nodes_match": True, "changed": True, "mismatches": [], "after": [OLD52, NEW52], "contour_sizes": [4], "nodes_before": 4,
+        "margins": {"lsb": 0.0, "rsb": 100.0, "advance": 500.0}, "ink_width": 400.0, "display_refreshed": True,
+        "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}}
+K52 = ("added", "verified", "nodes_match", "contours_added", "new_contour_indices", "contours_now", "left", "right", "advance_width", "ink_width",
+       "fontlab_sidebearings", "fontlab_sidebearings_current", "person_note", "changed", "reason", "font_modified", "fontlab_changed_mark", "save_question_note")
+def ad52(label, reply, contours=(SQIN52,), expected=1, version="0.207", name="adc1", keys=K52):
+    s9_reset(); S9["version"] = version; S9["post"]["/glyph/contours/add"] = reply; n = len(S9["posts"])
+    r = s9_try(lambda: srv.write_glyph_add_contours(name, expected, list(contours)))
+    shown = {k: r[k] for k in keys if k in r} if isinstance(r, dict) else r
+    print(label, "->", shown, "| posts", len(S9["posts"]) - n, "|", fview(srv.finish_change_package()))
+    return r
+r = ad52("52a a counter, FontLab current   ", dict(OK52))
+print("52b  sent, note, undo, instruction ->", [q for q in S9["posts"] if q[0] == "/glyph/contours/add"][-1:], "|", r["note"][:60], "|", r.get("undo_note", "")[:60],
+      "| instruction:", r.get("agent_instruction", "")[:60], "| display_note forwarded:", "display_note" in r)
+r = ad52("52c FontLab lags                 ", dict(OK52, margins={"lsb": 0.0, "rsb": 100.0, "advance": 500.0}, after=[OLD52, dict(NEW52, nodes=[on37(-50, 100), on37(-50, 200), on37(200, 200), on37(200, 100)])]))
+print("52c2 the instruction               ->", r.get("agent_instruction", "")[:110], "| ends with the undo sentence:", r.get("agent_instruction", "").endswith(srv._MOVE_UNDO_INSTRUCTION),
+      "| save instruction kept:", "finish_changes" in r.get("agent_instruction", ""))
+r = ad52("52d an open arch                 ", dict(OK52, after=[OLD52, OPEN52], open_contours=[0]), contours=(ARCH52,),
+         keys=("added", "verified", "new_contour_indices", "left", "right", "ink_width", "open_contours_note"))
+print("52d2 open-contour instruction      ->", srv._OPEN_CONTOUR_INSTRUCTION in r.get("agent_instruction", ""), "| undo sentence last:", r.get("agent_instruction", "").endswith(srv._MOVE_UNDO_INSTRUCTION))
+r = ad52("52e two at once                  ", dict(OK52, after=[OLD52, NEW52, OPEN52], contour_sizes=[4, 4]), contours=(SQIN52, ARCH52),
+         keys=("added", "contours_added", "new_contour_indices", "contours_now", "contour_sizes", "open_contours_note"))
+ad52("52f rule B reported              ", dict(OK52, coordinates_rounded=[{"contour": 0, "point": 0, "field": "x", "requested": 100.5, "used": 101.0}]),
+     keys=("added", "coordinates_rounded", "rounding_note"))
+ad52("52g sidebearings unreadable      ", {k: v for k, v in OK52.items() if k not in ("margins", "ink_width")})
+ad52("52h added without nodes_match    ", {k: v for k, v in OK52.items() if k != "nodes_match"}, keys=("added", "verified", "nodes_match"))
+ad52("52i refused: stale count         ", {"open": True, "name": "adc1", "added": False, "contours_found": 2,
+                                           "reason": "the glyph holds 2 contour(s), not the expected 1: it may have changed since it was read; read it again with get_glyph_outline: nothing was added"})
+ad52("52j refused: several shapes      ", {"open": True, "name": "adc1", "added": False, "edit_case": "several_shapes",
+                                           "reason": "the glyph has 2 shapes; add_contours edits a glyph with exactly one plain shape (several shapes are not supported yet): nothing was added"})
+r = ad52("52k added, re-read differs       ", {"open": True, "name": "adc1", "added": False, "changed": True, "nodes_match": False,
+                                               "mismatches": ["contour 0 node 0: position (5.0, 0.0) instead of (0.0, 0.0)"], "reason": "the re-read outline does not match the request",
+                                               "before": [OLD52], "after": [dict(OLD52, nodes=[on37(5, 0)] + OLD52["nodes"][1:]), NEW52],
+                                               "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}},
+         keys=("added", "verified", "changed", "mismatches", "before", "after", "font_modified", "undo_note"))
+print("52l  instruction                  ->", r["agent_instruction"][:150], "| no tool removes a contour named:", "no Glyphbridge tool removes a contour" in r["agent_instruction"])
+ad52("52m outcome unknown after a touch", {"open": True, "name": "adc1", "added": False, "changed": "unknown", "mismatches": ["the outline could not be read after the add (x)"],
+                                           "reason": "the re-read outline does not match the request"}, keys=("added", "changed", "font_modified", "after"))
+ad52("52n not marked: save question note", dict(OK52, synced_with_fontlab=False, fontlab_changed_mark={"called": False, "reason": "FontLab's sync of this glyph was not confirmed"}),
+     keys=("added", "synced_with_fontlab", "fontlab_changed_mark", "save_question_note"))
+ad52("52o no font open                 ", {"open": False})
+ad52("52p no such glyph                ", {"open": True, "found": False, "added": False, "reason": "no glyph named 'adc1'"})
+ad52("52q listener 0.206               ", dict(OK52), version="0.206")
+ad52("52r /version unreadable: goes ahead", dict(OK52), version=None, keys=("added", "verified"))
+ad52("52s write times out              ", srv.OutcomeUnknown("timed out"))
+for label, kw in (("52t empty name              ", dict(name=" ")), ("52u expected_contours 0      ", dict(expected=0)),
+                  ("52v expected_contours a bool ", dict(expected=True)), ("52w expected_contours 1.0    ", dict(expected=1.0)),
+                  ("52x expected_contours 5001   ", dict(expected=5001)), ("52y no contours             ", dict(contours=())),
+                  ("52z 21 contours              ", dict(contours=(SQIN52,) * 21)), ("52za a point without y      ", dict(contours=([{"x": 1}, {"x": 2, "y": 2}, {"x": 3, "y": 0}],))),
+                  ("52zb an open contour, smooth end", dict(contours=({"points": [{"x": 0, "y": 0, "smooth": True}, {"x": 9, "y": 9}], "closed": False},)))):
+    ad52(label, dict(OK52), **kw)
+_ad = " ".join((srv.add_contours.__doc__ or "").split())
+print("52zc docs              -> tool listed:", callable(getattr(srv, "add_contours", None)), "| signature:", _inspect.signature(srv.add_contours),
+      "| missing phrases:", [w for w in ("expected_contours", "draw_path's form", "AFTER the existing ones", "new_contour_indices", "exactly ONE plain shape",
+                                          "An empty glyph is refused", "at most 2000 nodes", "RULE B", "fontlab_sidebearings_current", "Nothing is restored",
+                                          "undo_note", "NEVER saves", "listener 0.207", "finish_changes ONCE") if w not in _ad],
+      "| SAVE_KEYS replaced:", "SAVE_KEYS" not in _ad)
+print("52zd versions                   ->", srv.SERVER_VERSION, "| needs listener", srv._ADD_CONTOURS_MIN_LISTENER)

@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.205)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.207)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -114,6 +114,9 @@ Routes (GET unless marked POST):
     POST /glyph/move            {"name", "moves": [{"contour", "node", "from": {x, y}, "to": {x, y}}]} (v0.153):
                                 moves existing nodes of a glyph with ONE plain shape; every "from" must
                                 match first; whole units; verified node by node
+    POST /glyph/contours/add    {"name", "expected_contours", "contours"} (v0.207): adds contours in draw_path's form to the ONE
+                                plain shape of an existing outline, after its contours; the glyph's contour count must equal
+                                expected_contours; whole units; verified node by node, every old node unchanged
     POST /glyph/component       {"name", "component", "x", "y"} (v0.169): ONE component of the glyph "component" into the
                                 EMPTY glyph "name" at a whole-unit offset, through FontLab's recipe build; verified by re-reading;
                                 {"name", "components": [{"component", "x", "y"}, ...], "confirmed_untested_size"} (v0.174): several,
@@ -231,8 +234,8 @@ Routes (GET unless marked POST):
                           empty glyph and read back; 6 per listener run (v0.125, P2.1 research)
     /debug/tryedit        stage=movenode|addcontour|removecontour|replace&name=edp...[&contour=C&node=N&dx=DX&dy=DY][&refresh=R]: ONE edit
                           of a plain drawn glyph (one shape, no component, no Power Brush), outline before and after; refresh=R calls one
-                          member of a fixed list after the edit, sidebearings before and after it (v0.152); exactly one font open,
-                          8 per listener run (v0.151, P2.2 research)
+                          member of a fixed list after the edit, sidebearings before and after it (v0.152); stage=addcontour takes
+                          &kind=square|cubic|open, square by default (v0.206); exactly one font open, 8 per listener run (v0.151, P2.2 research)
     /debug/trycomponent   stage=glyphcomponents|shapedata&target=cpp...&source=cpp...&dx=DX&dy=DY: ONE placement of the source glyph
                           (one plain shape) in the target (an existing layer, at most one plain shape) at offset (dx, dy), elements
                           and outlines before and after; exactly one font open, 6 per listener run (v0.155, P2.7 research);
@@ -318,7 +321,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.205"
+VERSION = "0.207"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -616,7 +619,7 @@ _MARK_CHANGED = True    # v0.132: tell FontLab that a verified, synced tool writ
 _REFRESH_KERNING_PANEL = True    # v0.136: ask FontLab to refresh its KERNING panel after a kerning write that changed an entry (live 738, 741-743); False switches it off
 _MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge width", "sidebearings": "Glyphbridge sidebearings",
                 "draw_polygon": "Glyphbridge polygon", "draw_path": "Glyphbridge path", "unicode": "Glyphbridge Unicode", "delete": "Glyphbridge delete",
-                "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit", "move_nodes": "Glyphbridge move nodes",
+                "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit", "move_nodes": "Glyphbridge move nodes", "add_contours": "Glyphbridge add contours",
                 "trycomponent": "Glyphbridge component", "trycomponent_light": "Glyphbridge component", "add_component": "Glyphbridge add component",
                 "remove_component": "Glyphbridge remove component", "kerning_group": "Glyphbridge kerning group"}
 _MARK_DELETE_MAX_TRIES = 20    # v0.133: how many surviving glyphs a delete's mark may try before it says none could be notified; v0.134: also a kerning write's mark
@@ -846,7 +849,7 @@ def _guard_mark(font, name, how, result, no_mark=None):
     _record_changed_mark(font, name, how, result, no_mark)
 
 
-_GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created", "move_nodes", "add_component", "remove_component")   # v0.153: move_nodes keeps the node count, so the full check cannot see a lost move
+_GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created", "move_nodes", "add_component", "remove_component", "add_contours")   # v0.153: move_nodes keeps the node count, so the full check cannot see a lost move; v0.207: add_contours
 _GUARD_LIGHT_KINDS = ("width", "sidebearings", "trycomponent_light")   # v0.185: the templayer probe with sync=light (Power Brush research, F1)
 
 
@@ -2016,6 +2019,57 @@ def _path_check_request(contours, closed_flags=None):
     return problems
 
 
+def _route_path_contours(many):
+    """(parsed, closed_flags, None) or (None, None, error sentence): the "contours" of a draw_path request (/glyph/path, and since v0.207
+    /glyph/contours/add) as point dicts {x, y, c1, c2, smooth}, before rule B. Moved here unchanged from the /glyph/path route (v0.207)."""
+    if not isinstance(many, list) or not (1 <= len(many) <= _POLY_MAX_CONTOURS):
+        return None, None, f'"contours" must be a list of 1 to {_POLY_MAX_CONTOURS} point lists'
+
+    def _num(v):
+        return not (isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or abs(v) > 20000)
+
+    def _xy(d):
+        if not isinstance(d, dict) or set(d) - {"x", "y"} or not _num(d.get("x")) or not _num(d.get("y")):
+            return None
+        return (float(d["x"]), float(d["y"]))
+
+    parsed, flags = [], []
+    for ci, item in enumerate(many):
+        plist, closed = item, True             # v0.126: a contour is a point list (closed) or {"points": [...], "closed": bool}
+        if isinstance(item, dict):
+            if "points" not in item or set(item) - {"points", "closed"}:
+                return None, None, f'contour {ci}: a contour object has "points" and optionally "closed"'
+            plist, closed = item["points"], item.get("closed", True)
+            if not isinstance(closed, bool):
+                return None, None, f"contour {ci}: closed must be true or false"
+        low = _POLY_MIN_POINTS if closed else _PATH_OPEN_MIN_POINTS
+        if not isinstance(plist, list) or not (low <= len(plist) <= _POLY_MAX_POINTS):
+            return None, None, f"contour {ci} must be a list of {low} to {_POLY_MAX_POINTS} points" + ("" if closed else " (an open contour)")
+        flags.append(closed)
+        pts = []
+        for pi, pt in enumerate(plist):
+            where = f"contour {ci} point {pi}"
+            if not isinstance(pt, dict) or set(pt) - {"x", "y", "c1", "c2", "smooth"}:
+                return None, None, f'{where}: a point is an object with x, y and optional c1, c2, smooth'
+            if not _num(pt.get("x")) or not _num(pt.get("y")):
+                return None, None, f"{where}: x and y must be numbers between -20000 and 20000"
+            if (pt.get("c1") is None) != (pt.get("c2") is None):
+                return None, None, f"{where}: c1 and c2 must be given together or not at all"
+            c1 = c2 = None
+            if pt.get("c1") is not None:
+                c1, c2 = _xy(pt.get("c1")), _xy(pt.get("c2"))
+                if c1 is None or c2 is None:
+                    return None, None, f"{where}: c1 and c2 must be {{x, y}} objects with numbers between -20000 and 20000"
+            smooth = pt.get("smooth", False)
+            if not isinstance(smooth, bool):
+                return None, None, f"{where}: smooth must be true or false"
+            pts.append({"x": float(pt["x"]), "y": float(pt["y"]), "c1": c1, "c2": c2, "smooth": smooth})
+        parsed.append(pts)
+    if sum(len(c) for c in parsed) + 2 * sum(1 for c in parsed for p in c if p["c1"] is not None) > _POLY_MAX_TOTAL:
+        return None, None, f"at most {_POLY_MAX_TOTAL} nodes in total (every curved segment counts its two handles)"
+    return parsed, flags, None
+
+
 def _path_read_nodes(contour):
     """(rows, None) or (None, error): every node of a contour (x, y, isOn, isOff, isCurve, smooth) through getNodeAt after a range check."""
     count, err = _tl_call(lambda: _call0(contour, "nodesCount"))
@@ -2454,24 +2508,6 @@ def _move_snapshot(name):
     return {"contours": out}
 
 
-def _move_shape_identity(shape):
-    """None when the shape's transform reads the identity, otherwise the reason the glyph is refused. Never raises."""
-    tr, err = _tl_call(lambda: shape.transform)
-    if err is not None or tr is None:
-        return f"the shape's transform could not be read ({err or 'None'}): nothing was moved"
-    found = {}
-    for key in _MOVE_IDENTITY:
-        v, err = _tl_call(lambda k=key: _call0(tr, k))
-        v = _rm_plain(v)
-        if err is not None or isinstance(v, bool) or not isinstance(v, (int, float)):
-            return f"the shape's transform could not be read ({key}: {err or repr(v)}): nothing was moved"
-        found[key] = float(v)
-    if any(abs(found[k] - want) > 1e-9 for k, want in _MOVE_IDENTITY.items()):
-        return ("the glyph's shape carries an element transform (" + ", ".join(f"{k} {_mv_text(found[k])}" for k in _MOVE_IDENTITY) + "), so its stored "
-                "node positions are not the positions FontLab draws; move_nodes does not support such a glyph yet: nothing was moved")
-    return None
-
-
 def _move_smooth_bad(nodes, closed):
     """The indices of the smooth on-curve nodes whose two neighbours do NOT lie on one straight line through them (draw_path's rule,
     _PATH_SMOOTH_TOLERANCE_DEG), a neighbour on top of the node included; the ends of an open contour count as bad when smooth."""
@@ -2519,6 +2555,97 @@ def _move_compare(got, want):
     return bad
 
 
+# --------------------------------------------------------------------------
+# _EDIT_CASES (v0.207) - the refusal register in code (DECISIONS.md 2026-11-24 "refusals tracked in one register";
+# mental-model/topics/refusals.md). For each edit tool: which kinds of target glyph it handles (True) and which it refuses (False).
+# move_nodes and add_contours take their checks from it through _edit_case_check; the other tools keep their own checks, and the stub
+# grid test (tests/stub_listener_tests.py, v0.207) runs every tool listed here against a glyph of every case and compares the outcome
+# with this table, so lifting a case shows as a changed cell. Cases, in the order _edit_case_check tests them:
+#   empty            the active layer holds no shape
+#   one_plain_shape  exactly one shape, not a component, not composite, identity transform, no component counted
+#   several_shapes   two or more shapes
+#   component        a shape that is a component, or a component counted by the layer
+#   composite        a Power Brush or other composite shape (isComposite True; F1)
+#   shape_transform  one plain shape whose transform is not the identity (an element transform)
+# --------------------------------------------------------------------------
+
+_EDIT_CASES = ("empty", "one_plain_shape", "several_shapes", "component", "composite", "shape_transform")
+_EDIT_ACCEPTS = {
+    "draw_polygon": {"empty": True, "one_plain_shape": False, "several_shapes": False, "component": False, "composite": False, "shape_transform": False},
+    "draw_path": {"empty": True, "one_plain_shape": False, "several_shapes": False, "component": False, "composite": False, "shape_transform": False},
+    "move_nodes": {"empty": False, "one_plain_shape": True, "several_shapes": False, "component": False, "composite": False, "shape_transform": False},
+    "add_contours": {"empty": False, "one_plain_shape": True, "several_shapes": False, "component": False, "composite": False, "shape_transform": False},
+    # Its own checks (empty route, temporary-layer route of v0.186): the glyph it places a component into.
+    "add_component": {"empty": True, "one_plain_shape": True, "several_shapes": True, "component": True, "composite": True, "shape_transform": True},
+    # Its own checks (v0.179): a glyph that holds the case's shapes PLUS the component to be removed.
+    "remove_component": {"empty": True, "one_plain_shape": True, "several_shapes": True, "component": True, "composite": False, "shape_transform": True},
+}
+_EDIT_DONE = {"move_nodes": "moved", "add_contours": "added"}
+
+
+def _edit_case_refusal(tool, case, detail):
+    """The refusal sentence of `tool` for `case` (only where _EDIT_ACCEPTS says False)."""
+    done = _EDIT_DONE.get(tool, "changed")
+    texts = {
+        "empty": (f"the glyph holds no shape yet; {tool} works on an existing outline" +
+                  ("; use draw_path or draw_polygon to draw into an empty glyph" if tool == "add_contours" else "")),
+        "several_shapes": f"the glyph has {detail} shapes; {tool} edits a glyph with exactly one plain shape (several shapes are not supported yet)",
+        "component": f"the glyph holds a component ({detail}); {tool} does not support a glyph with components yet",
+        "composite": f"the glyph's shape is a Power Brush or other composite shape ({detail}); {tool} never edits such a shape",
+        "shape_transform": (f"the glyph's shape carries an element transform ({detail}), so its stored node positions are not the positions "
+                            f"FontLab draws; {tool} does not support such a glyph yet"),
+    }
+    return texts[case] + f": nothing was {done}"
+
+
+def _edit_case_of(layer, state):
+    """(case, detail, shape) for a glyph's modern active layer, or (None, reason, None) when it cannot be read. Never raises."""
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list:
+        return None, f"layer.shapes is not a plain list ({err or type(shapes).__name__})", None
+    if not shapes:
+        return ("component", _state_components_text(state), None) if _state_has_components(state) else ("empty", "0", None)
+    if len(shapes) != 1:
+        return "several_shapes", str(len(shapes)), None
+    shape = shapes[0]
+    for attr, case in (("isComponent", "component"), ("isComposite", "composite")):
+        v, err = _tl_call(lambda a=attr: _call0(shape, a))
+        if err is None and v is True:
+            return case, f"its {attr} reads True", shape
+        if err is not None or v is not False:       # unreadable: never reported as a component or a Power Brush shape
+            return None, f"the shape's {attr} could not be read as True or False (it reads {v!r}{', ' + err if err else ''})", shape
+    if _state_has_components(state):
+        return "component", _state_components_text(state), shape
+    tr, err = _tl_call(lambda: shape.transform)
+    if err is not None or tr is None:
+        return None, f"the shape's transform could not be read ({err or 'None'})", shape
+    found = {}
+    for key in _MOVE_IDENTITY:
+        v, err = _tl_call(lambda k=key: _call0(tr, k))
+        v = _rm_plain(v)
+        if err is not None or isinstance(v, bool) or not isinstance(v, (int, float)):
+            return None, f"the shape's transform could not be read ({key}: {err or repr(v)})", shape
+        found[key] = float(v)
+    if any(abs(found[k] - want) > 1e-9 for k, want in _MOVE_IDENTITY.items()):
+        return "shape_transform", ", ".join(f"{k} {_mv_text(found[k])}" for k in _MOVE_IDENTITY), shape
+    return "one_plain_shape", "", shape
+
+
+def _edit_case_check(tool, layer, state):
+    """v0.207: (shape, None) when `tool` handles the glyph's case per _EDIT_ACCEPTS, otherwise (None, {"reason", "edit_case"}). The
+    shared check of move_nodes and add_contours; runs before anything is touched. Never raises."""
+    case, detail, shape = _edit_case_of(layer, state)
+    done = _EDIT_DONE.get(tool, "changed")
+    if case is None:
+        return None, {"reason": f"{detail}: nothing was {done}", "edit_case": "unreadable"}
+    if not _EDIT_ACCEPTS[tool][case]:
+        out = {"reason": _edit_case_refusal(tool, case, detail), "edit_case": case}
+        if case == "several_shapes":
+            out["shapes"] = int(detail)
+        return None, out
+    return shape, None
+
+
 def move_nodes(name, moves, rounded=None):
     """Move existing nodes of ONE plain glyph. `moves`: dicts {contour, node, from: (x, y), to: (x, y)} with whole-number "to" (rule B
     was applied by the route), no node twice. Every check runs before anything is touched; see the section comment. Never saves."""
@@ -2535,23 +2662,9 @@ def move_nodes(name, moves, rounded=None):
     base["state_before"] = state
     if layer is None:
         return dict(base, reason="the glyph has no modern active layer: nothing was moved")
-    shapes, err = _tl_call(lambda: layer.shapes)
-    if err is not None or type(shapes) is not list:
-        return dict(base, reason=f"layer.shapes is not a plain list ({err or type(shapes).__name__}): nothing was moved")
-    if len(shapes) != 1:
-        return dict(base, shapes=len(shapes), reason=(f"the glyph has {len(shapes)} shapes; move_nodes edits a glyph with exactly one plain "
-                                                       "shape (several shapes are not supported yet): nothing was moved"))
-    shape = shapes[0]
-    for attr in ("isComponent", "isComposite"):
-        v, err = _tl_call(lambda a=attr: _call0(shape, a))
-        if err is not None or v is not False:
-            return dict(base, reason=(f"the shape's {attr} reads {v!r}{' (' + err + ')' if err else ''}: only a plain shape is edited, never a "
-                                      "component or a Power Brush or other composite shape: nothing was moved"))
-    if _state_has_components(state):
-        return dict(base, reason=f"the layer reads {_state_components_text(state)}: nothing was moved")
-    why = _move_shape_identity(shape)
-    if why is not None:
-        return dict(base, reason=why)
+    shape, refusal = _edit_case_check("move_nodes", layer, state)      # v0.207: the shared table (_EDIT_ACCEPTS)
+    if shape is None:
+        return dict(base, **refusal)
     before = _move_snapshot(name)
     if "error" in before:
         return dict(base, reason=f"the outline could not be read before the move ({before['error']}): nothing was moved")
@@ -2638,6 +2751,133 @@ def move_nodes(name, moves, rounded=None):
         result["reason"] = why + (": " + " | ".join(result["mismatches"][:6]) if result["mismatches"] else "")
     if result["changed"] is not False:
         _guard_mark(font, name, "move_nodes", result, no_mark=None)
+    if ctx["tr"] is not None:
+        m, _err = _modern_margins_read(w, ctx["tr"])
+        if m is not None:
+            result["margins"] = m
+            result["ink_width"] = m["advance"] - m["lsb"] - m["rsb"]
+    return result
+
+
+# --------------------------------------------------------------------------
+# POST /glyph/contours/add (v0.207) - add_contours, the second edit of an EXISTING outline (P2.2; the user's design of 2026-11-24, one
+# question at a time). Research: ED2 973, ED3 1650-1656, ED4 1657-1664 (/debug/tryedit stage=addcontour, kinds square, cubic, open):
+# shape.shapeData.addContour(<a contour built detached>) adds it after the existing contours, exactly as built, and leaves every existing
+# node, node kind and smooth flag as it was; FontLab's sidebearings can lag after it; Edit > Undo offered nothing.
+# The request: "name", "expected_contours" (the glyph's contour count as the caller read it; a mismatch refuses the call) and
+# "contours" in draw_path's form (rule B applied by the route). The glyph must be a case _EDIT_ACCEPTS["add_contours"] handles (one plain
+# shape, identity transform, no component, no Power Brush). The whole glyph may hold at most _POLY_MAX_TOTAL nodes after the add. EVERY
+# check, and the detached build and read-back of every new contour, runs before the first addContour.
+# Verified (added) only when the re-read shows every old contour unchanged node by node, then the new ones as requested, in one shape.
+# The font is marked whenever the outline changed (as move_nodes), nothing is restored automatically.
+# Never called here: font.update(), save, layer.addShape, removeContour, removeShape, replaceShape, decomposite, ejectTo, shapeBuilder;
+# no subscript or iteration of a native object.
+# --------------------------------------------------------------------------
+
+def add_contours(name, expected_contours, contours, rounded=None, closed_flags=None):
+    """Add contours to the ONE plain shape of an existing outline. `contours` as draw_path takes them (rounded by the route)."""
+    flags = list(closed_flags) if closed_flags is not None else [True] * len(contours)
+    base = {"open": True, "name": name, "added": False, "route": "modern", "contours_requested": len(contours),
+            "expected_contours": expected_contours, "coordinates_rounded": list(rounded) if rounded else []}
+    if not all(flags):
+        base["open_contours"] = [ci for ci, f in enumerate(flags) if not f]
+    problems = _path_check_request(contours, flags)
+    if problems:
+        return dict(base, reason="the request cannot be built, nothing was added: " + " | ".join(problems[:5]))
+    ctx, refusal = _modern_edit_target(name)
+    if ctx is None:
+        out = _public_refusal(refusal)
+        out.pop("set", None)
+        out["added"] = False
+        if refusal.get("reason") == _EMPTY_NO_LAYER:
+            out["reason"] = ("the glyph is empty and has no layer yet; add_contours works on an existing outline; use draw_path or "
+                             "draw_polygon to draw into an empty glyph: nothing was added")
+            out["edit_case"] = "empty"
+        return out
+    w, font = ctx["w"], ctx["font"]
+    state, layer = _tryshape_modern_state(w)
+    base["state_before"] = state
+    if layer is None:
+        return dict(base, reason="the glyph has no modern active layer: nothing was added")
+    shape, refusal = _edit_case_check("add_contours", layer, state)
+    if shape is None:
+        return dict(base, **refusal)
+    before = _move_snapshot(name)
+    if "error" in before:
+        return dict(base, reason=f"the outline could not be read before the add ({before['error']}): nothing was added")
+    have = len(before["contours"])
+    existing, err = _tl_call(lambda: layer.getContours())
+    if err is not None or type(existing) not in (list, tuple) or len(existing) != have:
+        return dict(base, reason="layer.getContours() disagrees with the outline just read: nothing was added")
+    if have != expected_contours:
+        return dict(base, contours_found=have, reason=(f"the glyph holds {have} contour(s), not the expected {expected_contours}: it may have "
+                                                       "changed since it was read; read it again with get_glyph_outline: nothing was added"))
+    import sys as _sys
+    mod = _sys.modules.get("fontlab") or fl
+    qp = getattr(QtCore, "QPointF", None)
+    if qp is None or getattr(mod, "flContour", None) is None:
+        return dict(base, reason="QtCore.QPointF or fontlab.flContour is missing: nothing was added")
+    layouts = [_path_layout(pts) for pts in contours]
+    sizes = [len(lay[0]) for lay in layouts]
+    old_nodes = sum(len(c["nodes"]) for c in before["contours"])
+    base.update({"points": sum(len(pts) for pts in contours), "segments_curved": sum(1 for pts in contours for p in pts if p["c1"] is not None),
+                 "contour_sizes": sizes, "nodes_before": old_nodes})
+    if old_nodes + sum(sizes) > _POLY_MAX_TOTAL:
+        return dict(base, reason=(f"the glyph would hold {old_nodes + sum(sizes)} nodes after the add ({old_nodes} now, {sum(sizes)} new); "
+                                  f"at most {_POLY_MAX_TOTAL} are supported: nothing was added"))
+    built = []
+    for ci, pts in enumerate(contours):
+        expected, on_index = layouts[ci]
+        try:
+            contour = _path_build_contour(mod, qp, pts, expected, on_index, closed=flags[ci])
+        except Exception as exc:
+            return dict(base, reason=f"new contour {ci} could not be built detached ({exc}): nothing was added")
+        rows, err = _path_read_nodes(contour)
+        if rows is None:
+            return dict(base, reason=f"the detached new contour {ci} could not be read back ({err}): nothing was added")
+        closed, _e = _tl_call(lambda: contour.closed)
+        bad = _path_mismatches(rows, expected, f"detached new contour {ci}")
+        if closed is not flags[ci]:
+            bad.append(f"detached new contour {ci}: closed reads {closed!r}" + ("" if flags[ci] else ", an open contour was requested"))
+        bad.extend(_path_smooth_problems([{"x": r["x"], "y": r["y"], "on": e["on"], "smooth": e["smooth"]} for r, e in zip(rows, expected)],
+                                         f"detached new contour {ci}", closed=flags[ci]) if len(rows) == len(expected) else [])
+        if bad:
+            return dict(base, reason="a detached new contour does not match the request, nothing was added: " + " | ".join(bad[:6]))
+        built.append(contour)
+    want = [dict(c, nodes=[dict(n) for n in c["nodes"]]) for c in before["contours"]]
+    want.extend(_tryedit_new_contour(pts, closed=flags[ci]) for ci, pts in enumerate(contours))
+    touched, step = False, "shape.shapeData"
+    try:
+        sd = shape.shapeData
+        for ci, contour in enumerate(built):
+            step, touched = f"shape.shapeData.addContour(new contour {ci})", True
+            sd.addContour(contour)
+    except Exception as exc:
+        base["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
+    result = dict(base)
+    if touched:
+        result["display_refreshed"] = _repaint_viewport()
+    after_state, _l = _tryshape_modern_state(w)
+    result["state_after"] = after_state
+    after = _move_snapshot(name)
+    if "error" in after:
+        result["changed"] = "unknown" if touched else False
+        result["mismatches"] = [f"the outline could not be read after the add ({after['error']})"]
+    else:
+        result["after"] = after["contours"]
+        result["changed"] = after["contours"] != before["contours"]
+        result["mismatches"] = _move_compare(after["contours"], want)
+        if after_state.get("shapes") != 1:
+            result["mismatches"].append(f"the layer reads {after_state.get('shapes')!r} shapes after the add, 1 expected")
+    result["nodes_match"] = not result["mismatches"] and "error" not in result
+    result["added"] = bool(result["nodes_match"])
+    if not result["added"]:
+        result["before"] = before["contours"]
+        result["expected_after"] = want
+        why = result.get("error") or "the re-read outline does not match the request"
+        result["reason"] = why + (": " + " | ".join(result["mismatches"][:6]) if result["mismatches"] else "")
+    if result["changed"] is not False:
+        _guard_mark(font, name, "add_contours", result, no_mark=None)
     if ctx["tr"] is not None:
         m, _err = _modern_margins_read(w, ctx["tr"])
         if m is not None:
@@ -3455,6 +3695,10 @@ def _add_beside(base, name, ctx, state, layer, tel, entries):
 #   stage=movenode&contour=C&node=N&dx=DX&dy=DY  node.x = x + dx, then node.y = y + dy (whole numbers, |dx|, |dy| <= 200, not both 0)
 #   stage=addcontour             a fixed closed square (600, 600) (650, 600) (650, 650) (600, 650), built and checked DETACHED as
 #                                draw_path builds, then shape.shapeData.addContour(contour) into the glyph's existing shape
+#                                v0.206 (ED3 1650-1656 proved the square beside a cubic outline): &kind=square (the default, unchanged),
+#                                kind=cubic, a closed circle of 4 smooth nodes around (700, 300), radius 100, handles 55 long, counterclockwise;
+#                                kind=open, the open arch of test 583 (as /debug/tryopen kind=curve), closed False. Each is built and checked
+#                                detached (positions, node kinds, smooth flags, closed) by draw_path's builder before it is added
 #   stage=removecontour&contour=C   shape.shapeData.removeContour(<contour C of layer.getContours()>)
 #   stage=replace                a fixed closed triangle (100, 0) (300, 0) (200, 300) in a new flShape (built and checked detached),
 #                                then layer.replaceShape(old_shape, new_shape)
@@ -3489,6 +3733,15 @@ def _tryedit_point(x, y):
 
 _TRYEDIT_SQUARE = [_tryedit_point(600, 600), _tryedit_point(650, 600), _tryedit_point(650, 650), _tryedit_point(600, 650)]
 _TRYEDIT_TRIANGLE = [_tryedit_point(100, 0), _tryedit_point(300, 0), _tryedit_point(200, 300)]
+# v0.206: the kinds of stage=addcontour, (points, closed, label). The c1 / c2 of a point are the handles of the segment ENDING there
+# (point 0: the closing segment), as draw_path takes them.
+_TRYEDIT_CUBIC = [{"x": 800, "y": 300, "c1": (755, 200), "c2": (800, 245), "smooth": True},
+                  {"x": 700, "y": 400, "c1": (800, 355), "c2": (755, 400), "smooth": True},
+                  {"x": 600, "y": 300, "c1": (645, 400), "c2": (600, 355), "smooth": True},
+                  {"x": 700, "y": 200, "c1": (600, 245), "c2": (645, 200), "smooth": True}]
+_TRYEDIT_OPEN = [_tryedit_point(105, 104), dict(_tryedit_point(398, 104), c1=(105, 280), c2=(398, 255))]
+_TRYEDIT_KINDS = {"square": (_TRYEDIT_SQUARE, True, "square"), "cubic": (_TRYEDIT_CUBIC, True, "cubic circle"),
+                  "open": (_TRYEDIT_OPEN, False, "open arch")}
 
 
 def _tryedit_int(raw, label, lo, hi):
@@ -3520,9 +3773,11 @@ def _tryedit_snapshot(name):
     return snap
 
 
-def _tryedit_new_contour(pts):
-    """The snapshot form of a closed contour built from `pts` (straight segments, no smooth node)."""
-    return {"closed": True, "nodes": [{"x": p["x"], "y": p["y"], "kind": "On", "smooth": False} for p in pts]}
+def _tryedit_new_contour(pts, closed=True):
+    """The snapshot form of a contour built from `pts`, in FontLab's node order (_path_layout): on-curve nodes "On" with their smooth
+    flag, handles "Curve" and not smooth. v0.206: curves and open contours (was: closed, straight, no smooth node)."""
+    nodes, _on = _path_layout(pts)
+    return {"closed": closed, "nodes": [{"x": n["x"], "y": n["y"], "kind": "On" if n["on"] else "Curve", "smooth": n["smooth"]} for n in nodes]}
 
 
 def _tryedit_compare(got, want):
@@ -3554,20 +3809,20 @@ def _tryedit_glyph_count(font):
     return n if err is None else f"<error: {err}>"
 
 
-def _tryedit_build(mod, qp, pts, label):
-    """(contour, None) or (None, sentence): ONE closed contour built and checked DETACHED, as draw_path builds it."""
+def _tryedit_build(mod, qp, pts, label, closed=True):
+    """(contour, None) or (None, sentence): ONE contour built and checked DETACHED, as draw_path builds it. v0.206: closed=False."""
     expected, on_index = _path_layout(pts)
     try:
-        contour = _path_build_contour(mod, qp, pts, expected, on_index, closed=True)
+        contour = _path_build_contour(mod, qp, pts, expected, on_index, closed=closed)
     except Exception as exc:
         return None, f"the {label} could not be built detached ({exc})"
     rows, err = _path_read_nodes(contour)
     if rows is None:
         return None, f"the detached {label} could not be read back ({err})"
-    closed, _e = _tl_call(lambda: contour.closed)
+    got_closed, _e = _tl_call(lambda: contour.closed)
     bad = _path_mismatches(rows, expected, f"detached {label}")
-    if closed is not True:
-        bad.append(f"detached {label}: closed reads {closed!r}")
+    if got_closed is not closed:
+        bad.append(f"detached {label}: closed reads {got_closed!r}, expected {closed!r}")
     if bad:
         return None, "the detached " + label + " does not match: " + " | ".join(bad[:6])
     return contour, None
@@ -3627,7 +3882,7 @@ def _tryedit_refresh(refresh, w, tr, layer, shape, contour, name, want):
     return out
 
 
-def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, refresh=None):
+def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, refresh=None, kind=None):
     import sys as _sys
     if stage not in _TRYEDIT_STAGES:
         return {"error": 'stage must be "movenode", "addcontour", "removecontour" or "replace"'}
@@ -3635,6 +3890,15 @@ def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, r
             or any(ch not in _TRYCREATE_NAME_CHARS for ch in name)):
         return {"error": 'name must start with "edp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'}
     args = {}
+    kind = str(kind).strip() if kind is not None and str(kind).strip() else None     # v0.206
+    if kind is not None and stage != "addcontour":
+        return {"error": "kind is only for stage=addcontour"}
+    if stage == "addcontour":
+        if kind is None:
+            kind = "square"
+        if kind not in _TRYEDIT_KINDS:
+            return {"error": 'kind must be "square" (the default), "cubic" or "open"'}
+        args["kind"] = kind
     if stage in ("movenode", "removecontour"):
         v, err = _tryedit_int(contour, "contour", 0, _TRYEDIT_INDEX_MAX)
         if err is not None:
@@ -3657,7 +3921,8 @@ def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, r
             return {"error": "refresh=contour.update needs stage=movenode (the edited contour)"}
         args["refresh"] = refresh
     if go != "yes":
-        what = {"movenode": "moves one node of the glyph by (dx, dy)", "addcontour": "adds a fixed square contour to the glyph's shape",
+        what = {"movenode": "moves one node of the glyph by (dx, dy)",
+                "addcontour": f"adds a fixed {_TRYEDIT_KINDS[kind][2] if kind else 'square'} contour to the glyph's shape",
                 "removecontour": "removes one contour from the glyph's shape", "replace": "replaces the glyph's shape with a fixed triangle"}[stage]
         return {"error": f"stage={stage} {what}. Add &go=yes to run it."}
     mod = _sys.modules.get("fontlab") or fl
@@ -3742,13 +4007,12 @@ def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, r
             step, touched = "shape.shapeData.removeContour(contour)", True
             sd.removeContour(contours[ci])
         else:
-            pts = _TRYEDIT_SQUARE if stage == "addcontour" else _TRYEDIT_TRIANGLE
-            label = "square" if stage == "addcontour" else "triangle"
-            built, why = _tryedit_build(mod, qp, pts, label)
+            pts, closed, label = _TRYEDIT_KINDS[kind] if stage == "addcontour" else (_TRYEDIT_TRIANGLE, True, "triangle")
+            built, why = _tryedit_build(mod, qp, pts, label, closed=closed)
             if built is None:
                 return dict(base, error=why + ": nothing was touched")
             if stage == "addcontour":
-                want.append(_tryedit_new_contour(pts))
+                want.append(_tryedit_new_contour(pts, closed=closed))
                 step = "shape.shapeData"
                 sd = shape.shapeData
                 step, touched = "shape.shapeData.addContour(contour)", True
@@ -14877,7 +15141,7 @@ def _change_verdict(path, code, reply):
         return "unknown"
     if changed is False:
         return "no"
-    if any(reply.get(k) is True for k in ("created", "deleted", "drawn", "moved", "placed", "removed", "renamed")):
+    if any(reply.get(k) is True for k in ("created", "deleted", "drawn", "moved", "placed", "removed", "renamed", "added")):
         return "yes"
     if reply.get("created_under_other_names"):
         return "yes"
@@ -15426,7 +15690,7 @@ def _route(method, full_path, body=b""):
                 return _build_response(200, debug_try_edit((query.get("stage") or [""])[0], (query.get("name") or [""])[0], (query.get("go") or [""])[0],
                                                            (query.get("contour") or [None])[0], (query.get("node") or [None])[0],
                                                            (query.get("dx") or [None])[0], (query.get("dy") or [None])[0],
-                                                           (query.get("refresh") or [None])[0]))
+                                                           (query.get("refresh") or [None])[0], (query.get("kind") or [None])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
@@ -15836,55 +16100,33 @@ def _route(method, full_path, body=b""):
             many = payload.get("contours") if isinstance(payload, dict) else None
             if not isinstance(name, str) or not name.strip():
                 return _build_response(400, {"error": '"name" must be a non-empty string'})
-            if not isinstance(many, list) or not (1 <= len(many) <= _POLY_MAX_CONTOURS):
-                return _build_response(400, {"error": f'"contours" must be a list of 1 to {_POLY_MAX_CONTOURS} point lists'})
-
-            def _num(v):
-                return not (isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or abs(v) > 20000)
-
-            def _xy(d):
-                if not isinstance(d, dict) or set(d) - {"x", "y"} or not _num(d.get("x")) or not _num(d.get("y")):
-                    return None
-                return (float(d["x"]), float(d["y"]))
-
-            parsed, flags = [], []
-            for ci, item in enumerate(many):
-                plist, closed = item, True             # v0.126: a contour is a point list (closed) or {"points": [...], "closed": bool}
-                if isinstance(item, dict):
-                    if "points" not in item or set(item) - {"points", "closed"}:
-                        return _build_response(400, {"error": f'contour {ci}: a contour object has "points" and optionally "closed"'})
-                    plist, closed = item["points"], item.get("closed", True)
-                    if not isinstance(closed, bool):
-                        return _build_response(400, {"error": f"contour {ci}: closed must be true or false"})
-                low = _POLY_MIN_POINTS if closed else _PATH_OPEN_MIN_POINTS
-                if not isinstance(plist, list) or not (low <= len(plist) <= _POLY_MAX_POINTS):
-                    return _build_response(400, {"error": f"contour {ci} must be a list of {low} to {_POLY_MAX_POINTS} points"
-                                                          + ("" if closed else " (an open contour)")})
-                flags.append(closed)
-                pts = []
-                for pi, pt in enumerate(plist):
-                    where = f"contour {ci} point {pi}"
-                    if not isinstance(pt, dict) or set(pt) - {"x", "y", "c1", "c2", "smooth"}:
-                        return _build_response(400, {"error": f'{where}: a point is an object with x, y and optional c1, c2, smooth'})
-                    if not _num(pt.get("x")) or not _num(pt.get("y")):
-                        return _build_response(400, {"error": f"{where}: x and y must be numbers between -20000 and 20000"})
-                    if (pt.get("c1") is None) != (pt.get("c2") is None):
-                        return _build_response(400, {"error": f"{where}: c1 and c2 must be given together or not at all"})
-                    c1 = c2 = None
-                    if pt.get("c1") is not None:
-                        c1, c2 = _xy(pt.get("c1")), _xy(pt.get("c2"))
-                        if c1 is None or c2 is None:
-                            return _build_response(400, {"error": f"{where}: c1 and c2 must be {{x, y}} objects with numbers between -20000 and 20000"})
-                    smooth = pt.get("smooth", False)
-                    if not isinstance(smooth, bool):
-                        return _build_response(400, {"error": f"{where}: smooth must be true or false"})
-                    pts.append({"x": float(pt["x"]), "y": float(pt["y"]), "c1": c1, "c2": c2, "smooth": smooth})
-                parsed.append(pts)
-            if sum(len(c) for c in parsed) + 2 * sum(1 for c in parsed for p in c if p["c1"] is not None) > _POLY_MAX_TOTAL:
-                return _build_response(400, {"error": f"at most {_POLY_MAX_TOTAL} nodes in total (every curved segment counts its two handles)"})
+            parsed, flags, why = _route_path_contours(many)       # v0.207: shared with /glyph/contours/add
+            if why is not None:
+                return _build_response(400, {"error": why})
             rounded_contours, rounded_report = _path_apply_rule_b(parsed)
             try:
                 return _build_response(200, draw_path(name.strip(), rounded_contours, rounded_report, flags))
+            except Exception as exc:
+                return _build_response(500, {"error": str(exc)})
+
+        if path == "/glyph/contours/add":       # v0.207: add_contours
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            if not isinstance(payload, dict) or set(payload) != {"name", "expected_contours", "contours"}:
+                return _build_response(400, {"error": 'the body must be an object with exactly "name", "expected_contours" and "contours"'})
+            name, expect = payload["name"], payload["expected_contours"]
+            if not isinstance(name, str) or not name.strip():
+                return _build_response(400, {"error": '"name" must be a non-empty string'})
+            if isinstance(expect, bool) or not isinstance(expect, int) or not (1 <= expect <= _MOVE_INDEX_MAX):
+                return _build_response(400, {"error": f'"expected_contours" must be a whole number from 1 to {_MOVE_INDEX_MAX}'})
+            parsed, flags, why = _route_path_contours(payload["contours"])
+            if why is not None:
+                return _build_response(400, {"error": why})
+            rounded_contours, rounded_report = _path_apply_rule_b(parsed)
+            try:
+                return _build_response(200, add_contours(name.strip(), expect, rounded_contours, rounded_report, flags))
             except Exception as exc:
                 return _build_response(500, {"error": str(exc)})
 
@@ -16099,7 +16341,8 @@ _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/wid
                "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/glyph/polygon": "draw",
                "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning", "/kerning/remove": "kerning remove", "/font/create": "create font",
                "/kerning/group/rename": "kerning group rename", "/kerning/group/remove": "kerning group remove",
-               "/glyph/move": "move", "/glyph/component": "component", "/glyph/component/remove": "remove component"}
+               "/glyph/move": "move", "/glyph/component": "component", "/glyph/component/remove": "remove component",
+               "/glyph/contours/add": "add contours"}
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
               "/font/current": "font info", "/font/notdef": ".notdef check", "/font/notdef/warn": ".notdef check",
@@ -16280,6 +16523,13 @@ def _act_describe_write(path, payload, code, reply):
             return f"{head}: {size} (verified, nodes match{sync})", not unsynced
         changed = "; the glyph DID change" if reply.get("changed") not in (False, None) else ""
         return f"NOT DONE {head}: {why}{changed}", False
+    if kind == "add contours":     # v0.207: the count from the request, success from the reply
+        many = payload.get("contours") if isinstance(payload, dict) else None
+        size = f"{len(many)} contour{'' if len(many) == 1 else 's'}" if isinstance(many, list) else "size unreadable"
+        if reply.get("added") is True:
+            return f"{head}: {size} (verified, nodes match{sync})", not unsynced
+        changed = "; the glyph DID change" if reply.get("changed") not in (False, None) else ""
+        return f"NOT DONE {head} ({size}): {why}{changed}", False
     if kind == "component" and isinstance(payload, dict) and isinstance(payload.get("components"), list):     # v0.174: the list form
         n = len(payload["components"])
         what = f"{n} component{'' if n == 1 else 's'}"

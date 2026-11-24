@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.88)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.89)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -43,7 +43,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.88"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.89"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -2504,9 +2504,10 @@ _MOVE_UNDO_NOTE = (
 _MOVE_UNDO_INSTRUCTION = "Tell the person undo_note once per conversation."
 
 
-def _add_undo_note(result: dict) -> None:
-    """v0.65: undo_note on a move_nodes reply whose outline changed, and one sentence at the end of its agent_instruction."""
-    result["undo_note"] = _MOVE_UNDO_NOTE
+def _add_undo_note(result: dict, note: str = _MOVE_UNDO_NOTE) -> None:
+    """v0.65: undo_note on a move_nodes reply whose outline changed, and one sentence at the end of its agent_instruction.
+    v0.89: `note`, so add_contours gives its own."""
+    result["undo_note"] = note
     text = result.get("agent_instruction")
     result["agent_instruction"] = (text + " " + _MOVE_UNDO_INSTRUCTION) if isinstance(text, str) and text else _MOVE_UNDO_INSTRUCTION
 
@@ -2662,6 +2663,116 @@ def write_glyph_moves(name: str, moves: Any) -> dict:
     _add_guard_fields(result, data)
     _mark_modified(result, True)
     _add_undo_note(result)
+    return result
+
+
+# ---- v0.89: add_contours through POST /glyph/contours/add (listener 0.207; the user's design of 2026-11-24, research ED2-ED4) ----
+_ADD_CONTOURS_MIN_LISTENER = (0, 207)
+_ADD_UNCONFIRMED_INSTRUCTION = (
+    "The re-read outline does NOT match the request, so the add is not confirmed, and the glyph may now hold part of the new contours or "
+    "changed ones (see mismatches, before and after). Tell the person what happened. Do NOT try to repair it on your own: no Glyphbridge "
+    "tool removes a contour yet; the person can delete a contour in FontLab, or tell you how to go on.")
+_ADD_FONTLAB_LAG_NOTE = (
+    "FontLab's own sidebearing numbers for this glyph may still show the old values for a while; the contours are added, and the "
+    "values given here are computed from the glyph's nodes.")
+_ADD_FONTLAB_LAG_INSTRUCTION = (
+    "FontLab's own sidebearings and ink box for this glyph have not caught up with the add yet (fontlab_sidebearings_current is false; "
+    "after an API edit they lag in FontLab 8.9.5, and no call was found that refreshes them). left, right and ink_width are computed "
+    "from the re-read nodes. Tell the person person_note once, in plain words; give no steps to refresh FontLab's display.")
+# Research ED3 1655 and ED4 1664: after the same edit by the research probe, FontLab's Edit > Undo was greyed out.
+_ADD_UNDO_NOTE = (
+    "In testing, FontLab's Edit > Undo offered nothing after contours were added this way, and no Glyphbridge tool removes a contour yet: "
+    "to take an added contour back, delete it in FontLab.")
+
+
+def write_glyph_add_contours(name: str, expected_contours: Any, contours: Any) -> dict:
+    clean = name.strip() if isinstance(name, str) else ""
+    if not clean:
+        raise ToolError("Glyph name must not be empty.")
+    if isinstance(expected_contours, bool) or not isinstance(expected_contours, int) or not (1 <= expected_contours <= _MOVE_INDEX_MAX):
+        raise ToolError(f"expected_contours must be a whole number from 1 to {_MOVE_INDEX_MAX}: the number of contours the glyph holds now, "
+                        "as get_glyph_outline reported it. To draw into an empty glyph use draw_path.")
+    checked = _check_path_contours(contours)
+    closed_flags = [not isinstance(c, dict) for c in checked]
+    _require_listener(_ADD_CONTOURS_MIN_LISTENER, "add_contours")
+
+    data = _write_post("/glyph/contours/add", {"name": clean, "expected_contours": expected_contours, "contours": checked})
+
+    if not data.get("open"):
+        raise ToolError(NO_FONT)
+    if data.get("found") is False:
+        raise ToolError(f"No glyph named '{clean}' was found.")
+    changed = data.get("changed")
+    rounded = _rounded_list(data.get("coordinates_rounded"))
+    if not data.get("added"):
+        reason = data.get("reason") or "unknown reason"
+        if changed is not True and changed != "unknown":
+            raise ToolError(f"Glyph '{clean}': nothing was added: {reason}")
+        result = {"name": clean, "added": False, "verified": False, "nodes_match": False, "changed": changed, "reason": reason,
+                  "coordinates_rounded": rounded,
+                  "mismatches": [m for m in data.get("mismatches") or [] if isinstance(m, str)][:20],
+                  "before": _move_view(data.get("before")), "after": _move_view(data.get("after")),
+                  "agent_instruction": _ADD_UNCONFIRMED_INSTRUCTION}
+        _add_rounding_note(result)
+        _add_guard_fields(result, data)
+        if changed is True:
+            _mark_modified(result, True)
+            _add_undo_note(result, _ADD_UNDO_NOTE)
+        else:
+            _note_change(sure=False)
+            result["font_modified"] = "unknown"
+            result["agent_instruction"] += " " + _SAVE_INSTRUCTION
+        return result
+
+    # As move_nodes (v0.64): FontLab's sidebearings and ink box can lag after the add (ED4 1662, 1663), so the re-read nodes are the
+    # confirmation and the sidebearings are computed from them; FontLab's values are shown beside them.
+    margins = data.get("margins")
+    lsb, rsb, adv = (_margin_number(margins, k) for k in ("lsb", "rsb", "advance"))
+    after = data.get("after")
+    box, why = _moved_extent(after)
+    total = len(after) if isinstance(after, list) else None
+    result = {
+        "name": clean,
+        "added": True,
+        "verified": data.get("nodes_match") is True,
+        "nodes_match": data.get("nodes_match") is True,
+        "contours_added": len(checked),
+        "new_contour_indices": list(range(total - len(checked), total)) if total is not None else None,
+        "contours_now": total,
+        "contour_sizes": data.get("contour_sizes") if isinstance(data.get("contour_sizes"), list) else None,
+        "coordinates_rounded": rounded,
+        "left": None, "right": None, "advance_width": _tidy_number(adv), "ink_width": None,
+        "sidebearings_source": "computed from the re-read nodes (exact curve extents) and FontLab's advance width",
+        "fontlab_sidebearings": {"left": _tidy_number(lsb), "right": _tidy_number(rsb), "advance_width": _tidy_number(adv)},
+        "fontlab_sidebearings_current": "unknown",
+        "note": ("The new contours were added after the existing ones, in the order given; every node of the re-read layer matches, and "
+                 "every old node, node kind and smooth flag is unchanged. The advance width is unchanged; the left and right sidebearings "
+                 "follow the outline."),
+    }
+    if box is None:
+        result["sidebearings_note"] = f"The sidebearings could not be computed: {why}."
+    else:
+        tol = 0.01 if all(n.get("kind") == "On" for c in after for n in c["nodes"]) else _CURVE_BOX_TOLERANCE
+        result["left"] = _tidy_number(round(box[0], 4))
+        result["ink_width"] = _tidy_number(round(box[1] - box[0], 4))
+        if adv is not None:
+            result["right"] = _tidy_number(round(adv - box[1], 4))
+        if lsb is not None and rsb is not None and adv is not None:
+            current = abs(lsb - box[0]) < tol and abs((adv - rsb) - box[1]) < tol
+            result["fontlab_sidebearings_current"] = current
+            if not current:
+                result["person_note"] = _ADD_FONTLAB_LAG_NOTE
+                result["agent_instruction"] = _ADD_FONTLAB_LAG_INSTRUCTION
+    if not all(closed_flags):
+        open_idx = [result["new_contour_indices"][ci] for ci, f in enumerate(closed_flags) if not f] if result["new_contour_indices"] else None
+        result["open_contours_note"] = (f"New contour(s) {open_idx} are OPEN: each runs from its first point to its last, with no closing "
+                                        "segment, so it has no fill.")
+        text = result.get("agent_instruction")
+        result["agent_instruction"] = (text + " " + _OPEN_CONTOUR_INSTRUCTION) if text else _OPEN_CONTOUR_INSTRUCTION
+    _add_rounding_note(result)
+    _add_guard_fields(result, data)
+    _mark_modified(result, True)
+    _add_undo_note(result, _ADD_UNDO_NOTE)
     return result
 
 
@@ -5369,6 +5480,48 @@ def move_nodes(name: str, moves: list[dict[str, Any]], ctx: Context | None = Non
     """
     _note_client(ctx)
     return _with_font(write_glyph_moves, name, moves)
+
+
+@_tool()
+def add_contours(name: str, expected_contours: int, contours: list[list[dict[str, Any]] | dict[str, Any]],
+                 ctx: Context | None = None) -> dict[str, Any]:
+    """Add contours to the existing outline of one glyph in the font currently open in FontLab 8, beside the contours it already has.
+
+    Read the glyph with get_glyph_outline FIRST and pass expected_contours = the number of contours it reported. If the glyph holds a
+    different number now (the person may have edited it since your read), the call is refused and NOTHING changes: read it again.
+
+    `contours` has exactly draw_path's form (see draw_path): a list of 1 to 20 contours, each a list of points {"x", "y"} with optional
+    "c1" / "c2" (both control points of the cubic segment that ENDS at the point) and "smooth"; an OPEN contour is
+    {"points": [...], "closed": false}. Font units, y up. Directions: an outer contour counterclockwise, a counter (hole) clockwise in a
+    cubic font; this tool never reorders points. Example, a square counter (clockwise) inside an outer contour:
+    [[{"x":200,"y":200},{"x":200,"y":400},{"x":400,"y":400},{"x":400,"y":200}]]
+    The new contours are added AFTER the existing ones, in the order given: their indices in the reply are new_contour_indices.
+
+    Only a glyph with exactly ONE plain shape is supported for now: a glyph with several shapes, a component, a Power Brush or other
+    composite shape, or an element transform (position, scale, rotation set with FontLab's Element tool) is refused and nothing
+    changes. An empty glyph is refused too: draw into it with draw_path or draw_polygon. The whole glyph may hold at most 2000 nodes
+    after the add (control points count).
+
+    RULE B (whole units): every coordinate is rounded to the nearest whole unit (a half rounds up); the reply lists each changed one in
+    coordinates_rounded. A smooth point's two neighbours must lie on one straight line through it (within 2 degrees), as in draw_path.
+
+    Every check, and the build of every new contour, is made before the glyph is touched. Afterwards every node of the glyph is read
+    back: success (added: true, verified: true, nodes_match: true) means every old node, node kind and smooth flag is unchanged and the
+    new contours are exactly as requested. The advance width is not changed. left, right and ink_width are COMPUTED from the re-read
+    nodes (exact curve extents included) and FontLab's advance width: after such an edit FontLab's own sidebearings and ink box can lag
+    for a while (seen live), so they are reported apart in fontlab_sidebearings with fontlab_sidebearings_current. When they lag, tell the
+    person person_note once.
+
+    If the re-read does NOT match (added: false with mismatches, before and after), the glyph may be partly changed. Nothing is restored
+    automatically: tell the person. No Glyphbridge tool removes a contour yet; the reply's undo_note says how to take one back: tell the
+    person once per conversation. Open contours have no fill, and the reply's agent_instruction then says what to tell the person.
+
+    Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
+    (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
+    Needs listener 0.207.
+    """
+    _note_client(ctx)
+    return _with_font(write_glyph_add_contours, name, expected_contours, contours)
 
 
 @_tool()

@@ -251,6 +251,10 @@ Not core, but budgeted: the root [README.md](../../README.md), the end-user inst
 
 Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
 
+### 2026-11-25: WHAT-WORKS.md budget 3,500 → 4,750
+
+The user's choice, at 3,476 words, before the live checks of `add_contours` (listener 0.207 / server 0.89), whose results are due there. WHAT-WORKS.md is not a startup core file, so the reference totals stay 19,150 and 18,350.
+
 ### 2026-11-24: DECISIONS.md budget 5,500 → 6,250
 
 The user's choice, at 4,869 words, right after the file was regrouped by theme (11 entries merged or condensed, their full text in "Merged and condensed on 2026-11-24" above). Reference totals now 19,150 and 18,350.

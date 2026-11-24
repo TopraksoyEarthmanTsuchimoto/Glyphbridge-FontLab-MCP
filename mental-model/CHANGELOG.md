@@ -4,6 +4,22 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.207 / server v0.89 (2026-11-24): `add_contours`, and the edit tools' cases in one table
+
+**Built as proposed and approved** (the user's design of 2026-11-24, [DECISIONS.md](DECISIONS.md); research ED2, ED3, ED4 1657–1664).
+
+- Server: tool `add_contours(name, expected_contours, contours)` (27 tools). `contours` in `draw_path`'s form; `expected_contours` must equal the glyph's contour count, else nothing changes. On success: `new_contour_indices`, `contours_now`, sidebearings computed from the re-read nodes with FontLab's own values apart (`fontlab_sidebearings`, `fontlab_sidebearings_current`, `person_note` when they lag), an `undo_note` of its own, the open-contour instruction when one is open. Refused before sending: a bad `expected_contours` or contour list, a listener older than 0.207. `_add_undo_note` takes the note to use.
+- Listener: POST `/glyph/contours/add`. One plain shape, identity transform, no component, no Power Brush; an empty glyph is refused with a pointer to `draw_path`; at most 2,000 nodes in the whole glyph after the add. Every new contour is built and checked detached first (positions, kinds, smooth flags, closed); then `shape.shapeData.addContour`; the re-read must show every old node unchanged and the new contours last. Marked as "Glyphbridge add contours"; a full guard kind; in the change log and the OUTPUT panel ("add contours").
+- Listener: `_EDIT_ACCEPTS`, a table of six edit tools against six cases (empty, one plain shape, several shapes, component, composite, shape transform), the register in code ([topics/refusals.md](topics/refusals.md)). `move_nodes` and `add_contours` check through `_edit_case_check`; an unreadable `isComponent` / `isComposite` is reported as unreadable, never as a component or a Power Brush shape. `move_nodes`' refusals for a Power Brush shape, a component, an empty glyph and a counted component are reworded; its behaviour is unchanged. `/glyph/path`'s contour parsing moved, unchanged, into `_route_path_contours`, shared with the new route. `_move_shape_identity` removed (now in the shared check).
+- Tests: four stub harnesses PASS at 5630 + 58 + 121 + 1884 lines; the deployed listener copy is identical. New: `stub_listener_tests.py` 2910–2920 (the route, refusals, failures, scans, the OUTPUT line, the change-log verdict) and the grid: every tool in the table against every case, no departure; `create_unicode_tests.py` part 52. Changed: 2335a, b, d, f, g, 2338a, 1666, 2482. Mutation run: 15 of 15 caught after two tests were added (the detached closed check, the one-shape check after the add). Not run live yet.
+
+## Listener v0.206 (2026-11-24): curved and open contours in the edit probe
+
+**Built as proposed and approved** (the user's choice B of 2026-11-24: research by probe before the add-contour tool).
+
+- Listener: `/debug/tryedit?stage=addcontour` takes `&kind=square|cubic|open`; `square` (the default) is unchanged; `cubic` is a closed circle of 4 smooth nodes around (700, 300), radius 100; `open` is the open arch of test 583. Each is built and checked detached by `draw_path`'s builder before it is added. `kind` with another stage, or an unknown kind, is refused before the call is counted.
+- Tests: four stub harnesses PASS at 5561 + 58 + 121 + 1850 lines at the build; new `stub_listener_tests.py` cases, numbered 2930–2937 since 0.207. Mutation run: 5 of 5 caught. Run live ED4 1657–1664 ([LIVE-TESTS.md](LIVE-TESTS.md)).
+
 ## Server v0.88 (2026-11-24, listener unchanged at v0.205): a full stop before the font note
 
 **Built as proposed and approved** (found in WF 1646).
