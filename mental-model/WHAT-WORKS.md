@@ -98,6 +98,6 @@ The areas follow the summary table in [CURRENT-STATUS.md](CURRENT-STATUS.md).
 | `set_glyph_width` rounds to a whole unit; a width that moved is reported as changed | 0.197 (live, AW3 1459–1467) | 0.80 |
 | `get_glyph_width` reads `advanceWidth`, with the legacy width as a cross-check and fallback | 0.198 (live, AW5 1490–1498) | 0.81 |
 | `add_contours` | 0.207 (live, AD 1665–1680) | 0.89 |
-| one "nothing was …" per refusal; `new_contour_sizes`; `computed_from_nodes` in `get_glyph_outline` | 0.207 | 0.90 (stub only, not run live yet) |
+| one "nothing was …" per refusal; `new_contour_sizes`; `computed_from_nodes` in `get_glyph_outline` | 0.207 | 0.90 (live, WX 1686–1693; the component tools' refusals stub-tested only) |
 
 Releases that add only gated research probes are not listed; every release, and what it changed: [CHANGELOG.md](CHANGELOG.md).
