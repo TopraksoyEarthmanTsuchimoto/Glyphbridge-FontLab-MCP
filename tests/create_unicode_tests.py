@@ -3871,7 +3871,8 @@ r = ad52("52k added, re-read differs       ", {"open": True, "name": "adc1", "ad
                                                "before": [OLD52], "after": [dict(OLD52, nodes=[on37(5, 0)] + OLD52["nodes"][1:]), NEW52],
                                                "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}},
          keys=("added", "verified", "changed", "mismatches", "before", "after", "font_modified", "undo_note"))
-print("52l  instruction                  ->", r["agent_instruction"][:150], "| no tool removes a contour named:", "no Glyphbridge tool removes a contour" in r["agent_instruction"])
+print("52l  instruction                  ->", r["agent_instruction"][:150], "| names remove_contours (v0.91):", "remove_contours" in r["agent_instruction"],
+      "| undo note names it:", "remove_contours" in r.get("undo_note", ""))
 ad52("52m outcome unknown after a touch", {"open": True, "name": "adc1", "added": False, "changed": "unknown", "mismatches": ["the outline could not be read after the add (x)"],
                                            "reason": "the re-read outline does not match the request"}, keys=("added", "changed", "font_modified", "after"))
 ad52("52n not marked: save question note", dict(OK52, synced_with_fontlab=False, fontlab_changed_mark={"called": False, "reason": "FontLab's sync of this glyph was not confirmed"}),
@@ -3930,3 +3931,80 @@ _go = " ".join((srv.get_glyph_outline.__doc__ or "").split())
 print("53n docs                        -> missing phrases:", [w for w in ("computed_from_nodes", "outline_lag_note", "top-level left, right and ink_width stay FontLab's values")
                                                               if w not in _go], "| add_contours reply names new_contour_sizes:", "new_contour_sizes" in srv.write_glyph_add_contours.__code__.co_consts)
 print("53o versions                    ->", srv.SERVER_VERSION)
+
+# ==== 54. server 0.91: remove_contours through POST /glyph/contours/remove (listener 0.210; faked listener replies) ====
+print("\n==== 54. server 0.91: remove_contours (faked listener replies) ====")
+SQ54 = {"closed": True, "nodes": [on37(0, 0), on37(400, 0), on37(400, 300), on37(0, 300)]}
+TRI54 = {"closed": True, "nodes": [on37(50, 50), on37(150, 50), on37(100, 150)]}
+def E54(i, n, x, y): return {"index": i, "node_count": n, "start": {"x": x, "y": y}}
+OK54 = {"open": True, "name": "rmc1", "removed": True, "changed": True, "route": "modern", "expected_contours": 2, "contours_requested": [1],
+        "dialog": {"answer": "yes", "seconds": 45, "elapsed_s": 3.2}, "nodes_match": True, "mismatches": [], "after": [SQ54], "contours_now": 1,
+        "removed_contours": [TRI54], "shapes_after_sync": 1, "margins": {"lsb": 0.0, "rsb": 100.0, "advance": 500.0}, "ink_width": 400.0,
+        "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}}
+K54 = ("removed", "verified", "nodes_match", "contours_removed", "contours_now", "glyph_empty", "left", "right", "advance_width", "ink_width",
+       "fontlab_sidebearings_current", "person_note", "changed", "reason", "font_modified", "save_question_note")
+T54 = []
+def rm54(label, reply, entries=(E54(1, 3, 50, 50),), expected=2, version="0.210", name="rmc1", keys=K54):
+    s9_reset(); S9["version"] = version; S9["post"]["/glyph/contours/remove"] = reply; n = len(S9["posts"])
+    srv._call_listener_post = lambda path, payload, timeout=0: (T54.append((path, timeout)), s9_post(path, payload))[1]
+    r = s9_try(lambda: srv.write_glyph_remove_contours(name, expected, list(entries)))
+    shown = {k: r[k] for k in keys if k in r} if isinstance(r, dict) else r
+    print(label, "->", shown, "| posts", len(S9["posts"]) - n, "|", fview(srv.finish_change_package()))
+    return r
+r = rm54("54a the triangle, FontLab current", dict(OK54))
+print("54b  sent, timeout, note, undo     ->", [q for q in S9["posts"] if q[0] == "/glyph/contours/remove"][-1:], "| timeout", [t for q, t in T54 if q == "/glyph/contours/remove"][-1] == srv.DIALOG_WAIT_SECONDS,
+      "|", r["note"][:50], "|", r.get("undo_note", "")[:70], "| removed_contours", r.get("removed_contours"))
+r = rm54("54c FontLab lags                 ", dict(OK54, margins={"lsb": 0.0, "rsb": -300.0, "advance": 500.0}))
+print("54c2 the instruction               ->", r.get("agent_instruction", "")[:100], "| ends with the undo sentence:", r.get("agent_instruction", "").endswith(srv._MOVE_UNDO_INSTRUCTION))
+r = rm54("54d every contour: empty         ", dict(OK54, after=[], contours_now=0, glyph_empty=True, shapes_after_sync=0, removed_contours=[SQ54, TRI54], margins=None),
+         entries=(E54(0, 4, 0, 0), E54(1, 3, 50, 50)), keys=K54 + ("empty_note", "sidebearings_source", "fontlab_sidebearings"))
+r = rm54("54e answered No                  ", {"open": True, "name": "rmc1", "removed": False, "changed": False, "user_declined": True,
+                                             "dialog": {"answer": "no", "seconds": 45}, "reason": "the removal was not approved in FontLab (answered No)"})
+rm54("54f not answered in time         ", {"open": True, "name": "rmc1", "removed": False, "changed": False, "not_answered": True,
+                                         "dialog": {"answer": "not_answered", "seconds": 45}, "reason": "nobody answered in FontLab within 45 s"})
+rm54("54g no dialog could be shown     ", {"open": True, "name": "rmc1", "removed": False, "changed": False, "dialog_error": "boom",
+                                         "reason": "no dialog could be shown, so nothing was removed"})
+rm54("54h refused: a stale start       ", {"open": True, "name": "rmc1", "removed": False, "changed": False,
+                                         "reason": "the request does not match the glyph as it is now, nothing was removed: entry 0: contour 1 starts at (50, 50), not at the given start (60, 50)"})
+rm54("54i refused: edited during the question", {"open": True, "name": "rmc1", "removed": False, "changed": False,
+                                               "reason": "the glyph changed while the question was open, nothing was removed: the glyph holds 3 contour(s), not the expected 2"})
+rm54("54j refused: several shapes      ", {"open": True, "name": "rmc1", "removed": False, "changed": False, "edit_case": "several_shapes",
+                                         "reason": "the glyph has 2 shapes; remove_contours edits a glyph with exactly one plain shape (several shapes are not supported yet): nothing was removed"})
+r = rm54("54k removed, re-read differs     ", {"open": True, "name": "rmc1", "removed": False, "changed": True, "nodes_match": False,
+                                             "mismatches": ["contour 0: 3 nodes read, 4 expected"], "reason": "the re-read outline does not match the request",
+                                             "before": [SQ54, TRI54], "after": [TRI54], "removed_contours": [TRI54],
+                                             "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}},
+         keys=("removed", "verified", "changed", "mismatches", "before", "after", "removed_contours", "font_modified", "undo_note"))
+print("54l  instruction                  ->", r["agent_instruction"][:120], "| its own text:", r["agent_instruction"].startswith(srv._RMC_UNCONFIRMED_INSTRUCTION),
+      "| remove_component's text kept:", srv._REMOVE_UNCONFIRMED_INSTRUCTION.startswith("The re-read does NOT confirm the removal."))
+rm54("54m an empty shape left          ", {"open": True, "name": "rmc1", "removed": False, "changed": True, "nodes_match": False, "glyph_empty": False,
+                                         "mismatches": ["every contour was removed, but the layer reads 1 shape(s) after FontLab's sync, 0 expected (an empty shape may be left)"],
+                                         "reason": "the re-read outline does not match the request", "before": [SQ54], "after": [], "removed_contours": [SQ54]},
+     entries=(E54(0, 4, 0, 0),), expected=1, keys=("removed", "changed", "mismatches", "font_modified"))
+rm54("54n outcome unknown after a touch", {"open": True, "name": "rmc1", "removed": False, "changed": "unknown", "mismatches": ["the outline could not be read after the removal (x)"],
+                                         "reason": "the re-read outline does not match the request"}, keys=("removed", "changed", "font_modified"))
+rm54("54o not marked: save question note", dict(OK54, synced_with_fontlab=False, fontlab_changed_mark={"called": False, "reason": "FontLab's sync of this glyph was not confirmed"}),
+     keys=("removed", "synced_with_fontlab", "fontlab_changed_mark", "save_question_note"))
+rm54("54p no font open                 ", {"open": False})
+rm54("54q no such glyph                ", {"open": True, "found": False, "removed": False, "reason": "no glyph named 'rmc1'"})
+rm54("54r listener 0.209               ", dict(OK54), version="0.209")
+rm54("54s write times out              ", srv.OutcomeUnknown("timed out"))
+for label, kw in (("54t empty name                ", dict(name=" ")), ("54u expected_contours 0        ", dict(expected=0)),
+                  ("54v expected_contours a bool   ", dict(expected=True)), ("54w no entry                  ", dict(entries=())),
+                  ("54x more entries than contours ", dict(entries=(E54(0, 4, 0, 0), E54(1, 3, 50, 50), E54(1, 3, 50, 50)))),
+                  ("54y an index past expected     ", dict(entries=(E54(2, 3, 50, 50),))), ("54z node_count 0              ", dict(entries=(E54(1, 0, 50, 50),))),
+                  ("54za the same contour twice    ", dict(entries=(E54(1, 3, 50, 50), E54(1, 3, 50, 50)))),
+                  ("54zb an extra key              ", dict(entries=(dict(E54(1, 3, 50, 50), closed=True),))),
+                  ("54zc start without y           ", dict(entries=({"index": 1, "node_count": 3, "start": {"x": 50}},)))):
+    rm54(label, dict(OK54), **kw)
+srv._call_listener_post = s9_post
+_rd = " ".join((srv.remove_contours.__doc__ or "").split())
+print("54zd docs              -> tool listed:", callable(getattr(srv, "remove_contours", None)), "| signature:", _inspect.signature(srv.remove_contours),
+      "| missing phrases:", [w for w in ("expected_contours", "node_count", "node_list[0]", "Yes/No question inside FontLab", "45 seconds",
+                                          "not_answered_in_time", "checked again", "exactly ONE plain shape", "An empty glyph is refused", "glyph_empty",
+                                          "draw_path", "fontlab_sidebearings_current", "removed_contours", "Edit > Undo", "NEVER saves", "listener 0.210",
+                                          "finish_changes ONCE") if w not in _rd],
+      "| SAVE_KEYS replaced:", "SAVE_KEYS" not in _rd)
+print("54ze add_contours no longer says no tool removes a contour:", "no Glyphbridge tool removes a contour" not in " ".join((srv.add_contours.__doc__ or "").split()),
+      "| its texts:", [("remove_contours" in t) for t in (srv._ADD_UNCONFIRMED_INSTRUCTION, srv._ADD_UNDO_NOTE)])
+print("54zf versions                   ->", srv.SERVER_VERSION, "| needs listener", srv._REMOVE_CONTOURS_MIN_LISTENER)

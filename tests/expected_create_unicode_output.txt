@@ -20,7 +20,7 @@
 1u  scan_unicode '66' (ignored)               -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1v  scan_unicode 1114112 (ignored)            -> 200 {'created': True, 'unicode': None, 'unicode_status': 'none'}
 1h  no font open                       -> (200, {'open': False})
-1i  /version                           -> {'version': '0.207'}
+1i  /version                           -> {'version': '0.210'}
 
 ==== 2. server create_glyph: fields and agent_instruction (faked listener replies) ====
 2a  'B' assigned 66 (matches)             -> {'unicode': 66, 'unicode_status': 'assigned', 'unicode_assigned_by_fontlab': True, 'unicode_matches_standard': True}
@@ -311,7 +311,7 @@
 9zc width, legacy reply (empty glyph) -> route: legacy_empty_glyph | display_note absent: True | font_modified: True
 9zd tool surface     -> set_glyph_sidebearings: True | get_glyph_sidebearings: True | NEVER saves in set docstring: True | outline moved explained: True | right defaults to left: True | width tool says advance only: True
 9ze signature        -> (name: str, left: float, right: float | None = None, ctx: __main__.Context | None = None) -> dict[str, typing.Any] | (name: str, ctx: __main__.Context | None = None) -> dict[str, typing.Any]
-9zf MIN_LISTENER_VERSION -> (0, 82) | server 0.90
+9zf MIN_LISTENER_VERSION -> (0, 82) | server 0.91
 9zg 437.5 rounded    -> sent [('/glyph/width', {'name': 'tri', 'width': 438})] | {'width_before': 437, 'width_after': 438, 'width_rounded': {'requested': 437.5, 'written': 438}, 'font_modified': True} | note: FontLab keeps advance widths in whole units, as its own widt | changes 1
 9zh 437.4 rounded    -> sent {'name': 'tri', 'width': 437} | {'requested': 437.4, 'written': 437} | font_modified False
 9zi whole number     -> sent {'name': 'tri', 'width': 700} | width_rounded absent: True | rounding_note absent: True
@@ -496,7 +496,7 @@
 16f instruction keeps the create text and the save reminder: True | True | tail ok True
 16g failed create still raises ToolError: Glyph 'g1' was NOT created: x
 16i a broken reply never raises, adds nothing: {'x': 1}
-16h version / MIN_LISTENER_VERSION: 0.90 (0, 82)
+16h version / MIN_LISTENER_VERSION: 0.91 (0, 82)
 
 ==== 17. server 0.28: stale legacy view answered from the modern layer when the listener (0.88) sends margins_agree false (faked listener replies) ====
 17a stale margins + modern_outline -> source modern layer | verified | legacy_view_was_stale True | stale_legacy_view None | extra sidebearing reads 0
@@ -517,7 +517,7 @@
 17p old listener (no margins_agree): v0.25 behaviour -> unverified | check mismatch | stale_legacy_view True | extra reads 1 | source None
 17q docs                  -> modern answer explained: True | v0.25 text kept: True
 17r no write, no save     -> posts sent: []
-17s version / MIN_LISTENER_VERSION: 0.90 (0, 82)
+17s version / MIN_LISTENER_VERSION: 0.91 (0, 82)
 
 ==== 18. server 0.29: fontlab_sync of listener 0.89 is forwarded, type-checked; the editor-tab advice only when the sync attempt failed (faked listener replies) ====
 18a synced set_glyph_width        : synced_with_fontlab True | fontlab_sync {'attempted': True, 'synced': True, 'verdict': 'synced'} | secret False | failed-sync sentence False | unsynced sentence False | editor advice False
@@ -536,7 +536,7 @@
 18h older listener                  : synced_with_fontlab False | fontlab_sync None | secret False | failed-sync sentence False | unsynced sentence True | editor advice True
 18i synced: no agent_instruction about sync: True | font_modified True
 18j a broken reply never raises  : {'x': 1}
-18k version / MIN_LISTENER_VERSION: 0.90 (0, 82)
+18k version / MIN_LISTENER_VERSION: 0.91 (0, 82)
 
 ==== 19. server 0.30 / 0.31: get_kerning reads selected pairs through POST /kerning/pairs; no upper limit, approval above 250 (faked listener replies) ====
 19a pairs, tidy numbers          : {'mode': 'pairs', 'fonts_open': None, 'matched_by': None, 'family_name': None, 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048, 'table_size': 1370, 'count': 4, 'errors': 0} | instruction True
@@ -707,7 +707,7 @@
 19ck wrapper equals read_kerning (pairs): True
 19cl wrapper equals read_kerning (text) : True | both None -> ToolError: Give exactly one of pairs (a 
 19cl2 wrapper passes the approval flag : refused / 251
-19cm MIN_LISTENER_VERSION unchanged / server version: (0, 82) 0.90
+19cm MIN_LISTENER_VERSION unchanged / server version: (0, 82) 0.91
 19dn two fonts, matched by path   : {'fonts_open': 2, 'matched_by': 'path', 'family_name': 'Arial'} | names the font: True True | say which: True
 19do one font                     : {'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Arial'} | names the font: False False | say which: False
 19dp two fonts, no family name    : {'fonts_open': 2, 'matched_by': 'path', 'family_name': None} | names the font: True False | say which: True
@@ -735,7 +735,7 @@
 20c headers, UTF-8 name   -> {'X-Glyphbridge-Client': 'Test%20App%20%C3%A9', 'X-Glyphbridge-Server-Run': '<32 hex digits>'}
 20d sent with name 'claude-code' -> [('GET', '/font/current', 'claude-code', None), ('POST', '/glyph/width', 'claude-code', 'application/json')]
 20d sent with name None          -> [('GET', '/font/current', None, None), ('POST', '/glyph/width', None, 'application/json')]
-20e tools: 27 | every one takes ctx: Context | None = None: True | first statement _note_client(ctx): True
+20e tools: 28 | every one takes ctx: Context | None = None: True | first statement _note_client(ctx): True
 20f --check labels itself: True
 
 ==== 21. server 0.35: launcher names header ====
@@ -803,7 +803,7 @@
 22u same path, renamed: not changed : None
 22v a call outside a tool does not leak into the next tool: {}
 22q finish_changes makes no listener call: no font fields: []
-22r every tool returns through _with_font: 27 []
+22r every tool returns through _with_font: 28 []
 22s headers read inside _do_request    : True
 22w a refusal after a switch          : ToolError | refused. 2 fonts are open in FontLab; this call used Arial Regular, the font whose window is in front. Name it when you report. The font in front changed since the previous Glyphbridge call (was testfont Regular, now Arial Regular): make sure this is the font the person means before any further change. | args 1
 22x one font, no switch: unchanged   : ToolError | refused | args 1
@@ -816,11 +816,11 @@
 
 ==== 23. server 0.40: the save shortcut is read from the system the server runs on ====
 23a win32  : SAVE_SHORTCUT Ctrl+S | reminder: **You must save if you want to keep these changes: use the File menu or press Ctrl+S in FontLab.**
-23b win32  : tools 27 | descriptions naming it 17 | naming the other 0 | placeholder left 0 | save_note names it: True
+23b win32  : tools 28 | descriptions naming it 18 | naming the other 0 | placeholder left 0 | save_note names it: True
 23a darwin : SAVE_SHORTCUT Cmd+S | reminder: **You must save if you want to keep these changes: use the File menu or press Cmd+S in FontLab.**
-23b darwin : tools 27 | descriptions naming it 17 | naming the other 0 | placeholder left 0 | save_note names it: True
+23b darwin : tools 28 | descriptions naming it 18 | naming the other 0 | placeholder left 0 | save_note names it: True
 23a linux  : SAVE_SHORTCUT Ctrl+S | reminder: **You must save if you want to keep these changes: use the File menu or press Ctrl+S in FontLab.**
-23b linux  : tools 27 | descriptions naming it 17 | naming the other 0 | placeholder left 0 | save_note names it: True
+23b linux  : tools 28 | descriptions naming it 18 | naming the other 0 | placeholder left 0 | save_note names it: True
 23c the shortcuts are written once each: 1 1 | every tool is registered through _tool(): True
 
 ==== 24. server 0.41: the PostScript names FontLab's Font Info shows (font package), with their source ====
@@ -857,7 +857,7 @@
 25t dx 10 on a square            -> modern layer | verified | y_extent_checked False | box {'box_left': 10, 'lsb': 10, 'box_width': 100, 'ink_width': 100, 'left_ok': True, 'width_ok': True} | reason  | requests ['/glyph/outline?name=A']
 25u GLYPHBRIDGE_MODERN=0        -> ['/glyph/outline?name=grd83a&modern=no'] | F1 note: ["GLYPHBRIDGE_MODERN=0: this outline was read through FontLab'"]
 25v an older listener (no source) -> verified | F1 note: False
-25w version / MIN_LISTENER_VERSION: 0.90 (0, 82)
+25w version / MIN_LISTENER_VERSION: 0.91 (0, 82)
 
 ==== 26. server 0.43: exact quadratic extents; the vertical extent checked against FontLab's ink box (listener 0.121, layer.inkBox()) ====
 26a testglyph3, quadratic (live 525/526) -> verified | y_extent_checked True | bbox {'left': 101.87, 'right': 383, 'bottom': 203.238, 'top': 414} exact True | vs FontLab {'box_bottom': 203.238, 'box_top': 414, 'fontlab_bottom': 203.238, 'fontlab_top': 414, 'y_ok': True} | reason  | y note 
@@ -895,7 +895,7 @@
 26z7 three cubic handles        -> None
 26z8 quad extremes              -> peak [(50.0, 50.0)] | monotonic [] | x only (y linear) [(50.0, 100.0)] | at an end (t=0) []
 26z9 docs                       -> quadratic extents: True | FontLab's ink box: True | old 'quadratic stays unverified' gone: True
-26zz version / MIN_LISTENER_VERSION: 0.90 (0, 82)
+26zz version / MIN_LISTENER_VERSION: 0.91 (0, 82)
 
 ==== 27. server 0.44: set_kerning (faked listener replies) ====
 27a one new pair                 : {'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 1000, 'count': 1, 'set_count': 1, 'table_size_before': 2, 'table_size_after': 3, 'font_modified': True} | changes (1, 0)
@@ -980,7 +980,7 @@
 27zq read refusal: stop added     : Kerning could not be read: 2 fonts are open; close the others.
 27zr read refusal: one stop only  : Kerning could not be read: the table is not reachable.
 27zs read refusal: question mark : Kerning could not be read: was another window brought to the front?
-27zz version / MIN_LISTENER_VERSION: 0.90 (0, 82)
+27zz version / MIN_LISTENER_VERSION: 0.91 (0, 82)
 
 ==== 28. server 0.46: open contours (live 581 / 583) ====
 28a open V (live 581)                -> verified | y_extent_checked True | bbox {'left': 24, 'right': 228, 'bottom': 69, 'top': 482} exact True | vs FontLab {'box_bottom': 69, 'box_top': 482, 'fontlab_bottom': 69, 'fontlab_top': 482, 'y_ok': True} | reason  | y note 
@@ -1025,7 +1025,7 @@
 28n parser, closed flag None       -> None
 28o svg, open / closed            -> M 0 0 L 10 0 | M 0 0 L 10 0 Z
 28p docs                           -> open contours: True | no direction: True
-28z version / MIN_LISTENER_VERSION: 0.90 (0, 82)
+28z version / MIN_LISTENER_VERSION: 0.91 (0, 82)
 
 ==== 29. server 0.47: draw_path with open contours (faked listener replies) ====
 29a open V                     -> {'drawn': True, 'verified': True, 'closed': [False], 'contours': 1, 'nodes': 3} | posts 1
@@ -1061,7 +1061,7 @@
 29ze FontLab closes it on attach -> ToolError: Glyph 'od': something was drawn, but the layer does not match the request: layer contour 0: closed reads True, an open contour was requested. The font HAS been modified by this, so it counts as a change: when your task package is finished, call finish_changes once so the person is reminded to save. | posts 1
 29zf  the change is counted     -> {'changes': 1, 'uncertain': 0, 'reminder_given': True}
 29zg docs                       -> open contours: True | object form: True | listener 0.126: True | export drops them: True | old 'not been tested' gone: True | signature: (name: str, contours: list[list[dict[str, typing.Any]] | dict[str, typing.Any]], ctx: __main__.Context | None = None) -> dict[str, typing.Any]
-29zz version / MIN_LISTENER_VERSION: 0.90 (0, 82)
+29zz version / MIN_LISTENER_VERSION: 0.91 (0, 82)
 
 ==== 30. listener 0.127 / server 0.48: create_glyph gives the new glyph its layer (live 612-619 are the reason; stubs only) ====
 30a one master, layer made -> {'layer_created': 'Regular', 'layer_name_source': 'other glyphs', 'synced_with_fontlab': True} | calls: ['target(g30, create_layer=True)', 'guard(g30, layer_created)']
@@ -1116,7 +1116,7 @@
 31u element list unavailable -> verified | {} | notes: ["FontLab's element transforms could not be read (no list), so none was applied. Whether this glyph contains components is therefore unknown."]
 31v -0 in a description -> scale 100.00% horizontally, 100.00% vertically; offset (0, 30) | scale 100.00% horizontally, 100.00% vertically; offset (40, 0) | scale 200.00% horizontally, 100.00% vertically; offset (-100, 30)
 31w docs -> outline names is_component: True | names source: True | old claim only for legacy: True | draw_polygon corrected: True | still explains layer_created: True
-31z version / MIN_LISTENER_VERSION: 0.90 (0, 82)
+31z version / MIN_LISTENER_VERSION: 0.91 (0, 82)
 
 ==== 32. listener 0.130 / server 0.50: a box per component, an accent inside its base, a composite behind its source (live 633-650 are the reason; stubs only) ====
 32a two components -> [{'ink_box': (50.0, 650.0, 0.0, 700.0), 'source_ink_box': (50.0, 650.0, 0.0, 700.0)}, {'ink_box': (220.0, 480.0, 780.0, 880.0), 'source_ink_box': (70.0, 330.0, 780.0, 880.0)}] | inkBox [(0, ()), (1, ())] | source [('Regular', ()), ('Regular', ())] | forbidden []
@@ -1167,7 +1167,7 @@
 32zpb a plain element carrying boxes gets no verdict -> verified | element_boxes_checked absent | note absent | reason none | in step [True, 'absent'] | step notes [] | instruction none
 32zpc a box with an error beside its numbers -> unverified | element_boxes_checked False | note FontLab's box of element 1 could not be used: partial read | reason the coordinates match FontLab's horizontal margins and its ink box both with and without the element transform, so which reading is right cannot be told | in step [True, 'unknown'] | step notes ["FontLab's box of this element could not be used: partial read"] | instruction none
 32zq docs -> outline names source_in_step: True | element_boxes_checked: True | sidebearings warns: True True
-32zr listener / server versions: 0.207 0.90 | MIN_LISTENER_VERSION: (0, 82)
+32zr listener / server versions: 0.210 0.91 | MIN_LISTENER_VERSION: (0, 82)
 
 ==== 33. server 0.51: fontlab_changed_mark and save_question_note (stubs only) ====
 33a confirmed                    -> {'fontlab_changed_mark': {'called': True, 'glyph_has_changes': True}, 'font_modified': True}
@@ -1689,7 +1689,7 @@
 49j no font                    : ToolError: FontLab is running and the listener answered, but no font is open. Open a font in FontLab and try again. | sent ['/glyph/width?name=g1']
 49k a bool width is no number  : ToolError: The width of glyph 'g1' could not be read: the listener gave no width. This is not a width of 0. | sent ['/glyph/width?name=g1']
 49l docstring                   : []
-49m version / MIN_LISTENER_VERSION: 0.90 (0, 82)
+49m version / MIN_LISTENER_VERSION: 0.91 (0, 82)
 
 ==== 50. server 0.82: rename_kerning_group and remove_kerning_group (faked listener replies) ====
 --- rename
@@ -1846,7 +1846,7 @@
 -- the request ID goes with writes only
 51u (path, ID sent)             -> [('/glyph/create', True), ('/changes', False)] | none pending after: True
 51v descriptions                -> finish_changes: [] | fontlab_status: []
-51w versions                    -> 0.207 0.90 | change log needs (0, 204)
+51w versions                    -> 0.210 0.91 | change log needs (0, 204)
 51x _do_request notes the run   -> ['run51x']
 
 ==== 52. server 0.89: add_contours (faked listener replies) ====
@@ -1862,8 +1862,8 @@
 52h added without nodes_match     -> {'added': True, 'verified': False, 'nodes_match': False} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
 52i refused: stale count          -> ToolError: Glyph 'adc1': nothing was added: the glyph holds 2 contour(s), not the expected 1: it may have changed since it was read; read it again with get_glyph_outline | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
 52j refused: several shapes       -> ToolError: Glyph 'adc1': nothing was added: the glyph has 2 shapes; add_contours edits a glyph with exactly one plain shape (several shapes are not supported yet) | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
-52k added, re-read differs        -> {'added': False, 'verified': False, 'changed': True, 'mismatches': ['contour 0 node 0: position (5.0, 0.0) instead of (0.0, 0.0)'], 'before': [{'index': 0, 'closed': True, 'node_list': [{'x': 0, 'y': 0, 'kind': 'On', 'smooth': False}, {'x': 400, 'y': 0, 'kind': 'On', 'smooth': False}, {'x': 400, 'y': 300, 'kind': 'On', 'smooth': False}, {'x': 0, 'y': 300, 'kind': 'On', 'smooth': False}]}], 'after': [{'index': 0, 'closed': True, 'node_list': [{'x': 5, 'y': 0, 'kind': 'On', 'smooth': False}, {'x': 400, 'y': 0, 'kind': 'On', 'smooth': False}, {'x': 400, 'y': 300, 'kind': 'On', 'smooth': False}, {'x': 0, 'y': 300, 'kind': 'On', 'smooth': False}]}, {'index': 1, 'closed': True, 'node_list': [{'x': 100, 'y': 100, 'kind': 'On', 'smooth': False}, {'x': 100, 'y': 200, 'kind': 'On', 'smooth': False}, {'x': 200, 'y': 200, 'kind': 'On', 'smooth': False}, {'x': 200, 'y': 100, 'kind': 'On', 'smooth': False}]}], 'font_modified': True, 'undo_note': "In testing, FontLab's Edit > Undo offered nothing after contours were added this way, and no Glyphbridge tool removes a contour yet: to take an added contour back, delete it in FontLab."} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
-52l  instruction                  -> The re-read outline does NOT match the request, so the add is not confirmed, and the glyph may now hold part of the new contours or changed ones (see  | no tool removes a contour named: True
+52k added, re-read differs        -> {'added': False, 'verified': False, 'changed': True, 'mismatches': ['contour 0 node 0: position (5.0, 0.0) instead of (0.0, 0.0)'], 'before': [{'index': 0, 'closed': True, 'node_list': [{'x': 0, 'y': 0, 'kind': 'On', 'smooth': False}, {'x': 400, 'y': 0, 'kind': 'On', 'smooth': False}, {'x': 400, 'y': 300, 'kind': 'On', 'smooth': False}, {'x': 0, 'y': 300, 'kind': 'On', 'smooth': False}]}], 'after': [{'index': 0, 'closed': True, 'node_list': [{'x': 5, 'y': 0, 'kind': 'On', 'smooth': False}, {'x': 400, 'y': 0, 'kind': 'On', 'smooth': False}, {'x': 400, 'y': 300, 'kind': 'On', 'smooth': False}, {'x': 0, 'y': 300, 'kind': 'On', 'smooth': False}]}, {'index': 1, 'closed': True, 'node_list': [{'x': 100, 'y': 100, 'kind': 'On', 'smooth': False}, {'x': 100, 'y': 200, 'kind': 'On', 'smooth': False}, {'x': 200, 'y': 200, 'kind': 'On', 'smooth': False}, {'x': 200, 'y': 100, 'kind': 'On', 'smooth': False}]}], 'font_modified': True, 'undo_note': "In testing, FontLab's Edit > Undo offered nothing after contours were added this way: to take an added contour back, remove it with remove_contours (FontLab asks the person first) or delete it in FontLab."} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+52l  instruction                  -> The re-read outline does NOT match the request, so the add is not confirmed, and the glyph may now hold part of the new contours or changed ones (see  | names remove_contours (v0.91): True | undo note names it: True
 52m outcome unknown after a touch -> {'added': False, 'changed': 'unknown', 'font_modified': 'unknown', 'after': None} | posts 1 | {'changes': 0, 'uncertain': 1, 'reminder_given': True}
 52n not marked: save question note -> {'added': True, 'synced_with_fontlab': False, 'fontlab_changed_mark': {'called': False, 'reason': "FontLab's sync of this glyph was not confirmed"}, 'save_question_note': 'FontLab may not count this change as unsaved, so closing the font may ask no save question and lose it silently (see fontlab_changed_mark). Tell the person if they may close the font before saving.'} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
 52o no font open                  -> ToolError: FontLab is running and the listener answered, but no font is open. Open a font in FontLab and try again. | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
@@ -1881,7 +1881,7 @@
 52za a point without y       -> ToolError: contour 0 point 0 needs x and y. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
 52zb an open contour, smooth end -> ToolError: contour 0 (open) point 0: an end point cannot be smooth, because it has only one neighbour. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
 52zc docs              -> tool listed: True | signature: (name: str, expected_contours: int, contours: list[list[dict[str, typing.Any]] | dict[str, typing.Any]], ctx: __main__.Context | None = None) -> dict[str, typing.Any] | missing phrases: [] | SAVE_KEYS replaced: True
-52zd versions                   -> 0.90 | needs listener (0, 207)
+52zd versions                   -> 0.91 | needs listener (0, 207)
 
 ==== 53. server 0.90: the shared refusal rule; the outline lag note ====
 53a tail                     -> Glyph 'g1': nothing was added: the glyph has 2 shapes
@@ -1892,11 +1892,46 @@
 53f not a string             -> Glyph 'g1': nothing was moved: None
 53g components use the rule     -> Glyph 'g1': nothing was changed: the target has 2 layers
 53h FontLab lags (live 1676)    -> unverified | top {'left': 100, 'right': -300, 'ink_width': 200} | computed {'left': 100, 'right': -500, 'ink_width': 400, 'source': "the nodes read here (exact curve extents) and FontLab's advance width"} | note The top-level left, right and ink_width are FontLa | instruction has lag: True
-53h2 note, instruction          -> The top-level left, right and ink_width are FontLab's own values, and they do not match the nodes read here. Right after an edit through the API (move_nodes, add_contours) FontLab's own sidebearings and ink box have been seen to lag behind the outline for a while (FontLab 8.9.5); that may be the cause here, but one read cannot tell. computed_from_nodes gives the values computed from the nodes (exact curve extents) and FontLab's advance width. | FontLab's own sidebearings or ink width for this glyph disagree with its nodes (see outline_lag_note); they may still lag after a recent edit through the API. Mention it to the person only when the sidebearings or the ink width matter to what they are doing, then in plain words, giving computed_from_nodes beside FontLab's values; give no steps to refresh FontLab's display. Reading the outline again later shows whether FontLab has caught up.
+53h2 note, instruction          -> The top-level left, right and ink_width are FontLab's own values, and they do not match the nodes read here. Right after an edit through the API (move_nodes, add_contours, remove_contours) FontLab's own sidebearings and ink box have been seen to lag behind the outline for a while (FontLab 8.9.5); that may be the cause here, but one read cannot tell. computed_from_nodes gives the values computed from the nodes (exact curve extents) and FontLab's advance width. | FontLab's own sidebearings or ink width for this glyph disagree with its nodes (see outline_lag_note); they may still lag after a recent edit through the API. Mention it to the person only when the sidebearings or the ink width matter to what they are doing, then in plain words, giving computed_from_nodes beside FontLab's values; give no steps to refresh FontLab's display. Reading the outline again later shows whether FontLab has caught up.
 53i FontLab current             -> verified | top {'left': 100, 'right': -500, 'ink_width': 400} | computed None | note  | instruction has lag: False
 53j element offset, mismatch    -> unverified | top {'left': 100, 'right': -300, 'ink_width': 200} | computed None | note  | instruction has lag: False
 53k elements unreadable         -> unverified | top {'left': 100, 'right': -300, 'ink_width': 200} | computed None | note  | instruction has lag: False
 53l only the vertical differs   -> unverified | top {'left': 100, 'right': -500, 'ink_width': 400} | computed None | note  | instruction has lag: False
 53m margins unreadable          -> unverified | top {'left': None, 'right': None, 'ink_width': None} | computed None | note  | instruction has lag: False
 53n docs                        -> missing phrases: [] | add_contours reply names new_contour_sizes: True
-53o versions                    -> 0.90
+53o versions                    -> 0.91
+
+==== 54. server 0.91: remove_contours (faked listener replies) ====
+54a the triangle, FontLab current -> {'removed': True, 'verified': True, 'nodes_match': True, 'contours_removed': [1], 'contours_now': 1, 'glyph_empty': False, 'left': 0, 'right': 100, 'advance_width': 500, 'ink_width': 400, 'fontlab_sidebearings_current': True, 'font_modified': True} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+54b  sent, timeout, note, undo     -> [('/glyph/contours/remove', {'name': 'rmc1', 'expected_contours': 2, 'contours': [{'index': 1, 'node_count': 3, 'start': {'x': 50.0, 'y': 50.0}}], 'dialog_seconds': 45})] | timeout True | The contours were removed after the person's Yes i | In testing, FontLab's Edit > Undo offered nothing after contours were  | removed_contours [{'index': 0, 'closed': True, 'node_list': [{'x': 50, 'y': 50, 'kind': 'On', 'smooth': False}, {'x': 150, 'y': 50, 'kind': 'On', 'smooth': False}, {'x': 100, 'y': 150, 'kind': 'On', 'smooth': False}]}]
+54c FontLab lags                  -> {'removed': True, 'verified': True, 'nodes_match': True, 'contours_removed': [1], 'contours_now': 1, 'glyph_empty': False, 'left': 0, 'right': 100, 'advance_width': 500, 'ink_width': 400, 'fontlab_sidebearings_current': False, 'person_note': "FontLab's own sidebearing numbers for this glyph may still show the old values for a while; the contours are removed, and the values given here are computed from the glyph's nodes.", 'font_modified': True} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+54c2 the instruction               -> FontLab's own sidebearings and ink box for this glyph have not caught up with the removal yet (fontl | ends with the undo sentence: True
+54d every contour: empty          -> {'removed': True, 'verified': True, 'nodes_match': True, 'contours_removed': [0, 1], 'contours_now': 0, 'glyph_empty': True, 'font_modified': True, 'empty_note': 'Every contour was removed: the glyph is empty now (FontLab holds no shape for it after its sync). Its advance width is unchanged. Draw into it with draw_path or draw_polygon.'} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+54e answered No                   -> ToolError: Removal of contours from glyph 'rmc1' was not approved in FontLab. A person needs to click Yes on the confirmation dialog for this to proceed - this is expected behavior, not an error. Nothing was changed. | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54f not answered in time          -> ToolError: The contours of glyph 'rmc1' were NOT removed (not_answered_in_time): nobody answered in FontLab within 45 seconds, so the question closed by itself. Nothing was changed. Tell the person that the question closed unanswered and ask in the chat whether they want to try again; if they do, tell them FontLab will give them 45 seconds to click Yes. Do not try again on your own. | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54g no dialog could be shown      -> ToolError: Glyph 'rmc1': nothing was removed: the confirmation dialog could not be shown in FontLab (boom). | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54h refused: a stale start        -> ToolError: Glyph 'rmc1': nothing was removed: the request does not match the glyph as it is now: entry 0: contour 1 starts at (50, 50), not at the given start (60, 50) | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54i refused: edited during the question -> ToolError: Glyph 'rmc1': nothing was removed: the glyph changed while the question was open: the glyph holds 3 contour(s), not the expected 2 | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54j refused: several shapes       -> ToolError: Glyph 'rmc1': nothing was removed: the glyph has 2 shapes; remove_contours edits a glyph with exactly one plain shape (several shapes are not supported yet) | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54k removed, re-read differs      -> {'removed': False, 'verified': False, 'changed': True, 'mismatches': ['contour 0: 3 nodes read, 4 expected'], 'before': [{'index': 0, 'closed': True, 'node_list': [{'x': 0, 'y': 0, 'kind': 'On', 'smooth': False}, {'x': 400, 'y': 0, 'kind': 'On', 'smooth': False}, {'x': 400, 'y': 300, 'kind': 'On', 'smooth': False}, {'x': 0, 'y': 300, 'kind': 'On', 'smooth': False}]}, {'index': 1, 'closed': True, 'node_list': [{'x': 50, 'y': 50, 'kind': 'On', 'smooth': False}, {'x': 150, 'y': 50, 'kind': 'On', 'smooth': False}, {'x': 100, 'y': 150, 'kind': 'On', 'smooth': False}]}], 'after': [{'index': 0, 'closed': True, 'node_list': [{'x': 50, 'y': 50, 'kind': 'On', 'smooth': False}, {'x': 150, 'y': 50, 'kind': 'On', 'smooth': False}, {'x': 100, 'y': 150, 'kind': 'On', 'smooth': False}]}], 'removed_contours': [{'index': 0, 'closed': True, 'node_list': [{'x': 50, 'y': 50, 'kind': 'On', 'smooth': False}, {'x': 150, 'y': 50, 'kind': 'On', 'smooth': False}, {'x': 100, 'y': 150, 'kind': 'On', 'smooth': False}]}], 'font_modified': True, 'undo_note': "In testing, FontLab's Edit > Undo offered nothing after contours were removed this way: to bring a removed contour back, draw it again from removed_contours with add_contours (or draw_path when the glyph is empty)."} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+54l  instruction                  -> The re-read outline does NOT match the request, so the removal is not confirmed, and the glyph may now be partly changed | its own text: True | remove_component's text kept: True
+54m an empty shape left           -> {'removed': False, 'changed': True, 'mismatches': ["every contour was removed, but the layer reads 1 shape(s) after FontLab's sync, 0 expected (an empty shape may be left)"], 'font_modified': True} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+54n outcome unknown after a touch -> {'removed': False, 'changed': 'unknown', 'font_modified': 'unknown'} | posts 1 | {'changes': 0, 'uncertain': 1, 'reminder_given': True}
+54o not marked: save question note -> {'removed': True, 'synced_with_fontlab': False, 'fontlab_changed_mark': {'called': False, 'reason': "FontLab's sync of this glyph was not confirmed"}, 'save_question_note': 'FontLab may not count this change as unsaved, so closing the font may ask no save question and lose it silently (see fontlab_changed_mark). Tell the person if they may close the font before saving.'} | posts 1 | {'changes': 1, 'uncertain': 0, 'reminder_given': True}
+54p no font open                  -> ToolError: FontLab is running and the listener answered, but no font is open. Open a font in FontLab and try again. | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54q no such glyph                 -> ToolError: No glyph named 'rmc1' was found. | posts 1 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54r listener 0.209                -> ToolError: remove_contours needs listener v0.210 or newer; the running listener is v0.209. Copy the current listener file into FontLab's Scripts folder and restart it. Nothing was changed. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54s write times out               -> OutcomeUnknown: timed out The request may or may not have been applied, so the font may have bee | posts 1 | {'changes': 0, 'uncertain': 1, 'reminder_given': True}
+54t empty name                 -> ToolError: Glyph name must not be empty. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54u expected_contours 0         -> ToolError: expected_contours must be a whole number from 1 to 5000: the number of contours the glyph holds now, as get_glyph_outline reported it. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54v expected_contours a bool    -> ToolError: expected_contours must be a whole number from 1 to 5000: the number of contours the glyph holds now, as get_glyph_outline reported it. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54w no entry                   -> ToolError: contours must be a list of 1 to expected_contours entries, one per contour to remove: {"index": n, "node_count": n, "start": {"x": x, "y": y}}. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54x more entries than contours  -> ToolError: contours must be a list of 1 to expected_contours entries, one per contour to remove: {"index": n, "node_count": n, "start": {"x": x, "y": y}}. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54y an index past expected      -> ToolError: contours entry 0: index must be a whole number from 0 to 1 (the contour numbering of get_glyph_outline). | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54z node_count 0               -> ToolError: contours entry 0: node_count must be a whole number from 1 to 5001 (the contour's node_count in get_glyph_outline, control points included). | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54za the same contour twice     -> ToolError: contours entry 1: contour 1 is named twice; name each contour once. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54zb an extra key               -> ToolError: contours entry 0 must be an object with exactly "index", "node_count" and "start". | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54zc start without y            -> ToolError: contours entry 0 start must be an object {"x": number, "y": number}. | posts 0 | {'changes': 0, 'uncertain': 0, 'reminder_given': False}
+54zd docs              -> tool listed: True | signature: (name: str, expected_contours: int, contours: list[dict[str, typing.Any]], ctx: __main__.Context | None = None) -> dict[str, typing.Any] | missing phrases: [] | SAVE_KEYS replaced: True
+54ze add_contours no longer says no tool removes a contour: True | its texts: [True, True]
+54zf versions                   -> 0.91 | needs listener (0, 210)

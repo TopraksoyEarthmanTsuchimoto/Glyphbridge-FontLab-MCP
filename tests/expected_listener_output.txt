@@ -1,6 +1,6 @@
 [glyphbridge] Connected at HH:MM:SS - first request (GET /health) from a local client.
 /health ('200', {'status': 'ok'})
-/version ('200', {'version': '0.207'})
+/version ('200', {'version': '0.210'})
 /font/current ('200', {'open': True, 'path': 'x', 'glyph_count': 3, 'family_name': 'F', 'style_name': 'R', 'postscript_font_name': '', 'postscript_full_name': '', 'units_per_em': 1000, 'ascender': 800, 'descender': -200, 'cap_height': 700, 'x_height': 500, 'weight_class': 400, 'package_names_unavailable': "the number of open fonts is unknown or not a positive number, so the font's package cannot be matched to it"})
 /font/glyphs ('200', {'open': True, 'count': 3, 'names': ['A', 'empty', 'B']})
 /glyph/width?name=A ('200', {'open': True, 'found': True, 'name': 'A', 'advance_width': None, 'legacy_width': 500.0, 'width': 500.0, 'source': 'legacy', 'modern_reason': "FontLab's modern glyph could not be reached (the fontlab module has no flGlyph class)"})
@@ -264,7 +264,7 @@ shape_count in outline: 1
 207 bad route       : unknown route 'bogus': use rou
 208 unknown tri glyph: False no glyph named 'trinope'
 209 no font open    : {'open': False}
-210 version         : {'version': '0.207'}
+210 version         : {'version': '0.210'}
 220 legacy lsb refused: True refused: the legacy setters glyph.leftMargin / glyph.rightMa | leftMargin 0.0 | calls []
 221 legacy rsb refused: True | rightMargin -500.0
 222 legacy width still allowed: glyph.width = 600.0 | width 600.0
@@ -378,7 +378,7 @@ shape_count in outline: 1
 341g unchanged      : {'set': False, 'route': 'modern', 'before': 500.0, 'after': 500.0, 'requested': 700.0, 'width_rounded': None, 'changed': None, 'reason': 'width did not change to the requested value after setting'} | mark False
 341h OUTPUT line     : ('NOT DONE width tri: width did not change to the requested value after setting', False)
 341i legacy route rounds: {'set': True, 'route': 'legacy_empty_glyph', 'before': 500.0, 'after': 641.0, 'requested': 640.5, 'width_rounded': {'requested': 640.5, 'written': 641.0}, 'changed': None, 'reason': None} | legacy width 641.0
-342 version          : {'version': '0.207'}
+342 version          : {'version': '0.210'}
 343 state            : 200 {'is_none': True} 0 | findLayer {'is_none': True} | nocreate {'is_none': True} | ref True | calls [('findLayer', 'Master'), ('getLayerByName', 'Master', False)]
 344 create without go: 200 refused: stage=create can change the fon | calls []
 345 findLayerCreate  : 200 w.findLayerCreate('Master') | returned {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | same {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | rebuilt built {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
@@ -395,14 +395,14 @@ shape_count in outline: 1
 356 no name          : 400
 357 unknown glyph    : {'open': True, 'found': False, 'reason': "no glyph named 'nope'", 'font_master': {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}}
 358 no font          : {'open': False}
-359 version          : {'version': '0.207'}
+359 version          : {'version': '0.210'}
 360 font_master      : 200 {'is_none': False, 'type': 'FmLayer', 'public_names': ['id', 'isBodyLayer', 'isMasterLayer', 'mutate', 'name'], 'name': 'test_font', 'id': 7, 'isMasterLayer': True, 'isBodyLayer': False}
 361 master, no glyph : False test_font
 362 create has no section: False
 363 master is None   : {'is_none': True}
 364 master raises    : {'error': 'RuntimeError: no master'}
 365 no master member : {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}
-366 version          : {'version': '0.207'}
+366 version          : {'version': '0.210'}
 400 width, new glyph  : 200 {'set': True, 'route': 'modern', 'layer_created': 'test_font', 'before': 0.0, 'after': 600.0} | calls [('findLayerCreate', 'fresh', 'test_font'), ('advanceWidth', 'fresh', 600.0)]
 401 width again       : True modern | layer_created None | creates 1
 402 names disagree    : True legacy_empty_glyph | the glyphs of this font have different layer names (['Alpha' | creates [] | legacy width 600.0
@@ -439,7 +439,7 @@ shape_count in outline: 1
 434 reader, agree     : 3 | modern_check {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True}
 435 reader, modern=no : False
 436 reader, no modern : 3 | modern_check {'available': True, 'modern_layer': False}
-437 version           : {'version': '0.207'}
+437 version           : {'version': '0.210'}
 440 stage=layer       : 200 1 | getContours {'type': 'list', 'python_sequence': True, 'len': 1} | getShapes {'type': 'list', 'python_sequence': True, 'len': 1} | shapes {'type': 'R73Native', 'python_sequence': False, 'len': 2} | shapesCount 1
 441 stage=contour     : 1 True False 4 {'type': 'list', 'python_sequence': True, 'len': 4}
 442 node via getNodeAt: {'type': 'R73Node', 'x': 400, 'y': 300, 'isOn': True, 'isOff': False, 'isCurve': False, 'smooth': False, 'index': 2} | calls [('getNodeAt', 2)]
@@ -462,7 +462,7 @@ shape_count in outline: 1
 459 no modern layer    : this glyph has no modern active layer, so there is nothing to read
 460 no font            : {'open': False}
 461 read-only          : calls [] | shapes still 1
-462 version           : {'version': '0.207'}
+462 version           : {'version': '0.210'}
 470 modern_outline    : True | nodes 5 of 5 | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0} | check agree False
 471 contour 0         : {'index': 0, 'closed': True, 'clockwise': True, 'nodesCount': 5}
 472 nodes             : [(10.0, 20.0, True), (410.0, 20.0, True), (410.0, 220.0, True), (210.0, 320.0, True), (10.0, 220.0, True)]
@@ -478,7 +478,7 @@ shape_count in outline: 1
 482 count mismatch    : {'available': False, 'error': 'read 5 nodes but the layer reports 6: the outline is not trusted'}
 483 too many nodes    : {'available': False, 'error': 'the layer has 5 nodes, more than the 3 that are read'}
 484 no QTransform     : margins key False | available True
-485 version           : {'version': '0.207'}
+485 version           : {'version': '0.210'}
 490 two contours      : 200 {'drawn': True, 'points': 8, 'contours': 2, 'contour_sizes': [4, 4], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': True}, 'layer_created': 'test_font'} | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 8, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P72Layer' object has no attribute 'shapes')"}
 491 calls             : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'flContour', 'addShape']
 492 read back         : True | contours 2 [4, 4]
@@ -498,7 +498,7 @@ shape_count in outline: 1
 506 second contour dropped: False | after drawing, the layer reads 1 shape(s), 4 node(s) and 1 contour(s); expected 1, 8 and 2 | changed True | checks {'shapes_ok': True, 'nodes_ok': False, 'contours_ok': False}
 507 getContours unreadable: True | checks {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': None}
 508 not empty         : False | the glyph's layer is not KNOWN to be empty (needs  | calls []
-509 version           : {'version': '0.207'}
+509 version           : {'version': '0.210'}
 510 curve probe        : 200 curve | call node(index 1).convertToCurve(False) | returned True | nodes_added 2 | may_change False
     before             : 4 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '2: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '3: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
     after              : 6 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '2: (268.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '3: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '4: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '5: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
@@ -516,7 +516,7 @@ shape_count in outline: 1
 520 bogus stage        : unknown stage 'bogus' for route=modern: use stage=names or stage=build or stage=attach or stage=refresh
 521 bogus variant      : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
 522 curve without go   : 200 refused: this probe can change the font 
-523 version           : {'version': '0.207'}
+523 version           : {'version': '0.210'}
 524 curve2 normal | may_change False | keys []
     A plan: convertToCurve(False) on node 1; setPoint(1, QPointF(100, 60 | error: None | note: None | final_as_expected: True
       step getNodeAt(1).convertToCurve(False) | returned True | error None | as_expected None | n 6
@@ -601,7 +601,7 @@ shape_count in outline: 1
 537 QPointF missing    : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 538 curve2 without go  : 200 refused: this probe can change the font 
 539 variant=curve still works: 2 1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False
-540 version           : {'version': '0.207'}
+540 version           : {'version': '0.210'}
 541 build (dry run)   : 200 curve3 | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | may_change False | layer shapes/nodes 0 0
     calls             : ['flContour([5 QPointF])', 'contour.closed = True', 'getNodeAt(2).convertToCurve(False)', 'setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))', 'flShape()', 'shape.shapeData', 'shapeData.addContour(contour)']
     notes             : ['detached nodes before attach: 0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 1: (300.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 2: (355.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 3: (400.0, 45.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 4: (400.0, 100.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 5: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 6: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', "after adding the contour, the detached shape reads {'contoursCount': 1, 'hasContours': True, 'isEmpty': False}"]
@@ -626,7 +626,7 @@ shape_count in outline: 1
 557 attach without go : 200 refused: this probe can change the font 
 558 second attach refused: True | layer 1 7
 559 variant=single unchanged: single {'nodesCount': 3, 'closed': True, 'clockwise': False}
-560 version           : {'version': '0.207'}
+560 version           : {'version': '0.210'}
 561 curve3 whole-number handles: None | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | calls ['setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))']
 562 curve3 attach     : True {'shapes': 1, 'nodes': 7} | layer 1 7
 563 curve3, FontLab rounds everything: None | layer 1 7
@@ -693,7 +693,7 @@ shape_count in outline: 1
 573 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 574 curve4 without go : 200 refused: this probe can change the font 
 575 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-576 version           : {'version': '0.207'}
+576 version           : {'version': '0.210'}
 577 curve5, everything works (stub assumptions) | may_change False | error None
      T1 closing segment: convertToCurve(False) on node 0 of a square | {'returned': True, 'handle_indices': [4, 5], 'nodesCount': 6}
      T2a convertToCurve(True) on node 1 of a square | {'returned': True, 'smooth_flags': [False, False, False, True, False, False]}
@@ -749,7 +749,7 @@ shape_count in outline: 1
 586 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 587 curve5 without go : 200 refused: this probe can change the font 
 588 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-589 version           : {'version': '0.207'}
+589 version           : {'version': '0.210'}
 600 one curved segment       : {'drawn': True, 'nodes_match': True, 'points': 4, 'segments_curved': 1, 'contour_sizes': [6], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 601 nodes read back       : [[(0.0, 0.0, 'on', False), (400.0, 0.0, 'on', False), (500.0, 100.0, 'h', False), (500.0, 300.0, 'h', False), (400.0, 400.0, 'on', False), (0.0, 400.0, 'on', False)]] | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 6, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
 602 calls                 : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'convertToCurve', 'addShape'] | layer_created test_font
@@ -809,7 +809,7 @@ shape_count in outline: 1
 667 second draw refused   : False | the glyph's layer is not KNOWN to be empty (needs 
 668 plain triangle via path : {'drawn': True, 'nodes_match': True, 'points': 3, 'segments_curved': 0, 'contour_sizes': [3], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 669 no convert calls      : 0
-671 version               : {'version': '0.207'}
+671 version               : {'version': '0.210'}
 672 pure helpers          : 3.0 -2.0 0.0 0.0 0.0 -3.0
 700 first draw             : True | layer_created test_font | layer (1, 6, 1) | creates 1
 701 legacy view lags       : True | wrapper activeLayer None
@@ -821,7 +821,7 @@ shape_count in outline: 1
 708 findLayer missing        : False | the glyph may already have a layer (the glyph has no findLayer to ask with), so no layer was created | creates 0 | layer None
 709 glyph without layer, nobody answers yes: True | layer_created test_font | creates 1
 710 width on a glyph with no layer still works: True modern | layer_created test_font | creates 1
-711 version                : {'version': '0.207'}
+711 version                : {'version': '0.210'}
 720 state, nothing open        : 200 {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': None} | constructed False | attached False | calls []
 721 default stage is state     : 200 state
 722 construct without go       : 200 stage=construct constructs ONE native flPackage object (it is not attached to anything). Add &go=yes to run it. | calls []
@@ -845,7 +845,7 @@ shape_count in outline: 1
 738 no flPackage class         : 200 the fontlab module has no flPackage class; nothing was constructed | constructed False
 739 forbidden members called   : [] | calls ['flPackage()', 'addPackage']
 740 static scan of the probe   : forbidden call syntax found: [] | real addPackage calls: 1 | scanned chars > 3000: True
-741 version                    : {'version': '0.207'}
+741 version                    : {'version': '0.210'}
 750 first glyph of a new font, polygon    : {'drawn': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
 751 what was read             : ['cp', 'cp_fgId', 'cp_isNull', 'defaultMaster', 'glyphsCount', 'gp', 'gp_fgId', 'isNull', 'master', 'masters', 'mastersCount', 'upm'] | reads 12
 752 first glyph, width               : {'set': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
@@ -905,7 +905,7 @@ shape_count in outline: 1
 798 forbidden members called, whole run: [] | addShape calls 1
 799 static scan of the fallback  : forbidden call syntax found: [] | scanned chars > 3000: True
 799b v0.150 no isEqual in the product: layer name False | create_font False | calls in the whole listener: 4 (4: research probes only, trynotify 1 call + 1 docstring, trypackage 2) | w.package read: True
-800 version                      : {'version': '0.207'}
+800 version                      : {'version': '0.210'}
 810 state, one font open               : 200 {'stage': 'state', 'state': {'package_isChanged': False, 'workspace_isChanged': False, 'package_glyphsCount': 1}, 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 811 default stage is state           : 200 {'stage': 'state', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 812 package_update without go        : 200 {'error': "stage=package_update calls flPackage.update() ONCE on the font's package. Add &go=yes to run it."} | calls []
@@ -936,7 +936,7 @@ shape_count in outline: 1
 842 the module has no CountFonts     : 200 {'error': 'the fontlab module has no CountFonts, so the number of open fonts is unknown', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 843 forbidden members called    : [] | calls ['flPackage.update()', 'flWorkspace.update()']
 844 static scan of the probe     : forbidden call syntax found: [] | real update calls: 1 | scanned chars > 3000: True
-845 version                      : {'version': '0.207'}
+845 version                      : {'version': '0.210'}
 850 no go                         : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 851 go must be exactly yes           : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 852 unknown how                      : 200 {'error': 'how must be "plain" (createGlyph only) or "legacy_update" (createGlyph, then font.update())'} | names ['.notdef', 'A'] | calls []
@@ -968,7 +968,7 @@ shape_count in outline: 1
 878 forbidden members called     : [] | calls ['createGlyph', 'createGlyph', 'update'] | names ['.notdef', 'A', 'P1', 'P2']
 879 static scan of the probe     : forbidden call syntax found: [] | real createGlyph calls: 1 | real font.update calls: 1 | scanned chars > 2000: True
 880 create_glyph itself unchanged: True | still calls font.update(): True
-881 version                      : {'version': '0.207'}
+881 version                      : {'version': '0.210'}
 890 nothing tracked: update runs       : 200 {'created': True} | calls ['createGlyph', 'font.update'] | layers ['ref'] | tracked []
 891 draw: reply says not synced         : 200 {'drawn': True, 'synced_with_fontlab': False} | calls [] | layers ['fresh', 'ref'] | tracked ['fresh']
 891b durability note present  : True | mentions create_glyph: True
@@ -1001,7 +1001,7 @@ shape_count in outline: 1
 913 no regression: duplicate name   : 200 {'created': False}
 914 static scan of the guard     : forbidden call syntax found: [] | scanned chars > 3000: True
 915 every legacy update is guarded: [(1, 1, 1), (1, 1, 1), (1, 1, 2), (1, 1, 2)]
-916 version                      : {'version': '0.207'}
+916 version                      : {'version': '0.210'}
 917 sidebearings change remembered: 200 {'set': True, 'changed': True, 'synced_with_fontlab': False} | tracked ['tri']
 918 same values again: not remembered: {'set': True, 'changed': False, 'synced_with_fontlab': None} | tracked []
 920 margins agree                    : 200 node_count 3 | check {'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True} | modern_outline None
@@ -1024,7 +1024,7 @@ shape_count in outline: 1
 936 margins argument not a dict  : {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True}
 937 direct compare, missing key  : {'margins_agree': None, 'margins_note': 'the legacy margins are not numbers, so they could not be compared'}
 938 static scan of the compare   : forbidden call syntax found: [] | getLSB / getRSB reads in the helper: 1 | scanned chars > 1500: True
-939 version                      : {'version': '0.207'}
+939 version                      : {'version': '0.210'}
 940 state, drawn glyph                  : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"}, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
 940b                              : {'found': True, 'legacy_layers': 0, 'modern': 'present', 'modern_nodes': 4, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'} | registry {'fresh': 'at_risk'} | counters {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}
 941 state, updatedFgGlyphs ids          : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"}, 'updated_fg_glyphs': {'count': 2, 'ids': [5, 7]}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
@@ -1112,7 +1112,7 @@ shape_count in outline: 1
 981 forbidden members called     : [] | pkg.update / other recorded package calls: []
 982 static scan of the probe     : forbidden call syntax found: ['.update(', '.update('] | real calls: Update 2 UpdateAll 1 fillFgData 1 prepareFontGateData 1 addGlyph 1 flGlyph() 1 | scanned chars > 6000: True
 983 no other tool changed        : True | create_glyph still calls font.update(): True
-984 version                      : {'version': '0.207'}
+984 version                      : {'version': '0.210'}
 990 polygon, Update syncs           : 200 {'drawn': True} | synced_with_fontlab True | fontlab_sync {'attempted': True, 'verdict': 'synced', 'synced': True} | note Glyphbridge asked Font | calls [('Update', 'M88Mod')] | tracked []
 990b                              : unsynced note gone: True | layer kept: True | legacy layers: 1
 991 polygon, Update has no effect     : 200 {'drawn': True} | synced_with_fontlab False | fontlab_sync {'attempted': True, 'verdict': 'at_risk', 'synced': False} | note This change exists onl | calls [('Update', 'M88Mod')] | tracked ['fresh']
@@ -1137,7 +1137,7 @@ shape_count in outline: 1
 1005 calls over all cases        : UpdateAll called: False | forbidden: [] | Update calls: 10 | all Update args are the modern wrapper: True
 1006 static scan of the sync     : forbidden call syntax found: [] | upd(w) calls: 1 | scanned chars > 900: True
 1007 constants                   : shipped default ['True'] | synced note mentions legacy view: True
-1008 version                     : {'version': '0.207'}
+1008 version                     : {'version': '0.210'}
 
 ==== v0.90 /debug/fontdir ====
 1010 dir                     : 200 {'open': True, 'count_fonts': 1, 'stage': 'dir', 'font_type': 'FDFont'} | names ['boom', 'familyName', 'flag', 'kerning', 'lenboom', 'method', 'nolen', 'nothing', 'unitsPerEm'] | doc len None | touched [] | called []
@@ -1747,12 +1747,12 @@ shape_count in outline: 1
 1328 poll: health, shutdown, version : raised None | accepts 2 | left 1 | socket closed True | timer stopped True | listener running False
 1329 replies                       : 200 {"status": "ok"} | 200 {"status": "shutting down"} | (nothing sent) | closed True True
 1330 poll: one request, then none : raised None | accepts 2 | left 0 | socket closed False | timer stopped False | listener running True
-1331 reply                         : 200 {"version": "0.207"}
+1331 reply                         : 200 {"version": "0.210"}
 1332 poll after stop()             : returns quietly
 [glyphbridge] Listener stopped.
 1333 poll: shutdown as 8th request : raised None | accepts 8 | left 0 | socket closed True | timer stopped True | listener running False
 1334 start() prints:
-[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.207
+[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.210
 [glyphbridge] Listener started on http://127.0.0.1:8765 (main-thread polling)
 [glyphbridge] Try: GET /health, GET /version. All routes are listed at the top of glyphbridge_fontlab_mcp_listener.py.
 1334 start() result                : socket set True | timer started True | interval 25 | signal timeout()
@@ -2519,7 +2519,7 @@ shape_count in outline: 1
 1621 forbidden members called    : [] | calls [('createGlyph', 'P1'), ('createGlyph', 'P2'), ('flGlyph', 'P2'), ('Update', ['P2']), ('flGlyph', 'A'), ('set unicode', 'A', 57346), ('Update', ['A'])] | names ['.notdef', 'A', 'P1', 'P2']
 1622 static scan of the probe     : forbidden call syntax found: [] | real calls: createGlyph 1 upd(w) 2 unicode set 1 | scanned chars > 6000: True
 1623 no product route changed    : create_glyph still calls font.update(): True | mentions of debug_try_refresh( (its def and its route): 2 | route wired: True
-1624 version                      : {'version': '0.207'}
+1624 version                      : {'version': '0.210'}
 
 ==== v0.120 F1: modern-only reads, the light sync check, the box probe ====
 1630 outline, modern nodes        : 200 {'source': 'modern', 'node_count': 3, 'contour_count': 1, 'component_count': 0, 'shape_count': 1, 'layer_route': 'body'} | legacy members touched []
@@ -2564,8 +2564,8 @@ shape_count in outline: 1
 1665 static scan _notdef_modern_outline_counts  : legacy members named: [] | scanned chars True
 1665 static scan light part of _guard_classify  : legacy members named: [] | scanned chars True
 1665 static scan _guard_is_light                : legacy members named: [] | scanned chars True
-1666 shipped switch              : ['True'] | full kinds ('draw_polygon', 'draw_path', 'layer_created', 'move_nodes', 'add_component', 'remove_component', 'add_contours') | light kinds ('width', 'sidebearings', 'trycomponent_light')
-1667 version                     : {'version': '0.207'}
+1666 shipped switch              : ['True'] | full kinds ('draw_polygon', 'draw_path', 'layer_created', 'move_nodes', 'add_component', 'remove_component', 'add_contours', 'remove_contours') | light kinds ('width', 'sidebearings', 'trycomponent_light')
+1667 version                     : {'version': '0.210'}
 
 ==== v0.121: fontlab_ink_box on the modern-only outline read ====
 1668 ink box, read once           : 200 | source modern | fontlab_ink_box {'type': 'SimpleNamespace', 'left': 192.466, 'right': 464.534, 'top': 0.0, 'bottom': 700.0, 'width': 272.068, 'height': 700.0} | inkBox calls [((), {})] | outline kept True | legacy members touched []
@@ -3590,7 +3590,7 @@ shape_count in outline: 1
 --- static checks
 2308a forbidden call syntax           : [] | scanned chars > 6000: True
 2308b one construction, one mark      : True True | no per-run counter: True
-2308c route registered once, documented: True True | in the activity writes: create font | version 0.207
+2308c route registered once, documented: True True | in the activity writes: create font | version 0.210
 2308d one shared family check        : True | probe uses it: True | route uses it: True | psn limit 63 | forbidden [](){}<>/%
 
 ==== v0.148 /debug/trypackage ====
@@ -3624,7 +3624,7 @@ shape_count in outline: 1
 2309ab request 21 refused           : 200 {'error': 'the probe already ran 20 times in this listener run; restart the listener to repeat it', 'runs_so_far': 20} | isEqual [('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg')] | forbidden []
 2309ac  isEqual calls in 21 requests: 20
 2309ad static scan of the probe   : forbidden call syntax: [] | fgPackage: False | subscripts of a native object: [] | one isEqual per stage: True | counter before the first read: True | scanned chars > 4000: True
-2309ae route documented, registered once: True True | version 0.207
+2309ae route documented, registered once: True True | version 0.210
 --- v0.149 stage=cached
 2310a cached without go            : 200 {'error': 'reads flGlyph.package and calls isEqual on it, which have not been called live before. Add &go=yes to run it.'} | isEqual [] | forbidden []
 2310b cached with a name           : 200 {'error': "stage=cached takes no name: it reads the wrappers already in the listener's cache"} | isEqual [] | forbidden []
@@ -3645,7 +3645,7 @@ shape_count in outline: 1
 ==== v0.151 /debug/tryedit ====
 2311a movenode without go           : 200 {'error': 'stage=movenode moves one node of the glyph by (dx, dy). Add &go=yes to run it.'} | edit calls [] | Update [] | marks []
 2311b go must be exactly yes        : 200 {'error': 'stage=movenode moves one node of the glyph by (dx, dy). Add &go=yes to run it.'} | edit calls [] | Update [] | marks []
-2311c unknown stage                 : 200 {'error': 'stage must be "movenode", "addcontour", "removecontour" or "replace"'} | edit calls [] | Update [] | marks []
+2311c unknown stage                 : 200 {'error': 'stage must be "movenode", "addcontour", "removecontour", "removeshape" or "replace"'} | edit calls [] | Update [] | marks []
 2311d name without the edp prefix   : 200 {'error': 'name must start with "edp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'} | edit calls [] | Update [] | marks []
 2311e name with a space             : 200 {'error': 'name must start with "edp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'} | edit calls [] | Update [] | marks []
 2311f name 'edp' alone              : 200 {'error': 'name must start with "edp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'} | edit calls [] | Update [] | marks []
@@ -3695,6 +3695,7 @@ shape_count in outline: 1
 2318 the limit: call 9 is refused  : 200 {'error': 'the probe already ran 8 times in this listener run; restart the listener to repeat it', 'calls_so_far': 8} | edit calls [('x', 410.0), ('y', 280.0), ('x', 420.0), ('y', 260.0), ('x', 430.0), ('y', 240.0), ('x', 440.0), ('y', 220.0), ('x', 450.0), ('y', 200.0), ('x', 460.0), ('y', 180.0), ('x', 470.0), ('y', 160.0), ('x', 480.0), ('y', 140.0)] | Update [('P72Mod',), ('P72Mod',), ('P72Mod',), ('P72Mod',), ('P72Mod',), ('P72Mod',), ('P72Mod',), ('P72Mod',)] | marks []
 2319 spies over all cases: forbidden members, subscripts, iterations: []
 2319a static scan of the probe (code lines): True | forbidden call syntax: [] | counter raised before the glyph is read: True
+2319c removeShape call statements: ['layer.removeShape(shape, False)'] | inside the removeshape branch: True
 2319b route documented:  True | mark title: Glyphbridge edit | dispatched: True
 2320 draw_path still refuses a drawn glyph: the glyph's layer is not KNOWN to be empty (needs readable counts of 0 shapes, 0 nodes, 0
 
@@ -3722,6 +3723,47 @@ shape_count in outline: 1
 2936c circle does not close detached : 200 {'kind': 'cubic', 'glyph_count_before': 8, 'error': 'the detached cubic circle does not match: detached cubic circle: closed reads False, expected True: nothing was touched', 'calls_so_far': 1} | edit calls [('x', 800.0), ('y', 355.0), ('x', 755.0), ('y', 400.0), ('x', 645.0), ('y', 400.0), ('x', 600.0), ('y', 355.0), ('x', 600.0), ('y', 245.0), ('x', 645.0), ('y', 200.0), ('x', 755.0), ('y', 200.0), ('x', 800.0), ('y', 245.0)] | Update [] | marks []
 2936d the open arch lands first     : 200 {'kind': 'open', 'edited': False, 'changed': True, 'mismatches': ['contour 0: closed reads False, expected True', 'contour 0 node 0: position (105.0, 104.0) instead of (0.0, 0.0)', 'contour 0 node 1: position (105.0, 280.0) instead of (400.0, 0.0)', 'contour 0 node 1: kind Curve instead of On', 'contour 0 node 2: position (398.0, 255.0) instead of (400.0, 300.0)', 'contour 0 node 2: kind Curve instead of On', 'contour 0 node 3: position (398.0, 104.0) instead of (0.0, 300.0)', 'contour 1: 4 nodes read, 3 expected', 'contour 2: closed reads True, expected False', 'contour 2: 3 nodes read, 4 expected'], 'smooth_changed': [], 'side_effect_detected': False, 'glyph_count_before': 8, 'glyph_count_after': 8, 'calls_so_far': 1} | edit calls [('x', 105.0), ('y', 280.0), ('x', 398.0), ('y', 255.0), 'addContour'] | Update [('P72Mod',)] | marks []
 2937 spies over all cases: forbidden members, subscripts, iterations: []
+
+==== v0.208 /debug/tryedit removeshape ====
+2940a removeshape without go        : 200 {'error': "stage=removeshape removes the glyph's one shape, only when it is empty (0 contours). Add &go=yes to run it."} | edit calls [] | Update [] | marks []
+2940b with contour=0                : 200 {'error': "contour is not for stage=removeshape: it removes the glyph's one empty shape"} | edit calls [] | Update [] | marks []
+2940c with kind=square              : 200 {'error': 'kind is only for stage=addcontour'} | edit calls [] | Update [] | marks []
+2940d with refresh=layer.update     : 200 {'error': 'refresh is not for stage=removeshape'} | edit calls [] | Update [] | marks []
+2940e refusals counted no call      : 0
+2941 removeshape on an empty shape : 200 {'shapes_before': 1, 'shapes_after': 0, 'edited': True, 'changed': True, 'mismatches': [], 'smooth_changed': [], 'side_effect_detected': False, 'glyph_count_before': 9, 'glyph_count_after': 9, 'calls_so_far': 1} | edit calls [('removeShape', False)] | Update [('P72Mod',)] | marks []
+2941a  call, after, state       : layer.removeShape(shape, False) | after [] | state_after shapes 0 | nodes 0
+2941b  sync, mark               : False | changed mark {'called': False, 'reason': "FontLab's sync of this glyph was not confirmed"} | repainted True
+2941c removeshape, the legacy view agrees : 200 {'edited': True, 'changed': True, 'synced_with_fontlab': True, 'fontlab_changed_mark': {'called': True, 'glyph_has_changes': 'unknown'}} | edit calls [('removeShape', False)] | Update [('P72Mod',)] | marks [('Glyphbridge edit', 'P72Mod', False)]
+2942 a shape holding a contour     : 200 {'glyph_count_before': 9, 'error': 'the shape is not empty (layer.getContours() gives 1 contour(s), the layer reads 4 node(s)); stage=removeshape removes only an empty shape: nothing was touched', 'calls_so_far': 1} | edit calls [] | Update [] | marks []
+2942a  outline unchanged        : [('closed', [(0.0, 0.0, 'O', False), (400.0, 0.0, 'O', False), (400.0, 300.0, 'O', False), (0.0, 300.0, 'O', False)])] | layer shapes 1
+2942b a shape holding 2 contours    : 200 {'glyph_count_before': 9, 'error': 'the shape is not empty (layer.getContours() gives 2 contour(s), the layer reads 7 node(s)); stage=removeshape removes only an empty shape: nothing was touched', 'calls_so_far': 1} | edit calls [] | Update [] | marks []
+2942c two shapes                    : 200 {'error': 'the glyph has 2 shapes; the probe edits a glyph with exactly one: nothing was touched', 'calls_so_far': 2} | edit calls [] | Update [] | marks []
+2942d no shape                      : 200 {'error': 'the glyph has 0 shapes; the probe edits a glyph with exactly one: nothing was touched', 'calls_so_far': 3} | edit calls [] | Update [] | marks []
+2942e a Power Brush shape           : 200 {'error': "the shape's isComposite reads True: only a plain shape is edited, never a component or a Power Brush or other composite shape: nothing was touched", 'calls_so_far': 4} | edit calls [] | Update [] | marks []
+2942f 0 contours but 3 nodes read   : 200 {'error': 'the outline could not be read before the edit (read 0 nodes but the layer reports 3: the outline is not trusted): nothing was touched', 'calls_so_far': 1} | edit calls [] | Update [] | marks []
+2942g  shape kept               : 1
+2942h the node count is unreadable  : 200 {'error': 'the outline could not be read before the edit (the modern node count is not readable): nothing was touched', 'calls_so_far': 1} | edit calls [] | Update [] | marks []
+2942i  shape kept               : 1
+2942j a contour with no node        : 200 {'glyph_count_before': 9, 'error': 'the shape is not empty (layer.getContours() gives 1 contour(s), the layer reads 0 node(s)); stage=removeshape removes only an empty shape: nothing was touched', 'calls_so_far': 1} | edit calls [] | Update [] | marks []
+2942k  shape kept               : 1
+2943a removeShape raises            : 200 {'shapes_before': 1, 'shapes_after': 1, 'edited': False, 'changed': False, 'mismatches': ['the layer reads 1 shape(s) after the call, 0 expected'], 'smooth_changed': [], 'side_effect_detected': True, 'glyph_count_before': 9, 'glyph_count_after': 9, 'error': 'layer.removeShape(shape, False) failed: RuntimeError: removeShape boom', 'calls_so_far': 1} | edit calls [('removeShape', False)] | Update [] | marks []
+2943b removeShape does nothing     : 200 {'shapes_before': 1, 'shapes_after': 1, 'edited': False, 'changed': False, 'mismatches': ['the layer reads 1 shape(s) after the call, 0 expected'], 'smooth_changed': [], 'side_effect_detected': True, 'glyph_count_before': 9, 'glyph_count_after': 9, 'calls_so_far': 1} | edit calls [('removeShape', False)] | Update [] | marks []
+2943c  mark                     : None
+2944 spies over all cases: forbidden members, subscripts, iterations: []
+
+==== v0.209 /debug/tryedit state_after_sync and mark=no ====
+2950a mark=yes                      : 200 {'error': 'mark must be "no" (skip the changed mark; the sync still runs), or left out'} | edit calls [] | Update [] | marks []
+2950b mark=no without go            : 200 {'error': "stage=addcontour adds a fixed square contour to the glyph's shape. Add &go=yes to run it."} | edit calls [] | Update [] | marks []
+2950c refusals counted no call      : 0
+2951 movenode, default mark       : 200 | shapes after / after sync: 1 / 1 | synced_before_read True | synced True | mark {'called': True, 'glyph_has_changes': 'unknown'} | edited True | error None | Update [('P72Mod',)] | marks [('Glyphbridge edit', 'P72Mod', False)]
+2952 movenode, mark=no            : 200 | shapes after / after sync: 1 / 1 | synced_before_read True | synced True | mark {'called': False, 'reason': 'skipped by mark=no (research)'} | edited True | error None | Update [('P72Mod',)] | marks []
+2953a last contour, the sync drops the empty shape : 200 | shapes after / after sync: 1 / 0 | synced_before_read True | synced False | mark {'called': False, 'reason': "FontLab's sync of this glyph was not confirmed"} | edited True | error None | Update [('P72Mod',)] | marks []
+2953b the same with mark=no       : 200 | shapes after / after sync: 1 / 0 | synced_before_read True | synced False | mark {'called': False, 'reason': 'skipped by mark=no (research)'} | edited True | error None | Update [('P72Mod',)] | marks []
+2953c last contour, the sync keeps it : 200 | shapes after / after sync: 1 / 1 | synced_before_read True | synced False | mark {'called': False, 'reason': "FontLab's sync of this glyph was not confirmed"} | edited True | error None | Update [('P72Mod',)] | marks []
+2953d one of two contours (control) : 200 | shapes after / after sync: 1 / 1 | synced_before_read True | synced False | mark {'called': False, 'reason': "FontLab's sync of this glyph was not confirmed"} | edited True | error None | Update [('P72Mod',)] | marks []
+2954 nothing changed: no sync     : 200 | shapes after / after sync: 1 / 1 | synced_before_read False | synced None | mark None | edited False | error None | Update [] | marks []
+2955 refused early (two shapes)   : 200 | shapes after / after sync: absent / absent | synced_before_read absent | synced None | mark None | edited None | error the glyph has 2 shapes; the probe edits a glyph with exactly one: nothing was touched | Update [] | marks []
+2956 spies over all cases: forbidden members, subscripts, iterations: []
 
 ==== v0.152 /debug/tryedit refresh ====
 2321a an unknown refresh             : 200 {'error': 'refresh must be one of: contour.update, shape.update, shapedata.update, layer.update, glyph.update, layer.changed, shape.changed, layer.resetinkbox'} | edit calls [] | Update [] | marks []
@@ -5389,12 +5431,77 @@ shape_count in outline: 1
 2918g log, one contour         : ('add contours cpp1: 1 contour (verified, nodes match)', True)
 2919 spies over the add_contours cases: []
 
+==== v0.210 POST /glyph/contours/remove (remove_contours) ====
+2960a no expected_contours         : 400 {'error': 'the body must be an object with "name", "expected_contours", "contours" and, optionally, "dialog_seconds"'} | calls [] | asked 0 | Update [] | marks []
+2960b an extra key                 : 400 {'error': 'the body must be an object with "name", "expected_contours", "contours" and, optionally, "dialog_seconds"'} | calls [] | asked 0 | Update [] | marks []
+2960c expected_contours 0          : 400 {'error': '"expected_contours" must be a whole number from 1 to 5000'} | calls [] | asked 0 | Update [] | marks []
+2960d no entry                     : 400 {'error': '"contours" must be a list of 1 to expected_contours entries, one per contour to remove'} | calls [] | asked 0 | Update [] | marks []
+2960e more entries than contours   : 400 {'error': '"contours" must be a list of 1 to expected_contours entries, one per contour to remove'} | calls [] | asked 0 | Update [] | marks []
+2960f an entry without start       : 400 {'error': 'entry 0: an entry is an object with exactly "index", "node_count" and "start"'} | calls [] | asked 0 | Update [] | marks []
+2960g index a bool                 : 400 {'error': 'entry 0: index must be a whole number from 0 to 5000'} | calls [] | asked 0 | Update [] | marks []
+2960h node_count 0                 : 400 {'error': 'entry 0: node_count must be a whole number from 1 to 5001'} | calls [] | asked 0 | Update [] | marks []
+2960i start out of range           : 400 {'error': 'entry 0: start must be an {x, y} object with numbers between -20000 and 20000'} | calls [] | asked 0 | Update [] | marks []
+2960j the same contour twice       : 400 {'error': 'entry 1: contour 1 is named twice in this request'} | calls [] | asked 0 | Update [] | marks []
+2960k dialog_seconds 4.5           : 400 {'error': '"dialog_seconds" must be a whole number of seconds'} | calls [] | asked 0 | Update [] | marks []
+2960l empty name                   : 400 {'error': '"name" must be a non-empty string'} | calls [] | asked 0 | Update [] | marks []
+2960m not JSON                     : 400
+2961 the triangle (contour 1)      : 200 {'removed': True, 'nodes_match': True, 'changed': True, 'shapes_after_sync': 1, 'contours_now': 1, 'mismatches': [], 'synced_with_fontlab': True, 'fontlab_changed_mark': {'called': True, 'glyph_has_changes': 'unknown'}} | calls [('removeContour', 1)] | asked 1 | Update [('P72Mod',)] | marks [('Glyphbridge remove contours', 'P72Mod', False)]
+2961a  after / removed / requested : [('closed', [(0.0, 0.0, 'O', False), (400.0, 0.0, 'O', False), (400.0, 300.0, 'O', False), (0.0, 300.0, 'O', False)])] | [('closed', [(50.0, 50.0, 'O', False), (150.0, 50.0, 'O', False), (100.0, 150.0, 'O', False)])] | [1]
+2961b  the question                : Glyphbridge: Confirm Contour Removal | 45 removed | A request through Glyphbridge asks to remove 1 of the 2 contours of the glyph 'cpp1' in a font without a name (file ts): / contour 1: 3 nodes, starting at (50, 50) /  / FontLab's Edit > Undo cannot bring them back. Allow this removal?
+2961c  margins, no before on success: {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0} | True True | guard kind None
+2962 the square (contour 0)        : 200 {'removed': True, 'nodes_match': True, 'changed': True, 'shapes_after_sync': 1, 'contours_now': 1, 'mismatches': [], 'synced_with_fontlab': True, 'fontlab_changed_mark': {'called': True, 'glyph_has_changes': 'unknown'}} | calls [('removeContour', 0)] | asked 1 | Update [('P72Mod',)] | marks [('Glyphbridge remove contours', 'P72Mod', False)]
+2962a  after                       : [('closed', [(50.0, 50.0, 'O', False), (150.0, 50.0, 'O', False), (100.0, 150.0, 'O', False)])]
+2963 both, the sync drops the shape : 200 {'removed': True, 'nodes_match': True, 'changed': True, 'glyph_empty': True, 'shapes_after_sync': 0, 'contours_now': 0, 'mismatches': [], 'synced_with_fontlab': False, 'fontlab_changed_mark': {'called': False, 'reason': "FontLab's sync of this glyph was not confirmed"}} | calls [('removeContour', 1), ('removeContour', 0)] | asked 1 | Update [('P72Mod',)] | marks []
+2963a  after / sync state / question: [] | {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 0, 'nodes': 0, 'fontlab_components_count': 0, 'components': 0} | This removes every contour: the glyph will be empty.
+2963b both, an empty shape stays    : 200 {'removed': False, 'nodes_match': False, 'changed': True, 'glyph_empty': False, 'shapes_after_sync': 1, 'contours_now': 0, 'mismatches': ["every contour was removed, but the layer reads 1 shape(s) after FontLab's sync, 0 expected (an empty shape may be left)"], 'reason': "the re-read outline does not match the request: every contour was removed, but the layer reads 1 shape(s) after FontLab's sync, 0 expected (an empty shape may be left)", 'synced_with_fontlab': False, 'fontlab_changed_mark': {'called': False, 'reason': "FontLab's sync of this glyph was not confirmed"}} | calls [('removeContour', 1), ('removeContour', 0)] | asked 1 | Update [('P72Mod',)] | marks []
+2963c one contour, the only one    : 200 {'removed': True, 'nodes_match': True, 'changed': True, 'glyph_empty': True, 'shapes_after_sync': 0, 'contours_now': 0, 'mismatches': [], 'synced_with_fontlab': False, 'fontlab_changed_mark': {'called': False, 'reason': "FontLab's sync of this glyph was not confirmed"}} | calls [('removeContour', 0)] | asked 1 | Update [('P72Mod',)] | marks []
+2963d  margins absent when empty   : True | removed_contours [('closed', [(0.0, 0.0, 'O', False), (400.0, 0.0, 'O', False), (400.0, 300.0, 'O', False), (0.0, 300.0, 'O', False)])]
+2964a answered No                 : 200 {'removed': False, 'changed': False, 'reason': 'the removal was not approved in FontLab (answered No)', 'user_declined': True} | calls [] | asked 1 | Update [] | marks []
+2964b not answered in time          : 200 {'removed': False, 'changed': False, 'reason': 'nobody answered in FontLab within 45 s; the question closed by itself', 'not_answered': True} | calls [] | asked 1 | Update [] | marks []
+2964c  dialog                      : {'answer': 'not_answered', 'seconds': 45}
+2964d no dialog could be shown      : 200 {'removed': False, 'changed': False, 'reason': 'no dialog could be shown, so nothing was removed', 'dialog_error': 'the dialog could not be set up to close by itself (boom); no dialog was shown'} | calls [] | asked 1 | Update [] | marks []
+2964e unclear                       : 200 {'removed': False, 'changed': False, 'reason': 'the removal was not approved in FontLab (No, or no answer in time: which one could not be read)', 'user_declined': True} | calls [] | asked 1 | Update [] | marks []
+2965a a stale expected_contours     : 200 {'removed': False, 'changed': False, 'reason': 'the request does not match the glyph as it is now, nothing was removed: the glyph holds 2 contour(s), not the expected 3: it may have changed since it was read; read it again with get_glyph_outline', 'contours_found': 2} | calls [] | asked 0 | Update [] | marks []
+2965b a wrong node_count            : 200 {'removed': False, 'changed': False, 'reason': 'the request does not match the glyph as it is now, nothing was removed: entry 0: contour 1 has 3 node(s), not the given 4'} | calls [] | asked 0 | Update [] | marks []
+2965c a wrong start                 : 200 {'removed': False, 'changed': False, 'reason': 'the request does not match the glyph as it is now, nothing was removed: entry 0: contour 1 starts at (50, 50), not at the given start (50, 51)'} | calls [] | asked 0 | Update [] | marks []
+2965d an index past the end         : 200 {'removed': False, 'changed': False, 'reason': 'the request does not match the glyph as it is now, nothing was removed: entry 0: contour 2 does not exist (the glyph has 2)'} | calls [] | asked 0 | Update [] | marks []
+2965e one good, one stale entry     : 200 {'removed': False, 'changed': False, 'reason': 'the request does not match the glyph as it is now, nothing was removed: entry 1: contour 1 starts at (50, 50), not at the given start (60, 50)'} | calls [] | asked 0 | Update [] | marks []
+2966a the glyph is edited during the question : 200 {'removed': False, 'changed': False, 'reason': 'the glyph changed while the question was open, nothing was removed: entry 0: contour 1 starts at (57, 50), not at the given start (50, 50)'} | calls [] | asked 1 | Update [] | marks []
+2966b a contour is added during it  : 200 {'removed': False, 'changed': False, 'reason': 'the glyph changed while the question was open, nothing was removed: the glyph holds 3 contour(s), not the expected 2: it may have changed since it was read; read it again with get_glyph_outline'} | calls [] | asked 1 | Update [] | marks []
+2966c a shape is added during it    : 200 {'removed': False, 'changed': False, 'reason': 'after the Yes, the glyph has 2 shapes; remove_contours edits a glyph with exactly one plain shape (several shapes are not supported yet): nothing was removed', 'edit_case': 'several_shapes'} | calls [] | asked 1 | Update [] | marks []
+2967a an empty layer              : 200 {'removed': False, 'changed': False, 'reason': 'the glyph holds no shape yet; remove_contours works on an existing outline: nothing was removed', 'edit_case': 'empty'} | calls [] | asked 0 | Update [] | marks []
+2967b two shapes                  : 200 {'removed': False, 'changed': False, 'reason': 'the glyph has 2 shapes; remove_contours edits a glyph with exactly one plain shape (several shapes are not supported yet): nothing was removed', 'edit_case': 'several_shapes'} | calls [] | asked 0 | Update [] | marks []
+2967c a component                 : 200 {'removed': False, 'changed': False, 'reason': 'the glyph holds a component (its isComponent reads True); remove_contours does not support a glyph with components yet: nothing was removed', 'edit_case': 'component'} | calls [] | asked 0 | Update [] | marks []
+2967d a Power Brush shape         : 200 {'removed': False, 'changed': False, 'reason': "the glyph's shape is a Power Brush or other composite shape (its isComposite reads True); remove_contours never edits such a shape: nothing was removed", 'edit_case': 'composite'} | calls [] | asked 0 | Update [] | marks []
+2967e an element offset           : 200 {'removed': False, 'changed': False, 'reason': "the glyph's shape carries an element transform (m11 1, m12 0, m21 0, m22 1, dx 10, dy 0), so its stored node positions are not the positions FontLab draws; remove_contours does not support such a glyph yet: nothing was removed", 'edit_case': 'shape_transform'} | calls [] | asked 0 | Update [] | marks []
+2967f a glyph that does not exist  : 200 {'removed': False, 'reason': "no glyph named 'cppzz'", 'found': False} | calls [] | asked 0 | Update [] | marks []
+2967g an empty glyph without a layer : 200 {'removed': False, 'reason': 'the glyph is empty and has no layer yet: it has no contour to remove: nothing was removed', 'edit_case': 'empty', 'found': True} | calls [] | asked 0 | Update [] | marks []
+2968a removeContour raises        : 200 {'removed': False, 'nodes_match': False, 'changed': False, 'shapes_after_sync': 1, 'contours_now': 2, 'mismatches': ['the layer reads 2 contour(s), 1 expected'], 'reason': 'shape.shapeData.removeContour(contour 1) failed: RuntimeError: removeContour boom: the layer reads 2 contour(s), 1 expected', 'error': 'shape.shapeData.removeContour(contour 1) failed: RuntimeError: removeContour boom'} | calls [('removeContour', 1)] | asked 1 | Update [] | marks []
+       before / expected / after  : [('closed', [(0.0, 0.0, 'O', False), (400.0, 0.0, 'O', False), (400.0, 300.0, 'O', False), (0.0, 300.0, 'O', False)]), ('closed', [(50.0, 50.0, 'O', False), (150.0, 50.0, 'O', False), (100.0, 150.0, 'O', False)])] | [('closed', [(0.0, 0.0, 'O', False), (400.0, 0.0, 'O', False), (400.0, 300.0, 'O', False), (0.0, 300.0, 'O', False)])] | [('closed', [(0.0, 0.0, 'O', False), (400.0, 0.0, 'O', False), (400.0, 300.0, 'O', False), (0.0, 300.0, 'O', False)]), ('closed', [(50.0, 50.0, 'O', False), (150.0, 50.0, 'O', False), (100.0, 150.0, 'O', False)])]
+2968b removeContour does nothing   : 200 {'removed': False, 'nodes_match': False, 'changed': False, 'shapes_after_sync': 1, 'contours_now': 2, 'mismatches': ['the layer reads 2 contour(s), 1 expected'], 'reason': 'the re-read outline does not match the request: the layer reads 2 contour(s), 1 expected'} | calls [('removeContour', 1)] | asked 1 | Update [] | marks []
+       before / expected / after  : [('closed', [(0.0, 0.0, 'O', False), (400.0, 0.0, 'O', False), (400.0, 300.0, 'O', False), (0.0, 300.0, 'O', False)]), ('closed', [(50.0, 50.0, 'O', False), (150.0, 50.0, 'O', False), (100.0, 150.0, 'O', False)])] | [('closed', [(0.0, 0.0, 'O', False), (400.0, 0.0, 'O', False), (400.0, 300.0, 'O', False), (0.0, 300.0, 'O', False)])] | [('closed', [(0.0, 0.0, 'O', False), (400.0, 0.0, 'O', False), (400.0, 300.0, 'O', False), (0.0, 300.0, 'O', False)]), ('closed', [(50.0, 50.0, 'O', False), (150.0, 50.0, 'O', False), (100.0, 150.0, 'O', False)])]
+2968c the wrong contour goes       : 200 {'removed': False, 'nodes_match': False, 'changed': True, 'shapes_after_sync': 1, 'contours_now': 1, 'mismatches': ['contour 0: 3 nodes read, 4 expected'], 'reason': 'the re-read outline does not match the request: contour 0: 3 nodes read, 4 expected', 'synced_with_fontlab': False, 'fontlab_changed_mark': {'called': False, 'reason': "FontLab's sync of this glyph was not confirmed"}} | calls [('removeContour', 1)] | asked 1 | Update [('P72Mod',)] | marks []
+       before / expected / after  : [('closed', [(0.0, 0.0, 'O', False), (400.0, 0.0, 'O', False), (400.0, 300.0, 'O', False), (0.0, 300.0, 'O', False)]), ('closed', [(50.0, 50.0, 'O', False), (150.0, 50.0, 'O', False), (100.0, 150.0, 'O', False)])] | [('closed', [(0.0, 0.0, 'O', False), (400.0, 0.0, 'O', False), (400.0, 300.0, 'O', False), (0.0, 300.0, 'O', False)])] | [('closed', [(50.0, 50.0, 'O', False), (150.0, 50.0, 'O', False), (100.0, 150.0, 'O', False)])]
+2968d the legacy view lags: not synced : 200 {'removed': True, 'nodes_match': True, 'changed': True, 'shapes_after_sync': 1, 'contours_now': 1, 'mismatches': [], 'synced_with_fontlab': False, 'fontlab_changed_mark': {'called': False, 'reason': "FontLab's sync of this glyph was not confirmed"}} | calls [('removeContour', 1)] | asked 1 | Update [('P72Mod',)] | marks []
+2968e an empty extra shape appears : 200 {'removed': False, 'nodes_match': False, 'changed': True, 'shapes_after_sync': 2, 'contours_now': 1, 'mismatches': ["the layer reads 2 shape(s) after the removal and FontLab's sync, 1 expected"], 'reason': "the re-read outline does not match the request: the layer reads 2 shape(s) after the removal and FontLab's sync, 1 expected", 'synced_with_fontlab': True, 'fontlab_changed_mark': {'called': True, 'glyph_has_changes': 'unknown'}} | calls [('removeContour', 1)] | asked 1 | Update [('P72Mod',)] | marks [('Glyphbridge remove contours', 'P72Mod', False)]
+2969 static scan of remove_contours: forbidden call syntax: [] | one removeContour call: True | the question before it: True | read again after the Yes: True | highest index first: True
+2969a route documented: True | dispatched: True | mark title: Glyphbridge remove contours | guard kind full: True | activity kind: remove contours | the delete question unchanged: "A request through Glyphbridge asks to delete the glyph 'x' 
+2969b log, removed             : ('remove contours cpp1: 2 contours after your Yes (verified, nodes match)', True) | change verdict: yes
+2969c log, removed, empty      : ('remove contours cpp1: 2 contours after your Yes (verified, nodes match, the glyph is empty now)', True) | change verdict: yes
+2969d log, No                  : ('remove contours cpp1 (2 contours): you answered No in FontLab, nothing removed', False) | change verdict: no
+2969e log, not answered        : ('remove contours cpp1 (2 contours): not answered within 45 s, nothing removed', False) | change verdict: no
+2969f log, refused             : ('NOT DONE remove contours cpp1 (2 contours): the glyph holds 3 contour(s), not the expected 2', False) | change verdict: no
+2969g log, changed, not confirmed : ('NOT DONE remove contours cpp1 (2 contours): the re-read outline does not match the request; the glyph DID change', False) | change verdict: yes
+2969h log, HTTP 400            : ('REFUSED remove contours cpp1: entry 0: contour 1 is named twice in this request', False) | change verdict: no
+2970 spies over the remove_contours cases: []
+
 ==== v0.207 the _EDIT_ACCEPTS grid: every edit tool against every case ====
 grid tools match the table: True | cases match: True
 draw_polygon     : empty=H one_plain_shape=R several_shapes=R component=R composite=R shape_transform=R
 draw_path        : empty=H one_plain_shape=R several_shapes=R component=R composite=R shape_transform=R
 move_nodes       : empty=R one_plain_shape=H several_shapes=R component=R composite=R shape_transform=R
 add_contours     : empty=R one_plain_shape=H several_shapes=R component=R composite=R shape_transform=R
+remove_contours  : empty=R one_plain_shape=H several_shapes=R component=R composite=R shape_transform=R
 add_component    : empty=H one_plain_shape=H several_shapes=H component=H composite=H shape_transform=H
 remove_component : empty=H one_plain_shape=H several_shapes=H component=H composite=R shape_transform=H
 departures from _EDIT_ACCEPTS: []
@@ -5591,7 +5698,7 @@ departures from _EDIT_ACCEPTS: []
 2880 a tick at the closing   : 200 {'countdown_ticks': 10, 'countdown_last_label': 'No (1)', 'countdown_label_after': 'No (1)', 'closed_without_click': True} | labels set ['No (2)', 'No (1)']
 2881 relabels fail from tick 2: 200 {'countdown_ticks': 9, 'countdown_last_label': 'No (9)', 'countdown_error': 'relabel at tick 2: RuntimeError: setText boom 3', 'closed_without_click': True}
 2878 dialog raises, countdown: 200 {'dialog_started': True, 'error': 'the dialog failed: RuntimeError: exec boom'} | both timers stopped [1, 1]
-2879 static scan             : font names in the code: [] | _open_font calls 0 | .text() calls: 0 | countdown in the docstring: True | version 0.207
+2879 static scan             : font names in the code: [] | _open_font calls 0 | .text() calls: 0 | countdown in the docstring: True | version 0.210
 
 ==== v0.203 self-closing Yes/No dialogs ====
 2882 dialog_seconds          : [(45, None), (30, None), (10, None), (50, None), (None, '"dialog_seconds" must be a whole number of seconds'), (None, '"dialog_seconds" must be a whole number of seconds'), (None, '"dialog_seconds" must be a whole number of seconds')]
@@ -5627,4 +5734,4 @@ departures from _EDIT_ACCEPTS: []
 [Glyphbridge] 12:00:00 NOT DONE delete a: no dialog could be shown, so nothing was deleted
 [Glyphbridge] 12:00:00 kerning group remove geR: not answered within 45 s, nothing removed
 [Glyphbridge] 12:00:00 REFUSED kerning group remove geR: set-up boom; nothing was removed
-2907 static scan             : font names in the dialog: [] | exec_ calls: 1 | the closing timer is a Qt connection: True | no other QMessageBox in the listener: True | version 0.207
+2907 static scan             : font names in the dialog: [] | exec_ calls: 1 | the closing timer is a Qt connection: True | no other QMessageBox in the listener: True | version 0.210

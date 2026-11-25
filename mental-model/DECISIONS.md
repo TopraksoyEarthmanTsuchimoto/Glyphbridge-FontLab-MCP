@@ -69,7 +69,7 @@ Condensed on 2026-11-11 from six entries and again on 2026-11-13; full text: [ar
 ### Standing design choices (from the start; exact dates not recorded)
 
 - **The project builds its own bridge** instead of a third-party FontLab MCP server. *Reason:* that server reported false successes. This leads to the design rule in [PROJECT.md](PROJECT.md).
-- **Width and Unicode writes are not confirmation-gated; delete is** (a Yes/No dialog in FontLab). *Reason:* the first two are reversible.
+- **Width and Unicode writes are not confirmation-gated; delete is** (a Yes/No dialog in FontLab), as are removing a kerning group and removing contours (2026-11-20, 2026-11-25). *Reason:* the first two are reversible.
 
 ## Talking to the person
 
@@ -135,6 +135,14 @@ Condensed on 2026-11-13; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECIS
 - **Names: with no name given, FontLab's own (`Unnamed`, `Unnamed1`, …); a name asked for is set as Font Info would set it. Whenever font names come up, the agent offers to explain the fields of Font Info's Names page.** *Reason:* the user's requirements; that page confuses new users.
 
 ## Glyphs
+
+### 2026-11-25: `remove_contours`, the third edit tool (research listener 0.207–0.209, ED5–ED7 1694–1719; built listener 0.210 / server 0.91)
+
+- **A call that removes every contour is allowed and leaves the glyph empty, with no shape (choice C).** *Reason:* every tool then treats the glyph as a new empty one; ED7 (1715, 1717) showed that FontLab's sync removes the shape left with no contour, so no `removeShape` call is needed.
+- **Each contour to remove is named by `index`, `node_count` and its first node `start`, with `expected_contours` for the glyph; any mismatch refuses the whole call (choice B).** *Reason:* removing cannot be undone (Edit > Undo offered nothing, 1703), and a count alone does not catch a contour reordered or redrawn since the read.
+- **FontLab asks Yes/No on every call, as `delete_glyph` does (choice B).** *Reason:* one general rule: a tool that destroys drawn work asks in FontLab.
+- **The same cases as `add_contours` (`_EDIT_ACCEPTS`); the glyph is checked again after the Yes; contours go highest index first; verified as `add_contours` is, plus 0 shapes after the sync when all go; the removed contours are returned.** *Reason:* one reply shape for the edit tools; the person may edit the glyph while the question is open.
+- *Reason for all:* the user's answers, one question at a time.
 
 ### 2026-11-24: `add_contours`, the second edit tool (research listener 0.206, ED4 1657–1664; built listener 0.207 / server 0.89)
 

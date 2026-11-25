@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.207)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.210)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -117,6 +117,10 @@ Routes (GET unless marked POST):
     POST /glyph/contours/add    {"name", "expected_contours", "contours"} (v0.207): adds contours in draw_path's form to the ONE
                                 plain shape of an existing outline, after its contours; the glyph's contour count must equal
                                 expected_contours; whole units; verified node by node, every old node unchanged
+    POST /glyph/contours/remove {"name", "expected_contours", "contours": [{"index", "node_count", "start": {x, y}}], "dialog_seconds"?}
+                                (v0.210): removes contours from the ONE plain shape of an existing outline after a Yes in FontLab
+                                (default No, closing by itself); every entry must match its contour, before the question and again
+                                after it; verified node by node, the other contours unchanged, 0 shapes after the sync when all go
     POST /glyph/component       {"name", "component", "x", "y"} (v0.169): ONE component of the glyph "component" into the
                                 EMPTY glyph "name" at a whole-unit offset, through FontLab's recipe build; verified by re-reading;
                                 {"name", "components": [{"component", "x", "y"}, ...], "confirmed_untested_size"} (v0.174): several,
@@ -232,10 +236,13 @@ Routes (GET unless marked POST):
                           10 per listener run (v0.107, K11)
     /debug/tryopen        stage=detached|draw&name=ocp...&kind=line|curve: ONE open contour (never closed), detached or drawn into an
                           empty glyph and read back; 6 per listener run (v0.125, P2.1 research)
-    /debug/tryedit        stage=movenode|addcontour|removecontour|replace&name=edp...[&contour=C&node=N&dx=DX&dy=DY][&refresh=R]: ONE edit
-                          of a plain drawn glyph (one shape, no component, no Power Brush), outline before and after; refresh=R calls one
-                          member of a fixed list after the edit, sidebearings before and after it (v0.152); stage=addcontour takes
-                          &kind=square|cubic|open, square by default (v0.206); exactly one font open, 8 per listener run (v0.151, P2.2 research)
+    /debug/tryedit        stage=movenode|addcontour|removecontour|removeshape|replace&name=edp...[&contour=C&node=N&dx=DX&dy=DY][&refresh=R]:
+                          ONE edit of a plain drawn glyph (one shape, no component, no Power Brush), outline before and after; refresh=R
+                          calls one member of a fixed list after the edit, sidebearings before and after it (v0.152); stage=addcontour
+                          takes &kind=square|cubic|open, square by default (v0.206); stage=removeshape removes the glyph's one EMPTY
+                          shape (0 contours, 0 nodes) with layer.removeShape(shape, False) (v0.208); state_after_sync is read after
+                          the sync and the changed mark, and &mark=no skips only the mark (v0.209); exactly one font open, 8 per
+                          listener run (v0.151, P2.2 research)
     /debug/trycomponent   stage=glyphcomponents|shapedata&target=cpp...&source=cpp...&dx=DX&dy=DY: ONE placement of the source glyph
                           (one plain shape) in the target (an existing layer, at most one plain shape) at offset (dx, dy), elements
                           and outlines before and after; exactly one font open, 6 per listener run (v0.155, P2.7 research);
@@ -321,7 +328,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.207"
+VERSION = "0.210"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -621,7 +628,8 @@ _MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge wid
                 "draw_polygon": "Glyphbridge polygon", "draw_path": "Glyphbridge path", "unicode": "Glyphbridge Unicode", "delete": "Glyphbridge delete",
                 "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit", "move_nodes": "Glyphbridge move nodes", "add_contours": "Glyphbridge add contours",
                 "trycomponent": "Glyphbridge component", "trycomponent_light": "Glyphbridge component", "add_component": "Glyphbridge add component",
-                "remove_component": "Glyphbridge remove component", "kerning_group": "Glyphbridge kerning group"}
+                "remove_component": "Glyphbridge remove component", "kerning_group": "Glyphbridge kerning group",
+                "remove_contours": "Glyphbridge remove contours"}
 _MARK_DELETE_MAX_TRIES = 20    # v0.133: how many surviving glyphs a delete's mark may try before it says none could be notified; v0.134: also a kerning write's mark
 _SYNCED_NOTE = ("Glyphbridge asked FontLab to sync this glyph right after the change and FontLab's legacy view now matches the modern layer, so the "
                 "change is durable against the display refresh of create_glyph, delete_glyph, set_glyph_unicode and the legacy width route. "
@@ -849,7 +857,8 @@ def _guard_mark(font, name, how, result, no_mark=None):
     _record_changed_mark(font, name, how, result, no_mark)
 
 
-_GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created", "move_nodes", "add_component", "remove_component", "add_contours")   # v0.153: move_nodes keeps the node count, so the full check cannot see a lost move; v0.207: add_contours
+_GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created", "move_nodes", "add_component", "remove_component", "add_contours",
+                    "remove_contours")   # v0.153: move_nodes keeps the node count, so the full check cannot see a lost move; v0.207: add_contours; v0.210: remove_contours
 _GUARD_LIGHT_KINDS = ("width", "sidebearings", "trycomponent_light")   # v0.185: the templayer probe with sync=light (Power Brush research, F1)
 
 
@@ -1064,10 +1073,19 @@ def _deletion_text(name):
     that it is not saved, and how many fonts are open). A missing client name stays missing: no agent name is guessed."""
     who = (f"{_request_client} (via Glyphbridge) is requesting to delete" if _request_client
            else "A request through Glyphbridge asks to delete")
+    where = _request_font_place("from")
+    if name == ".notdef":   # v0.203 (DECISIONS 2026-11-21): the one .notdef warning that stays a dialog
+        return (f"{who} the glyph '{name}' {where}.\n\n{_NOTDEF_DELETION_WARNING}\n\nAllow this deletion?")
+    return f"{who} the glyph '{name}' {where}.\n\nAllow this deletion?"
+
+
+def _request_font_place(prep):
+    """v0.210: '<prep> the font "Family Style" (details)' for this request's font, moved unchanged out of _deletion_text so the
+    contour-removal question (remove_contours) names the font the same way; prep is "from" or "in"."""
     font = _REQUEST_FONT
     if font["used"]:
         title = " ".join(part for part in (font["family"], font["style"]) if part)
-        where = f'from the font "{title}"' if title else "from a font without a name"
+        where = f'{prep} the font "{title}"' if title else f"{prep} a font without a name"
         details = []
         if font["saved"] is False:
             details.append("not saved to a file yet")
@@ -1080,10 +1098,8 @@ def _deletion_text(name):
         if details:
             where += f" ({'; '.join(details)})"
     else:
-        where = "from the font whose window is in front"
-    if name == ".notdef":   # v0.203 (DECISIONS 2026-11-21): the one .notdef warning that stays a dialog
-        return (f"{who} the glyph '{name}' {where}.\n\n{_NOTDEF_DELETION_WARNING}\n\nAllow this deletion?")
-    return f"{who} the glyph '{name}' {where}.\n\nAllow this deletion?"
+        where = f"{prep} the font whose window is in front"
+    return where
 
 
 _NOTDEF_DELETION_WARNING = ("This is the .notdef glyph. Every font needs one as glyph 0: it is what shows when a character is missing "
@@ -2558,7 +2574,7 @@ def _move_compare(got, want):
 # --------------------------------------------------------------------------
 # _EDIT_CASES (v0.207) - the refusal register in code (DECISIONS.md 2026-11-24 "refusals tracked in one register";
 # mental-model/topics/refusals.md). For each edit tool: which kinds of target glyph it handles (True) and which it refuses (False).
-# move_nodes and add_contours take their checks from it through _edit_case_check; the other tools keep their own checks, and the stub
+# move_nodes, add_contours and (v0.210) remove_contours take their checks from it through _edit_case_check; the other tools keep their own checks, and the stub
 # grid test (tests/stub_listener_tests.py, v0.207) runs every tool listed here against a glyph of every case and compares the outcome
 # with this table, so lifting a case shows as a changed cell. Cases, in the order _edit_case_check tests them:
 #   empty            the active layer holds no shape
@@ -2575,12 +2591,13 @@ _EDIT_ACCEPTS = {
     "draw_path": {"empty": True, "one_plain_shape": False, "several_shapes": False, "component": False, "composite": False, "shape_transform": False},
     "move_nodes": {"empty": False, "one_plain_shape": True, "several_shapes": False, "component": False, "composite": False, "shape_transform": False},
     "add_contours": {"empty": False, "one_plain_shape": True, "several_shapes": False, "component": False, "composite": False, "shape_transform": False},
+    "remove_contours": {"empty": False, "one_plain_shape": True, "several_shapes": False, "component": False, "composite": False, "shape_transform": False},
     # Its own checks (empty route, temporary-layer route of v0.186): the glyph it places a component into.
     "add_component": {"empty": True, "one_plain_shape": True, "several_shapes": True, "component": True, "composite": True, "shape_transform": True},
     # Its own checks (v0.179): a glyph that holds the case's shapes PLUS the component to be removed.
     "remove_component": {"empty": True, "one_plain_shape": True, "several_shapes": True, "component": True, "composite": False, "shape_transform": True},
 }
-_EDIT_DONE = {"move_nodes": "moved", "add_contours": "added"}
+_EDIT_DONE = {"move_nodes": "moved", "add_contours": "added", "remove_contours": "removed"}
 
 
 def _edit_case_refusal(tool, case, detail):
@@ -2879,6 +2896,181 @@ def add_contours(name, expected_contours, contours, rounded=None, closed_flags=N
     if result["changed"] is not False:
         _guard_mark(font, name, "add_contours", result, no_mark=None)
     if ctx["tr"] is not None:
+        m, _err = _modern_margins_read(w, ctx["tr"])
+        if m is not None:
+            result["margins"] = m
+            result["ink_width"] = m["advance"] - m["lsb"] - m["rsb"]
+    return result
+
+
+# --------------------------------------------------------------------------
+# POST /glyph/contours/remove (v0.210) - remove_contours, the third edit of an EXISTING outline (P2.2; the user's design of 2026-11-25,
+# one question at a time). Research: ED2 976 and ED5 1694-1703 (/debug/tryedit stage=removecontour): shape.shapeData.removeContour(<the
+# contour object from layer.getContours()>) removes exactly that contour, first, middle or last, straight, cubic or open, and leaves every
+# other node, node kind, smooth and closed flag and their order as they were; FontLab's sidebearings can lag after it; Edit > Undo offered
+# nothing (1703). ED6 1704-1712 and ED7 1713-1719 (listener 0.208, 0.209): the shape left with no contour is still there right after the
+# call, and the sync, Update(<flGlyph>), removes it in the same request (1715, 1717); a shape that still holds a contour stays (1719).
+# The request: "name", "expected_contours" (the glyph's contour count as the caller read it), "contours": one entry per contour to remove,
+# {"index", "node_count", "start": {"x", "y"}} (the user's choice B: the contour at that index must have that many nodes and its node 0 at
+# start, else the whole call is refused), and "dialog_seconds". The glyph must be a case _EDIT_ACCEPTS["remove_contours"] handles. Every
+# check runs before the Yes/No question (the user's choice B: asked on every call, default No, closing by itself after dialog_seconds).
+# After a Yes the glyph is read and checked AGAIN (the person may have edited it while the question was open); then the contours are removed
+# one by one, highest index first, each through its own object from that second read.
+# Verified (removed) only when the re-read shows the other contours unchanged node by node and in their order, and the layer reads 1 shape
+# after the sync, or 0 when every contour was removed (the user's choice C, which ED7 showed FontLab's sync carries out by itself). The font
+# is marked whenever the outline changed; nothing is restored automatically. The reply carries the removed contours (removed_contours), so a
+# removal can be drawn back with add_contours, or draw_path when the glyph is empty.
+# Never called here: font.update(), save, layer.addShape, addContour, removeShape, replaceShape, decomposite, ejectTo, shapeBuilder;
+# no subscript or iteration of a native object.
+# --------------------------------------------------------------------------
+
+_REMOVE_DIALOG_LINES = 12    # contours listed one by one in the question; more are summed up
+
+
+def _contour_removal_text(name, picks, total):
+    """The question of the remove_contours dialog, built only from facts of this request (as _deletion_text): the client's name as it
+    sent it, the font noted by this request, and the contours as the caller described them (their node 0 is where each one starts)."""
+    who = (f"{_request_client} (via Glyphbridge) is requesting to remove" if _request_client
+           else "A request through Glyphbridge asks to remove")
+    lines = [f"contour {p['index']}: {p['node_count']} node{'' if p['node_count'] == 1 else 's'}, starting at "
+             f"({_mv_text(p['start'][0])}, {_mv_text(p['start'][1])})" for p in sorted(picks, key=lambda p: p["index"])]
+    shown = lines[:_REMOVE_DIALOG_LINES]
+    if len(lines) > len(shown):
+        shown.append(f"... and {len(lines) - len(shown)} more")
+    text = (f"{who} {len(picks)} of the {total} contour{'' if total == 1 else 's'} of the glyph '{name}' {_request_font_place('in')}:\n"
+            + "\n".join(shown))
+    if len(picks) == total:
+        text += "\n\nThis removes every contour: the glyph will be empty."
+    return text + "\n\nFontLab's Edit > Undo cannot bring them back. Allow this removal?"
+
+
+def _remove_contours_problems(before, expected_contours, picks):
+    """Every way the request does not match the outline `before` (a _move_snapshot), as sentences; [] when it matches."""
+    have = len(before["contours"])
+    if have != expected_contours:
+        return [f"the glyph holds {have} contour(s), not the expected {expected_contours}: it may have changed since it was read; read it "
+                "again with get_glyph_outline"]
+    problems = []
+    for i, p in enumerate(picks):
+        ci = p["index"]
+        if ci >= have:
+            problems.append(f"entry {i}: contour {ci} does not exist (the glyph has {have})")
+            continue
+        nodes = before["contours"][ci]["nodes"]
+        if len(nodes) != p["node_count"]:
+            problems.append(f"entry {i}: contour {ci} has {len(nodes)} node(s), not the given {p['node_count']}")
+            continue
+        sx, sy = p["start"]
+        if abs(nodes[0]["x"] - sx) > _MOVE_FROM_TOLERANCE or abs(nodes[0]["y"] - sy) > _MOVE_FROM_TOLERANCE:
+            problems.append(f"entry {i}: contour {ci} starts at ({_mv_text(nodes[0]['x'])}, {_mv_text(nodes[0]['y'])}), not at the given "
+                            f"start ({_mv_text(sx)}, {_mv_text(sy)})")
+    return problems
+
+
+def _remove_contours_read(name, w, phase):
+    """(layer, shape, before, existing, None, state) for the glyph as it is now, or (None, None, None, None, {"reason", ...}, state).
+    `phase` is "" before the question and "after the Yes, " after it. Never touches anything."""
+    state, layer = _tryshape_modern_state(w)
+    if layer is None:
+        return None, None, None, None, {"reason": f"{phase}the glyph has no modern active layer: nothing was removed"}, state
+    shape, refusal = _edit_case_check("remove_contours", layer, state)
+    if shape is None:
+        return None, None, None, None, dict(refusal, reason=phase + refusal["reason"]), state
+    before = _move_snapshot(name)
+    if "error" in before:
+        return None, None, None, None, {"reason": f"{phase}the outline could not be read ({before['error']}): nothing was removed"}, state
+    existing, err = _tl_call(lambda: layer.getContours())
+    if err is not None or type(existing) not in (list, tuple) or len(existing) != len(before["contours"]):
+        return None, None, None, None, {"reason": f"{phase}layer.getContours() disagrees with the outline just read: nothing was removed"}, state
+    return layer, shape, before, existing, None, state
+
+
+def remove_contours(name, expected_contours, picks, seconds=_DIALOG_SECONDS_DEFAULT):
+    """Remove contours from the ONE plain shape of an existing outline, after a Yes in FontLab. `picks`: dicts {index, node_count,
+    start: (x, y)}, no index twice (the route checked the form). See the section comment. Never saves."""
+    base = {"open": True, "name": name, "removed": False, "changed": False, "route": "modern", "expected_contours": expected_contours,
+            "contours_requested": sorted(p["index"] for p in picks)}
+    ctx, refusal = _modern_edit_target(name)
+    if ctx is None:
+        out = _public_refusal(refusal)
+        out.pop("set", None)
+        out["removed"] = False
+        if refusal.get("reason") == _EMPTY_NO_LAYER:
+            out["reason"] = "the glyph is empty and has no layer yet: it has no contour to remove: nothing was removed"
+            out["edit_case"] = "empty"
+        return out
+    w, font = ctx["w"], ctx["font"]
+    layer, shape, before, existing, why, state = _remove_contours_read(name, w, "")
+    base["state_before"] = state
+    if why is not None:
+        return dict(base, **why)
+    problems = _remove_contours_problems(before, expected_contours, picks)
+    if problems:
+        out = dict(base, problems=problems[:20], reason="the request does not match the glyph as it is now, nothing was removed: " + " | ".join(problems[:6]))
+        if len(before["contours"]) != expected_contours:
+            out["contours_found"] = len(before["contours"])
+        return out
+    dialog = _ask_yes_no("Glyphbridge: Confirm Contour Removal", _contour_removal_text(name, picks, len(before["contours"])), seconds, "removed")
+    base["dialog"] = dialog
+    if dialog.get("answer") != "yes":
+        return dict(base, **_dialog_refusal(dialog, "removal"))
+    # The person may have edited the glyph while the question was open: everything is read and checked again, nothing is reused.
+    layer, shape, before, existing, why, _state = _remove_contours_read(name, w, "after the Yes, ")
+    if why is not None:
+        return dict(base, **why)
+    problems = _remove_contours_problems(before, expected_contours, picks)
+    if problems:
+        return dict(base, problems=problems[:20], reason=("the glyph changed while the question was open, nothing was removed: "
+                                                          + " | ".join(problems[:6])))
+    gone = sorted({p["index"] for p in picks}, reverse=True)
+    keep = [ci for ci in range(len(before["contours"])) if ci not in gone]
+    want = [dict(before["contours"][ci], nodes=[dict(n) for n in before["contours"][ci]["nodes"]]) for ci in keep]
+    targets = [(ci, existing[ci]) for ci in gone]      # existing is a real list (type checked above), not a native object
+    touched, step, done = False, "shape.shapeData", []
+    try:
+        sd = shape.shapeData
+        for ci, contour in targets:
+            step, touched = f"shape.shapeData.removeContour(contour {ci})", True
+            sd.removeContour(contour)
+            done.append(ci)
+    except Exception as exc:
+        base["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
+    result = dict(base, removal_calls=done, removed_contours=[before["contours"][ci] for ci in sorted(gone)])
+    if touched:
+        result["display_refreshed"] = _repaint_viewport()
+    after_state, _l = _tryshape_modern_state(w)
+    result["state_after"] = after_state
+    after = _move_snapshot(name)
+    if "error" in after:
+        result["changed"] = "unknown" if touched else False
+        result["mismatches"] = [f"the outline could not be read after the removal ({after['error']})"]
+    else:
+        result["after"] = after["contours"]
+        result["contours_now"] = len(after["contours"])
+        result["changed"] = after["contours"] != before["contours"]
+        result["mismatches"] = _move_compare(after["contours"], want)
+    if result["changed"] is not False:
+        _guard_mark(font, name, "remove_contours", result, no_mark=None)
+    # ED7 1715, 1717: FontLab's sync removes the shape left with no contour; read once more after it (and after the mark).
+    sync_state, _l2 = _tryshape_modern_state(w)
+    result["state_after_sync"] = sync_state
+    shapes_now = sync_state.get("shapes")
+    result["shapes_after_sync"] = shapes_now
+    if not keep:
+        result["glyph_empty"] = shapes_now == 0
+        if shapes_now != 0:
+            result["mismatches"].append(f"every contour was removed, but the layer reads {shapes_now!r} shape(s) after FontLab's sync, 0 "
+                                        "expected (an empty shape may be left)")
+    elif shapes_now != 1:
+        result["mismatches"].append(f"the layer reads {shapes_now!r} shape(s) after the removal and FontLab's sync, 1 expected")
+    result["nodes_match"] = not result["mismatches"] and "error" not in result
+    result["removed"] = bool(result["nodes_match"])
+    if not result["removed"]:
+        result["before"] = before["contours"]
+        result["expected_after"] = want
+        why = result.get("error") or "the re-read outline does not match the request"
+        result["reason"] = why + (": " + " | ".join(result["mismatches"][:6]) if result["mismatches"] else "")
+    if keep and ctx["tr"] is not None:
         m, _err = _modern_margins_read(w, ctx["tr"])
         if m is not None:
             result["margins"] = m
@@ -3700,7 +3892,14 @@ def _add_beside(base, name, ctx, state, layer, tel, entries):
 #                                kind=open, the open arch of test 583 (as /debug/tryopen kind=curve), closed False. Each is built and checked
 #                                detached (positions, node kinds, smooth flags, closed) by draw_path's builder before it is added
 #   stage=removecontour&contour=C   shape.shapeData.removeContour(<contour C of layer.getContours()>)
-#   stage=replace                a fixed closed triangle (100, 0) (300, 0) (200, 300) in a new flShape (built and checked detached),
+#   stage=removeshape            v0.208 (ED5 1699: removing the last contour leaves one EMPTY shape right after the call, which the
+#                                sync then removes in the same request, ED7 1715, 1717, so this stage never found one live, ED6 1709,
+#                                1712; option C of the remove-contour design, the user's choice of 2026-11-25): layer.removeShape(shape, False) on the glyph's one shape, ONLY
+#                                when it is empty (layer.getContours() gives 0 contours and the layer reads 0 nodes), otherwise refused
+#                                with nothing touched; contour=, kind= and refresh= are refused. removeShape was proven on components only (RM
+#                                1241-1245, remove_component). The reply adds shapes_before / shapes_after (1 and 0 expected); changed
+#                                follows the shape count, since 0 contours before and after compare equal
+#   stage=replace               a fixed closed triangle (100, 0) (300, 0) (200, 300) in a new flShape (built and checked detached),
 #                                then layer.replaceShape(old_shape, new_shape)
 # The reply has the outline before and after, the expected outline, mismatches, the glyph count before and after, and
 # side_effect_detected. A change goes through _guard_mark (Update(<flGlyph>), the sync check, the changed mark), as every write does.
@@ -3708,17 +3907,22 @@ def _add_beside(base, name, ctx, state, layer, tel, entries):
 # _TRYEDIT_REFRESH, calls that ONE member once, right after a confirmed edit and before _guard_mark; the sidebearings are read before and
 # after it and compared with the ones the edited nodes give (straight contours only), and the outline is compared before and after it
 # (refresh_changed_outline). The member is looked up only from that fixed table; resetMetrics* is never in it.
+# v0.209 (ED6 1707-1712: the empty shape that removing the last contour leaves read 1 shape in state_after and 0 at the next request,
+# 0.18 s later, with no read in between): state_after_sync, the modern layer's state read once more at the very end, AFTER _guard_mark
+# (the sync, then the changed mark); synced_before_read says whether _guard_mark ran. &mark=no skips ONLY the changed mark (the sync
+# still runs), so state_after_sync is then the state after the sync alone; any other value of mark is refused before the call is counted.
 # Never called by this probe: font.update(), save, removeGlyph, smartMove, smartSetXY, moveBy, decomposite, ejectTo, shapeBuilder,
 # activateBuilder, resetMetricsLeft / Right / Width; no subscript or iteration of a native object.
 # --------------------------------------------------------------------------
 
 _TRYEDIT_MAX = 8
 _TRYEDIT = {"calls": 0}
-_TRYEDIT_STAGES = ("movenode", "addcontour", "removecontour", "replace")
+_TRYEDIT_STAGES = ("movenode", "addcontour", "removecontour", "removeshape", "replace")
 _TRYEDIT_DELTA_MAX = 200
 _TRYEDIT_INDEX_MAX = 5000
 _TRYEDIT_CALLS = {"movenode": "node.x = x + dx, then node.y = y + dy", "addcontour": "shape.shapeData.addContour(contour)",
-                  "removecontour": "shape.shapeData.removeContour(contour)", "replace": "layer.replaceShape(old_shape, new_shape)"}
+                  "removecontour": "shape.shapeData.removeContour(contour)", "removeshape": "layer.removeShape(shape, False)",
+                  "replace": "layer.replaceShape(old_shape, new_shape)"}
 _TRYEDIT_NOTE = ("RESEARCH: compare with get_glyph_outline and with FontLab's own view of the glyph; nothing is saved by Glyphbridge; "
                  "quit FontLab WITHOUT saving afterwards, or delete the edp glyphs")
 _TRYEDIT_REFRESH = {"contour.update": ("contour", "update"), "shape.update": ("shape", "update"), "shapedata.update": ("shapedata", "update"),
@@ -3882,10 +4086,10 @@ def _tryedit_refresh(refresh, w, tr, layer, shape, contour, name, want):
     return out
 
 
-def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, refresh=None, kind=None):
+def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, refresh=None, kind=None, mark=None):
     import sys as _sys
     if stage not in _TRYEDIT_STAGES:
-        return {"error": 'stage must be "movenode", "addcontour", "removecontour" or "replace"'}
+        return {"error": 'stage must be "movenode", "addcontour", "removecontour", "removeshape" or "replace"'}
     if (not isinstance(name, str) or not (4 <= len(name) <= 40) or not name.startswith("edp")
             or any(ch not in _TRYCREATE_NAME_CHARS for ch in name)):
         return {"error": 'name must start with "edp" and be 4 to 40 characters from A-Z a-z 0-9 . _ -'}
@@ -3899,6 +4103,13 @@ def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, r
         if kind not in _TRYEDIT_KINDS:
             return {"error": 'kind must be "square" (the default), "cubic" or "open"'}
         args["kind"] = kind
+    mark = str(mark).strip() if mark is not None and str(mark).strip() else None     # v0.209
+    if mark is not None:
+        if mark != "no":
+            return {"error": 'mark must be "no" (skip the changed mark; the sync still runs), or left out'}
+        args["mark"] = "no"
+    if stage == "removeshape" and contour is not None and str(contour).strip():     # v0.208: the stage takes no contour
+        return {"error": "contour is not for stage=removeshape: it removes the glyph's one empty shape"}
     if stage in ("movenode", "removecontour"):
         v, err = _tryedit_int(contour, "contour", 0, _TRYEDIT_INDEX_MAX)
         if err is not None:
@@ -3917,13 +4128,17 @@ def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, r
     if refresh is not None:
         if refresh not in _TRYEDIT_REFRESH:
             return {"error": "refresh must be one of: " + ", ".join(_TRYEDIT_REFRESH)}
+        if stage == "removeshape":     # v0.208: the shape is gone after the call
+            return {"error": "refresh is not for stage=removeshape"}
         if refresh == "contour.update" and stage != "movenode":
             return {"error": "refresh=contour.update needs stage=movenode (the edited contour)"}
         args["refresh"] = refresh
     if go != "yes":
         what = {"movenode": "moves one node of the glyph by (dx, dy)",
                 "addcontour": f"adds a fixed {_TRYEDIT_KINDS[kind][2] if kind else 'square'} contour to the glyph's shape",
-                "removecontour": "removes one contour from the glyph's shape", "replace": "replaces the glyph's shape with a fixed triangle"}[stage]
+                "removecontour": "removes one contour from the glyph's shape",
+                "removeshape": "removes the glyph's one shape, only when it is empty (0 contours)",
+                "replace": "replaces the glyph's shape with a fixed triangle"}[stage]
         return {"error": f"stage={stage} {what}. Add &go=yes to run it."}
     mod = _sys.modules.get("fontlab") or fl
     ws, pkg, why = _trysync_target(mod)
@@ -4006,6 +4221,13 @@ def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, r
             sd = shape.shapeData
             step, touched = "shape.shapeData.removeContour(contour)", True
             sd.removeContour(contours[ci])
+        elif stage == "removeshape":     # v0.208: only an EMPTY shape (ED5 1699, gone after the sync: ED7), so no drawn contour can be lost
+            if len(contours) != 0 or state.get("nodes") != 0:
+                return dict(base, error=(f"the shape is not empty (layer.getContours() gives {len(contours)} contour(s), the layer reads "
+                                         f"{state.get('nodes')!r} node(s)); stage=removeshape removes only an empty shape: nothing was touched"))
+            step, touched = "layer.removeShape(shape, False)", True
+            layer.removeShape(shape, False)
+            cur_shape = None
         else:
             pts, closed, label = _TRYEDIT_KINDS[kind] if stage == "addcontour" else (_TRYEDIT_TRIANGLE, True, "triangle")
             built, why = _tryedit_build(mod, qp, pts, label, closed=closed)
@@ -4053,12 +4275,27 @@ def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, r
         for k, v in refresh_info.items():
             result[k] = v
         result["refresh_changed_outline"] = ("unknown" if ("error" in mid or "error" in after) else mid["contours"] != after["contours"])
+    if stage == "removeshape":     # v0.208: 0 contours before and after compare equal, so the shape count tells the change
+        sb, sa = state.get("shapes"), after_state.get("shapes")
+        result["shapes_before"], result["shapes_after"] = sb, sa
+        both = all(isinstance(v, int) and not isinstance(v, bool) for v in (sb, sa))
+        result["changed"] = (sa != sb) if both else "unknown"
+        if sa != 0:
+            result["mismatches"] = list(result["mismatches"]) + [f"the layer reads {sa!r} shape(s) after the call, 0 expected"]
     result["side_effect_detected"] = bool(result["smooth_changed"] or result["glyph_count_after"] != result["glyph_count_before"]
-                                          or after_state.get("shapes") != 1 or _state_has_components(after_state)
+                                          or after_state.get("shapes") != (0 if stage == "removeshape" else 1) or _state_has_components(after_state)
                                           or result.get("refresh_changed_outline") is True)
     result["edited"] = bool("error" not in result and not result["mismatches"] and not result["side_effect_detected"])
+    synced_before_read = False
     if result["changed"] is not False:
-        _guard_mark(font, name, "tryedit", result, no_mark=None if result["edited"] else "the edit was not confirmed")
+        if args.get("mark") == "no":     # v0.209: the sync still runs, only the changed mark is skipped
+            no_mark = "skipped by mark=no (research)"
+        else:
+            no_mark = None if result["edited"] else "the edit was not confirmed"
+        _guard_mark(font, name, "tryedit", result, no_mark=no_mark)
+        synced_before_read = True
+    result["state_after_sync"], _l2 = _tryshape_modern_state(w)     # v0.209: read AFTER the sync and the mark (ED6 1707-1712)
+    result["synced_before_read"] = synced_before_read
     return result
 
 
@@ -15690,7 +15927,8 @@ def _route(method, full_path, body=b""):
                 return _build_response(200, debug_try_edit((query.get("stage") or [""])[0], (query.get("name") or [""])[0], (query.get("go") or [""])[0],
                                                            (query.get("contour") or [None])[0], (query.get("node") or [None])[0],
                                                            (query.get("dx") or [None])[0], (query.get("dy") or [None])[0],
-                                                           (query.get("refresh") or [None])[0], (query.get("kind") or [None])[0]))
+                                                           (query.get("refresh") or [None])[0], (query.get("kind") or [None])[0],
+                                                           (query.get("mark") or [None])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 
@@ -16130,6 +16368,46 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": str(exc)})
 
+        if path == "/glyph/contours/remove":    # v0.210: remove_contours
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            if (not isinstance(payload, dict) or not {"name", "expected_contours", "contours"} <= set(payload)
+                    or set(payload) - {"name", "expected_contours", "contours", "dialog_seconds"}):
+                return _build_response(400, {"error": 'the body must be an object with "name", "expected_contours", "contours" and, '
+                                                      'optionally, "dialog_seconds"'})
+            name, expect, entries = payload["name"], payload["expected_contours"], payload["contours"]
+            if not isinstance(name, str) or not name.strip():
+                return _build_response(400, {"error": '"name" must be a non-empty string'})
+            if isinstance(expect, bool) or not isinstance(expect, int) or not (1 <= expect <= _MOVE_INDEX_MAX):
+                return _build_response(400, {"error": f'"expected_contours" must be a whole number from 1 to {_MOVE_INDEX_MAX}'})
+            if not isinstance(entries, list) or not (1 <= len(entries) <= expect):
+                return _build_response(400, {"error": '"contours" must be a list of 1 to expected_contours entries, one per contour to remove'})
+            picks, seen = [], set()
+            for i, e in enumerate(entries):
+                if not isinstance(e, dict) or set(e) != {"index", "node_count", "start"}:
+                    return _build_response(400, {"error": f'entry {i}: an entry is an object with exactly "index", "node_count" and "start"'})
+                ci, nc, st = e["index"], e["node_count"], e["start"]
+                if isinstance(ci, bool) or not isinstance(ci, int) or not (0 <= ci <= _MOVE_INDEX_MAX):
+                    return _build_response(400, {"error": f"entry {i}: index must be a whole number from 0 to {_MOVE_INDEX_MAX}"})
+                if isinstance(nc, bool) or not isinstance(nc, int) or not (1 <= nc <= _MOVE_INDEX_MAX + 1):
+                    return _build_response(400, {"error": f"entry {i}: node_count must be a whole number from 1 to {_MOVE_INDEX_MAX + 1}"})
+                if (not isinstance(st, dict) or set(st) != {"x", "y"}
+                        or any(isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or abs(v) > 20000 for v in (st["x"], st["y"]))):
+                    return _build_response(400, {"error": f"entry {i}: start must be an {{x, y}} object with numbers between -20000 and 20000"})
+                if ci in seen:
+                    return _build_response(400, {"error": f"entry {i}: contour {ci} is named twice in this request"})
+                seen.add(ci)
+                picks.append({"index": ci, "node_count": nc, "start": (float(st["x"]), float(st["y"]))})
+            seconds, serr = _dialog_seconds(payload.get("dialog_seconds"))
+            if serr:
+                return _build_response(400, {"error": serr})
+            try:
+                return _build_response(200, remove_contours(name.strip(), expect, picks, seconds))
+            except Exception as exc:
+                return _build_response(500, {"error": str(exc)})
+
         if path == "/glyph/component/remove":       # v0.179: remove_component
             try:
                 payload = json.loads(body.decode("utf-8")) if body else {}
@@ -16342,7 +16620,7 @@ _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/wid
                "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning", "/kerning/remove": "kerning remove", "/font/create": "create font",
                "/kerning/group/rename": "kerning group rename", "/kerning/group/remove": "kerning group remove",
                "/glyph/move": "move", "/glyph/component": "component", "/glyph/component/remove": "remove component",
-               "/glyph/contours/add": "add contours"}
+               "/glyph/contours/add": "add contours", "/glyph/contours/remove": "remove contours"}
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
               "/font/current": "font info", "/font/notdef": ".notdef check", "/font/notdef/warn": ".notdef check",
@@ -16528,6 +16806,18 @@ def _act_describe_write(path, payload, code, reply):
         size = f"{len(many)} contour{'' if len(many) == 1 else 's'}" if isinstance(many, list) else "size unreadable"
         if reply.get("added") is True:
             return f"{head}: {size} (verified, nodes match{sync})", not unsynced
+        changed = "; the glyph DID change" if reply.get("changed") not in (False, None) else ""
+        return f"NOT DONE {head} ({size}): {why}{changed}", False
+    if kind == "remove contours":  # v0.210: the count from the request, success and the dialog from the reply
+        many = payload.get("contours") if isinstance(payload, dict) else None
+        size = f"{len(many)} contour{'' if len(many) == 1 else 's'}" if isinstance(many, list) else "size unreadable"
+        if reply.get("removed") is True:
+            empty = ", the glyph is empty now" if reply.get("glyph_empty") is True else ""
+            return f"{head}: {size} after your Yes (verified, nodes match{empty}{sync})", not unsynced
+        if reply.get("user_declined") is True:
+            return f"{head} ({size}): you answered No in FontLab, nothing removed", False
+        if reply.get("not_answered") is True:
+            return f"{head} ({size}): not answered within {_act_num(_act_dialog_seconds(reply))} s, nothing removed", False
         changed = "; the glyph DID change" if reply.get("changed") not in (False, None) else ""
         return f"NOT DONE {head} ({size}): {why}{changed}", False
     if kind == "component" and isinstance(payload, dict) and isinstance(payload.get("components"), list):     # v0.174: the list form

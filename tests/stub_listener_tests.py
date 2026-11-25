@@ -7944,16 +7944,28 @@ class TELayer(TESpy):
         if TE["broken"]: raise RuntimeError("getContours boom")
         return [c for sh in s._shapes for c in sh._contours]
     def shapesCount(s): return len(s._shapes)
-    def nodesCount(s): return sum(c.nodesCount() for c in s.getContours())
+    def nodesCount(s):
+        if TE["mode"].get("nodes_unreadable"): return "n/a"     # v0.208: a count that is not a number
+        return sum(c.nodesCount() for c in s.getContours()) + TE["mode"].get("nodes_extra", 0)     # v0.208: a disagreeing count
     def componentsCount(s): return TE["mode"].get("components", 0)
     def replaceShape(s, old, new):
         TE["calls"].append("replaceShape")
         if TE["mode"].get("replace_raises"): raise RuntimeError("replaceShape boom")
         s._shapes = [new if k is old else k for k in s._shapes]
+    def removeShape(s, shape, recursive):     # v0.208 (stage=removeshape)
+        TE["calls"].append(("removeShape", recursive))
+        if TE["mode"].get("removeshape_raises"): raise RuntimeError("removeShape boom")
+        if TE["mode"].get("removeshape_noop"): return
+        s._shapes = [k for k in s._shapes if k is not shape]
 class TEItems:
     @staticmethod
     def notifyChangesApplied(title, obj, flag): TE["marks"].append((title, type(obj).__name__, flag))
-def _te_update(*a): TE["updates"].append(tuple(type(x).__name__ for x in a))
+def _te_update(*a):
+    TE["updates"].append(tuple(type(x).__name__ for x in a))
+    _tcm = TC.get("mode", {}) if isinstance(globals().get("TC"), dict) else {}
+    if TE["mode"].get("sync_drops_empty") or _tcm.get("sync_drops_empty"):     # v0.209: a sync that drops every empty shape (ED7 1715, 1717)
+        for _L in P72["layers"].values():
+            if isinstance(_L, TELayer): _L._shapes = [k for k in _L._shapes if k._contours or getattr(k, "_component", False)]
 TE_SQ = [(0, 0), (400, 0), (400, 300), (0, 300)]
 TE_TRI = [(50, 50), (150, 50), (100, 150)]
 def te_contour(pts):
@@ -8047,9 +8059,13 @@ te("2318 the limit: call 9 is refused ", MV + "&go=yes")
 _src151 = "\n".join(l for l in src[src.index("# /debug/tryedit (v0.151)"):src.index("# /debug/tryopen (v0.125)")].split("\n") if not l.lstrip().startswith("#"))
 print("2319 spies over all cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
 print("2319a static scan of the probe (code lines):", len(_src151) > 6000, "| forbidden call syntax:",
-      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|clearContours|smartMove|smartSetXY|moveBy|decomposite|ejectTo|activateBuilder)\s*\(|shapeBuilder|font\.update", _src151),
+      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeAllShapes|clearContours|smartMove|smartSetXY|moveBy|decomposite|ejectTo|activateBuilder)\s*\(|shapeBuilder|font\.update", _src151),
       "| counter raised before the glyph is read:", _src151.index('_TRYEDIT["calls"] += 1') < _src151.index("_modern_edit_target(name)"))
-print("2319b route documented: ", "/debug/tryedit        stage=movenode|addcontour|removecontour|replace" in src, "| mark title:", ns["_MARK_TITLES"].get("tryedit"),
+# v0.208: removeShape is allowed in this probe only as ONE call statement, in the stage=removeshape branch (it was in the forbidden list above)
+_rs208 = [l.strip() for l in _src151.split("\n") if _re83.match(r"\s*\w+\.removeShape\(", l)]
+print("2319c removeShape call statements:", _rs208, "| inside the removeshape branch:",
+      _src151.index('elif stage == "removeshape":') < _src151.index("layer.removeShape(shape, False)\n") < _src151.index("cur_shape = None"))
+print("2319b route documented: ", "/debug/tryedit        stage=movenode|addcontour|removecontour|removeshape|replace" in src, "| mark title:", ns["_MARK_TITLES"].get("tryedit"),
       "| dispatched:", 'if path == "/debug/tryedit":' in src)
 te_setup()
 print("2320 draw_path still refuses a drawn glyph:", p72_post("/glyph/path", {"name": "edpb", "contours": [RRECT]})[1].get("reason", "")[:90].rstrip())
@@ -8094,6 +8110,85 @@ te("2936c circle does not close detached", QA + "&kind=cubic&go=yes", keys=EKK)
 te_setup(mode={"add_first": 1})
 te("2936d the open arch lands first    ", QE + "stage=addcontour&name=edpa&kind=open&go=yes", keys=EKK)
 print("2937 spies over all cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
+
+# ---- v0.208: stage=removeshape (option C of the remove-contour design: the EMPTY shape that removing the last contour leaves, ED5 1699)
+print("\n==== v0.208 /debug/tryedit removeshape ====")
+QR = QE + "stage=removeshape&name="
+EKR = ("shapes_before", "shapes_after") + EK
+def te_empty_setup(mode=None):
+    te_setup(mode=mode)
+    TS["edpempty"] = TsGlyph("edpempty", [TsLayer(0, 0)])     # the legacy view of an empty glyph: 0 contours, 0 nodes
+    P72["layers"]["edpempty"] = TELayer("test_font", [TEShape([])])
+te_empty_setup()
+te("2940a removeshape without go       ", QR + "edpempty")
+te("2940b with contour=0               ", QR + "edpempty&contour=0&go=yes")
+te("2940c with kind=square             ", QR + "edpempty&kind=square&go=yes")
+te("2940d with refresh=layer.update    ", QR + "edpempty&refresh=layer.update&go=yes")
+print("2940e refusals counted no call      :", ns["_TRYEDIT"]["calls"])
+d = te("2941 removeshape on an empty shape", QR + "edpempty&go=yes", keys=EKR)
+print("2941a  call, after, state       :", d.get("call"), "| after", te_outline(d, "after"), "| state_after shapes", (d.get("state_after") or {}).get("shapes"),
+      "| nodes", (d.get("state_after") or {}).get("nodes"))
+print("2941b  sync, mark               :", d.get("synced_with_fontlab"), "| changed mark", d.get("fontlab_changed_mark"), "| repainted", d.get("display_refreshed"))
+te_empty_setup(); P72["widths"]["edpempty"] = 500.0     # as 2312d: the legacy view agrees, so the sync is confirmed and the mark made
+te("2941c removeshape, the legacy view agrees", QR + "edpempty&go=yes", keys=("edited", "changed", "synced_with_fontlab", "fontlab_changed_mark"))
+te_empty_setup()
+d = te("2942 a shape holding a contour    ", QR + "edpb&go=yes", keys=EKR)
+print("2942a  outline unchanged        :", te_outline(d, "before") if "before" in d else None, "| layer shapes", len(P72["layers"]["edpb"]._shapes))
+te_empty_setup()
+te("2942b a shape holding 2 contours   ", QR + "edpa&go=yes", keys=EKR)
+te("2942c two shapes                   ", QR + "edptwo&go=yes", keys=EKR)
+te("2942d no shape                     ", QR + "edpnone&go=yes", keys=EKR)
+te("2942e a Power Brush shape          ", QR + "edpbrush&go=yes", keys=EKR)
+te_empty_setup(mode={"nodes_extra": 3})
+te("2942f 0 contours but 3 nodes read  ", QR + "edpempty&go=yes", keys=EKR)
+print("2942g  shape kept               :", len(P72["layers"]["edpempty"]._shapes))
+te_empty_setup(mode={"nodes_unreadable": 1})
+te("2942h the node count is unreadable ", QR + "edpempty&go=yes", keys=EKR)
+print("2942i  shape kept               :", len(P72["layers"]["edpempty"]._shapes))
+te_empty_setup()
+P72["layers"]["edpempty"] = TELayer("test_font", [TEShape([te_contour([])])])     # one contour with no node: 0 nodes, but not 0 contours
+te("2942j a contour with no node       ", QR + "edpempty&go=yes", keys=EKR)
+print("2942k  shape kept               :", len(P72["layers"]["edpempty"]._shapes))
+te_empty_setup(mode={"removeshape_raises": 1})
+te("2943a removeShape raises           ", QR + "edpempty&go=yes", keys=EKR)
+te_empty_setup(mode={"removeshape_noop": 1})
+d = te("2943b removeShape does nothing    ", QR + "edpempty&go=yes", keys=EKR)
+print("2943c  mark                     :", d.get("fontlab_changed_mark"))
+print("2944 spies over all cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
+TS.pop("edpempty", None); P72["layers"].pop("edpempty", None); P72["widths"].pop("edpempty", None)     # the later blocks see the glyph set they saw before v0.208
+
+# ---- v0.209: state_after_sync (read after _guard_mark) and &mark=no (the sync without the changed mark); ED6 1707-1712
+print("\n==== v0.209 /debug/tryedit state_after_sync and mark=no ====")
+def te_sync(tag, path):
+    c, d = call(path)
+    TE_ALL_FORBIDDEN.extend(TE["forbidden"])
+    sh = lambda k: (d.get(k) or {}).get("shapes") if k in d else "absent"
+    print(tag, ":", c, "| shapes after / after sync:", sh("state_after"), "/", sh("state_after_sync"), "| synced_before_read", d.get("synced_before_read", "absent"),
+          "| synced", d.get("synced_with_fontlab"), "| mark", d.get("fontlab_changed_mark"), "| edited", d.get("edited"), "| error", d.get("error"),
+          "| Update", TE["updates"], "| marks", TE["marks"])
+    return d
+te_setup()
+te("2950a mark=yes                     ", QE + "stage=addcontour&name=edpb&mark=yes&go=yes")
+te("2950b mark=no without go           ", QE + "stage=addcontour&name=edpb&mark=no")
+print("2950c refusals counted no call      :", ns["_TRYEDIT"]["calls"])
+te_setup(); P72["widths"]["edpb"] = 500.0     # as 2312d: the legacy view agrees, so the sync is confirmed
+te_sync("2951 movenode, default mark      ", QE + "stage=movenode&name=edpb&contour=0&node=1&dx=5&dy=5&go=yes")
+te_setup(); P72["widths"]["edpb"] = 500.0
+te_sync("2952 movenode, mark=no           ", QE + "stage=movenode&name=edpb&contour=0&node=1&dx=5&dy=5&mark=no&go=yes")
+te_setup(mode={"sync_drops_empty": 1})
+te_sync("2953a last contour, the sync drops the empty shape", QE + "stage=removecontour&name=edpb&contour=0&go=yes")
+te_setup(mode={"sync_drops_empty": 1})
+te_sync("2953b the same with mark=no      ", QE + "stage=removecontour&name=edpb&contour=0&mark=no&go=yes")
+te_setup()
+te_sync("2953c last contour, the sync keeps it", QE + "stage=removecontour&name=edpb&contour=0&go=yes")
+te_setup(mode={"sync_drops_empty": 1})
+te_sync("2953d one of two contours (control)", QE + "stage=removecontour&name=edpa&contour=0&go=yes")
+te_setup(mode={"remove_noop": 1})
+te_sync("2954 nothing changed: no sync    ", QE + "stage=removecontour&name=edpa&contour=0&go=yes")
+te_setup()
+te_sync("2955 refused early (two shapes)  ", QE + "stage=removecontour&name=edptwo&contour=0&go=yes")
+print("2956 spies over all cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
+P72["widths"].pop("edpb", None)
 
 # ---- v0.152: &refresh=R. The fake sidebearings stay stale after an edit (as live 968, 974, 980) until the ONE member named in
 # TE["mode"]["refresh_works"] is called; every refresh member logs into TE["refresh"].
@@ -8163,7 +8258,7 @@ ns["_trymetrics_transform"] = _te_tm
 print("2331 spies over the refresh cases:", TE_ALL_FORBIDDEN, "| refresh table:", ns["_TRYEDIT_REFRESH"])
 _src152 = "\n".join(l for l in src[src.index("# /debug/tryedit (v0.151)"):src.index("# /debug/tryopen (v0.125)")].split("\n") if not l.lstrip().startswith("#"))
 print("2331a static scan: forbidden call syntax:", _re83.findall(r"\.(?:update|save\w*|removeGlyph|smartMove|moveBy|decomposite|ejectTo|activateBuilder|resetMetrics\w*)\s*\(|resetMetrics|font\.update", _src152),
-      "| getattr calls:", _re83.findall(r"getattr\([^)]*\)", _src152), "| route documented:", "[&refresh=R]: ONE edit" in src)
+      "| getattr calls:", _re83.findall(r"getattr\([^)]*\)", _src152), "| route documented:", "[&refresh=R]:\n                          ONE edit" in src)
 
 # ================= v0.153: POST /glyph/move (move_nodes, the first product edit of an existing outline, P2.2) =================
 # The /debug/tryedit fakes above (TE spies, te2_setup: the sidebearings stay stale until the refresh named in "refresh_works" runs).
@@ -10413,7 +10508,7 @@ adc("2917f an empty shape appears too  ", A0, mode={"addc_extra_shape": 1})
 tls(lambda: [_contour()], legacy=8); P72["mode"]["noclose"] = 1
 c, d = sbpost("/glyph/contours/add", A0)
 print("2917g a closed contour stays open detached:", c, {k: d.get(k) for k in ("added", "changed", "reason")}, "| addContour calls:", TC["calls"].count("addContour"))
-_srcac = "\n".join(l for l in src[src.index("# POST /glyph/contours/add (v0.207)"):src.index("# POST /glyph/component (v0.169)")].split("\n") if not l.lstrip().startswith("#"))
+_srcac = "\n".join(l for l in src[src.index("# POST /glyph/contours/add (v0.207)"):src.index("# POST /glyph/contours/remove (v0.210)")].split("\n") if not l.lstrip().startswith("#"))
 print("2918 static scan of add_contours: forbidden call syntax:",
       _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|clearContours|addShape|replaceShape|removeContour|decomposite|ejectTo|activateBuilder|resetMetrics\w*|applyTransform)\s*\(|shapeBuilder|font\.update|resetInkBox", _srcac.replace("base.update(", "")),
       "| every refusal before the first addContour:", _srcac.rindex("nothing was added") < _srcac.index("sd.addContour(contour)"),
@@ -10431,6 +10526,124 @@ for tag, code, reply in (("2918b log, added              ", 200, _ok_add), ("291
 print("2918g log, one contour         :", ns["_act_describe_write"]("/glyph/contours/add", A0, 200, _ok_add))
 print("2919 spies over the add_contours cases:", TC_FORBIDDEN)
 
+# ================= v0.210: POST /glyph/contours/remove (remove_contours) =================
+# The v0.207 fakes (tls, the glyph cpp1). TCShapeData gains removeContour, which removes that contour object from the shape's own list
+# (the layer's getContours sees the same list); modes: remc_raises, remc_drops (does nothing), remc_wrong (removes the first contour
+# instead), remc_extra_shape (an empty shape appears as well). _ask_yes_no is replaced by RCD: the answer it gives, and an optional edit of the glyph while the question is open.
+# sync_drops_empty: the fake sync drops a shape left with no contour, as FontLab's does (ED7 1715, 1717).
+print("\n==== v0.210 POST /glyph/contours/remove (remove_contours) ====")
+def _tcsd_remc(s, c):
+    idx = next((i for i, k in enumerate(s._contours) if k is c), None)
+    TC["calls"].append(("removeContour", idx))
+    m = TC["mode"]
+    if m.get("remc_raises"): raise RuntimeError("removeContour boom")
+    if m.get("remc_drops"): return
+    if m.get("remc_wrong"): del s._contours[0]; return
+    if m.get("remc_extra_shape"): P72["layers"]["cpp1"]._shapes.append(TCShape([]))     # an empty extra shape, which no contour check sees
+    s._contours[:] = [k for k in s._contours if k is not c]
+TCShapeData.removeContour = _tcsd_remc
+RCD = {"answer": "yes", "seen": [], "during": None}
+def _rcd_ask(title, text, seconds, outcome):
+    RCD["seen"].append((title, text, seconds, outcome))
+    if RCD["during"]: RCD["during"]()
+    a = RCD["answer"]
+    out = {"answer": a, "seconds": seconds}
+    if a == "not_shown": out["error"] = "the dialog could not be set up to close by itself (boom); no dialog was shown"
+    return out
+_rcd_saved = ns["_ask_yes_no"]; ns["_ask_yes_no"] = _rcd_ask
+RK = ("removed", "nodes_match", "changed", "glyph_empty", "shapes_after_sync", "contours_now", "mismatches", "reason", "edit_case",
+      "contours_found", "user_declined", "not_answered", "dialog_error", "synced_with_fontlab", "fontlab_changed_mark", "error")
+_sq_tri = lambda: [TCShape([te_contour(TE_SQ), te_contour(TE_TRI)])]
+def E(i, n, x, y): return {"index": i, "node_count": n, "start": {"x": x, "y": y}}
+R0 = {"name": "cpp1", "expected_contours": 2, "contours": [E(1, 3, 50, 50)]}
+def rmc(tag, body, shapes=_sq_tri, mode=None, keys=RK, legacy=4, answer="yes", during=None, legacy_empty=False):
+    tls(shapes, mode=mode, legacy=legacy)
+    if legacy_empty: TS["cpp1"] = TsGlyph("cpp1", [TsLayer(0, 0)])
+    RCD.update(answer=answer, seen=[], during=during)
+    c, d = sbpost("/glyph/contours/remove", body)
+    TC_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| calls", [x for x in TC["calls"] if isinstance(x, tuple) and x[0] == "removeContour"],
+          "| asked", len(RCD["seen"]), "| Update", TE["updates"], "| marks", TE["marks"])
+    return d
+for tag, body in (("2960a no expected_contours        ", {"name": "cpp1", "contours": [E(1, 3, 50, 50)]}),
+                  ("2960b an extra key                ", dict(R0, force=True)),
+                  ("2960c expected_contours 0         ", dict(R0, expected_contours=0)),
+                  ("2960d no entry                    ", dict(R0, contours=[])),
+                  ("2960e more entries than contours  ", dict(R0, contours=[E(0, 4, 0, 0), E(1, 3, 50, 50), E(1, 3, 50, 50)])),
+                  ("2960f an entry without start      ", dict(R0, contours=[{"index": 1, "node_count": 3}])),
+                  ("2960g index a bool                ", dict(R0, contours=[E(True, 3, 50, 50)])),
+                  ("2960h node_count 0                ", dict(R0, contours=[E(1, 0, 50, 50)])),
+                  ("2960i start out of range          ", dict(R0, contours=[E(1, 3, 50, 20001)])),
+                  ("2960j the same contour twice      ", dict(R0, contours=[E(1, 3, 50, 50), E(1, 3, 50, 50)])),
+                  ("2960k dialog_seconds 4.5          ", dict(R0, dialog_seconds=4.5)),
+                  ("2960l empty name                  ", dict(R0, name=" "))):
+    rmc(tag, body, keys=("error",))
+c = ns["_route"]("POST", "/glyph/contours/remove", b"{not json").partition(b"\r\n\r\n")[0][9:12]
+print("2960m not JSON                     :", c.decode())
+d = rmc("2961 the triangle (contour 1)     ", R0)
+print("2961a  after / removed / requested :", adc_after(d), "|", adc_after(d, "removed_contours"), "|", d.get("contours_requested"))
+print("2961b  the question                :", RCD["seen"][0][0], "|", RCD["seen"][0][2], RCD["seen"][0][3], "|", RCD["seen"][0][1].replace("\n", " / "))
+print("2961c  margins, no before on success:", d.get("margins"), "|", "before" not in d, "expected_after" not in d, "| guard kind",
+      ns["_guard_state"](ns["_open_font"]())["glyphs"].get("cpp1"))
+d = rmc("2962 the square (contour 0)       ", dict(R0, contours=[E(0, 4, 0, 0)]), legacy=3)
+print("2962a  after                       :", adc_after(d))
+d = rmc("2963 both, the sync drops the shape", dict(R0, contours=[E(0, 4, 0, 0), E(1, 3, 50, 50)]), mode={"sync_drops_empty": 1}, legacy_empty=True)
+print("2963a  after / sync state / question:", adc_after(d), "|", d.get("state_after_sync"), "|", RCD["seen"][0][1].split("\n\n")[1])
+rmc("2963b both, an empty shape stays   ", dict(R0, contours=[E(0, 4, 0, 0), E(1, 3, 50, 50)]), legacy_empty=True)
+d = rmc("2963c one contour, the only one   ", {"name": "cpp1", "expected_contours": 1, "contours": [E(0, 4, 0, 0)]}, shapes=lambda: [_contour()],
+        mode={"sync_drops_empty": 1}, legacy_empty=True)
+print("2963d  margins absent when empty   :", "margins" not in d, "| removed_contours", adc_after(d, "removed_contours"))
+rmc("2964a answered No                ", R0, answer="no")
+d = rmc("2964b not answered in time         ", R0, answer="not_answered")
+print("2964c  dialog                      :", d.get("dialog"))
+rmc("2964d no dialog could be shown     ", R0, answer="not_shown")
+rmc("2964e unclear                      ", R0, answer="unclear")
+rmc("2965a a stale expected_contours    ", dict(R0, expected_contours=3))
+rmc("2965b a wrong node_count           ", dict(R0, contours=[E(1, 4, 50, 50)]))
+rmc("2965c a wrong start                ", dict(R0, contours=[E(1, 3, 50, 51)]))
+rmc("2965d an index past the end        ", dict(R0, contours=[E(2, 3, 50, 50)]))
+rmc("2965e one good, one stale entry    ", dict(R0, contours=[E(0, 4, 0, 0), E(1, 3, 60, 50)]))
+def _rcd_edit(): P72["layers"]["cpp1"]._shapes[0]._contours[1].rows[0]["x"] += 7.0
+rmc("2966a the glyph is edited during the question", R0, during=_rcd_edit)
+def _rcd_add(): P72["layers"]["cpp1"]._shapes[0]._contours.append(te_contour([(600, 600), (700, 600), (700, 700)]))
+rmc("2966b a contour is added during it ", R0, during=_rcd_add)
+def _rcd_shape(): P72["layers"]["cpp1"]._shapes.append(TCShape([te_contour(TE_TRI)]))
+rmc("2966c a shape is added during it   ", R0, during=_rcd_shape)
+for tag, shapes in (("2967a an empty layer             ", lambda: []),
+                    ("2967b two shapes                 ", lambda: [_contour(), TCShape([te_contour(TE_TRI)])]),
+                    ("2967c a component                ", lambda: [_tc_comp("cppsrc")]),
+                    ("2967d a Power Brush shape        ", lambda: [TCBrush()]),
+                    ("2967e an element offset          ", lambda: [_tx_contour()])):
+    rmc(tag, R0, shapes=shapes)
+rmc("2967f a glyph that does not exist ", dict(R0, name="cppzz"), keys=RK + ("found",))
+rmc("2967g an empty glyph without a layer", dict(R0, name="cppnolayer"), keys=RK + ("found",))
+for tag, mode in (("2968a removeContour raises       ", {"remc_raises": 1}), ("2968b removeContour does nothing  ", {"remc_drops": 1}),
+                  ("2968c the wrong contour goes      ", {"remc_wrong": 1})):
+    d = rmc(tag, R0, mode=mode)
+    print("       before / expected / after  :", adc_after(d, "before"), "|", adc_after(d, "expected_after"), "|", adc_after(d))
+rmc("2968d the legacy view lags: not synced", R0, legacy=7)
+rmc("2968e an empty extra shape appears", R0, mode={"remc_extra_shape": 1})
+_srcrc = "\n".join(l for l in src[src.index("# POST /glyph/contours/remove (v0.210)"):src.index("# POST /glyph/component (v0.169)")].split("\n") if not l.lstrip().startswith("#"))
+_rcf = _srcrc[_srcrc.index("def remove_contours("):]
+print("2969 static scan of remove_contours: forbidden call syntax:",
+      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|clearContours|addShape|addContour|replaceShape|decomposite|ejectTo|activateBuilder|resetMetrics\w*|applyTransform)\s*\(|shapeBuilder|font\.update|resetInkBox", _srcrc.replace("base.update(", "")),
+      "| one removeContour call:", _srcrc.count("sd.removeContour(") == 1 and _srcrc.count(".removeContour(") == 2, "| the question before it:", _rcf.index("_ask_yes_no(") < _rcf.index("sd.removeContour("),
+      "| read again after the Yes:", _rcf.count("_remove_contours_read(name, w,") == 2 and _rcf.count("_remove_contours_problems(before,") == 2,
+      "| highest index first:", "gone = sorted({p[\"index\"] for p in picks}, reverse=True)" in _rcf)
+print("2969a route documented:", "POST /glyph/contours/remove" in src, "| dispatched:", 'if path == "/glyph/contours/remove":' in src, "| mark title:",
+      ns["_MARK_TITLES"].get("remove_contours"), "| guard kind full:", "remove_contours" in ns["_GUARD_FULL_KINDS"], "| activity kind:",
+      ns["_ACT_WRITES"].get("/glyph/contours/remove"), "| the delete question unchanged:", repr(ns["_deletion_text"]("x"))[:60])
+_ok_rm = {"open": True, "removed": True, "nodes_match": True, "changed": True, "synced_with_fontlab": True, "dialog": {"answer": "yes", "seconds": 45}}
+RB = {"name": "cpp1", "expected_contours": 2, "contours": [E(0, 4, 0, 0), E(1, 3, 50, 50)]}
+for tag, code, reply in (("2969b log, removed            ", 200, _ok_rm), ("2969c log, removed, empty     ", 200, dict(_ok_rm, glyph_empty=True)),
+                         ("2969d log, No                 ", 200, {"open": True, "removed": False, "changed": False, "user_declined": True, "reason": "the removal was not approved in FontLab (answered No)"}),
+                         ("2969e log, not answered       ", 200, {"open": True, "removed": False, "changed": False, "not_answered": True, "dialog": {"answer": "not_answered", "seconds": 45}, "reason": "nobody answered"}),
+                         ("2969f log, refused            ", 200, {"open": True, "removed": False, "changed": False, "reason": "the glyph holds 3 contour(s), not the expected 2"}),
+                         ("2969g log, changed, not confirmed", 200, {"open": True, "removed": False, "changed": True, "reason": "the re-read outline does not match the request"}),
+                         ("2969h log, HTTP 400           ", 400, {"error": "entry 0: contour 1 is named twice in this request"})):
+    print(tag, ":", ns["_act_describe_write"]("/glyph/contours/remove", RB, code, reply), "| change verdict:", ns["_change_verdict"]("/glyph/contours/remove", code, reply))
+print("2970 spies over the remove_contours cases:", TC_FORBIDDEN)
+
 # ---- v0.207: the _EDIT_ACCEPTS grid. Every tool in the table runs against a glyph of every case (remove_component: the case's shapes
 # plus the component it removes); a cell reads H (the tool reported success), R (refused, nothing changed) or X (anything else).
 # A cell that departs from the table is listed with the tool's reason.
@@ -10441,6 +10654,7 @@ GRID_CALLS = {"draw_polygon": ("/glyph/polygon", "drawn", lambda n: {"name": "cp
               "draw_path": ("/glyph/path", "drawn", lambda n: {"name": "cpp1", "contours": [SQ_IN]}),
               "move_nodes": ("/glyph/move", "moved", lambda n: {"name": "cpp1", "moves": [M(0, 1, (400, 0), (450, 0))]}),
               "add_contours": ("/glyph/contours/add", "added", lambda n: A0),
+              "remove_contours": ("/glyph/contours/remove", "removed", lambda n: {"name": "cpp1", "expected_contours": 1, "contours": [E(0, 4, 0, 0)]}),
               "add_component": ("/glyph/component", "placed", lambda n: PB0),
               "remove_component": ("/glyph/component/remove", "removed", lambda n: {"name": "cpp1", "index": n, "component": "cppsrc", "x": 0, "y": 0})}
 print("grid tools match the table:", sorted(GRID_CALLS) == sorted(ns["_EDIT_ACCEPTS"]), "| cases match:", tuple(GRID_CASES) == ns["_EDIT_CASES"])
@@ -10450,7 +10664,9 @@ for tool, (route, flag, body) in GRID_CALLS.items():
     for case, shapes in GRID_CASES.items():
         made = (lambda s=shapes: s() + [_tc_comp("cppsrc")]) if tool == "remove_component" else shapes
         n = len(shapes())
-        tls(made, mode={"build_names_layer": 1, "add_activates": 1}, legacy=3 if case == "empty" and tool != "remove_component" else 7)
+        tls(made, mode=dict({"build_names_layer": 1, "add_activates": 1}, **({"sync_drops_empty": 1} if tool == "remove_contours" else {})),
+            legacy=3 if case == "empty" and tool != "remove_component" else 7)
+        RCD.update(answer="yes", seen=[], during=None)     # v0.210: remove_contours' question answered Yes
         TC["rm_calls"] = 0
         c, d = sbpost(route, body(n))
         TC_FORBIDDEN.extend(TE["forbidden"])
@@ -10461,6 +10677,7 @@ for tool, (route, flag, body) in GRID_CALLS.items():
     print(f"{tool:17s}:", " ".join(cells))
 print("departures from _EDIT_ACCEPTS:", grid_departures)
 print("2920 spies over the grid:", TC_FORBIDDEN)
+ns["_ask_yes_no"] = _rcd_saved; del TCShapeData.removeContour     # v0.210: the real dialog and the plain fake again
 TCShapeData.componentLayer = _tcsd_layer_orig
 TCLayer.buildAuto = _tc_build181
 del TCLayer.setActive; del TCLayer.isActive

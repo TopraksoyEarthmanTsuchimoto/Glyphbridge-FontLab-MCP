@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.90)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.91)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -43,7 +43,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.90"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.91"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -2670,8 +2670,8 @@ def write_glyph_moves(name: str, moves: Any) -> dict:
 _ADD_CONTOURS_MIN_LISTENER = (0, 207)
 _ADD_UNCONFIRMED_INSTRUCTION = (
     "The re-read outline does NOT match the request, so the add is not confirmed, and the glyph may now hold part of the new contours or "
-    "changed ones (see mismatches, before and after). Tell the person what happened. Do NOT try to repair it on your own: no Glyphbridge "
-    "tool removes a contour yet; the person can delete a contour in FontLab, or tell you how to go on.")
+    "changed ones (see mismatches, before and after). Tell the person what happened. Do NOT try to repair it on your own: ask the person "
+    "how to go on (remove_contours can take a contour out again, after their Yes in FontLab; they can also delete it in FontLab).")
 _ADD_FONTLAB_LAG_NOTE = (
     "FontLab's own sidebearing numbers for this glyph may still show the old values for a while; the contours are added, and the "
     "values given here are computed from the glyph's nodes.")
@@ -2681,8 +2681,8 @@ _ADD_FONTLAB_LAG_INSTRUCTION = (
     "from the re-read nodes. Tell the person person_note once, in plain words; give no steps to refresh FontLab's display.")
 # Research ED3 1655 and ED4 1664: after the same edit by the research probe, FontLab's Edit > Undo was greyed out.
 _ADD_UNDO_NOTE = (
-    "In testing, FontLab's Edit > Undo offered nothing after contours were added this way, and no Glyphbridge tool removes a contour yet: "
-    "to take an added contour back, delete it in FontLab.")
+    "In testing, FontLab's Edit > Undo offered nothing after contours were added this way: to take an added contour back, remove it with "
+    "remove_contours (FontLab asks the person first) or delete it in FontLab.")
 
 
 def write_glyph_add_contours(name: str, expected_contours: Any, contours: Any) -> dict:
@@ -2774,6 +2774,145 @@ def write_glyph_add_contours(name: str, expected_contours: Any, contours: Any) -
     _add_guard_fields(result, data)
     _mark_modified(result, True)
     _add_undo_note(result, _ADD_UNDO_NOTE)
+    return result
+
+
+# ---- v0.91: remove_contours through POST /glyph/contours/remove (listener 0.210; the user's design of 2026-11-25, research ED5-ED7) ----
+_REMOVE_CONTOURS_MIN_LISTENER = (0, 210)
+_RMC_UNCONFIRMED_INSTRUCTION = (
+    "The re-read outline does NOT match the request, so the removal is not confirmed, and the glyph may now be partly changed (see "
+    "mismatches, before, after and removed_contours). Tell the person what happened. Do NOT try to repair it on your own: ask the person "
+    "how to go on (removed_contours holds what was removed, so it can be drawn back with add_contours, or draw_path when the glyph is empty).")
+_RMC_FONTLAB_LAG_NOTE = (
+    "FontLab's own sidebearing numbers for this glyph may still show the old values for a while; the contours are removed, and the "
+    "values given here are computed from the glyph's nodes.")
+_RMC_FONTLAB_LAG_INSTRUCTION = (
+    "FontLab's own sidebearings and ink box for this glyph have not caught up with the removal yet (fontlab_sidebearings_current is false; "
+    "after an API edit they lag in FontLab 8.9.5, and no call was found that refreshes them). left, right and ink_width are computed "
+    "from the re-read nodes. Tell the person person_note once, in plain words; give no steps to refresh FontLab's display.")
+# Research ED5 1703: after the same removal by the research probe, FontLab's Edit > Undo was greyed out.
+_RMC_UNDO_NOTE = (
+    "In testing, FontLab's Edit > Undo offered nothing after contours were removed this way: to bring a removed contour back, draw it "
+    "again from removed_contours with add_contours (or draw_path when the glyph is empty).")
+_RMC_EMPTY_NOTE = ("Every contour was removed: the glyph is empty now (FontLab holds no shape for it after its sync). Its advance width "
+                      "is unchanged. Draw into it with draw_path or draw_polygon.")
+
+
+def _check_removal_entries(entries: Any, expected_contours: int) -> list:
+    """The entries as clean dicts {index, node_count, start: {x, y}}, or a ToolError before anything is sent."""
+    if not isinstance(entries, (list, tuple)) or not (1 <= len(entries) <= expected_contours):
+        raise ToolError("contours must be a list of 1 to expected_contours entries, one per contour to remove: "
+                        '{"index": n, "node_count": n, "start": {"x": x, "y": y}}.')
+    clean, seen = [], set()
+    for i, e in enumerate(entries):
+        if not isinstance(e, dict) or set(e) != {"index", "node_count", "start"}:
+            raise ToolError(f'contours entry {i} must be an object with exactly "index", "node_count" and "start".')
+        ci, nc = e["index"], e["node_count"]
+        if isinstance(ci, bool) or not isinstance(ci, int) or not (0 <= ci < expected_contours):
+            raise ToolError(f"contours entry {i}: index must be a whole number from 0 to {expected_contours - 1} (the contour numbering of "
+                            "get_glyph_outline).")
+        if isinstance(nc, bool) or not isinstance(nc, int) or not (1 <= nc <= _MOVE_INDEX_MAX + 1):
+            raise ToolError(f"contours entry {i}: node_count must be a whole number from 1 to {_MOVE_INDEX_MAX + 1} (the contour's node_count "
+                            "in get_glyph_outline, control points included).")
+        start = _check_path_xy(e["start"], f"contours entry {i} start")
+        if ci in seen:
+            raise ToolError(f"contours entry {i}: contour {ci} is named twice; name each contour once.")
+        seen.add(ci)
+        clean.append({"index": ci, "node_count": nc, "start": start})
+    return clean
+
+
+def write_glyph_remove_contours(name: str, expected_contours: Any, contours: Any) -> dict:
+    clean = name.strip() if isinstance(name, str) else ""
+    if not clean:
+        raise ToolError("Glyph name must not be empty.")
+    if isinstance(expected_contours, bool) or not isinstance(expected_contours, int) or not (1 <= expected_contours <= _MOVE_INDEX_MAX):
+        raise ToolError(f"expected_contours must be a whole number from 1 to {_MOVE_INDEX_MAX}: the number of contours the glyph holds now, "
+                        "as get_glyph_outline reported it.")
+    checked = _check_removal_entries(contours, expected_contours)
+    _require_listener(_REMOVE_CONTOURS_MIN_LISTENER, "remove_contours")   # its dialog closes by itself (0.203 and newer)
+
+    data = _write_post("/glyph/contours/remove", {"name": clean, "expected_contours": expected_contours, "contours": checked,
+                                                  "dialog_seconds": DIALOG_SECONDS}, timeout=DIALOG_WAIT_SECONDS)
+
+    if not data.get("open"):
+        raise ToolError(NO_FONT)
+    if data.get("found") is False:
+        raise ToolError(f"No glyph named '{clean}' was found.")
+    if data.get("removed") is not True:
+        if data.get("user_declined") is True:
+            raise ToolError(f"Removal of contours from glyph '{clean}' was not approved in FontLab. A person needs to click Yes on the "
+                            "confirmation dialog for this to proceed - this is expected behavior, not an error. Nothing was changed.")
+        if data.get("not_answered") is True:
+            raise _not_answered_error(f"The contours of glyph '{clean}' were NOT removed", data.get("dialog"))
+        if data.get("dialog_error"):
+            raise ToolError(f"Glyph '{clean}': nothing was removed: the confirmation dialog could not be shown in FontLab "
+                            f"({data['dialog_error']}).")
+    changed = data.get("changed")
+    indices = [e["index"] for e in checked]
+    if not data.get("removed"):
+        reason = data.get("reason") or "unknown reason"
+        if changed is not True and changed != "unknown":
+            raise _refusal(clean, "nothing was removed", reason)
+        result = {"name": clean, "removed": False, "verified": False, "nodes_match": False, "changed": changed, "reason": reason,
+                  "contours_requested": sorted(indices),
+                  "mismatches": [m for m in data.get("mismatches") or [] if isinstance(m, str)][:20],
+                  "before": _move_view(data.get("before")), "after": _move_view(data.get("after")),
+                  "removed_contours": _move_view(data.get("removed_contours")),
+                  "agent_instruction": _RMC_UNCONFIRMED_INSTRUCTION}
+        _add_guard_fields(result, data)
+        if changed is True:
+            _mark_modified(result, True)
+            _add_undo_note(result, _RMC_UNDO_NOTE)
+        else:
+            _note_change(sure=False)
+            result["font_modified"] = "unknown"
+            result["agent_instruction"] += " " + _SAVE_INSTRUCTION
+        return result
+
+    after = data.get("after")
+    total = len(after) if isinstance(after, list) else None
+    result = {
+        "name": clean,
+        "removed": True,
+        "verified": data.get("nodes_match") is True,
+        "nodes_match": data.get("nodes_match") is True,
+        "contours_removed": sorted(indices),
+        "contours_now": total,
+        "glyph_empty": total == 0,
+        "removed_contours": _move_view(data.get("removed_contours")),
+        "note": ("The contours were removed after the person's Yes in FontLab; every remaining node, node kind and smooth flag is unchanged "
+                 "and the remaining contours keep their order, renumbered from 0. The advance width is unchanged."),
+    }
+    if total == 0:
+        result["empty_note"] = _RMC_EMPTY_NOTE
+    else:
+        # As add_contours: FontLab's sidebearings and ink box can lag after the removal (ED5 1696, 1702), so the re-read nodes are the
+        # confirmation and the sidebearings are computed from them; FontLab's values are shown beside them.
+        margins = data.get("margins")
+        lsb, rsb, adv = (_margin_number(margins, k) for k in ("lsb", "rsb", "advance"))
+        box, why = _moved_extent(after)
+        result.update({"left": None, "right": None, "advance_width": _tidy_number(adv), "ink_width": None,
+                       "sidebearings_source": "computed from the re-read nodes (exact curve extents) and FontLab's advance width",
+                       "fontlab_sidebearings": {"left": _tidy_number(lsb), "right": _tidy_number(rsb), "advance_width": _tidy_number(adv)},
+                       "fontlab_sidebearings_current": "unknown"})
+        if box is None:
+            result["sidebearings_note"] = f"The sidebearings could not be computed: {why}."
+        else:
+            tol = 0.01 if all(n.get("kind") == "On" for c in after for n in c["nodes"]) else _CURVE_BOX_TOLERANCE
+            result["left"] = _tidy_number(round(box[0], 4))
+            result["ink_width"] = _tidy_number(round(box[1] - box[0], 4))
+            if adv is not None:
+                result["right"] = _tidy_number(round(adv - box[1], 4))
+            if lsb is not None and rsb is not None and adv is not None:
+                current = abs(lsb - box[0]) < tol and abs((adv - rsb) - box[1]) < tol
+                result["fontlab_sidebearings_current"] = current
+                if not current:
+                    result["person_note"] = _RMC_FONTLAB_LAG_NOTE
+                    result["agent_instruction"] = _RMC_FONTLAB_LAG_INSTRUCTION
+    _add_guard_fields(result, data)
+    _mark_modified(result, True)
+    _add_undo_note(result, _RMC_UNDO_NOTE)
     return result
 
 
@@ -4785,7 +4924,7 @@ def _apply_source_step(result: dict, data: dict) -> None:
 
 _OUTLINE_LAG_NOTE = (
     "The top-level left, right and ink_width are FontLab's own values, and they do not match the nodes read here. Right after an edit "
-    "through the API (move_nodes, add_contours) FontLab's own sidebearings and ink box have been seen to lag behind the outline for a "
+    "through the API (move_nodes, add_contours, remove_contours) FontLab's own sidebearings and ink box have been seen to lag behind the outline for a "
     "while (FontLab 8.9.5); that may be the cause here, but one read cannot tell. computed_from_nodes gives the values computed from the "
     "nodes (exact curve extents) and FontLab's advance width.")
 _OUTLINE_LAG_INSTRUCTION = (
@@ -5060,7 +5199,7 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     in verification.legacy_margins_vs_modern); that answer is current and needs no refresh. With an older listener the 'unverified' behaviour
     described above still applies.
 
-    After an edit through the API (move_nodes, add_contours) FontLab's own sidebearings and ink box can lag behind the outline. When a
+    After an edit through the API (move_nodes, add_contours, remove_contours) FontLab's own sidebearings and ink box can lag behind the outline. When a
     modern-layer read without element transforms is 'unverified' because its exact box disagrees with FontLab's left sidebearing or ink
     width, the top-level left, right and ink_width stay FontLab's values, computed_from_nodes gives the values computed from the nodes,
     and outline_lag_note and agent_instruction say what that means and when to mention it.
@@ -5566,8 +5705,9 @@ def add_contours(name: str, expected_contours: int, contours: list[list[dict[str
     person person_note once.
 
     If the re-read does NOT match (added: false with mismatches, before and after), the glyph may be partly changed. Nothing is restored
-    automatically: tell the person. No Glyphbridge tool removes a contour yet; the reply's undo_note says how to take one back: tell the
-    person once per conversation. Open contours have no fill, and the reply's agent_instruction then says what to tell the person.
+    automatically: tell the person. The reply's undo_note says how to take an added contour back (remove_contours, which asks the
+    person in FontLab first): tell the person once per conversation. Open contours have no fill, and the reply's agent_instruction then
+    says what to tell the person.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
@@ -5575,6 +5715,47 @@ def add_contours(name: str, expected_contours: int, contours: list[list[dict[str
     """
     _note_client(ctx)
     return _with_font(write_glyph_add_contours, name, expected_contours, contours)
+
+
+@_tool()
+def remove_contours(name: str, expected_contours: int, contours: list[dict[str, Any]], ctx: Context | None = None) -> dict[str, Any]:
+    """Remove contours from the existing outline of one glyph in the font currently open in FontLab 8, after a person says Yes in FontLab.
+
+    Read the glyph with get_glyph_outline FIRST. Pass expected_contours = the number of contours it reported, and in `contours` one entry
+    per contour to remove: {"index": its index, "node_count": its node_count (control points included), "start": {"x", "y"} of its
+    FIRST node (node_list[0])}, all as get_glyph_outline reported them. Example, removing contour 1 of a glyph with 2 contours:
+    expected_contours=2, contours=[{"index": 1, "node_count": 4, "start": {"x": 100, "y": 100}}]
+    If the glyph holds a different number of contours, or any named contour has another node count or starts elsewhere (the person may
+    have edited the glyph since your read), the whole call is refused and NOTHING changes: read the glyph again.
+
+    This shows a Yes/No question inside FontLab itself, naming the glyph and each contour, and removes only if a person clicks Yes there:
+    this tool cannot remove anything on its own. Tell the person before the call that FontLab will ask them. The question closes by
+    itself after 45 seconds, counted as no answer, so the call takes at most about a minute; then the reply says not_answered_in_time
+    and nothing was changed: ask the person before trying again. A No changes nothing either. After the Yes the glyph is checked again,
+    and the call is refused with nothing changed if it was edited while the question was open.
+
+    Only a glyph with exactly ONE plain shape is supported for now: a glyph with several shapes, a component, a Power Brush or other
+    composite shape, or an element transform (position, scale, rotation set with FontLab's Element tool) is refused and nothing changes.
+    An empty glyph is refused too: it has nothing to remove.
+
+    Afterwards every node of the glyph is read back: success (removed: true, verified: true, nodes_match: true) means the named contours
+    are gone and every other node, node kind and smooth flag is unchanged; the remaining contours keep their order and are numbered from 0
+    again. Removing every contour leaves the glyph EMPTY (glyph_empty: true, FontLab holds no shape for it any more): draw into it with
+    draw_path. The advance width is not changed. While contours remain, left, right and ink_width are COMPUTED from the re-read nodes
+    and FontLab's advance width; FontLab's own sidebearings can lag for a while (seen live) and are reported apart in
+    fontlab_sidebearings with fontlab_sidebearings_current. When they lag, tell the person person_note once.
+
+    FontLab's Edit > Undo cannot bring removed contours back (seen in testing). The reply's removed_contours holds each removed contour
+    as get_glyph_outline shows contours, so it can be drawn back with add_contours (or draw_path when the glyph is empty); undo_note says
+    so: tell the person once per conversation. If the re-read does NOT match (removed: false with mismatches, before and after), the glyph
+    may be partly changed. Nothing is restored automatically: tell the person.
+
+    Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
+    (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
+    Needs listener 0.210.
+    """
+    _note_client(ctx)
+    return _with_font(write_glyph_remove_contours, name, expected_contours, contours)
 
 
 @_tool()

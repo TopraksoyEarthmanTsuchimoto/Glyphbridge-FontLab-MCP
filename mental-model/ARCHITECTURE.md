@@ -56,7 +56,7 @@ Every write is reported as successful only after a re-read agrees. Drawings are 
 | reading | `get_glyph_outline`, `get_glyph_width`, `get_glyph_sidebearings` | `/glyph/outline`, `/glyph/width`, `/glyph/sidebearings` | [reading](topics/reading.md) |
 | `.notdef` | `check_notdef` (+ automatic checks) | `/font/notdef`, `/font/notdef/warn` | [notdef](topics/notdef.md) |
 | names, Unicode | `create_glyph`, `delete_glyph`, `check_glyph_unicode`, `set_glyph_unicode` | `/glyph/create`, `/glyph/delete`, `/glyph/unicode` | [names-unicode](topics/names-unicode.md) |
-| geometry | `set_glyph_width`, `set_glyph_sidebearings`, `draw_polygon`, `draw_path`, `move_nodes`, `add_contours` | `/glyph/width`, `/glyph/sidebearings`, `/glyph/polygon`, `/glyph/path`, `/glyph/move`, POST `/glyph/contours/add` | [geometry](topics/geometry.md) |
+| geometry | `set_glyph_width`, `set_glyph_sidebearings`, `draw_polygon`, `draw_path`, `move_nodes`, `add_contours`, `remove_contours` (a Yes/No in FontLab) | `/glyph/width`, `/glyph/sidebearings`, `/glyph/polygon`, `/glyph/path`, `/glyph/move`, POST `/glyph/contours/add`, POST `/glyph/contours/remove` | [geometry](topics/geometry.md) |
 | components | `add_component` (one component or a `components` list, underscore names refused in a list; into an empty glyph, or beside what it holds through a temporary layer; the target needs exactly one layer, the active one; the width written back), `remove_component` | POST `/glyph/component`, POST `/glyph/component/remove` | [reading](topics/reading.md) |
 | kerning | `get_kerning`, `set_kerning`, `get_kerning_groups`, `remove_kerning`; class sides `@name` in both writes; `rename_kerning_group`, `remove_kerning_group` (a Yes/No in FontLab) | GET/POST `/kerning/pairs`, POST `/kerning/set`, GET/POST `/kerning/groups`, POST `/kerning/remove`, POST `/kerning/group/rename`, POST `/kerning/group/remove`; `@name` sides on both (the current master's table of the font in front; with several fonts open, matched by path) | [kerning](topics/kerning.md) |
 | save policy | `finish_changes` | POST `/changes` (the change log, read only; also for `fontlab_status`) | [server-and-endpoints](topics/server-and-endpoints.md) §2 |
@@ -65,7 +65,7 @@ Every write is reported as successful only after a re-read agrees. Drawings are 
 Which version brought each tool and feature: [WHAT-WORKS.md](WHAT-WORKS.md); what each release changed: [CHANGELOG.md](CHANGELOG.md).
 
 **Confirmation and gating:**
-- `delete_glyph` and `remove_kerning_group` ask a Yes/No question in FontLab (default No).
+- `delete_glyph`, `remove_kerning_group` and `remove_contours` ask a Yes/No question in FontLab (default No).
 - Reversible value writes are not gated, nor is `create_font`, which changes nothing that exists.
 - Probes that construct objects or change UI state need `go=yes`.
 - Environment switches: `GLYPHBRIDGE_PORT`, `GLYPHBRIDGE_MODERN`, `GLYPHBRIDGE_NOTDEF_WARN`.
