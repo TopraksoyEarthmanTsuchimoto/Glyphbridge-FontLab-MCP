@@ -8,6 +8,11 @@ Active decisions only, grouped by theme, newest first within each theme. Each en
 
 ## Principles and working rules
 
+### 2026-11-25: questions in FontLab during live tests
+
+- **Each test glyph is named after the button the person clicks:** `_yes` or `_yesall` for Yes, `_no` for No, `_nodlg` where no question may appear (if one does: No, and say so); any other name: No. The person reports the glyph names seen and the buttons clicked, never test numbers. The agent states the plan, stops, and starts the questions only after the person's "go"; one "go" covers the run. First used in RX2 1738–1752 ([LIVE-TESTS.md](LIVE-TESTS.md)).
+- *Reason:* the user's words: it is extremely difficult for people to match test numbers with the dialogs that appear (RX 1728–1737, where a Yes could not be tied to a step).
+
 ### 2026-11-20: FontLab's Python documentation may be read, never as proof
 
 - **An agent may read FontLab's Python documentation as a source of names and descriptions (step 1 of the proving steps), never as proof** ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10). Facts recorded before this date all come from probes. *Reason:* the earlier ban was a limit of the chat-era sandbox; the site loads in the built-in browser (checked 2026-11-20) and documents `flGlyph.advanceWidth`; but its examples use container access that crashed FontLab, and its FontLab version is not stated, so FontLab stays the oracle.

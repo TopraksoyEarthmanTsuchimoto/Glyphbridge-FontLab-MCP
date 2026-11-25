@@ -99,6 +99,6 @@ The areas follow the summary table in [CURRENT-STATUS.md](CURRENT-STATUS.md).
 | `get_glyph_width` reads `advanceWidth`, with the legacy width as a cross-check and fallback | 0.198 (live, AW5 1490–1498) | 0.81 |
 | `add_contours` | 0.207 (live, AD 1665–1680) | 0.89 |
 | one "nothing was …" per refusal; `new_contour_sizes`; `computed_from_nodes` in `get_glyph_outline` | 0.207 | 0.90 (live, WX 1686–1693; the component tools' refusals stub-tested only) |
-| `remove_contours` (a Yes/No in FontLab) | 0.210 | 0.91 (not yet run live) |
+| `remove_contours` (a Yes/No in FontLab) | 0.210 | 0.91 (live, RX 1728–1752: a middle contour and every contour, straight only) |
 
 Releases that add only gated research probes are not listed; every release, and what it changed: [CHANGELOG.md](CHANGELOG.md).

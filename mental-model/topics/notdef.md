@@ -50,8 +50,8 @@ points to `check_notdef`.
   Claude Desktop's own tool-call limit is at least 90 s (its exact value is unknown); the server gives up at 120 s by design (the
   automatic check then reports `check_failed`; that path has not been seen live). Superseded: since listener 0.203 / server 0.83 the
   `.notdef` notice shows no dialog, and the server waits 55 s for the dialogs that remain ([server-and-endpoints.md](server-and-endpoints.md) §2).
-- **An empty glyph is not always layerless** (1405–1408, 2026-11-19, one run): Arial's `space` has one empty layer (`Regular`, 0 nodes),
-  while the empty `.notdef` of a File > New Font font has none; the legacy outline read (`modern=no`) and the Layers panel agree. Selecting the glyph did not add a layer.
+- **An empty glyph is not always layerless** (1405–1408, 2026-11-19, one run; SP 1726–1727, 2026-11-25, one run): Arial's `space` has one empty layer (`Regular`, 0 nodes),
+  while the empty `.notdef` of a File > New Font font has none; the legacy outline read (`modern=no`) and the Layers panel agree. Times New Roman's `space` likewise had 0 contours and nodes by `get_glyph_outline`, and the Layers & Masters panel showed one empty `Regular` layer. Selecting the glyph did not add a layer.
 - **Blocking:** with the dialog open, `GET /health` timed out after 5 s: the listener serves nothing during a dialog (no re-entrancy, so no stacked dialogs).
 
 **Not yet verified on real FontLab:** the explicit `check_notdef` tool and `get_glyph_outline(".notdef")` through Claude Desktop

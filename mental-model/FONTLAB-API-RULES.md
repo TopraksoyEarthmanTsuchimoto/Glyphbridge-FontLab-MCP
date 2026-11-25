@@ -14,6 +14,7 @@
 - **Using a proven call:** a product route may use only a call from the table. It needs no `go=yes`, but its stub tests must include a spy that aborts on any other member, a subscript or an iteration of the fake native object, plus a static scan of the route's source.
 - **Reporting:** a probe reply names the call it made (`call`, `calls_so_far`, `max_calls`) and its side-effect check. A call that failed is an `error` in the reply, never an empty, missing or zero result. A call that has only passed the stub tests is "stub-tested only", never "proven".
 - **Modern API first** (2026-11-04, [DECISIONS.md](DECISIONS.md)): a product route uses a legacy call only where the modern one is missing or proven worse. Each legacy call in product use gets a row in the table "Legacy calls in product use" below, with that reason and its test numbers, or "not yet reviewed".
+- **Questions in FontLab during live tests** (2026-11-25, [DECISIONS.md](DECISIONS.md)): name each test glyph after the button the person clicks (`_yes`, `_yesall`, `_no`; `_nodlg` where no question may appear), state the plan, and start the questions only after the person's "go". The person reports glyph names and buttons, never test numbers.
 
 | Object | Call (argument form) | Used by | Proven by |
 |---|---|---|---|
