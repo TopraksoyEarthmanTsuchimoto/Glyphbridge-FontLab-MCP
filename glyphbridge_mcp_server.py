@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.89)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.90)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -43,7 +43,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.89"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.90"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -2607,7 +2607,7 @@ def write_glyph_moves(name: str, moves: Any) -> dict:
     if not data.get("moved"):
         reason = data.get("reason") or "unknown reason"
         if changed is not True and changed != "unknown":
-            raise ToolError(f"Glyph '{clean}': nothing was moved: {reason}")
+            raise _refusal(clean, "nothing was moved", reason)
         result = {"name": clean, "moved": False, "verified": False, "nodes_match": False, "changed": changed, "reason": reason,
                   "moves": done, "coordinates_rounded": rounded,
                   "mismatches": [m for m in data.get("mismatches") or [] if isinstance(m, str)][:20],
@@ -2707,7 +2707,7 @@ def write_glyph_add_contours(name: str, expected_contours: Any, contours: Any) -
     if not data.get("added"):
         reason = data.get("reason") or "unknown reason"
         if changed is not True and changed != "unknown":
-            raise ToolError(f"Glyph '{clean}': nothing was added: {reason}")
+            raise _refusal(clean, "nothing was added", reason)
         result = {"name": clean, "added": False, "verified": False, "nodes_match": False, "changed": changed, "reason": reason,
                   "coordinates_rounded": rounded,
                   "mismatches": [m for m in data.get("mismatches") or [] if isinstance(m, str)][:20],
@@ -2739,7 +2739,8 @@ def write_glyph_add_contours(name: str, expected_contours: Any, contours: Any) -
         "contours_added": len(checked),
         "new_contour_indices": list(range(total - len(checked), total)) if total is not None else None,
         "contours_now": total,
-        "contour_sizes": data.get("contour_sizes") if isinstance(data.get("contour_sizes"), list) else None,
+        # v0.90 (live 1666, 1675): the listener's contour_sizes lists the new contours only, so the reply names it so
+        "new_contour_sizes": data.get("contour_sizes") if isinstance(data.get("contour_sizes"), list) else None,
         "coordinates_rounded": rounded,
         "left": None, "right": None, "advance_width": _tidy_number(adv), "ink_width": None,
         "sidebearings_source": "computed from the re-read nodes (exact curve extents) and FontLab's advance width",
@@ -2788,12 +2789,23 @@ def _comp_checks_ok(checks: dict) -> bool:
     return all(checks.get(k) is True for k in _COMP_CHECK_KEYS if k in checks or k not in _COMP_CHECKS_SINCE_187)
 
 
+def _refusal(clean: str, phrase: str, reason: Any) -> ToolError:
+    """v0.90: the ToolError for a glyph edit that changed nothing, saying `phrase` ("nothing was changed / added / moved") once, at
+    the front. The listener's reason may end with ": <phrase>" or hold ", <phrase>: " in the middle; both are taken out (live 1351
+    and test 43h for the components, 1678 and 1684 for add_contours, test 37l for move_nodes showed the phrase twice). The listener's
+    own OUTPUT line keeps its reason as it is."""
+    text = reason if isinstance(reason, str) else str(reason)
+    tail = ": " + phrase
+    if text.endswith(tail):
+        text = text[:-len(tail)]
+    text = text.replace(", " + phrase + ": ", ": ")
+    return ToolError(f"Glyph '{clean}': {phrase}: {text}")
+
+
 def _comp_refusal(clean: str, reason: str) -> ToolError:
-    """v0.74: the ToolError for an add_component call that changed nothing, saying "nothing was changed" once (the listener's reason
-    ends with it; live 1351 showed it twice). v0.87: remove_component uses it too (its refusal said it twice, test 43h)."""
-    tail = ": nothing was changed"
-    text = reason[:-len(tail)] if isinstance(reason, str) and reason.endswith(tail) else reason
-    return ToolError(f"Glyph '{clean}': nothing was changed: {text}")
+    """v0.74: the ToolError for an add_component call that changed nothing (live 1351); v0.87: remove_component too (test 43h).
+    v0.90: the shared rule, _refusal."""
+    return _refusal(clean, "nothing was changed", reason)
 _COMP_NOTE = ("The glyph now holds one component of the named glyph at the given offset, read back from FontLab: the component, its "
               "offset and its drawn box are confirmed, FontLab's recipe for it was cleared, and the component glyph, the advance width and "
               "the glyph count are unchanged.")
@@ -4771,10 +4783,46 @@ def _apply_source_step(result: dict, data: dict) -> None:
                                    "a change made through a tool may not, and waiting or reopening the glyph did not.")
 
 
+_OUTLINE_LAG_NOTE = (
+    "The top-level left, right and ink_width are FontLab's own values, and they do not match the nodes read here. Right after an edit "
+    "through the API (move_nodes, add_contours) FontLab's own sidebearings and ink box have been seen to lag behind the outline for a "
+    "while (FontLab 8.9.5); that may be the cause here, but one read cannot tell. computed_from_nodes gives the values computed from the "
+    "nodes (exact curve extents) and FontLab's advance width.")
+_OUTLINE_LAG_INSTRUCTION = (
+    "FontLab's own sidebearings or ink width for this glyph disagree with its nodes (see outline_lag_note); they may still lag after a "
+    "recent edit through the API. Mention it to the person only when the sidebearings or the ink width matter to what they are doing, "
+    "then in plain words, giving computed_from_nodes beside FontLab's values; give no steps to refresh FontLab's display. Reading the "
+    "outline again later shows whether FontLab has caught up.")
+
+
+def _apply_outline_lag(result: dict) -> None:
+    """v0.90 (live 1676): a modern-route read whose nodes are complete and exact but whose box disagrees with FontLab's left sidebearing
+    or ink width, every element without a transform, stays unverified with FontLab's values at the top; computed_from_nodes, a note
+    and an instruction are added. Nothing else changes."""
+    v = result.get("verification") or {}
+    bm = v.get("bounding_box_vs_margins")
+    box, adv, rows = result.get("ink_bbox"), result.get("advance_width"), result.get("elements")
+    if not (result.get("source") == "modern layer" and v.get("status") == "unverified" and isinstance(bm, dict)
+            and not (bm.get("left_ok") and bm.get("width_ok")) and result.get("ink_bbox_exact") is True
+            and isinstance(box, dict) and _num(box.get("left")) and _num(box.get("right")) and _num(adv)):
+        return
+    if not (isinstance(rows, list) and rows and all(isinstance(r.get("matrix"), dict) and
+                                                    all(_num(r["matrix"].get(k)) for k in _MATRIX_KEYS) and
+                                                    _is_identity(tuple(r["matrix"][k] for k in _MATRIX_KEYS)) for r in rows)):
+        return
+    result["computed_from_nodes"] = {"left": _tidy_number(round(box["left"], 3)), "right": _tidy_number(round(adv - box["right"], 3)),
+                                     "ink_width": _tidy_number(round(box["right"] - box["left"], 3)),
+                                     "source": "the nodes read here (exact curve extents) and FontLab's advance width"}
+    result["outline_lag_note"] = _OUTLINE_LAG_NOTE
+    existing = result.get("agent_instruction")
+    result["agent_instruction"] = (existing + " " + _OUTLINE_LAG_INSTRUCTION) if existing else _OUTLINE_LAG_INSTRUCTION
+
+
 def _modern_first_result(clean: str, data: dict) -> dict:
-    """v0.50: the modern-first read, then the check of each component against its source."""
+    """v0.50: the modern-first read, then the check of each component against its source. v0.90: then the lag check."""
     result = _modern_first_read(clean, data)
     _apply_source_step(result, data)
+    _apply_outline_lag(result)
     return result
 
 
@@ -5011,6 +5059,11 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     tool reads the nodes from the modern layer instead ('source': 'modern layer', 'legacy_view_was_stale': true, with the margins of both views
     in verification.legacy_margins_vs_modern); that answer is current and needs no refresh. With an older listener the 'unverified' behaviour
     described above still applies.
+
+    After an edit through the API (move_nodes, add_contours) FontLab's own sidebearings and ink box can lag behind the outline. When a
+    modern-layer read without element transforms is 'unverified' because its exact box disagrees with FontLab's left sidebearing or ink
+    width, the top-level left, right and ink_width stay FontLab's values, computed_from_nodes gives the values computed from the nodes,
+    and outline_lag_note and agent_instruction say what that means and when to mention it.
 
     .notdef: this is the mandatory glyph shown when a character is missing from the font; it may legitimately be empty
     (an empty one comes back as empty: true, with notdef_check saying what to tell the person). If a glyph's layer cannot be read at all,

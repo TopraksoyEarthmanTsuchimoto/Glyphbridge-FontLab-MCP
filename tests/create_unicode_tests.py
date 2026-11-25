@@ -3857,7 +3857,7 @@ r = ad52("52d an open arch                 ", dict(OK52, after=[OLD52, OPEN52], 
          keys=("added", "verified", "new_contour_indices", "left", "right", "ink_width", "open_contours_note"))
 print("52d2 open-contour instruction      ->", srv._OPEN_CONTOUR_INSTRUCTION in r.get("agent_instruction", ""), "| undo sentence last:", r.get("agent_instruction", "").endswith(srv._MOVE_UNDO_INSTRUCTION))
 r = ad52("52e two at once                  ", dict(OK52, after=[OLD52, NEW52, OPEN52], contour_sizes=[4, 4]), contours=(SQIN52, ARCH52),
-         keys=("added", "contours_added", "new_contour_indices", "contours_now", "contour_sizes", "open_contours_note"))
+         keys=("added", "contours_added", "new_contour_indices", "contours_now", "new_contour_sizes", "contour_sizes", "open_contours_note"))
 ad52("52f rule B reported              ", dict(OK52, coordinates_rounded=[{"contour": 0, "point": 0, "field": "x", "requested": 100.5, "used": 101.0}]),
      keys=("added", "coordinates_rounded", "rounding_note"))
 ad52("52g sidebearings unreadable      ", {k: v for k, v in OK52.items() if k not in ("margins", "ink_width")})
@@ -3894,3 +3894,39 @@ print("52zc docs              -> tool listed:", callable(getattr(srv, "add_conto
                                           "undo_note", "NEVER saves", "listener 0.207", "finish_changes ONCE") if w not in _ad],
       "| SAVE_KEYS replaced:", "SAVE_KEYS" not in _ad)
 print("52zd versions                   ->", srv.SERVER_VERSION, "| needs listener", srv._ADD_CONTOURS_MIN_LISTENER)
+
+# ==== 53. server 0.90: one refusal rule; get_glyph_outline when FontLab's values disagree with the nodes (live 1676) ====
+print("\n==== 53. server 0.90: the shared refusal rule; the outline lag note ====")
+for label, phrase, reason in (("53a tail                    ", "nothing was added", "the glyph has 2 shapes: nothing was added"),
+                              ("53b middle                  ", "nothing was added", "the request cannot be built, nothing was added: contour 0: x"),
+                              ("53c middle (moved)          ", "nothing was moved", "the moves would break a smooth node, nothing was moved: move 0: y"),
+                              ("53d neither                 ", "nothing was changed", "the source glyph holds a component"),
+                              ("53e phrase inside, kept     ", "nothing was added", "nothing was added before: x"),
+                              ("53f not a string            ", "nothing was moved", None)):
+    print(label, "->", str(srv._refusal("g1", phrase, reason)))
+print("53g components use the rule     ->", str(srv._comp_refusal("g1", "the target has 2 layers: nothing was changed")))
+SQ53 = [node(0, 100, 0), node(1, 300, 0), node(2, 300, 200), node(3, 100, 200)]
+CT53 = [node(0, 150, 50), node(1, 150, 150), node(2, 250, 150), node(3, 250, 50)]
+SM53 = [node(0, 400, 0), node(1, 500, 0), node(2, 500, 100), node(3, 400, 100)]
+LAG53 = {"lsb": 100.0, "rsb": -300.0, "advance": 0.0}           # live 1676: FontLab's values from before the add
+CUR53 = {"lsb": 100.0, "rsb": -500.0, "advance": 0.0}
+def m53(tag, reply):
+    s10_reset(); S9["get"]["/glyph/outline"] = reply
+    r = s9_try(lambda: srv.read_glyph_outline("A"))
+    if isinstance(r, str):
+        print(tag, "->", r[:160]); return r
+    print(tag, "->", r["verification"]["status"], "| top", {k: r.get(k) for k in ("left", "right", "ink_width")}, "| computed", r.get("computed_from_nodes"),
+          "| note", (r.get("outline_lag_note") or "")[:50], "| instruction has lag:", srv._OUTLINE_LAG_INSTRUCTION in (r.get("agent_instruction") or ""))
+    return r
+r = m53("53h FontLab lags (live 1676)   ", g26([SQ53, CT53, SM53], LAG53, fontlab_ink_box=ink(0, 200)))
+print("53h2 note, instruction          ->", r.get("outline_lag_note"), "|", r.get("agent_instruction"))
+m53("53i FontLab current            ", g26([SQ53, CT53, SM53], CUR53, fontlab_ink_box=ink(0, 200)))
+m53("53j element offset, mismatch   ", g26([SQ53, CT53, SM53], LAG53, {"m11": 1.0, "m12": 0.0, "m21": 0.0, "m22": 1.0, "dx": 7.0, "dy": 0.0}, fontlab_ink_box=ink(0, 200)))
+m53("53k elements unreadable        ", g26([SQ53, CT53, SM53], LAG53, fontlab_ink_box=ink(0, 200), elements={"available": False, "error": "x"}))
+m53("53l only the vertical differs  ", g26([SQ53, CT53, SM53], CUR53, fontlab_ink_box=ink(0, 300)))
+_r53 = g26([SQ53, CT53, SM53], LAG53, fontlab_ink_box=ink(0, 200)); _r53["modern_outline"]["margins"] = None
+m53("53m margins unreadable         ", _r53)
+_go = " ".join((srv.get_glyph_outline.__doc__ or "").split())
+print("53n docs                        -> missing phrases:", [w for w in ("computed_from_nodes", "outline_lag_note", "top-level left, right and ink_width stay FontLab's values")
+                                                              if w not in _go], "| add_contours reply names new_contour_sizes:", "new_contour_sizes" in srv.write_glyph_add_contours.__code__.co_consts)
+print("53o versions                    ->", srv.SERVER_VERSION)

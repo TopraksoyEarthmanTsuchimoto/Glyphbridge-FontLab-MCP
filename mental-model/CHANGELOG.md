@@ -4,6 +4,15 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Server v0.90 (2026-11-25, listener unchanged at v0.207): three wording fixes found in AD and AD2
+
+**Built as proposed and approved** (the user's choices of 2026-11-25, one question at a time; found in AD 1666, 1675, 1676, 1678 and AD2 1684).
+
+- Server: one refusal rule, `_refusal(name, phrase, reason)`: a glyph edit that changed nothing says "nothing was added / moved / changed" once, at the front; the phrase is taken out of the listener's reason at its end (": …") and in its middle (", …: "). Used by `add_contours`, `move_nodes` and the component tools (`_comp_refusal` now calls it). Before, `add_contours` (1678, 1684) and `move_nodes` (test 37l) said it twice. The listener's OUTPUT line is unchanged.
+- Server: the `add_contours` reply's `contour_sizes` is renamed `new_contour_sizes`: it lists the new contours only, beside `new_contour_indices` (1666, 1675). `draw_path` and `draw_polygon` keep `contour_sizes`.
+- Server: `get_glyph_outline`, when a modern-layer read without element transforms is `unverified` because its exact box disagrees with FontLab's left sidebearing or ink width (1676), adds `computed_from_nodes` (left, right, ink width from the nodes and FontLab's advance width), `outline_lag_note` (the top-level values are FontLab's own and may lag after an API edit) and an `agent_instruction` (mention it only when the numbers matter to the person's task, plain words, no refresh steps). The status and the top-level fields are unchanged. The tool description says so.
+- Tests: four stub harnesses PASS at 5630 + 58 + 121 + 1902 lines; the deployed listener copy is identical. Changed: 37l, 37m, 52e, 52i, 52j and the version lines; new: `create_unicode_tests.py` part 53 (53a–53o). Mutation run: 4 of 5 caught (the identity check, the margin check, the middle and the end strip); the fifth, dropping the `ink_bbox_exact` condition, survived because it is equivalent: the box is compared with the margins only when it is exact. Not run live yet.
+
 ## Listener v0.207 / server v0.89 (2026-11-24): `add_contours`, and the edit tools' cases in one table
 
 **Built as proposed and approved** (the user's design of 2026-11-24, [DECISIONS.md](DECISIONS.md); research ED2, ED3, ED4 1657–1664).
