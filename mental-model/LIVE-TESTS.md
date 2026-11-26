@@ -2132,3 +2132,34 @@ The set-up through Claude Code in Claude Desktop's Code tab (1909–1918); the r
 | 1931 | `fontlab_status` (Claude Code) | — | `changes_by_font` two rows, both "Unnamed Regular": 3 and 8 |
 
 Reading (one run): every prediction held. Antigravity called the ten read-only tools, eight of them for the first time in Antigravity (`get_current_font`, `list_glyphs`, `get_glyph_sidebearings`, `get_glyph_width`, `check_glyph_unicode`, `get_kerning`, `get_kerning_groups`, `check_notdef`), and wrote nothing: the counts stayed at 3 and 8 (1931). Two findings. (1) The change log keeps one row per font but labels it by name, so the closed AGY font (3 changes) and this font (8) show as two rows named "Unnamed Regular", and 1918's `other_changes` names the AGY font's changes "Unnamed Regular" as well. At 1909 Claude said in chat that the listener had filed the AGY font's changes under the new font by name; 1931 contradicts that. (2) In a font with no kerning group, `get_kerning_groups` gives the right answer but reports its cross-check as failed and tells the agent that no group is confirmed, because `getAllGroups()` returns `None` when no group exists (1531); the same through Claude Code (1930), so it does not depend on the client.
+
+### 1932–1934 AG3: Antigravity's cached tool descriptions after a server update (2026-11-26, listener 0.217 / server 0.96, FontLab 8.9.5 in Demo mode)
+
+Antigravity IDE with Gemini 4 Hydrogen Medium. Before the run, Antigravity was closed with the X, leaving no `agy.exe` process. Claude Code copied its 28 cached description files for comparison: all dated 17:02, none with the 0.96 wording. Server 0.96 was already in the repository. The predictions were stated in chat before each step. One run.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1932 | the user starts Antigravity, opens no conversation, makes no tool call; Claude Code compares the cache with the copy | all files rewritten; `fontlab_status.json` and `finish_changes.json` hold the 0.96 wording; `get_kerning.json` (unchanged in 0.96) rewritten with the same content | as predicted: all 28 dated 19:46, only those two changed, both with `same_name` and `in_front` |
+| 1933 | a new conversation, only if 1932 showed no change | — | skipped |
+| 1934 | Antigravity `fontlab_status`, in a new conversation | server 0.96, listener 0.216; `changes_by_font` one row "Unnamed Regular", no `same_name` | server 0.96 as predicted; **listener 0.217 and `changes_by_font` `[]` (predictions failed)**: the user had restarted the listener alone at 19:39:03, which Claude had not checked |
+
+Reading (one run): a full restart of Antigravity refreshes its cached tool descriptions from the server, without a new conversation. Not tested: a server change while Antigravity runs. The failed predictions in 1934 come from an assumption Claude did not check, not from Antigravity.
+
+### 1935–1944: the live checks of listener 0.217 / server 0.96 (2026-11-26, FontLab 8.9.5 in Demo mode)
+
+Two clients, both on server 0.96: Claude Code, named `local-agent-mode` in FontLab's OUTPUT panel, and Antigravity IDE with Gemini 4 Hydrogen Medium, named `antigravity-client`. Listener 0.217 since 19:39:03; the listener alone was restarted, FontLab kept running. Start: the AG2 font alone (`agr1_a`, `agr1_b`, the pair −40). The predictions were stated in chat before the run. No stage needed a save. One run.
+
+| # | Step | Predicted | Result |
+|---|---|---|---|
+| 1935 | `fontlab_status` (Claude Code) | 0.217 / 0.96; `changes_by_font` `[]`; one font | as predicted |
+| 1936 | `get_kerning_groups glyphs=["agr1_a"]` | `cross_check` "done", `group_count` 0 | as predicted (AG2 1927 gave "failed") |
+| 1937 | `get_kerning agr1_a agr1_b` | −40, glyph : glyph | as predicted |
+| 1938 | the user opens Arial; `get_kerning_groups glyphs=["o"]`; the user closes Arial | a confirmed group, "done" (the control) | as predicted: `o` in `e`, right, confirmed; 72 groups; matched by path |
+| 1939 | `create_glyph agr2_a`, then `fontlab_status` | one row "Unnamed Regular", 1 change, no `same_name` | as predicted, 3 → 4 glyphs |
+| 1940 | the user closes the AG2 font (X, Don't Save) and makes File > New Font; `fontlab_status` | FontLab asks about saving; one row, no `same_name` | as predicted |
+| 1941 | Antigravity `create_glyph agr3_a` in the new font | created; OUTPUT names `antigravity-client` | as predicted, 1 → 2 glyphs. The OUTPUT line at 19:55:54 reads "create agr3_a: created (verified, glyphs 1 -> 2)", seen in the user's screenshot after the run. Approval was asked under the "Auto" preset. Two HTTP 503 errors, retried by Antigravity. |
+| 1942 | Antigravity `finish_changes` | 1 change, `complete`; `other_changes` 1 by Claude Code, `same_name` true, `in_front` false | as predicted: by `local-agent-mode` at 19:53:01; approval asked; its summary named the time |
+| 1943 | `fontlab_status` (Claude Code) | two rows "Unnamed Regular", both `same_name`; old `in_front` false, new true; different times | as predicted: 19:53:01 and 19:55:54 |
+| 1944 | `finish_changes` (Claude Code) | 1 change, `complete`; `other_changes` 1 by `antigravity-client`, `same_name`, `in_front` true; `fonts_changed` the name once | as predicted |
+
+Reading (one run): both findings of AG2 are fixed live. The cross-check runs in a font with no kerning group (1936) and still confirms a real group (1938). Same-named rows carry `same_name`, their times and `in_front`, in `changes_by_font` (1943) and in `other_changes` on both clients (1942, 1944). A new finding: `fonts_changed` lists a shared font name once although two fonts changed (1942, 1944; [WATCH-POINTS.md](WATCH-POINTS.md)). Not tested: a font not in front that is still open.

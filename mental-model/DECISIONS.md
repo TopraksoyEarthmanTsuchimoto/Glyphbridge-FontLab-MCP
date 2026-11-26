@@ -8,6 +8,10 @@ Active decisions only, grouped by theme, newest first within each theme. Each en
 
 ## Principles and working rules
 
+### 2026-11-26: every request for a user action says when
+
+A restart or GUI request says whether to act now or after which step or check, and what not to touch until the next step ([AGENTS.md](../AGENTS.md), the restart rule). *Reason:* the AG3 request named what to restart and what to leave running, but not when, while its first reading depended on Antigravity making no call before the cache was read; the user chose one rule for every user action over one for restarts only.
+
 ### 2026-11-25: questions in FontLab during live tests
 
 - **Each test glyph is named after the button the person clicks:** `_yes` or `_yesall` for Yes, `_no` for No, `_nodlg` where no question may appear (if one does: No, and say so), `_noanswer` where the person clicks nothing and lets the question close by itself (added 2026-11-25, the user's choice, for RX4); any other name: No. The person reports the glyph names seen and the buttons clicked, never test numbers. The agent states the plan, stops, and starts the questions only after the person's "go"; one "go" covers the run. First used in RX2 1738–1752 ([LIVE-TESTS.md](LIVE-TESTS.md)).

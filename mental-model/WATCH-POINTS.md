@@ -50,6 +50,7 @@ What was seen in FontLab, in the tools or in agent behaviour and is **not yet ex
 ## Agents and clients
 
 - **The change counter outlives sessions.** `fontlab_status` showed changes at the start of sessions that had made none; the counts: [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §2. Inferred: the server process outlives the sessions. Not checked in the process list.
+- **`fonts_changed` names a shared font name once** (2026-11-26, 1942, 1944; [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §2). With changes in two fonts both called "Unnamed Regular", `finish_changes` listed the name once on both clients, while its `other_changes` told the fonts apart. Open: whether an agent then speaks of one font where two changed, and whether the list should carry what the rows carry. Settles: an agent's summary of such a package, or the user's design choice.
 
 ## Settled or dropped
 
