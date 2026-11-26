@@ -251,6 +251,10 @@ Not core, but budgeted: the root [README.md](../../README.md), the end-user inst
 
 Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
 
+### 2026-11-26: CURRENT-STATUS.md budget 4,100 → 5,000
+
+The user's choice, at 4,095 words. CURRENT-STATUS.md is a startup core file, so the reference totals become 20,800 and 20,000.
+
 ### 2026-11-26: MARKDOWN-MAP.md budget 1,000 → 1,250
 
 The user's choice, at 969 words, after the trims of that day added the research archive files and the topic-file budgets to the map. MARKDOWN-MAP.md is a startup core file, so the reference totals become 19,900 and 19,100.

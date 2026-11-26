@@ -12,14 +12,14 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [README.md](README.md) | introduction for outside developers | 700 |
 | [PROJECT.md](PROJECT.md) | goals, scope, non-goals, design rule | 1,000 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | processes, APIs, verification model, tools, layout | 1,600 |
-| [CURRENT-STATUS.md](CURRENT-STATUS.md) | where the project stands and what comes next | 4,100 |
+| [CURRENT-STATUS.md](CURRENT-STATUS.md) | where the project stands and what comes next | 5,000 |
 | [DECISIONS.md](DECISIONS.md) | active decisions with dates and reasons | 6,250 (active part) |
 | [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 1,250 |
 | [CHECKLIST.md](CHECKLIST.md) | open scenarios | 2,250 |
 
 Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 800; [WATCH-POINTS.md](WATCH-POINTS.md) 3,250; [WHAT-WORKS.md](WHAT-WORKS.md) 4,750; [GLOSSARY.md](GLOSSARY.md) 500; [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) 7,500; each file in `topics/` 6,000, `topics/fonts-and-sync.md` 7,250, `topics/reading.md` 6,500 (a file that agents read whole has a budget; a log such as LIVE-TESTS.md or CHANGELOG.md does not).
 
-**Reference totals:** 19,900 words including the root README, and 19,100 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
+**Reference totals:** 20,800 words including the root README, and 20,000 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
 
 ## Linked files (read when the task needs them; no budget unless noted)
 
