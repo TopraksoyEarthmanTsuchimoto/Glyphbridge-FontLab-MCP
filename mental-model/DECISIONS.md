@@ -10,7 +10,7 @@ Active decisions only, grouped by theme, newest first within each theme. Each en
 
 ### 2026-11-25: questions in FontLab during live tests
 
-- **Each test glyph is named after the button the person clicks:** `_yes` or `_yesall` for Yes, `_no` for No, `_nodlg` where no question may appear (if one does: No, and say so); any other name: No. The person reports the glyph names seen and the buttons clicked, never test numbers. The agent states the plan, stops, and starts the questions only after the person's "go"; one "go" covers the run. First used in RX2 1738–1752 ([LIVE-TESTS.md](LIVE-TESTS.md)).
+- **Each test glyph is named after the button the person clicks:** `_yes` or `_yesall` for Yes, `_no` for No, `_nodlg` where no question may appear (if one does: No, and say so), `_noanswer` where the person clicks nothing and lets the question close by itself (added 2026-11-25, the user's choice, for RX4); any other name: No. The person reports the glyph names seen and the buttons clicked, never test numbers. The agent states the plan, stops, and starts the questions only after the person's "go"; one "go" covers the run. First used in RX2 1738–1752 ([LIVE-TESTS.md](LIVE-TESTS.md)).
 - *Reason:* the user's words: it is extremely difficult for people to match test numbers with the dialogs that appear (RX 1728–1737, where a Yes could not be tied to a step).
 
 ### 2026-11-20: FontLab's Python documentation may be read, never as proof
@@ -141,6 +141,18 @@ Condensed on 2026-11-13; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECIS
 
 ## Glyphs
 
+### 2026-11-25 and 2026-11-26: several shapes in the three edit tools (research listener 0.213–0.214, ED8–ED10 1807–1856; built listener 0.215 / server 0.94)
+
+- **Contours keep `get_glyph_outline`'s glyph-wide numbers; a contour drawn by a component is refused.** *Reason:* the agent edits with the numbers it reads; a component's contours are its source glyph's own (ED8 1815, 1825), so editing one would change every glyph that uses the source.
+- **`add_contours` adds into the only plain shape; with two or more plain shapes it needs `shape`, the element index.** *Reason:* one numbering for the agent, and an explicit choice only where the glyph leaves one to make.
+- **Two or more plain shapes are included** (after ED9 1833–1839). *Reason:* the user's choice once the probe had edited either of two plain shapes.
+- **Beside the edited shape only components moved by an offset and plain shapes without a transform; anything else refuses the whole call.** *Reason:* only those were seen live; lifting the rest needs a probe run of its own.
+- **`remove_contours` may empty one plain shape among several; verified only if that shape is gone after the sync and every other shape and source is unchanged.** *Reason:* the one-shape rule (choice C, 2026-11-25) applied to several shapes; an emptied shape beside others was not seen before the build.
+- **A glyph of components only gets ONE new plain shape after them for `add_contours`** (research first: ED10 1849, 1850). *Reason:* the user's choice after the probe added such a shape without touching the components or their sources.
+- **Every edit also checks the other shapes (kind, source, offset, contour count) and every component's source glyph; a change there makes the call unverified, nothing restored.** *Reason:* the edit tools' rule of no automatic restore (2026-11-15), extended to the shapes a call must not touch.
+- *Reason for all:* the user's answers, one question at a time.
+- **After MS (listener 0.216 / server 0.95): a component's contour is refused before any other check, naming the source glyph to edit instead; `add_contours` always reports in `shape` the shape that received the contours** (MS 1870, 1871). *Reason:* the stale-request advice sent the agent into a loop of reading and retrying, and the agent should never have to work out where its contours went; the user's choice A, 2026-11-26.
+
 ### 2026-11-25: `remove_contours`, the third edit tool (research listener 0.207–0.209, ED5–ED7 1694–1719; built listener 0.210 / server 0.91)
 
 - **A call that removes every contour is allowed and leaves the glyph empty, with no shape (choice C).** *Reason:* every tool then treats the glyph as a new empty one; ED7 (1715, 1717) showed that FontLab's sync removes the shape left with no contour, so no `removeShape` call is needed.
@@ -153,7 +165,7 @@ Condensed on 2026-11-13; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECIS
 
 - **A tool of its own, not a mode of `draw_path`.** *Reason:* `draw_path`'s refusal of a glyph that is not empty stays a safety net; adding is a different FontLab call (`shape.shapeData.addContour` on the existing shape) with a different check.
 - **Curved and open contours were researched by probe before the build** (choice B). *Reason:* each half was proven apart, their combination was not.
-- **A shape with its own transform, several shapes, a component and a Power Brush shape are refused**, as by `move_nodes` ([topics/refusals.md](topics/refusals.md)). *Reason:* only one plain shape without a transform was seen; Power Brush risks the person's work (F1).
+- **A shape with its own transform, several shapes, a component and a Power Brush shape are refused**, as by `move_nodes` ([topics/refusals.md](topics/refusals.md)). *Reason:* only one plain shape without a transform was seen; Power Brush risks the person's work (F1). Several shapes and components: lifted by the entry of 2026-11-25 and 2026-11-26 above.
 - **Verified as `move_nodes` is:** the re-read nodes; sidebearings computed from them, FontLab's lagging values shown apart; `undo_note`; marked whenever the outline changed. *Reason:* the same lag (ED2–ED4); one reply shape for both edit tools.
 - **`expected_contours` is required.** *Reason:* a contour placed against a stale read lands wrongly yet reads `verified`; a count needs nothing from FontLab that lags.
 - **`draw_path`'s input; new contours last, in order; 2,000 nodes counted over the whole glyph.** *Reason:* the cap protects the request time.

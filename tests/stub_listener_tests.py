@@ -8190,6 +8190,202 @@ te_sync("2955 refused early (two shapes)  ", QE + "stage=removecontour&name=edpt
 print("2956 spies over all cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
 P72["widths"].pop("edpb", None)
 
+# ---- v0.213: &shape=I, shape I of a glyph with several shapes (P2.2; names only 1807). The TE fakes with shapes that have a transform,
+# contoursCount, getContours() and component shape data. A component shape shares its source's contour LIST, as in FontLab (live 606):
+# layer.getContours() then gives the source's own contour objects, so an edit through them would change the source.
+print("\n==== v0.213 /debug/tryedit shape= ====")
+SH = {}
+class SHQT(TESpy):
+    def __init__(s, m=(1, 0, 0, 1, 0, 0)): s._m = tuple(float(v) for v in m)
+    def m11(s): return s._m[0]
+    def m12(s): return s._m[1]
+    def m21(s): return s._m[2]
+    def m22(s): return s._m[3]
+    def dx(s): return s._m[4]
+    def dy(s): return s._m[5]
+class SHShapeData(TEShapeData):
+    def __init__(s, shape, glyph=""): TEShapeData.__init__(s, shape); s._glyph = glyph
+    def componentGlyph(s): return s._glyph
+    def componentLayer(s): return "test_font" if s._glyph else ""
+    def referenceCount(s): return 2 if s._glyph else 1
+    def addContour(s, c):
+        m = TE["mode"]
+        if m.get("sh_add_into_component"): SH["comp"]._contours.append(c); TE["calls"].append("addContour"); return
+        TEShapeData.addContour(s, c)
+        if m.get("sh_add_touches_source"): SH["src"]._contours[0].rows[0]["x"] += 1.0
+        if m.get("sh_tx_moves"): SH["comp"]._tx = SHQT((1, 0, 0, 1, 201, 0))
+class SHShape(TEShape):
+    def __init__(s, contours=None, component="", composite=False, m=(1, 0, 0, 1, 0, 0), shared=None):
+        TEShape.__init__(s, contours, composite=composite, component=bool(component))
+        if shared is not None: s._contours = shared
+        s.shapeData = SHShapeData(s, component); s._tx = SHQT(m)
+    @property
+    def transform(s): return s._tx
+    def contoursCount(s): return len(s._contours) + (1 if TE["mode"].get("sh_count_wrong") and not s._component else 0)
+    def getContours(s):
+        m = TE["mode"]
+        TE["calls"].append(("shape.getContours", len(s._contours)))
+        if m.get("sh_gc_raises"): raise RuntimeError("getContours boom")
+        if m.get("sh_gc_dict"): return {}
+        if m.get("sh_gc_disagree"): return list(reversed(s._contours))
+        return list(s._contours)
+def sh_setup(mode=None):
+    te_setup(mode=mode)
+    src = SHShape([te_contour([(0, 0), (50, 0), (50, 50), (0, 50)])])
+    SH["src"] = src
+    TS["edpssrc"] = TsGlyph("edpssrc", [TsLayer(1, 4)]); P72["layers"]["edpssrc"] = TELayer("test_font", [src])
+    comp = SHShape(component="edpssrc", shared=src._contours, m=(1, 0, 0, 1, 200, 0))
+    SH["comp"] = comp
+    for g, shapes in (("edpsa", [SHShape([te_contour(TE_SQ), te_contour(TE_TRI)]), comp]),
+                      ("edpsb", [SHShape(component="edpssrc", shared=src._contours, m=(1, 0, 0, 1, 200, 0)), SHShape([te_contour(TE_SQ), te_contour(TE_TRI)])]),
+                      ("edpsbrush", [SHShape([te_contour(TE_SQ)]), SHShape([te_contour(TE_TRI)], composite=True)]),
+                      ("edpstx", [SHShape([te_contour(TE_SQ)], m=(1, 0, 0, 1, 10, 0)), SHShape(component="edpssrc", shared=src._contours)]),
+                      ("edpstwo", [SHShape([te_contour(TE_SQ)]), SHShape([te_contour(TE_TRI)])])):
+        TS[g] = TsGlyph(g, [TsLayer(1, 4)]); P72["layers"][g] = TELayer("test_font", shapes)
+EKS = ("edited", "changed", "mismatches", "side_effect_detected", "other_shapes_unchanged", "sources_unchanged", "contour_counts_before",
+       "contour_counts_after", "contour_counts_expected", "shape_contours_offset", "shape", "error", "calls_so_far")
+def sh_show(tag, d):
+    print(tag, " before:", te_outline(d, "before"))
+    print(tag, " after :", te_outline(d, "after"))
+    print(tag, " elements after:", [(e["index"], e["is_component"], e["component_glyph"], (e.get("matrix") or {}).get("dx")) for e in d.get("elements_after") or []],
+          "| source now:", [[(r["x"], r["y"]) for r in c.rows] for c in SH["src"]._contours], "| sync", (d.get("fontlab_sync") or {}).get("verdict"))
+QS = QE + "stage="
+sh_setup()
+te("2980a shape with stage=replace     ", QS + "replace&name=edpsa&shape=0&go=yes")
+te("2980b shape with stage=removeshape ", QS + "removeshape&name=edpsa&shape=0&go=yes")
+te("2980c shape 20                     ", QS + "addcontour&name=edpsa&shape=20&go=yes")
+te("2980d shape is not a number        ", QS + "addcontour&name=edpsa&shape=one&go=yes")
+te("2980e shape with refresh           ", QS + "movenode&name=edpsa&shape=0&contour=0&node=1&dx=5&dy=0&refresh=layer.update&go=yes")
+te("2980f movenode with shape, no go   ", QS + "movenode&name=edpsa&shape=0&contour=0&node=1&dx=5&dy=0")
+te("2980g addcontour with shape, no go ", QS + "addcontour&name=edpsa&shape=0&kind=cubic")
+te("2980h removecontour with shape, no go", QS + "removecontour&name=edpsa&shape=0&contour=1")
+print("2980j refusals counted no call      :", ns["_TRYEDIT"]["calls"])
+te("2980i an empty shape= is left out  ", QS + "replace&name=edpsa&shape=&go=yes")
+sh_setup()
+d = te("2981 movenode, plain shape first  ", QS + "movenode&name=edpsa&shape=0&contour=0&node=2&dx=10&dy=-20&go=yes", keys=EKS); sh_show("2981a", d)
+sh_setup()
+d = te("2982 addcontour, plain shape first", QS + "addcontour&name=edpsa&shape=0&go=yes", keys=EKS); sh_show("2982a", d)
+sh_setup()
+d = te("2983 removecontour 1, plain first ", QS + "removecontour&name=edpsa&shape=0&contour=1&go=yes", keys=EKS); sh_show("2983a", d)
+sh_setup()
+d = te("2984 movenode, component first    ", QS + "movenode&name=edpsb&shape=1&contour=0&node=1&dx=5&dy=5&go=yes", keys=EKS); sh_show("2984a", d)
+sh_setup()
+d = te("2984b addcontour, component first ", QS + "addcontour&name=edpsb&shape=1&kind=open&go=yes", keys=EKS); sh_show("2984c", d)
+sh_setup()
+d = te("2984d removecontour 0, component first", QS + "removecontour&name=edpsb&shape=1&contour=0&go=yes", keys=EKS); sh_show("2984e", d)
+sh_setup()
+d = te("2984f two plain shapes, the second", QS + "addcontour&name=edpstwo&shape=1&go=yes", keys=EKS); sh_show("2984g", d)
+sh_setup()
+te("2985a shape 1 is the component     ", QS + "movenode&name=edpsa&shape=1&contour=0&node=0&dx=1&dy=0&go=yes")
+te("2985b shape 0 is the component     ", QS + "removecontour&name=edpsb&shape=0&contour=0&go=yes")
+te("2985c a Power Brush shape beside   ", QS + "addcontour&name=edpsbrush&shape=0&go=yes")
+te("2985d shape 0 has a transform      ", QS + "addcontour&name=edpstx&shape=0&go=yes")
+te("2985e shape 2 of 2                 ", QS + "addcontour&name=edpsa&shape=2&go=yes")
+te("2985f contour 2 of shape 0 (2)     ", QS + "removecontour&name=edpsa&shape=0&contour=2&go=yes")
+te("2985g node 3 of a triangle         ", QS + "movenode&name=edpsa&shape=0&contour=1&node=3&dx=1&dy=0&go=yes")
+te("2985h no shape= on two shapes      ", QS + "addcontour&name=edpsa&go=yes")
+print("2985i source untouched by refusals  :", [[(r["x"], r["y"]) for r in c.rows] for c in SH["src"]._contours], "| edit calls", TE["calls"])
+for tag, mode in (("2986a contoursCount disagrees      ", {"sh_count_wrong": 1}), ("2986b shape.getContours() raises   ", {"sh_gc_raises": 1}),
+                  ("2986c shape.getContours() a dict   ", {"sh_gc_dict": 1}), ("2986d the two reads disagree      ", {"sh_gc_disagree": 1}),
+                  ("2986e isComposite raises         ", {"composite_raises": 1}), ("2986f layer.shapes is a tuple      ", {"shapes_tuple": 1})):
+    sh_setup(mode=mode); te(tag, QS + "addcontour&name=edpsa&shape=0&go=yes")
+    print("       nothing touched              :", [c for c in TE["calls"] if c in ("addContour", "removeContour")] == [], "| marks", TE["marks"])
+sh_setup(mode={"sh_add_touches_source": 1})
+d = te("2987a the add also moves the source", QS + "addcontour&name=edpsa&shape=0&go=yes", keys=EKS); sh_show("2987b", d); print("2987c  mark:", d.get("fontlab_changed_mark"))
+sh_setup(mode={"sh_tx_moves": 1})
+d = te("2987d the add moves the component ", QS + "addcontour&name=edpsa&shape=0&go=yes", keys=EKS); sh_show("2987e", d)
+sh_setup(mode={"sh_add_into_component": 1})
+d = te("2987f the contour lands in the component", QS + "addcontour&name=edpsa&shape=0&go=yes", keys=EKS); sh_show("2987g", d)
+sh_setup(mode={"add_first": 1})
+d = te("2987h the contour lands first in shape 0", QS + "addcontour&name=edpsa&shape=0&go=yes", keys=EKS); sh_show("2987i", d)
+sh_setup(mode={"remove_noop": 1})
+te("2987j removeContour does nothing   ", QS + "removecontour&name=edpsa&shape=0&contour=0&go=yes", keys=EKS)
+sh_setup()
+for _i in range(8): call(QS + "movenode&name=edpsa&shape=0&contour=0&node=0&dx=1&dy=0&go=yes")
+te("2988 the limit holds with shape=   ", QS + "movenode&name=edpsa&shape=0&contour=0&node=0&dx=1&dy=0&go=yes")
+print("2989 spies over all cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
+_src213 = "\n".join(l for l in src[src.index("# /debug/tryedit (v0.151)"):src.index("# /debug/tryopen (v0.125)")].split("\n") if not l.lstrip().startswith("#"))
+print("2989a getContours() call sites in the probe:", sorted(set(_re83.findall(r"\b\w+\.getContours\(\)", _src213))),
+      "| shape= dispatched:", '(query.get("shape") or [None])[0]' in src, "| route documented:", "&shape=I edits shape I of a glyph" in src)
+
+# ---- v0.214: stage=addshape (design question 5, research first: a NEW plain shape beside existing shapes, e.g. a glyph of components only)
+print("\n==== v0.214 /debug/tryedit addshape ====")
+class SHLayer(TELayer):
+    def addShape(s, shape):
+        m = TE["mode"]
+        TE["calls"].append(("addShape", len(shape._contours)))
+        if m.get("as_add_raises"): raise RuntimeError("addShape boom")
+        if m.get("as_add_noop"): return shape
+        if m.get("as_flshape_tx"): shape._tx = SHQT((1, 0, 0, 1, 5, 0))
+        if m.get("as_add_touches_source"): SH["src"]._contours[0].rows[0]["x"] += 1.0
+        if m.get("as_add_first"): s._shapes.insert(0, shape)
+        else: s._shapes.append(shape)
+        return shape
+def as_setup(mode=None):
+    sh_setup(mode=mode)
+    _fm.flShape = SHShape
+    src = SH["src"]
+    for g, shapes in (("edpak", [SHShape(component="edpssrc", shared=src._contours, m=(1, 0, 0, 1, 300, 0))]),
+                      ("edpakp", [SHShape([te_contour(TE_SQ)]), SHShape(component="edpssrc", shared=src._contours, m=(1, 0, 0, 1, 300, 0))]),
+                      ("edpak2", [SHShape([te_contour(TE_SQ)]), SHShape([te_contour(TE_TRI)])]),
+                      ("edpaktx", [SHShape(component="edpssrc", shared=src._contours, m=(2, 0, 0, 1, 300, 0))]),
+                      ("edpakrot", [SHShape(component="edpssrc", shared=src._contours, m=(0, 1, -1, 0, 0, 0))]),
+                      ("edpakpt", [SHShape([te_contour(TE_SQ)], m=(1, 0, 0, 1, 10, 0)), SHShape(component="edpssrc", shared=src._contours)]),
+                      ("edpakbr", [SHShape(component="edpssrc", shared=src._contours), SHShape([te_contour(TE_TRI)], composite=True)]),
+                      ("edpakempty", [])):
+        TS[g] = TsGlyph(g, [TsLayer(1, 4)]); P72["layers"][g] = SHLayer("test_font", shapes)
+EKA = ("edited", "changed", "mismatches", "side_effect_detected", "new_shape_ok", "other_shapes_unchanged", "sources_unchanged",
+       "contour_counts_before", "contour_counts_after", "contour_counts_expected", "error", "calls_so_far")
+QAS = QE + "stage=addshape&name="
+as_setup()
+te("2990a addshape without go           ", QAS + "edpak")
+te("2990b with contour=0                ", QAS + "edpak&contour=0&go=yes")
+te("2990c with refresh=layer.update     ", QAS + "edpak&refresh=layer.update&go=yes")
+te("2990d with shape=0                  ", QAS + "edpak&shape=0&go=yes")
+te("2990e with kind=square              ", QAS + "edpak&kind=square&go=yes")
+print("2990f refusals counted no call      :", ns["_TRYEDIT"]["calls"])
+as_setup()
+d = te("2991 a glyph of one component     ", QAS + "edpak&go=yes", keys=EKA); sh_show("2991a", d)
+print("2991b  call, new shape, sync     :", d.get("call"), "| state after sync:", {k: (d.get("state_after_sync") or {}).get(k) for k in ("shapes", "components")},
+      "| synced_before_read", d.get("synced_before_read"))
+as_setup()
+d = te("2992 a plain shape and a component", QAS + "edpakp&go=yes", keys=EKA); sh_show("2992a", d)
+as_setup()
+d = te("2993 two plain shapes            ", QAS + "edpak2&go=yes", keys=EKA); sh_show("2993a", d)
+as_setup()
+te("2994a a scaled component          ", QAS + "edpaktx&go=yes")
+te("2994b a rotated component         ", QAS + "edpakrot&go=yes")
+te("2994c a plain shape with a transform", QAS + "edpakpt&go=yes")
+te("2994d a Power Brush shape         ", QAS + "edpakbr&go=yes")
+te("2994e an empty glyph (no shape)   ", QAS + "edpakempty&go=yes")
+print("2994f nothing added by refusals    :", [c for c in TE["calls"] if isinstance(c, tuple) and c[0] == "addShape"], "| marks", TE["marks"])
+for tag, mode in (("2995a isComposite raises          ", {"composite_raises": 1}), ("2995b contoursCount disagrees      ", {"sh_count_wrong": 1}),
+                  ("2995c layer.shapes is a tuple       ", {"shapes_tuple": 1})):
+    as_setup(mode=mode); te(tag, QAS + "edpakp&go=yes")
+    print("       nothing added                :", [c for c in TE["calls"] if isinstance(c, tuple) and c[0] == "addShape"] == [])
+as_setup(mode={"as_add_raises": 1})
+te("2996a addShape raises             ", QAS + "edpak&go=yes", keys=EKA)
+as_setup(mode={"as_add_noop": 1})
+d = te("2996b addShape adds nothing       ", QAS + "edpak&go=yes", keys=EKA); print("2996c  mark:", d.get("fontlab_changed_mark"), "| synced_before_read", d.get("synced_before_read"))
+as_setup(mode={"as_add_first": 1})
+d = te("2996d the new shape lands first    ", QAS + "edpakp&go=yes", keys=EKA); sh_show("2996e", d)
+as_setup(mode={"as_flshape_tx": 1})
+te("2996f the new shape gets an offset ", QAS + "edpak&go=yes", keys=EKA)
+as_setup(mode={"as_add_touches_source": 1})
+d = te("2996g the add moves the source     ", QAS + "edpak&go=yes", keys=EKA); print("2996h  mark:", d.get("fontlab_changed_mark"))
+as_setup(); P72["mode"]["contour_raises"] = 1
+te("2996i the square cannot be built   ", QAS + "edpak&go=yes", keys=EKA)
+as_setup()
+for _i in range(8): call(QAS + "edpak2&go=yes")
+te("2997 the limit holds              ", QAS + "edpak&go=yes")
+print("2998 spies over all cases: forbidden members, subscripts, iterations:", TE_ALL_FORBIDDEN)
+_src214 = "\n".join(l for l in src[src.index("# /debug/tryedit (v0.151)"):src.index("# /debug/tryopen (v0.125)")].split("\n") if not l.lstrip().startswith("#"))
+print("2998a addShape call statements:", [l.strip() for l in _src214.split("\n") if _re83.match(r"\s*\w+\.addShape\(", l)],
+      "| forbidden call syntax:", _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeAllShapes|clearContours|smartMove|smartSetXY|moveBy|decomposite|ejectTo|activateBuilder)\s*\(|shapeBuilder|font\.update", _src214),
+      "| route documented:", "stage=addshape adds one new plain shape" in src)
+for _g in ("edpak", "edpakp", "edpak2", "edpaktx", "edpakrot", "edpakpt", "edpakbr", "edpakempty"): TS.pop(_g, None); P72["layers"].pop(_g, None)
+for _g in ("edpssrc", "edpsa", "edpsb", "edpsbrush", "edpstx", "edpstwo"): TS.pop(_g, None); P72["layers"].pop(_g, None)     # later blocks see the glyph set they saw before v0.213
+
 # ---- v0.152: &refresh=R. The fake sidebearings stay stale after an edit (as live 968, 974, 980) until the ONE member named in
 # TE["mode"]["refresh_works"] is called; every refresh member logs into TE["refresh"].
 print("\n==== v0.152 /debug/tryedit refresh ====")
@@ -8276,7 +8472,14 @@ def _mv_transform(s):
     if TE["mode"].get("tx_raises"): raise RuntimeError("transform boom")
     return MvTr(TE["mode"].get("tx", {}))
 TEShape.transform = property(_mv_transform)
-MVK = ("moved", "nodes_match", "changed", "mismatches", "reason", "coordinates_rounded", "ink_box_refresh", "margins", "synced_with_fontlab", "fontlab_changed_mark")
+# v0.215: several shapes read each shape's contoursCount and getContours() and, through _trycomp_elements, its shape data's component
+# fields, as FontLab's objects have them (a plain shape: componentGlyph ""); the counts follow the shape's own list.
+TEShape.contoursCount = lambda s: len(s._contours)
+TEShape.getContours = lambda s: list(s._contours)
+TEShapeData.componentGlyph = lambda s: ""
+TEShapeData.componentLayer = lambda s: ""
+TEShapeData.referenceCount = lambda s: 1
+MVK =("moved", "nodes_match", "changed", "mismatches", "reason", "coordinates_rounded", "ink_box_refresh", "margins", "synced_with_fontlab", "fontlab_changed_mark")
 def mv_setup(mode=None):
     te2_setup(mode=dict({"refresh_works": "layer.resetinkbox"}, **(mode or {})))
     P72["widths"]["edpb"] = 500.0; P72["widths"]["edpa"] = 500.0; P72["widths"]["edps"] = 500.0
@@ -8323,12 +8526,16 @@ for tag, body in (("2334a a stale from refuses all    ", {"name": "edpb", "moves
                   ("2334c node 4 of 4                 ", {"name": "edpb", "moves": [M(0, 4, (0, 0), (5, 5))]}),
                   ("2334d from off by 0.002           ", {"name": "edpb", "moves": [M(0, 1, (400.002, 0), (450, 0))]}),
                   ("2334e from off by 0.0005: accepted", {"name": "edpb", "moves": [M(0, 1, (400.0005, 0), (450, 0))]})):
-    mv_setup(); mv(tag, body)
+    mv_setup(); _mvh = mv(tag, body)
+    if not tag.startswith("2334e"):
+        print("2334h  v0.211 hint at the end, once:", _mvh.get("reason", "").endswith("Read the glyph again with get_glyph_outline.")
+              and _mvh.get("reason", "").count("get_glyph_outline") == 1)
 mv_setup(); P72["layers"]["edpb"].getContours()[0].rows[1]["y"] = -0.0
 mv("2334f v0.154 a -0.0 prints as 0      ", {"name": "edpb", "moves": [M(0, 1, (401, 0), (450, 0))]}, keys=("moved", "reason"))
 mv_setup()
 for tag, g in (("2335a a Power Brush shape        ", "edpbrush"), ("2335b a component              ", "edpcomp"), ("2335c two shapes                ", "edptwo"),
                ("2335d no shape                   ", "edpnone"), ("2335e a glyph that does not exist", "edpzz")):
+    mv_setup()     # v0.215: each case on fresh fakes (two shapes are moved now)
     mv(tag, {"name": g, "moves": [M(0, 0, (0, 0), (5, 5))]}, keys=("moved", "reason", "shapes", "found"))
 for tag, mode in (("2335f isComposite raises         ", {"composite_raises": 1}), ("2335g the layer counts a component", {"components": 1}),
                   ("2335h layer.shapes is a tuple     ", {"shapes_tuple": 1}), ("2335i an element offset (dx 10)   ", {"tx": {"dx": 10.0}}),
@@ -10441,7 +10648,8 @@ def _tcsd_addc(s, c):
     if m.get("addc_extra_shape"): P72["layers"]["cpp1"]._shapes.append(TCShape([]))
     s._contours.append(c)
 TCShapeData.addContour = _tcsd_addc
-AK = ("added", "nodes_match", "changed", "mismatches", "reason", "edit_case", "contours_found", "coordinates_rounded", "contour_sizes",
+TCShape.getContours = lambda s: list(s._contours)     # v0.215: a shape's own contours, as FontLab's flShape.getContours() (1807, ED8)
+AK =("added", "nodes_match", "changed", "mismatches", "reason", "edit_case", "contours_found", "coordinates_rounded", "contour_sizes",
       "nodes_before", "open_contours", "synced_with_fontlab", "fontlab_changed_mark", "error")
 def adc(tag, body, shapes=lambda: [_contour()], mode=None, keys=AK, legacy=8):
     tls(shapes, mode=mode, legacy=legacy)
@@ -10510,9 +10718,11 @@ c, d = sbpost("/glyph/contours/add", A0)
 print("2917g a closed contour stays open detached:", c, {k: d.get(k) for k in ("added", "changed", "reason")}, "| addContour calls:", TC["calls"].count("addContour"))
 _srcac = "\n".join(l for l in src[src.index("# POST /glyph/contours/add (v0.207)"):src.index("# POST /glyph/contours/remove (v0.210)")].split("\n") if not l.lstrip().startswith("#"))
 print("2918 static scan of add_contours: forbidden call syntax:",
-      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|clearContours|addShape|replaceShape|removeContour|decomposite|ejectTo|activateBuilder|resetMetrics\w*|applyTransform)\s*\(|shapeBuilder|font\.update|resetInkBox", _srcac.replace("base.update(", "")),
+      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|clearContours|replaceShape|removeContour|decomposite|ejectTo|activateBuilder|resetMetrics\w*|applyTransform)\s*\(|shapeBuilder|font\.update|resetInkBox", _srcac.replace("base.update(", "")),
       "| every refusal before the first addContour:", _srcac.rindex("nothing was added") < _srcac.index("sd.addContour(contour)"),
-      "| one addContour call:", _srcac.count("sd.addContour(") == 1 and _srcac.count(".addContour(") == 2)
+      "| one addContour call:", _srcac.count("sd.addContour(") == 1 and _srcac.count(".addContour(") == 2,
+      "| v0.215 addShape call statements:", [l.strip() for l in _srcac.split("\n") if _re83.match(r"\s*\w+\.addShape\(", l)],
+      "| after the addContour calls:", _srcac.index("sd.addContour(contour)") < _srcac.index("layer.addShape(new_shape)"))
 print("2918a route documented:", "POST /glyph/contours/add" in src, "| dispatched:", 'if path == "/glyph/contours/add":' in src, "| mark title:",
       ns["_MARK_TITLES"].get("add_contours"), "| guard kind full:", "add_contours" in ns["_GUARD_FULL_KINDS"], "| activity kind:", ns["_ACT_WRITES"].get("/glyph/contours/add"),
       "| /glyph/path parses through the shared helper:", src.count("_route_path_contours(") == 3)
@@ -10598,15 +10808,19 @@ d = rmc("2964b not answered in time         ", R0, answer="not_answered")
 print("2964c  dialog                      :", d.get("dialog"))
 rmc("2964d no dialog could be shown     ", R0, answer="not_shown")
 rmc("2964e unclear                      ", R0, answer="unclear")
-rmc("2965a a stale expected_contours    ", dict(R0, expected_contours=3))
-rmc("2965b a wrong node_count           ", dict(R0, contours=[E(1, 4, 50, 50)]))
-rmc("2965c a wrong start                ", dict(R0, contours=[E(1, 3, 50, 51)]))
-rmc("2965d an index past the end        ", dict(R0, contours=[E(2, 3, 50, 50)]))
-rmc("2965e one good, one stale entry    ", dict(R0, contours=[E(0, 4, 0, 0), E(1, 3, 60, 50)]))
+_rch = []   # v0.211: every "does not match the glyph" refusal ends once with the read-again hint
+_rch.append(rmc("2965a a stale expected_contours    ", dict(R0, expected_contours=3)))
+_rch.append(rmc("2965b a wrong node_count           ", dict(R0, contours=[E(1, 4, 50, 50)])))
+_rch.append(rmc("2965c a wrong start                ", dict(R0, contours=[E(1, 3, 50, 51)])))
+_rch.append(rmc("2965d an index past the end        ", dict(R0, contours=[E(2, 3, 50, 50)])))
+_rch.append(rmc("2965e one good, one stale entry    ", dict(R0, contours=[E(0, 4, 0, 0), E(1, 3, 60, 50)])))
 def _rcd_edit(): P72["layers"]["cpp1"]._shapes[0]._contours[1].rows[0]["x"] += 7.0
-rmc("2966a the glyph is edited during the question", R0, during=_rcd_edit)
+_rch.append(rmc("2966a the glyph is edited during the question", R0, during=_rcd_edit))
 def _rcd_add(): P72["layers"]["cpp1"]._shapes[0]._contours.append(te_contour([(600, 600), (700, 600), (700, 700)]))
-rmc("2966b a contour is added during it ", R0, during=_rcd_add)
+_rch.append(rmc("2966b a contour is added during it ", R0, during=_rcd_add))
+_hint = "Read the glyph again with get_glyph_outline."
+print("2966d v0.211 hint at the end, once:", [d.get("reason", "").endswith(_hint) and d.get("reason", "").count("get_glyph_outline") == 1 for d in _rch],
+      "| not in problems:", not any("get_glyph_outline" in p for d in _rch for p in d.get("problems") or []))
 def _rcd_shape(): P72["layers"]["cpp1"]._shapes.append(TCShape([te_contour(TE_TRI)]))
 rmc("2966c a shape is added during it   ", R0, during=_rcd_shape)
 for tag, shapes in (("2967a an empty layer             ", lambda: []),
@@ -10648,15 +10862,22 @@ print("2970 spies over the remove_contours cases:", TC_FORBIDDEN)
 # plus the component it removes); a cell reads H (the tool reported success), R (refused, nothing changed) or X (anything else).
 # A cell that departs from the table is listed with the tool's reason.
 print("\n==== v0.207 the _EDIT_ACCEPTS grid: every edit tool against every case ====")
+def _tc_comp_scaled():     # v0.215: a component scaled 200 % horizontally (component_transform)
+    sh = _tc_comp("cppsrc"); sh._tx = TCQT(2, 0, 0, 1, 0, 0); return sh
 GRID_CASES = {"empty": lambda: [], "one_plain_shape": lambda: [_contour()], "several_shapes": lambda: [_contour(), TCShape([te_contour(TE_TRI)])],
-              "component": lambda: [_tc_comp("cppsrc")], "composite": lambda: [TCBrush()], "shape_transform": lambda: [_tx_contour()]}
-GRID_CALLS = {"draw_polygon": ("/glyph/polygon", "drawn", lambda n: {"name": "cpp1", "points": [[600, 600], [700, 600], [700, 700]]}),
-              "draw_path": ("/glyph/path", "drawn", lambda n: {"name": "cpp1", "contours": [SQ_IN]}),
-              "move_nodes": ("/glyph/move", "moved", lambda n: {"name": "cpp1", "moves": [M(0, 1, (400, 0), (450, 0))]}),
-              "add_contours": ("/glyph/contours/add", "added", lambda n: A0),
-              "remove_contours": ("/glyph/contours/remove", "removed", lambda n: {"name": "cpp1", "expected_contours": 1, "contours": [E(0, 4, 0, 0)]}),
-              "add_component": ("/glyph/component", "placed", lambda n: PB0),
-              "remove_component": ("/glyph/component/remove", "removed", lambda n: {"name": "cpp1", "index": n, "component": "cppsrc", "x": 0, "y": 0})}
+              "component": lambda: [_tc_comp("cppsrc")], "composite": lambda: [TCBrush()], "shape_transform": lambda: [_tx_contour()],
+              "component_transform": lambda: [_tc_comp_scaled()]}
+# v0.215: each body gets (shapes, contours, case): the glyph-wide contour count is the expected one, and add_contours names shape 0 where
+# the glyph has two plain shapes (several_shapes here)
+GRID_CALLS = {"draw_polygon": ("/glyph/polygon", "drawn", lambda n, nc=1, case="": {"name": "cpp1", "points": [[600, 600], [700, 600], [700, 700]]}),
+              "draw_path": ("/glyph/path", "drawn", lambda n, nc=1, case="": {"name": "cpp1", "contours": [SQ_IN]}),
+              "move_nodes": ("/glyph/move", "moved", lambda n, nc=1, case="": {"name": "cpp1", "moves": [M(0, 1, (400, 0), (450, 0))]}),
+              "add_contours": ("/glyph/contours/add", "added", lambda n, nc=1, case="": dict(A0, expected_contours=max(nc, 1),
+                                                                                                  **({"shape": 0} if case == "several_shapes" else {}))),
+              "remove_contours": ("/glyph/contours/remove", "removed", lambda n, nc=1, case="": {"name": "cpp1", "expected_contours": max(nc, 1),
+                                                                                                    "contours": [E(0, 4, 0, 0)]}),
+              "add_component": ("/glyph/component", "placed", lambda n, nc=1, case="": PB0),
+              "remove_component": ("/glyph/component/remove", "removed", lambda n, nc=1, case="": {"name": "cpp1", "index": n, "component": "cppsrc", "x": 0, "y": 0})}
 print("grid tools match the table:", sorted(GRID_CALLS) == sorted(ns["_EDIT_ACCEPTS"]), "| cases match:", tuple(GRID_CASES) == ns["_EDIT_CASES"])
 grid_departures = []
 for tool, (route, flag, body) in GRID_CALLS.items():
@@ -10664,11 +10885,12 @@ for tool, (route, flag, body) in GRID_CALLS.items():
     for case, shapes in GRID_CASES.items():
         made = (lambda s=shapes: s() + [_tc_comp("cppsrc")]) if tool == "remove_component" else shapes
         n = len(shapes())
+        nc = sum(len(sh._contours) for sh in shapes())
         tls(made, mode=dict({"build_names_layer": 1, "add_activates": 1}, **({"sync_drops_empty": 1} if tool == "remove_contours" else {})),
             legacy=3 if case == "empty" and tool != "remove_component" else 7)
         RCD.update(answer="yes", seen=[], during=None)     # v0.210: remove_contours' question answered Yes
         TC["rm_calls"] = 0
-        c, d = sbpost(route, body(n))
+        c, d = sbpost(route, body(n, nc, case))
         TC_FORBIDDEN.extend(TE["forbidden"])
         cell = "H" if d.get(flag) is True else ("R" if c == "200" and d.get("changed") in (None, False) and d.get(flag) is False else "X")
         cells.append(f"{case}={cell}")
@@ -10677,7 +10899,148 @@ for tool, (route, flag, body) in GRID_CALLS.items():
     print(f"{tool:17s}:", " ".join(cells))
 print("departures from _EDIT_ACCEPTS:", grid_departures)
 print("2920 spies over the grid:", TC_FORBIDDEN)
+
+# ---- v0.212: the several-shapes refusal of the three edit tools says how many of the shapes are components (RX4 1791).
+# v0.215: the three tools handle these glyphs now; the block shows each outcome (the request: the glyph-wide contour count, shape 0).
+print("\n==== v0.212 the several-shapes refusal names the components (v0.215: handled) ====")
+class TCOddComponent(TCShape):
+    def isComponent(s): raise RuntimeError("isComponent boom")
+SC_CASES = (("a plain shape and 1 component  ", lambda: [_contour(), _tc_comp("cppsrc")]),
+            ("a plain shape and 2 components ", lambda: [_contour(), _tc_comp("cppsrc"), _tc_comp("cppsrc", 200, 0)]),
+            ("isComponent unreadable         ", lambda: [_contour(), TCOddComponent([te_contour(TE_TRI)])]),
+            ("two plain shapes (no component)", lambda: [_contour(), TCShape([te_contour(TE_TRI)])]))
+for i, tool in enumerate(("move_nodes", "add_contours", "remove_contours")):
+    route, flag, body = GRID_CALLS[tool]
+    for j, (label, shapes) in enumerate(SC_CASES):
+        tls(shapes, mode=dict({"build_names_layer": 1, "add_activates": 1}, **({"sync_drops_empty": 1} if tool == "remove_contours" else {})), legacy=7)
+        RCD.update(answer="yes", seen=[], during=None)
+        TC["rm_calls"] = 0
+        c, d = sbpost(route, body(len(shapes()), sum(len(sh._contours) for sh in shapes()), "several_shapes"))
+        TC_FORBIDDEN.extend(TE["forbidden"])
+        print(f"2971{'abc'[i]}{j + 1} {tool:15s} {label}:", c, {k: d.get(k) for k in (flag, "reason", "edit_case", "shapes", "component_shapes",
+                                                                                       "other_shapes_unchanged", "sources_unchanged") if k in d},
+              "| asked", len(RCD["seen"]), "| Update", TE["updates"], "| marks", TE["marks"])
+_sst = ns["_several_shapes_text"]
+print("2971d _several_shapes_text:", [_sst(2, v) for v in (0, 1, 3, "not readable: x", None, True)])
+print("2971e spies:", TC_FORBIDDEN)
+# ---- v0.215: several shapes in move_nodes, add_contours and remove_contours (the user's design of 2026-11-25/26; research ED8-ED10).
+# The v0.207 / v0.210 fakes (tls, the glyph cpp1); cppsrc is the triangle (50, 50) (150, 50) (100, 150), and a component of it shares its
+# contour LIST (layer.getContours() gives the source's own contours, untransformed, as live ED8 1815). Extra modes, set here:
+# ms_touch_src (an edit also moves a node of the source), ms_move_comp (an edit also moves the component's offset), ms_count_wrong (the
+# first shape's contoursCount reads one more), ms_gc_disagree (a plain shape's getContours() gives its contours reversed).
+print("\n==== v0.215 several shapes in the three edit tools ====")
+_ms_addc_prev, _ms_remc_prev = TCShapeData.addContour, TCShapeData.removeContour
+def _ms_side(s):
+    m = TC["mode"]
+    if m.get("ms_touch_src"): TCSRC["cppsrc"]._contours[0].rows[0]["x"] += 1.0
+    if m.get("ms_move_comp"):
+        for sh in P72["layers"]["cpp1"]._shapes:
+            if sh._component: sh._tx = TCQT(1, 0, 0, 1, 999, 0)
+def _ms_addc(s, c): _ms_addc_prev(s, c); _ms_side(s)
+def _ms_remc(s, c): _ms_remc_prev(s, c); _ms_side(s)
+TCShapeData.addContour, TCShapeData.removeContour = _ms_addc, _ms_remc
+_ms_cc_prev = TCShape.contoursCount
+def _ms_cc(s):
+    n = _ms_cc_prev(s) if callable(_ms_cc_prev) else len(s._contours)
+    shapes = P72["layers"]["cpp1"]._shapes
+    return n + 1 if (TC["mode"].get("ms_count_wrong") and shapes and s is shapes[0]) else n
+TCShape.contoursCount = _ms_cc
+def _ms_gc(s):
+    return list(reversed(s._contours)) if (TC["mode"].get("ms_gc_disagree") and not s._component) else list(s._contours)
+TCShape.getContours = _ms_gc
+MSK = ("moved", "added", "removed", "nodes_match", "changed", "edit_case", "shape", "plain_shapes", "new_contour_indices", "shapes_emptied",
+       "glyph_empty", "other_shapes_unchanged", "sources_unchanged", "contour_counts_after", "mismatches", "reason", "problems", "error")
+def ms(tag, route, body, shapes, mode=None, legacy=7, answer="yes"):
+    tls(shapes, mode=dict({"build_names_layer": 1, "add_activates": 1, "sync_drops_empty": 1}, **(mode or {})), legacy=legacy)
+    RCD.update(answer=answer, seen=[], during=None); TC["rm_calls"] = 0
+    c, d = sbpost(route, body)
+    TC_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in MSK if k in d}, "| calls", [x for x in TC["calls"] if x in ("addContour", "addShape") or (isinstance(x, tuple) and x[0] == "removeContour")],
+          "| asked", len(RCD["seen"]), "| marks", len(TE["marks"]))
+    return d
+def ms_view(d, key="after"):
+    return [[(n["x"], n["y"]) for n in c["nodes"]] for c in d.get(key) or []]
+_pc = lambda: [_contour(), _tc_comp("cppsrc", 300, 0)]                    # a plain square, then a component at (300, 0)
+_cp = lambda: [_tc_comp("cppsrc", 300, 0), _contour()]                    # the component first
+_pp = lambda: [_contour(), TCShape([te_contour(TE_TRI)])]                 # two plain shapes
+_pcc = lambda: [TCShape([te_contour(TE_SQ), te_contour([(500, 0), (600, 0), (550, 80)])]), _tc_comp("cppsrc", 300, 0)]   # 2 contours, a component
+_cc = lambda: [_tc_comp("cppsrc", 300, 0), _tc_comp("cppsrc", 0, 400)]    # components only
+MV_, AD_, RM_ = "/glyph/move", "/glyph/contours/add", "/glyph/contours/remove"
+# move_nodes
+d = ms("3001a move: plain shape, then a component", MV_, {"name": "cpp1", "moves": [M(0, 1, (400, 0), (450, 0))]}, _pc)
+print("3001b  after (components at their offset):", ms_view(d), "| source now:", [(r["x"], r["y"]) for r in TCSRC["cppsrc"]._contours[0].rows])
+d = ms("3001c move: the component first       ", MV_, {"name": "cpp1", "moves": [M(1, 1, (400, 0), (450, 0))]}, _cp)
+print("3001d  after                         :", ms_view(d))
+ms("3001e move: the component's contour     ", MV_, {"name": "cpp1", "moves": [M(1, 0, (50, 50), (60, 50))]}, _pc)
+ms("3001f move: the component's contour, at its drawn place", MV_, {"name": "cpp1", "moves": [M(1, 0, (350, 50), (360, 50))]}, _pc)
+d = ms("3001g move: two plain shapes in one call", MV_, {"name": "cpp1", "moves": [M(0, 1, (400, 0), (450, 0)), M(1, 0, (50, 50), (40, 40))]}, _pp)
+print("3001h  after                         :", ms_view(d))
+# add_contours
+d = ms("3002a add: into the plain shape beside a component", AD_, dict(A0, expected_contours=2), _pc)
+print("3002b  after                         :", ms_view(d))
+d = ms("3002c add: component first, plain shape second", AD_, dict(A0, expected_contours=2), _cp)
+print("3002d  after                         :", ms_view(d))
+d = ms("3002e add: a plain shape of 2 contours, then a component", AD_, dict(A0, expected_contours=3), _pcc)
+print("3002f  new contour index 2, the component's contour last:", d.get("new_contour_indices"), ms_view(d)[2:])
+ms("3002g add: two plain shapes, no shape  ", AD_, dict(A0, expected_contours=2), _pp)
+d = ms("3002h add: two plain shapes, shape 1   ", AD_, dict(A0, expected_contours=2, shape=1), _pp)
+print("3002i  after                         :", ms_view(d))
+ms("3002j add: shape names the component   ", AD_, dict(A0, expected_contours=2, shape=1), _pc)
+ms("3002k add: shape 5 of 2                ", AD_, dict(A0, expected_contours=2, shape=5), _pc)
+ms("3002l add: shape 0 on one plain shape  ", AD_, dict(A0, shape=0), lambda: [_contour()])
+ms("3002m add: shape 1 on one plain shape  ", AD_, dict(A0, shape=1), lambda: [_contour()])
+d = ms("3002n add: components only: a new shape", AD_, dict(A0, expected_contours=2), _cc)
+print("3002o  after / new shape last, plain :", ms_view(d), "|", [(type(sh).__name__, sh._component) for sh in P72["layers"]["cpp1"]._shapes])
+ms("3002p add: components only, with shape   ", AD_, dict(A0, expected_contours=2, shape=0), _cc)
+ms("3002q add: the add moves the component ", AD_, dict(A0, expected_contours=2), _pc, mode={"ms_move_comp": 1})
+ms("3002r add: shape is a bool             ", AD_, dict(A0, expected_contours=2, shape=True), _pc)
+ms("3002s add: shape -1                    ", AD_, dict(A0, expected_contours=2, shape=-1), _pc)
+# remove_contours
+d = ms("3003a remove: a contour of a plain shape beside a component", RM_, {"name": "cpp1", "expected_contours": 3, "contours": [E(1, 3, 500, 0)]}, _pcc)
+print("3003b  after / question             :", ms_view(d), "|", RCD["seen"][0][1].split("\n")[1] if RCD["seen"] else None)
+ms("3003c remove: the component's contour   ", RM_, {"name": "cpp1", "expected_contours": 2, "contours": [E(1, 3, 50, 50)]}, _pc)
+d = ms("3003d remove: empties the plain shape beside a component", RM_, {"name": "cpp1", "expected_contours": 2, "contours": [E(0, 4, 0, 0)]}, _pc)
+print("3003e  after, shapes left            :", ms_view(d), "|", [sh._component for sh in P72["layers"]["cpp1"]._shapes])
+ms("3003f remove: emptied shape stays (no sync drop)", RM_, {"name": "cpp1", "expected_contours": 2, "contours": [E(0, 4, 0, 0)]}, _pc,
+   mode={"sync_drops_empty": 0})
+d = ms("3003g remove: one contour from each of two plain shapes", RM_, {"name": "cpp1", "expected_contours": 2, "contours": [E(0, 4, 0, 0), E(1, 3, 50, 50)]}, _pp)
+print("3003h  glyph empty, question         :", d.get("glyph_empty"), "|", RCD["seen"][0][1].split("\n\n")[1] if RCD["seen"] else None)
+ms("3003i remove: the removal moves the source", RM_, {"name": "cpp1", "expected_contours": 3, "contours": [E(1, 3, 500, 0)]}, _pcc, mode={"ms_touch_src": 1})
+ms("3003j remove: answered No              ", RM_, {"name": "cpp1", "expected_contours": 3, "contours": [E(1, 3, 500, 0)]}, _pcc, answer="no")
+# refusals and unreadable states, before anything changes
+for tag, shapes in (("3004a a scaled component beside      ", lambda: [_contour(), _tc_comp_scaled()]),
+                    ("3004b a plain shape with an offset beside a component", lambda: [_contour(), _tc_comp("cppsrc", 300, 0), _tx_contour()]),
+                    ("3004c a Power Brush shape beside     ", lambda: [_contour(), TCBrush()]),
+                    ("3004d a lone scaled component        ", lambda: [_tc_comp_scaled()])):
+    for route, body in ((MV_, {"name": "cpp1", "moves": [M(0, 1, (400, 0), (450, 0))]}), (AD_, dict(A0, expected_contours=2, shape=0)),
+                        (RM_, {"name": "cpp1", "expected_contours": 2, "contours": [E(0, 4, 0, 0)]})):
+        ms(tag + " " + route.split("/")[-1], route, body, shapes)
+for tag, mode in (("3005a contoursCount disagrees      ", {"ms_count_wrong": 1}), ("3005b getContours() disagrees      ", {"ms_gc_disagree": 1})):
+    ms(tag, MV_, {"name": "cpp1", "moves": [M(0, 1, (400, 0), (450, 0))]}, _pcc, mode=mode)
+ms("3005c isComponent unreadable (add)    ", AD_, dict(A0, expected_contours=2), lambda: [_contour(), TCOddComponent([te_contour(TE_TRI)])])
+_srcms = "\n".join(l for l in src[src.index("# v0.215: several shapes in the three edit tools"):src.index("def _several_shapes_text(")].split("\n") if not l.lstrip().startswith("#"))
+print("3006 static scan of the shared helpers: forbidden call syntax:",
+      _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|removeShape|removeAllShapes|clearContours|addShape|addContour|removeContour|replaceShape|decomposite|ejectTo|activateBuilder|resetMetrics\w*|applyTransform)\s*\(|shapeBuilder|font\.update|resetInkBox", _srcms),
+      "| getContours() call sites:", sorted(set(_re83.findall(r"\b\w+\.getContours\(\)", _srcms))))
+print("3006a the remove route: removeContour calls:", _srcrc.count("sd.removeContour("), "| the add route: addShape calls:", _srcac.count(".addShape("),
+      [l.strip()[:70] for l in _srcac.split("\n") if ".addShape(" in l])
+# v0.216 (MS 1870, 1871): a component's contour refused on its own path, before the stale checks; add_contours names the shape it added to
+d = ms("3008a move: a component's contour and a stale from", MV_, {"name": "cpp1", "moves": [M(0, 1, (999, 0), (450, 0)), M(1, 0, (50, 50), (60, 50))]}, _pc)
+print("3008b  read-again hint in it         :", "Read the glyph again" in (d.get("reason") or ""), "| stale move named:", "999" in (d.get("reason") or ""))
+d = ms("3008c move: two components' contours", MV_, {"name": "cpp1", "moves": [M(1, 0, (50, 50), (60, 50)), M(2, 0, (50, 50), (60, 50))]},
+       lambda: [_contour(), _tc_comp("cppsrc", 300, 0), _tc_comp("cppsrc", 0, 400)])
+print("3008d  problems                      :", d.get("problems"))
+ms("3008e move: a stale from alone, beside a component", MV_, {"name": "cpp1", "moves": [M(0, 1, (999, 0), (450, 0))]}, _pc)
+ms("3008f add: one plain shape, no shape    ", AD_, dict(A0), lambda: [_contour()])
+ms("3008g add: refused, shape left out      ", AD_, dict(A0, expected_contours=2), _pp)
+ms("3008h add: one plain shape beside 2 components, the new contour goes to shape 1", AD_, dict(A0, expected_contours=3),
+   lambda: [_tc_comp("cppsrc", 300, 0), _contour(), _tc_comp("cppsrc", 0, 400)])
+ms("3008i add: not confirmed (the component moved): no shape", AD_, dict(A0, expected_contours=2), _pc, mode={"ms_move_comp": 1})
+print("3007 spies:", TC_FORBIDDEN)
+TCShapeData.addContour, TCShapeData.removeContour = _ms_addc_prev, _ms_remc_prev
+TCShape.contoursCount = _ms_cc_prev
 ns["_ask_yes_no"] = _rcd_saved; del TCShapeData.removeContour     # v0.210: the real dialog and the plain fake again
+del TCShape.getContours     # v0.215
 TCShapeData.componentLayer = _tcsd_layer_orig
 TCLayer.buildAuto = _tc_build181
 del TCLayer.setActive; del TCLayer.isActive
@@ -11517,6 +11880,15 @@ print("2882 dialog_seconds          :", [ns["_dialog_seconds"](v) for v in (None
 r, el = ask()
 b = DT["boxes"][0]; close = [t for t in DT["timers"] if t.single is True][0]; tick = [t for t in DT["timers"] if t.single is False][0]
 print("2883 no answer               :", r, "| elapsed measured:", el, "| text ends:", b.text.split("\n\n")[-1], "| default", b.default)
+# v0.211: each product dialog's last line, with the outcome its call passes (the countdown on No shows the time, RX 1728-1752)
+_sc_calls = _re83.findall(r'_ask_yes_no\("(Glyphbridge: Confirm [^"]+)",[^\n]*?, seconds, "(\w+)"\)', src)
+for _sc_title, _sc_outcome in _sc_calls:
+    DT.update(mode="timeout", connect="ok", exec="ok", button="ok", connect_tick="ok", ticks_before_click=0, clicked_raises=False)
+    DT["boxes"].clear(); DT["timers"].clear()
+    ns["_ask_yes_no"](_sc_title, "Question?", 45, _sc_outcome)
+    print("2883a last line              :", _sc_title, "->", DT["boxes"][0].text.split("\n\n")[-1], "| no seconds in the text:",
+          "45" not in DT["boxes"][0].text, "| No button:", DT["boxes"][0].btns[DTBox.No].sets[:1])
+print("2883b product dialogs found  :", len(_sc_calls))
 print("2884 its timers              : closing owned by the dialog:", close.parent is b, "| single", close.single, "| interval", close.interval,
       "| to the dialog's", close.target[1], "| countdown interval", tick.interval, "| labels", b.btns[DTBox.No].sets[:3], "...", b.btns[DTBox.No].sets[-1],
       "| both stopped:", close.stops, tick.stops)

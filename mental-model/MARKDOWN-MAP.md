@@ -14,12 +14,12 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [ARCHITECTURE.md](ARCHITECTURE.md) | processes, APIs, verification model, tools, layout | 1,600 |
 | [CURRENT-STATUS.md](CURRENT-STATUS.md) | where the project stands and what comes next | 4,100 |
 | [DECISIONS.md](DECISIONS.md) | active decisions with dates and reasons | 6,250 (active part) |
-| [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 1,000 |
-| [CHECKLIST.md](CHECKLIST.md) | open scenarios | 1,750 |
+| [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 1,250 |
+| [CHECKLIST.md](CHECKLIST.md) | open scenarios | 2,250 |
 
-Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 800; [WATCH-POINTS.md](WATCH-POINTS.md) 3,250; [WHAT-WORKS.md](WHAT-WORKS.md) 4,750; [GLOSSARY.md](GLOSSARY.md) 500.
+Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 800; [WATCH-POINTS.md](WATCH-POINTS.md) 3,250; [WHAT-WORKS.md](WHAT-WORKS.md) 4,750; [GLOSSARY.md](GLOSSARY.md) 500; [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) 7,500; each file in `topics/` 6,000, `topics/fonts-and-sync.md` 7,250, `topics/reading.md` 6,500 (a file that agents read whole has a budget; a log such as LIVE-TESTS.md or CHANGELOG.md does not).
 
-**Reference totals:** 19,150 words including the root README, and 18,350 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
+**Reference totals:** 19,900 words including the root README, and 19,100 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
 
 ## Linked files (read when the task needs them; no budget unless noted)
 
@@ -35,13 +35,13 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 | [ROADMAP.md](ROADMAP.md) | work items P0–P5 and LAST; known limits |
 | [CHANGELOG.md](CHANGELOG.md) | one entry per release of the two scripts |
 | [LESSONS.md](LESSONS.md) | incidents and method lessons |
-| [topics/server-and-endpoints.md](topics/server-and-endpoints.md) | every server tool and listener route, switches, save policy mechanics |
-| [topics/reading.md](topics/reading.md) | how a glyph is read: kinds, transforms, layers, bridge, stale view, modern-first route, the component API by name |
+| [topics/server-and-endpoints.md](topics/server-and-endpoints.md) | every server tool and listener route, switches, save policy mechanics; finished research probes: [archive/server-and-endpoints-research.md](archive/server-and-endpoints-research.md) |
+| [topics/reading.md](topics/reading.md) | how a glyph is read: kinds, transforms, layers, bridge, stale view, modern-first route, the component API by name; research: [archive/reading-research.md](archive/reading-research.md) |
 | [topics/notdef.md](topics/notdef.md) | the `.notdef` check and notice |
 | [topics/names-unicode.md](topics/names-unicode.md) | glyph creation, names, Unicode |
-| [topics/geometry.md](topics/geometry.md) | width, sidebearings, polygons, curves, layer guard, v8 live record |
-| [topics/fonts-and-sync.md](topics/fonts-and-sync.md) | new fonts, unsynced layers, guard, auto sync, GUI refresh |
-| [topics/kerning.md](topics/kerning.md) | how kerning is read and written, and its tests |
+| [topics/geometry.md](topics/geometry.md) | width, sidebearings, polygons, curves, layer guard, v8 live record; research: [archive/geometry-research.md](archive/geometry-research.md) |
+| [topics/fonts-and-sync.md](topics/fonts-and-sync.md) | new fonts, unsynced layers, guard, auto sync, GUI refresh; research: [archive/fonts-and-sync-research.md](archive/fonts-and-sync-research.md) |
+| [topics/kerning.md](topics/kerning.md) | how kerning is read and written; the research behind it is in [archive/kerning-research.md](archive/kerning-research.md) |
 | [topics/refusals.md](topics/refusals.md) | every case a tool refuses or no tool supports yet: which tools refuse it, which handle it, what would lift it |
 | [tests/README.md](../tests/README.md) | the test harnesses (kept in `tests/` by decision) |
 
@@ -53,7 +53,9 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 - [archive/CHECKLIST-closed-rows.md](archive/CHECKLIST-closed-rows.md): checklist rows closed since v11, with dates and tests, and open rows as they stood before a trim.
 - [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md): superseded decisions, entries moved or merged out of DECISIONS.md that are still in force, and the budget history.
 - [archive/WATCH-POINTS-settled.md](archive/WATCH-POINTS-settled.md): watch points settled or dropped, one line each.
+- [archive/refusals-retired-rows.md](archive/refusals-retired-rows.md): rows of the refusal register that no tool refuses any more, with dates and the run that closed them.
 - [archive/CURRENT-STATUS-resume-2026-11-10.md](archive/CURRENT-STATUS-resume-2026-11-10.md): text moved out of CURRENT-STATUS.md: finished "Resume here" items and earlier "Last verified" lines.
+- [archive/kerning-research.md](archive/kerning-research.md), [archive/server-and-endpoints-research.md](archive/server-and-endpoints-research.md), [archive/fonts-and-sync-research.md](archive/fonts-and-sync-research.md), [archive/reading-research.md](archive/reading-research.md), [archive/geometry-research.md](archive/geometry-research.md): the research record moved word for word out of the topic file of the same name on 2026-11-26, under its section numbers.
 - [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md): the old module docstrings with the full version history.
 
 ## Where the sections of milestone summary v11 went

@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.91)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.95)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -43,7 +43,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.91"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.95"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -2613,6 +2613,7 @@ def write_glyph_moves(name: str, moves: Any) -> dict:
                   "mismatches": [m for m in data.get("mismatches") or [] if isinstance(m, str)][:20],
                   "before": _move_view(data.get("before")), "after": _move_view(data.get("after")),
                   "agent_instruction": _MOVE_UNCONFIRMED_INSTRUCTION}
+        _add_several_shapes_fields(result, data)
         _add_rounding_note(result)
         _add_guard_fields(result, data)
         if changed is True:
@@ -2644,6 +2645,7 @@ def write_glyph_moves(name: str, moves: Any) -> dict:
                  "An on-curve node moved alone did NOT take its control points along. The advance width is unchanged; the left and right "
                  "sidebearings follow the outline."),
     }
+    _add_several_shapes_fields(result, data)
     if box is None:
         result["sidebearings_note"] = f"The sidebearings could not be computed: {why}."
     else:
@@ -2666,6 +2668,25 @@ def write_glyph_moves(name: str, moves: Any) -> dict:
     return result
 
 
+# ---- v0.94: several shapes in move_nodes, add_contours and remove_contours (listener 0.215; the user's design of 2026-11-25/26,
+# research ED8-ED10 1807-1856). The listener does the work; the server sends "shape" (add_contours), and passes its findings on.
+_SEVERAL_SHAPES_MIN_LISTENER = (0, 215)
+_SEVERAL_SHAPES_KEYS = ("edit_case", "shape", "shapes_emptied", "other_shapes_unchanged", "sources_unchanged")
+_SEVERAL_SHAPES_NOTE = (
+    "The glyph holds several shapes. The contour numbers are get_glyph_outline's, across the whole glyph; components are shown at their "
+    "offset. Every other shape, every component's offset and every component's source glyph were checked after the edit.")
+
+
+def _add_several_shapes_fields(result: dict, data: dict) -> None:
+    """v0.94: the listener's several-shapes findings, when it sent them (only for a glyph of several shapes or components only)."""
+    if data.get("edit_case") not in ("several_shapes", "component"):
+        return
+    for k in _SEVERAL_SHAPES_KEYS:
+        if k in data:
+            result[k] = data[k]
+    result["several_shapes_note"] = _SEVERAL_SHAPES_NOTE
+
+
 # ---- v0.89: add_contours through POST /glyph/contours/add (listener 0.207; the user's design of 2026-11-24, research ED2-ED4) ----
 _ADD_CONTOURS_MIN_LISTENER = (0, 207)
 _ADD_UNCONFIRMED_INSTRUCTION = (
@@ -2685,18 +2706,26 @@ _ADD_UNDO_NOTE = (
     "remove_contours (FontLab asks the person first) or delete it in FontLab.")
 
 
-def write_glyph_add_contours(name: str, expected_contours: Any, contours: Any) -> dict:
+def write_glyph_add_contours(name: str, expected_contours: Any, contours: Any, shape: Any = None) -> dict:
     clean = name.strip() if isinstance(name, str) else ""
     if not clean:
         raise ToolError("Glyph name must not be empty.")
     if isinstance(expected_contours, bool) or not isinstance(expected_contours, int) or not (1 <= expected_contours <= _MOVE_INDEX_MAX):
         raise ToolError(f"expected_contours must be a whole number from 1 to {_MOVE_INDEX_MAX}: the number of contours the glyph holds now, "
                         "as get_glyph_outline reported it. To draw into an empty glyph use draw_path.")
+    if shape is not None and (isinstance(shape, bool) or not isinstance(shape, int) or not (0 <= shape <= _MOVE_INDEX_MAX)):
+        raise ToolError(f"shape must be a whole number from 0 to {_MOVE_INDEX_MAX}: the index of a plain shape in get_glyph_outline's "
+                        "elements, or left out.")
     checked = _check_path_contours(contours)
     closed_flags = [not isinstance(c, dict) for c in checked]
     _require_listener(_ADD_CONTOURS_MIN_LISTENER, "add_contours")
+    if shape is not None:
+        _require_listener(_SEVERAL_SHAPES_MIN_LISTENER, "add_contours with shape")     # v0.94: an older listener refuses the key
 
-    data = _write_post("/glyph/contours/add", {"name": clean, "expected_contours": expected_contours, "contours": checked})
+    body = {"name": clean, "expected_contours": expected_contours, "contours": checked}
+    if shape is not None:
+        body["shape"] = shape
+    data = _write_post("/glyph/contours/add", body)
 
     if not data.get("open"):
         raise ToolError(NO_FONT)
@@ -2713,6 +2742,7 @@ def write_glyph_add_contours(name: str, expected_contours: Any, contours: Any) -
                   "mismatches": [m for m in data.get("mismatches") or [] if isinstance(m, str)][:20],
                   "before": _move_view(data.get("before")), "after": _move_view(data.get("after")),
                   "agent_instruction": _ADD_UNCONFIRMED_INSTRUCTION}
+        _add_several_shapes_fields(result, data)
         _add_rounding_note(result)
         _add_guard_fields(result, data)
         if changed is True:
@@ -2737,7 +2767,9 @@ def write_glyph_add_contours(name: str, expected_contours: Any, contours: Any) -
         "verified": data.get("nodes_match") is True,
         "nodes_match": data.get("nodes_match") is True,
         "contours_added": len(checked),
-        "new_contour_indices": list(range(total - len(checked), total)) if total is not None else None,
+        # v0.94: the listener names them (0.215: last within the shape they went into); an older one adds them at the end
+        "new_contour_indices": (data["new_contour_indices"] if isinstance(data.get("new_contour_indices"), list) else
+                                list(range(total - len(checked), total)) if total is not None else None),
         "contours_now": total,
         # v0.90 (live 1666, 1675): the listener's contour_sizes lists the new contours only, so the reply names it so
         "new_contour_sizes": data.get("contour_sizes") if isinstance(data.get("contour_sizes"), list) else None,
@@ -2750,6 +2782,10 @@ def write_glyph_add_contours(name: str, expected_contours: Any, contours: Any) -
                  "every old node, node kind and smooth flag is unchanged. The advance width is unchanged; the left and right sidebearings "
                  "follow the outline."),
     }
+    _add_several_shapes_fields(result, data)
+    shape_in = data.get("shape")     # v0.95 (MS 1871): listener 0.216 names the shape that received the contours, in every case
+    if isinstance(shape_in, int) and not isinstance(shape_in, bool):
+        result["shape"] = shape_in
     if box is None:
         result["sidebearings_note"] = f"The sidebearings could not be computed: {why}."
     else:
@@ -2796,6 +2832,18 @@ _RMC_UNDO_NOTE = (
     "again from removed_contours with add_contours (or draw_path when the glyph is empty).")
 _RMC_EMPTY_NOTE = ("Every contour was removed: the glyph is empty now (FontLab holds no shape for it after its sync). Its advance width "
                       "is unchanged. Draw into it with draw_path or draw_polygon.")
+
+
+def _removed_view(contours: Any, indices: list) -> Any:
+    """v0.92: removed_contours as _move_view gives them, but each with its index from BEFORE the removal (RX 1733 showed contour 1 as
+    "index": 0). The listener sends them in ascending index order, the order of sorted(indices); any other count -> None."""
+    view = _move_view(contours)
+    order = sorted(indices)
+    if view is None or len(view) != len(order):
+        return None
+    for c, ci in zip(view, order):
+        c["index"] = ci
+    return view
 
 
 def _check_removal_entries(entries: Any, expected_contours: int) -> list:
@@ -2858,8 +2906,9 @@ def write_glyph_remove_contours(name: str, expected_contours: Any, contours: Any
                   "contours_requested": sorted(indices),
                   "mismatches": [m for m in data.get("mismatches") or [] if isinstance(m, str)][:20],
                   "before": _move_view(data.get("before")), "after": _move_view(data.get("after")),
-                  "removed_contours": _move_view(data.get("removed_contours")),
+                  "removed_contours": _removed_view(data.get("removed_contours"), indices),
                   "agent_instruction": _RMC_UNCONFIRMED_INSTRUCTION}
+        _add_several_shapes_fields(result, data)
         _add_guard_fields(result, data)
         if changed is True:
             _mark_modified(result, True)
@@ -2880,10 +2929,13 @@ def write_glyph_remove_contours(name: str, expected_contours: Any, contours: Any
         "contours_removed": sorted(indices),
         "contours_now": total,
         "glyph_empty": total == 0,
-        "removed_contours": _move_view(data.get("removed_contours")),
+        "removed_contours": _removed_view(data.get("removed_contours"), indices),
         "note": ("The contours were removed after the person's Yes in FontLab; every remaining node, node kind and smooth flag is unchanged "
-                 "and the remaining contours keep their order, renumbered from 0. The advance width is unchanged."),
+                 "and the remaining contours keep their order, renumbered from 0. The advance width is unchanged."
+                 if total != 0 else   # v0.92: no "remaining contours" when every contour went (RX 1750)
+                 "The contours were removed after the person's Yes in FontLab. The advance width is unchanged."),
     }
+    _add_several_shapes_fields(result, data)
     if total == 0:
         result["empty_note"] = _RMC_EMPTY_NOTE
     else:
@@ -4934,6 +4986,16 @@ _OUTLINE_LAG_INSTRUCTION = (
     "outline again later shows whether FontLab has caught up.")
 
 
+def _lag_element_ok(row: dict) -> bool:
+    """v0.94 (ED10 1854): an element the lag check may stand behind: an identity transform, or a component moved by an offset only and
+    in step with its source (source_in_step true), whose nodes the read already shows at that offset."""
+    m = tuple(row["matrix"][k] for k in _MATRIX_KEYS)
+    if _is_identity(m):
+        return True
+    return (row.get("is_component") is True and row.get("source_in_step") is True
+            and _is_identity((m[0], m[1], m[2], m[3], 0.0, 0.0)))
+
+
 def _apply_outline_lag(result: dict) -> None:
     """v0.90 (live 1676): a modern-route read whose nodes are complete and exact but whose box disagrees with FontLab's left sidebearing
     or ink width, every element without a transform, stays unverified with FontLab's values at the top; computed_from_nodes, a note
@@ -4947,7 +5009,7 @@ def _apply_outline_lag(result: dict) -> None:
         return
     if not (isinstance(rows, list) and rows and all(isinstance(r.get("matrix"), dict) and
                                                     all(_num(r["matrix"].get(k)) for k in _MATRIX_KEYS) and
-                                                    _is_identity(tuple(r["matrix"][k] for k in _MATRIX_KEYS)) for r in rows)):
+                                                    _lag_element_ok(r) for r in rows)):
         return
     result["computed_from_nodes"] = {"left": _tidy_number(round(box["left"], 3)), "right": _tidy_number(round(adv - box["right"], 3)),
                                      "ink_width": _tidy_number(round(box["right"] - box["left"], 3)),
@@ -5200,7 +5262,8 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     described above still applies.
 
     After an edit through the API (move_nodes, add_contours, remove_contours) FontLab's own sidebearings and ink box can lag behind the outline. When a
-    modern-layer read without element transforms is 'unverified' because its exact box disagrees with FontLab's left sidebearing or ink
+    modern-layer read without element transforms (components moved by an offset and in step with their source count as none) is
+    'unverified' because its exact box disagrees with FontLab's left sidebearing or ink
     width, the top-level left, right and ink_width stay FontLab's values, computed_from_nodes gives the values computed from the nodes,
     and outline_lag_note and agent_instruction say what that means and when to mention it.
 
@@ -5648,11 +5711,17 @@ def move_nodes(name: str, moves: list[dict[str, Any]], ctx: Context | None = Non
     curve point together with its handles, give the handles their own moves in the same call. A move that would leave a smooth node's
     two neighbours off one straight line through it (more than 2 degrees) is refused and nothing moves; move its handles in the same call.
 
-    Only a glyph with exactly ONE plain shape is supported for now: a glyph with several shapes, a component, a Power Brush or other
-    composite shape, or an element transform (position, scale, rotation set with FontLab's Element tool) is refused and nothing moves.
+    SEVERAL SHAPES (listener 0.215): a glyph may hold plain shapes and components (an outline beside an accent component, or several
+    elements). Contours keep get_glyph_outline's numbering across the whole glyph, and moves may touch several plain shapes in one call.
+    A contour drawn by a component belongs to its source glyph and is refused (edit the source glyph instead). Refused, and nothing
+    moves: a glyph of components only; a component that is scaled, rotated or mirrored (only components moved by an offset are accepted,
+    the only kind tested); a plain shape with an element transform (position, scale, rotation set with FontLab's Element tool); a Power
+    Brush or other composite shape.
 
     Every check is made before the first node moves. Afterwards every node of the glyph is read back: success (moved: true,
-    verified: true, nodes_match: true) means each moved node is at "to" and every other node, node kind and smooth flag is unchanged.
+    verified: true, nodes_match: true) means each moved node is at "to" and every other node, node kind and smooth flag is unchanged;
+    on a glyph of several shapes also every other shape, every component's offset and every component's source glyph
+    (other_shapes_unchanged, sources_unchanged).
     The advance width is not changed. left, right and ink_width are COMPUTED from the re-read nodes (exact curve extents included)
     and FontLab's advance width: after a node move FontLab's own sidebearings and ink box lag for a while (seen live), so they are
     reported apart in fontlab_sidebearings with fontlab_sidebearings_current. When they lag, tell the person person_note once.
@@ -5668,7 +5737,7 @@ def move_nodes(name: str, moves: list[dict[str, Any]], ctx: Context | None = Non
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
-    Needs listener 0.153.
+    Needs listener 0.153; a glyph of several shapes needs listener 0.215.
     """
     _note_client(ctx)
     return _with_font(write_glyph_moves, name, moves)
@@ -5676,7 +5745,7 @@ def move_nodes(name: str, moves: list[dict[str, Any]], ctx: Context | None = Non
 
 @_tool()
 def add_contours(name: str, expected_contours: int, contours: list[list[dict[str, Any]] | dict[str, Any]],
-                 ctx: Context | None = None) -> dict[str, Any]:
+                 shape: int | None = None, ctx: Context | None = None) -> dict[str, Any]:
     """Add contours to the existing outline of one glyph in the font currently open in FontLab 8, beside the contours it already has.
 
     Read the glyph with get_glyph_outline FIRST and pass expected_contours = the number of contours it reported. If the glyph holds a
@@ -5687,19 +5756,28 @@ def add_contours(name: str, expected_contours: int, contours: list[list[dict[str
     {"points": [...], "closed": false}. Font units, y up. Directions: an outer contour counterclockwise, a counter (hole) clockwise in a
     cubic font; this tool never reorders points. Example, a square counter (clockwise) inside an outer contour:
     [[{"x":200,"y":200},{"x":200,"y":400},{"x":400,"y":400},{"x":400,"y":200}]]
-    The new contours are added AFTER the existing ones, in the order given: their indices in the reply are new_contour_indices.
+    The new contours are added AFTER the existing contours of the shape they go into, in the order given: their indices in the reply
+    are new_contour_indices (contours of shapes that come later in the glyph, a component's for example, move up by as many).
 
-    Only a glyph with exactly ONE plain shape is supported for now: a glyph with several shapes, a component, a Power Brush or other
-    composite shape, or an element transform (position, scale, rotation set with FontLab's Element tool) is refused and nothing
-    changes. An empty glyph is refused too: draw into it with draw_path or draw_polygon. The whole glyph may hold at most 2000 nodes
-    after the add (control points count).
+    Which shape receives them (listener 0.215; get_glyph_outline lists the shapes as elements):
+      - a glyph with ONE plain shape, beside components or not: that shape (leave shape out);
+      - a glyph with TWO OR MORE plain shapes: pass shape = the element index of the plain shape to add to (required);
+      - a glyph of components only (e.g. an accented glyph built from components): ONE new plain shape is made after the components
+        and receives the contours (leave shape out).
+    The reply's shape names the shape that received them (listener 0.216).
+    Refused, and nothing changes: a component that is scaled, rotated or mirrored (only components moved by an offset are accepted, the
+    only kind tested); a plain shape with an element transform (position, scale, rotation set with FontLab's Element tool); a Power Brush
+    or other composite shape. An empty glyph is refused too: draw into it with draw_path or draw_polygon. The whole glyph may hold at most
+    2000 nodes after the add (control points count). expected_contours counts every contour get_glyph_outline listed, a component's
+    included.
 
     RULE B (whole units): every coordinate is rounded to the nearest whole unit (a half rounds up); the reply lists each changed one in
     coordinates_rounded. A smooth point's two neighbours must lie on one straight line through it (within 2 degrees), as in draw_path.
 
     Every check, and the build of every new contour, is made before the glyph is touched. Afterwards every node of the glyph is read
     back: success (added: true, verified: true, nodes_match: true) means every old node, node kind and smooth flag is unchanged and the
-    new contours are exactly as requested. The advance width is not changed. left, right and ink_width are COMPUTED from the re-read
+    new contours are exactly as requested; on a glyph of several shapes also every other shape, every component's offset and every
+    component's source glyph (other_shapes_unchanged, sources_unchanged). The advance width is not changed. left, right and ink_width are COMPUTED from the re-read
     nodes (exact curve extents included) and FontLab's advance width: after such an edit FontLab's own sidebearings and ink box can lag
     for a while (seen live), so they are reported apart in fontlab_sidebearings with fontlab_sidebearings_current. When they lag, tell the
     person person_note once.
@@ -5711,10 +5789,10 @@ def add_contours(name: str, expected_contours: int, contours: list[list[dict[str
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
-    Needs listener 0.207.
+    Needs listener 0.207; a glyph of several shapes or components only, and shape, need listener 0.215.
     """
     _note_client(ctx)
-    return _with_font(write_glyph_add_contours, name, expected_contours, contours)
+    return _with_font(write_glyph_add_contours, name, expected_contours, contours, shape)
 
 
 @_tool()
@@ -5734,25 +5812,31 @@ def remove_contours(name: str, expected_contours: int, contours: list[dict[str, 
     and nothing was changed: ask the person before trying again. A No changes nothing either. After the Yes the glyph is checked again,
     and the call is refused with nothing changed if it was edited while the question was open.
 
-    Only a glyph with exactly ONE plain shape is supported for now: a glyph with several shapes, a component, a Power Brush or other
-    composite shape, or an element transform (position, scale, rotation set with FontLab's Element tool) is refused and nothing changes.
-    An empty glyph is refused too: it has nothing to remove.
+    SEVERAL SHAPES (listener 0.215): a glyph may hold plain shapes and components. Contours keep get_glyph_outline's numbering across
+    the whole glyph, and one call may remove contours of several plain shapes. A contour drawn by a component belongs to its source glyph
+    and is refused before the question (edit the source glyph instead). Removing every contour of one plain shape among several is
+    allowed: FontLab removes that shape (shapes_emptied). Refused, and nothing changes: a glyph of components only; a component that is
+    scaled, rotated or mirrored (only components moved by an offset are accepted, the only kind tested); a plain shape with an element
+    transform (position, scale, rotation set with FontLab's Element tool); a Power Brush or other composite shape. An empty glyph is
+    refused too: it has nothing to remove.
 
     Afterwards every node of the glyph is read back: success (removed: true, verified: true, nodes_match: true) means the named contours
     are gone and every other node, node kind and smooth flag is unchanged; the remaining contours keep their order and are numbered from 0
-    again. Removing every contour leaves the glyph EMPTY (glyph_empty: true, FontLab holds no shape for it any more): draw into it with
+    again. On a glyph of several shapes it also means every emptied shape is gone, every other shape, every component's offset and every
+    component's source glyph unchanged (other_shapes_unchanged, sources_unchanged). Removing every contour leaves the glyph EMPTY (glyph_empty: true, FontLab holds no shape for it any more): draw into it with
     draw_path. The advance width is not changed. While contours remain, left, right and ink_width are COMPUTED from the re-read nodes
     and FontLab's advance width; FontLab's own sidebearings can lag for a while (seen live) and are reported apart in
     fontlab_sidebearings with fontlab_sidebearings_current. When they lag, tell the person person_note once.
 
     FontLab's Edit > Undo cannot bring removed contours back (seen in testing). The reply's removed_contours holds each removed contour
-    as get_glyph_outline shows contours, so it can be drawn back with add_contours (or draw_path when the glyph is empty); undo_note says
+    as get_glyph_outline shows contours, each with its index from BEFORE the removal, so it can be drawn back with add_contours (or
+    draw_path when the glyph is empty); undo_note says
     so: tell the person once per conversation. If the re-read does NOT match (removed: false with mismatches, before and after), the glyph
     may be partly changed. Nothing is restored automatically: tell the person.
 
     Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves
     (File menu or SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
-    Needs listener 0.210.
+    Needs listener 0.210; a glyph of several shapes needs listener 0.215.
     """
     _note_client(ctx)
     return _with_font(write_glyph_remove_contours, name, expected_contours, contours)

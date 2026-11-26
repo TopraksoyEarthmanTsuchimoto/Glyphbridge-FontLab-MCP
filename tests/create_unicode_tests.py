@@ -2780,7 +2780,7 @@ for label, reply in (("37zm1 v0.65 verified, current ", dict(OK37)),
 print("37zm6 docs              -> Edit > Undo named:", "Edit > Undo does not take a move back" in srv.move_nodes.__doc__, "| undo_note named:", "undo_note" in srv.move_nodes.__doc__)
 print("37zl docs              -> tool listed:", callable(getattr(srv, "move_nodes", None)), "| signature:", _inspect.signature(srv.move_nodes),
       "| from explained:", "where the node is NOW" in srv.move_nodes.__doc__, "| handles not taken along:", "does NOT take its control points along" in srv.move_nodes.__doc__,
-      "| one plain shape:", "exactly ONE plain shape" in srv.move_nodes.__doc__, "| nothing restored:", "Nothing is restored" in srv.move_nodes.__doc__,
+      "| several shapes (v0.94):", "SEVERAL SHAPES (listener 0.215)" in srv.move_nodes.__doc__, "| nothing restored:", "Nothing is restored" in srv.move_nodes.__doc__,
       "| RULE B:", "RULE B" in srv.move_nodes.__doc__, "| NEVER saves:", "NEVER saves" in srv.move_nodes.__doc__, "| listener named:", "listener 0.153" in srv.move_nodes.__doc__)
 
 # ==== 38. server 0.66: add_component through POST /glyph/component (listener 0.169; faked listener replies) ====
@@ -3890,7 +3890,7 @@ for label, kw in (("52t empty name              ", dict(name=" ")), ("52u expect
     ad52(label, dict(OK52), **kw)
 _ad = " ".join((srv.add_contours.__doc__ or "").split())
 print("52zc docs              -> tool listed:", callable(getattr(srv, "add_contours", None)), "| signature:", _inspect.signature(srv.add_contours),
-      "| missing phrases:", [w for w in ("expected_contours", "draw_path's form", "AFTER the existing ones", "new_contour_indices", "exactly ONE plain shape",
+      "| missing phrases:", [w for w in ("expected_contours", "draw_path's form", "AFTER the existing contours of the shape", "new_contour_indices", "TWO OR MORE plain shapes",
                                           "An empty glyph is refused", "at most 2000 nodes", "RULE B", "fontlab_sidebearings_current", "Nothing is restored",
                                           "undo_note", "NEVER saves", "listener 0.207", "finish_changes ONCE") if w not in _ad],
       "| SAVE_KEYS replaced:", "SAVE_KEYS" not in _ad)
@@ -3958,6 +3958,14 @@ r = rm54("54c FontLab lags                 ", dict(OK54, margins={"lsb": 0.0, "r
 print("54c2 the instruction               ->", r.get("agent_instruction", "")[:100], "| ends with the undo sentence:", r.get("agent_instruction", "").endswith(srv._MOVE_UNDO_INSTRUCTION))
 r = rm54("54d every contour: empty         ", dict(OK54, after=[], contours_now=0, glyph_empty=True, shapes_after_sync=0, removed_contours=[SQ54, TRI54], margins=None),
          entries=(E54(0, 4, 0, 0), E54(1, 3, 50, 50)), keys=K54 + ("empty_note", "sidebearings_source", "fontlab_sidebearings"))
+print("54d2 v0.92 the note when every contour went ->", r.get("note"), "| no 'remaining':", "remaining" not in r.get("note", ""),
+      "| indexes kept:", [c["index"] for c in r.get("removed_contours") or []])
+# v0.92: removed_contours keep their index from before the removal (RX 1733), in the entries' order sorted; the note with contours left
+r = rm54("54d3 contours 2 and 0 of 3 removed", dict(OK54, expected_contours=3, contours_requested=[0, 2], removed_contours=[SQ54, TRI54]),
+         entries=(E54(2, 3, 50, 50), E54(0, 4, 0, 0)), expected=3, keys=("removed", "contours_removed", "contours_now"))
+print("54d4 indexes kept / note        ->", [c["index"] for c in r.get("removed_contours") or []], "|", r.get("note"))
+print("54d5 _removed_view, counts differ ->", srv._removed_view([TRI54], [0, 2]), "| not a list:", srv._removed_view(None, [1]),
+      "| one:", [c["index"] for c in srv._removed_view([TRI54], [5])])
 r = rm54("54e answered No                  ", {"open": True, "name": "rmc1", "removed": False, "changed": False, "user_declined": True,
                                              "dialog": {"answer": "no", "seconds": 45}, "reason": "the removal was not approved in FontLab (answered No)"})
 rm54("54f not answered in time         ", {"open": True, "name": "rmc1", "removed": False, "changed": False, "not_answered": True,
@@ -4001,10 +4009,83 @@ srv._call_listener_post = s9_post
 _rd = " ".join((srv.remove_contours.__doc__ or "").split())
 print("54zd docs              -> tool listed:", callable(getattr(srv, "remove_contours", None)), "| signature:", _inspect.signature(srv.remove_contours),
       "| missing phrases:", [w for w in ("expected_contours", "node_count", "node_list[0]", "Yes/No question inside FontLab", "45 seconds",
-                                          "not_answered_in_time", "checked again", "exactly ONE plain shape", "An empty glyph is refused", "glyph_empty",
+                                          "not_answered_in_time", "checked again", "SEVERAL SHAPES (listener 0.215)", "An empty glyph is refused", "glyph_empty",
                                           "draw_path", "fontlab_sidebearings_current", "removed_contours", "Edit > Undo", "NEVER saves", "listener 0.210",
                                           "finish_changes ONCE") if w not in _rd],
       "| SAVE_KEYS replaced:", "SAVE_KEYS" not in _rd)
 print("54ze add_contours no longer says no tool removes a contour:", "no Glyphbridge tool removes a contour" not in " ".join((srv.add_contours.__doc__ or "").split()),
       "| its texts:", [("remove_contours" in t) for t in (srv._ADD_UNCONFIRMED_INSTRUCTION, srv._ADD_UNDO_NOTE)])
 print("54zf versions                   ->", srv.SERVER_VERSION, "| needs listener", srv._REMOVE_CONTOURS_MIN_LISTENER)
+print("54zg v0.93 a component beside a shape explained in:", [t for t in ("move_nodes", "add_contours", "remove_contours")
+      if "a component placed beside a shape makes it a glyph with several shapes; the refusal then says how many of the shapes are components"
+      in " ".join((getattr(srv, t).__doc__ or "").split())])
+
+# ==== 55. server 0.94: several shapes in move_nodes, add_contours and remove_contours (listener 0.215; faked listener replies) ====
+print("\n==== 55. server 0.94: several shapes (faked listener replies) ====")
+COMP55 = {"closed": True, "nodes": [on37(350, 50), on37(450, 50), on37(400, 150)]}     # a component's contour, at its offset (as the listener sends it)
+OK55 = dict(OK52, expected_contours=2, after=[OLD52, NEW52, COMP55], edit_case="several_shapes", new_contour_indices=[1],
+            other_shapes_unchanged=True, sources_unchanged=True)
+K55 = ("added", "verified", "new_contour_indices", "contours_now", "left", "right", "ink_width", "edit_case", "shape", "other_shapes_unchanged",
+       "sources_unchanged", "several_shapes_note", "reason", "mismatches")
+def ad55(label, reply, shape=None, version="0.215", expected=2, keys=K55):
+    s9_reset(); S9["version"] = version; S9["post"]["/glyph/contours/add"] = reply; n = len(S9["posts"])
+    r = s9_try(lambda: srv.write_glyph_add_contours("adc1", expected, [SQIN52], shape))
+    shown = {k: (r[k][:60] if isinstance(r[k], str) and k == "several_shapes_note" else r[k]) for k in keys if k in r} if isinstance(r, dict) else r
+    sent = [q for q in S9["posts"] if q[0] == "/glyph/contours/add"][n:] if len(S9["posts"]) > n else []
+    print(label, "->", shown, "| posts", len(S9["posts"]) - n, "| shape sent:", [("shape" in q[1], q[1].get("shape")) for q in sent if isinstance(q[1], dict)])
+    srv.finish_change_package()
+    return r
+ad55("55a into a plain shape beside a component", dict(OK55))
+ad55("55b shape 1 named                ", dict(OK55, shape=1, new_contour_indices=[2], after=[OLD52, COMP55, NEW52]), shape=1)
+ad55("55c shape 0, listener 0.214      ", dict(OK55), shape=0, version="0.214")
+for label, sh in (("55d shape a bool               ", True), ("55e shape -1                   ", -1), ("55f shape 5001                 ", 5001), ("55g shape 1.0                  ", 1.0)):
+    ad55(label, dict(OK55), shape=sh)
+ad55("55h one plain shape: no several-shapes fields", dict(OK52), expected=1)
+ad55("55i an older listener: indices at the end", {k: v for k, v in OK52.items()}, expected=1, version="0.214")
+ad55("55j components only: a new shape ", dict(OK55, edit_case="component", new_contour_indices=[2], after=[COMP55, dict(COMP55, nodes=[on37(50, 450), on37(150, 450), on37(100, 550)]), NEW52]))
+ad55("55k not confirmed: a component moved", {"open": True, "name": "adc1", "added": False, "changed": True, "nodes_match": False, "edit_case": "several_shapes",
+                                          "other_shapes_unchanged": False, "sources_unchanged": True, "mismatches": ["shape 1 changed its kind, source or transform"],
+                                          "reason": "the re-read outline does not match the request: shape 1 changed its kind, source or transform",
+                                          "before": [OLD52, COMP55], "after": [OLD52, NEW52, COMP55],
+                                          "synced_with_fontlab": True, "fontlab_changed_mark": {"called": True, "glyph_has_changes": True}})
+ad55("55l refused: two plain shapes, no shape", {"open": True, "name": "adc1", "added": False, "edit_case": "several_shapes", "plain_shapes": [0, 1],
+                                             "reason": "the glyph has 2 plain shapes (shapes 0, 1 in get_glyph_outline's elements); name the one to add to with shape: nothing was added"})
+_r55 = {}
+srv._add_several_shapes_fields(_r55, {"edit_case": "one_plain_shape", "other_shapes_unchanged": True})
+_r55b = {}
+srv._add_several_shapes_fields(_r55b, {"edit_case": "several_shapes", "shapes_emptied": [0], "other_shapes_unchanged": True, "sources_unchanged": True, "x": 1})
+print("55m fields for one shape / several:", _r55, "|", sorted(_r55b))
+# get_glyph_outline: the lag note also behind a component moved by an offset and in step with its source (ED10 1854)
+def lag55(label, rows):
+    res = {"source": "modern layer", "verification": {"status": "unverified", "bounding_box_vs_margins": {"left_ok": True, "width_ok": False}},
+           "ink_bbox_exact": True, "ink_bbox": {"left": 0, "right": 650, "bottom": 0, "top": 650}, "advance_width": 0, "elements": rows}
+    srv._apply_outline_lag(res)
+    print(label, "->", res.get("computed_from_nodes"), "| note:", "outline_lag_note" in res)
+_m55 = lambda dx=0, dy=0, m11=1: {"m11": m11, "m12": 0, "m21": 0, "m22": 1, "dx": dx, "dy": dy}
+lag55("55n plain shapes only             ", [{"matrix": _m55()}, {"matrix": _m55()}])
+lag55("55o a component at (300, 0), in step", [{"matrix": _m55()}, {"matrix": _m55(300), "is_component": True, "source_in_step": True}])
+lag55("55p the component not in step     ", [{"matrix": _m55()}, {"matrix": _m55(300), "is_component": True, "source_in_step": False}])
+lag55("55q a scaled component            ", [{"matrix": _m55()}, {"matrix": _m55(300, 0, 2), "is_component": True, "source_in_step": "unknown"}])
+lag55("55q2 a scaled component, in step  ", [{"matrix": _m55()}, {"matrix": _m55(300, 0, 2), "is_component": True, "source_in_step": True}])
+lag55("55r a plain shape at an offset    ", [{"matrix": _m55(10)}])
+_mv55, _ad55, _rm55 = (" ".join((getattr(srv, t).__doc__ or "").split()) for t in ("move_nodes", "add_contours", "remove_contours"))
+print("55s docs -> move:", [w for w in ("SEVERAL SHAPES (listener 0.215)", "belongs to its source glyph", "other_shapes_unchanged", "listener 0.215") if w not in _mv55],
+      "| add:", [w for w in ("Which shape receives them", "TWO OR MORE plain shapes", "components only", "ONE new plain shape", "listener 0.215") if w not in _ad55],
+      "| remove:", [w for w in ("SEVERAL SHAPES (listener 0.215)", "shapes_emptied", "refused before the question", "listener 0.215") if w not in _rm55],
+      "| outline:", "in step with their source count as none" in " ".join((srv.get_glyph_outline.__doc__ or "").split()))
+print("55t versions -> server", srv.SERVER_VERSION, "| several shapes need listener", srv._SEVERAL_SHAPES_MIN_LISTENER)
+
+# ==== 56. server 0.95: add_contours names the shape that received the contours (listener 0.216, MS 1871); the refusal of a component's contour (MS 1870) ====
+print("\n==== 56. server 0.95: shape in every add_contours reply; a component's contour (faked listener replies) ====")
+ad55("56a one plain shape, listener 0.216 sends shape 0", dict(OK52, shape=0), expected=1, version="0.216")
+ad55("56b one plain shape, listener 0.215 sends none ", dict(OK52), expected=1, version="0.215")
+ad55("56c shape a bool from the listener: dropped   ", dict(OK52, shape=True), expected=1, version="0.216")
+ad55("56d shape 1.0 from the listener: dropped      ", dict(OK52, shape=1.0), expected=1, version="0.216")
+ad55("56e several shapes, shape 0 not sent          ", dict(OK55, shape=0), version="0.216")
+ad55("56f components only: the new shape 2          ", dict(OK55, edit_case="component", shape=2, new_contour_indices=[2],
+                                                          after=[COMP55, dict(COMP55, nodes=[on37(50, 450), on37(150, 450), on37(100, 550)]), NEW52]), version="0.216")
+print("56g docs -> add:", "The reply's shape names the shape that received them (listener 0.216)." in _ad55,
+      "| move / remove still say edit the source glyph instead:", "edit the source glyph instead" in _mv55, "edit the source glyph instead" in _rm55)
+_e56 = srv._refusal("ms1_a", "nothing was moved", "the request names a contour of a component, nothing was moved: move 0: contour 1 belongs to the "
+                    "component of 'ms1_src' (shape 1); a component's contours belong to its source glyph: edit the source glyph 'ms1_src' instead")
+print("56h the refusal of a component's contour ->", str(_e56))

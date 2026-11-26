@@ -251,6 +251,30 @@ Not core, but budgeted: the root [README.md](../../README.md), the end-user inst
 
 Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
 
+### 2026-11-26: MARKDOWN-MAP.md budget 1,000 → 1,250
+
+The user's choice, at 969 words, after the trims of that day added the research archive files and the topic-file budgets to the map. MARKDOWN-MAP.md is a startup core file, so the reference totals become 19,900 and 19,100.
+
+### 2026-11-26: FONTLAB-API-RULES.md budget 6,000 → 7,500, nothing moved
+
+The user's choice, at 7,087 words. Nothing could move without weakening a rule: the rules themselves; the table of proven calls, from which alone a product route may take a call (its "research only" rows also record calls that are safe but useless); the inventory of legacy calls in use (goal 6); the dead ends ("do not retry"). Two passages that could have moved (the "Check file identity" rule, which AGENTS.md also holds, and the history in the `glyph.width` row) would have saved about 280 words; splitting the table into a file of its own was offered and not chosen. The headroom is for new rows: each proven call adds about 50 words. Not a startup core file, so the reference totals stay 19,650 and 18,850.
+
+### 2026-11-26: topics/reading.md budget 6,000 → 6,500
+
+The user's choice, after the trim of that day (7,533 → 6,388 words: live step records, probe runs and superseded readings moved word for word to [reading-research.md](reading-research.md)). Kept in the live file on purpose: the dead ends of the component API, the recipe-build sequence and the temporary-layer route that `add_component` uses, and the brush-reopen facts. Not a startup core file, so the reference totals stay 19,650 and 18,850.
+
+### 2026-11-26: topics/fonts-and-sync.md budget 6,000 → 7,250
+
+The user's choice, after the trim of that day (7,938 → 7,096 words: evidence runs, the v10 probe record and a finished probe moved word for word to [fonts-and-sync-research.md](fonts-and-sync-research.md)). Kept in the live file on purpose: the font-naming research (NM; the only record of the Build Names rule, of the calls that do not redraw the FONTS panel, and of the grouping and tab-title findings) and F1 (still open, referenced from other files). Not a startup core file, so the reference totals stay 19,650 and 18,850.
+
+### 2026-11-26: a budget of 6,000 for FONTLAB-API-RULES.md and each topic file
+
+The user's choice, after asking whether the unbudgeted files that had grown large should be left alone. The rule: a file that agents read whole has a budget; a log (LIVE-TESTS.md, CHANGELOG.md) and the archive do not. Proposed at 5,000; the user set 6,000, so that no function or coherence is lost. Over budget when set: topics/kerning.md 11,590 (trimmed the same day: its research moved word for word to [kerning-research.md](kerning-research.md)), topics/server-and-endpoints.md 8,431, topics/fonts-and-sync.md 7,938, topics/reading.md 7,533, FONTLAB-API-RULES.md 7,087, topics/geometry.md 6,554; each gets its own trim plan. These files are not startup core files, so the reference totals stay 19,650 and 18,850.
+
+### 2026-11-25: CHECKLIST.md budget 1,750 → 2,250
+
+The user's choice, at 1,723 words, after the record of ED8 1807–1832 (row 30), before the design of several shapes in the edit tools. CHECKLIST.md is a startup core file, so the reference totals become 19,650 and 18,850.
+
 ### 2026-11-25: WHAT-WORKS.md budget 3,500 → 4,750
 
 The user's choice, at 3,476 words, before the live checks of `add_contours` (listener 0.207 / server 0.89), whose results are due there. WHAT-WORKS.md is not a startup core file, so the reference totals stay 19,150 and 18,350.
