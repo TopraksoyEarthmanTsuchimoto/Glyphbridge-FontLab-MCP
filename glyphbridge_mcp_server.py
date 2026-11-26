@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.96)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.97)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -43,7 +43,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.96"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.97"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -3635,6 +3635,27 @@ def _read_change_log(ask_ids: list) -> tuple:
     return data, None
 
 
+def _fonts_changed_rows(groups: list, shared: set, current) -> list[dict]:
+    """v0.97: one entry per changed font in this package, grouped by (usable font_key, font name). Groups without a usable
+    font_key fall back to merging by font name."""
+    num = lambda g, k: g.get(k) if type(g.get(k)) is int and g.get(k) >= 0 else 0
+    by_font: dict = {}
+    for g in groups:
+        if not (num(g, "changed") or num(g, "unknown")):
+            continue
+        name = str(g.get("font") or "a font without a name")
+        key = _font_key_text(g.get("font_key"))
+        entry = by_font.get((key, name))
+        if entry is None:
+            entry = by_font[(key, name)] = {"font": name, "font_key": key}
+        first, last = g.get("first"), g.get("last")
+        if isinstance(first, str) and (not isinstance(entry.get("first"), str) or first < entry["first"]):
+            entry["first"] = first
+        if isinstance(last, str) and (not isinstance(entry.get("last"), str) or last > entry["last"]):
+            entry["last"] = last
+    return [{"font": e["font"], **_same_name_fields(e, shared, current, times=True)} for e in by_font.values()]
+
+
 def _change_record(sure: int, unsure: int, unsure_ids: list) -> dict:
     """v0.85: the five rules (DECISIONS.md, 2026-11-24), applied to the server's own counts and the listener's log.
     1. the listener decides whether a change happened; an unanswered request ID is asked about;
@@ -3693,7 +3714,7 @@ def _change_record(sure: int, unsure: int, unsure_ids: list) -> dict:
                    "changes": n, "uncertain": u, "from": g.get("first"), "until": g.get("last")}
             row.update(_same_name_fields(g, shared, log.get("current_font_key"), times=False))   # v0.96: from / until are the times
             others.append(row)
-    fonts = list(dict.fromkeys(str(g.get("font") or "a font without a name") for g in groups if num(g, "changed") or num(g, "unknown")))
+    fonts = _fonts_changed_rows(groups, shared, log.get("current_font_key"))
     _CHANGE_LOG.update(run=log["run"], since=log["newest"])           # rule 4: only this bookmark moves
     out.update(sure=changes, unsure=uncertain, others=others, fonts=fonts, record=record)
     return out
@@ -3716,6 +3737,8 @@ def finish_change_package() -> dict:
     result.update(rec["record"])
     if rec["fonts"]:
         result["fonts_changed"] = rec["fonts"]
+        if any(f.get("same_name") for f in rec["fonts"]):
+            result["fonts_changed_note"] = _SAME_NAME_NOTE
     if rec["others"]:
         result["other_changes"] = rec["others"]
         if result.get("save_reminder") is None:
@@ -6103,11 +6126,14 @@ def finish_changes(ctx: Context | None = None) -> dict[str, Any]:
     changed, save_reminder is null and you say nothing about saving.
 
     With listener 0.204 or newer the count is checked against FontLab's listener, which records every change it carries out.
-    other_changes lists changes NOT made through this server process (another app, or an earlier session): then a reminder
-    comes even if this package changed nothing; mention them once, saying they may already be saved. A row whose font shares
-    its name with another font that has changes carries same_name (and in_front, listener 0.217 or newer). change_record says
-    whether the listener's record of this package is 'complete', 'incomplete' (a listener restart, entries dropped) or
-    'unavailable'; follow agent_instruction.
+    fonts_changed lists each changed font as an object with 'font' (and, when a font shares its name with another font that has
+    changes, same_name, first_change, last_change and in_front, listener 0.217 or newer, with fonts_changed_note; first_change
+    and last_change here cover this package's part of the log, unlike changes_by_font, where they cover the time since the
+    listener started). other_changes lists changes NOT made through this server process (another app, or an earlier session):
+    then a reminder comes even if this package changed nothing; mention them once, saying they may already be saved. A row in
+    other_changes whose font shares its name with another font that has changes carries same_name (and in_front, listener 0.217
+    or newer). change_record says whether the listener's record of this package is 'complete', 'incomplete' (a listener
+    restart, entries dropped) or 'unavailable'; follow agent_instruction.
 
     Glyphbridge never saves the font and never opens a dialog for this: saving is the person's job (File menu or SAVE_KEYS),
     and the reminder appears only in the chat. This tool changes nothing in FontLab.

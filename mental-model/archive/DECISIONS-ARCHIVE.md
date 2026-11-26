@@ -251,6 +251,14 @@ Not core, but budgeted: the root [README.md](../../README.md), the end-user inst
 
 Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
 
+### 2026-11-26: FONTLAB-API-RULES.md budget 7,500 → 8,500
+
+The user's choice, at 7,464 words, after the records of XT–XT4 1952–1981 added four research rows and a dead end. Not a startup core file, so the reference totals are unchanged.
+
+### 2026-11-26: topics/server-and-endpoints.md budget 6,000 → 8,000
+
+The user's choice, at 5,959 words, after the records of FC 1945–1951. The file is not a startup core file, so the reference totals are unchanged.
+
 ### 2026-11-26: root README.md budget 800 → 900
 
 The user's choice, at 776 words, before the coherence fixes of that day (a typo, the macOS heading, "Show breakdown", and how to add the entry to a config file that already holds other servers, for Antigravity and Claude Desktop). The root README is not a startup core file, so the reference totals become 22,900 and 22,000.

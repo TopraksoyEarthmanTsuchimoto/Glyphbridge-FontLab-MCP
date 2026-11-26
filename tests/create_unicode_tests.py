@@ -3851,6 +3851,23 @@ for label, totals in (("51y6 other_changes, same name  ", [_t1, _t2]), ("51y7 ot
 srv._call_listener_post = wire51_post
 _fd, _sd = " ".join((srv.finish_changes.__doc__ or "").split()), " ".join((srv.fontlab_status.__doc__ or "").split())
 print("51y8 descriptions               ->", [w for w in ("same_name", "in_front") if w not in _fd], [w for w in ("same_name", "in_front", "first_change") if w not in _sd])
+print("-- v0.97: fonts_changed tells same-named fonts apart")
+_fg1 = {"font": "Unnamed Regular", "font_key": "fgId:1", "by_this_server": True, "client": "antigravity-client", "changed": 1, "unknown": 0, "first": "16:37:49", "last": "16:46:47"}
+_fg2 = {"font": "Unnamed Regular", "font_key": "fgId:2", "by_this_server": True, "client": "claude-code", "changed": 2, "unknown": 0, "first": "17:01:02", "last": "17:05:00"}
+_fg2b = {"font": "Unnamed Regular", "font_key": "fgId:2", "by_this_server": False, "client": "antigravity-client", "changed": 1, "unknown": 0, "first": "17:00:00", "last": "17:06:00"}
+_fg3 = {"font": "Other Bold", "font_key": "fgId:3", "by_this_server": True, "client": "claude-code", "changed": 1, "unknown": 0, "first": "17:06:00", "last": "17:06:00"}
+for label, groups, totals, cur in (
+        ("51z1 two same-named fonts       ", [_fg1, _fg2], [_t1, _t2], "fgId:2"),
+        ("51z2 unique names (control)     ", [dict(_fg1, font="Unnamed1 Regular"), _fg2, _fg3], [dict(_t1, font="Unnamed1 Regular"), _t2, _t3], "fgId:2"),
+        ("51z3 one font, two clients      ", [_fg1, _fg2, _fg2b], [_t1, _t2], "fgId:2"),
+        ("51z4 missing/blank font_key     ", [dict(_fg1, font_key=None), dict(_fg2, font_key="")], [dict(_t1, font_key=None), dict(_t2, font_key="")], "fgId:2")):
+    srv._reset_change_tracking()
+    srv._call_listener_post = lambda p, pl, timeout=0, _g=groups, _t=totals, _c=cur: {
+        "run": "r", "same_run": True, "newest": 99, "groups": _g, "asked": {}, "totals": _t, "current_font_key": _c}
+    r = srv.finish_change_package()
+    print(label, "->", r.get("fonts_changed"), "| note:", "same_name" in r.get("fonts_changed_note", ""))
+srv._call_listener_post = wire51_post
+print("51z5 finish_changes description   ->", [w for w in ("fonts_changed", "first_change", "last_change", "this package's part of the log", "changes_by_font", "fonts_changed_note") if w not in _fd])
 srv.SERVER_RUN = _old_run; srv._CLIENT["name"] = None; srv._reset_change_tracking()
 srv._call_listener, srv._call_listener_post = _save51
 

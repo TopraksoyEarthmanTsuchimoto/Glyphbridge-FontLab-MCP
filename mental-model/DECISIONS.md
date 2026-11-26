@@ -95,6 +95,10 @@ Merged on 2026-11-24; each entry in full: [archive/DECISIONS-ARCHIVE.md](archive
 - **`GLYPHBRIDGE_NOTDEF_WARN=0` switches the automatic checks off; it is a setting for scripts and automation,** documented in [topics/server-and-endpoints.md](topics/server-and-endpoints.md) only; `check_notdef` still answers on request. *Reason:* the user's choice (a line in the root README was too insignificant); with fonts in progress left alone, designers have nothing to switch off.
 - Open: whether a missing `.notdef` is a real issue depends on what FontLab's export does without one (not seen live; an export is probably blocked in Demo mode).
 
+### 2026-11-26: fonts of the same name in the change reports (server 0.96–0.97)
+
+- **When two or more fonts with changes share a name, every report row or entry of theirs carries `same_name`, the times of its first and last change, and `in_front`; `fonts_changed` lists one object per font (Option 2).** *Reason:* the user's choices after AG2 (1931) and 1935–1944 (1942, 1944): two unsaved fonts are both called "Unnamed Regular", and a list of names merged them. Whether a font not in front is still open is not checked. Run live 1935–1944 and FC 1945–1951.
+
 ### 2026-11-24: both counts, through a change log
 
 - **The change count is kept on both sides; the listener's record decides.** Supersedes nothing: it refines option (i) of 2026-11-21. *Reason:* the user's choice after the discussion of 2026-11-24. The listener knows what FontLab executed, per font and client; only the server knows which replies never came back.
@@ -144,6 +148,10 @@ Condensed on 2026-11-13; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECIS
 - **Names: with no name given, FontLab's own (`Unnamed`, `Unnamed1`, …); a name asked for is set as Font Info would set it. Whenever font names come up, the agent offers to explain the fields of Font Info's Names page.** *Reason:* the user's requirements; that page confuses new users.
 
 ## Glyphs
+
+### 2026-11-26: a tool that expands element transforms (research listener 0.218–0.220, XT–XT4 1952–1981; not built)
+
+- **Glyphbridge is to offer FontLab's Expand Transformation as a tool. It must be feature rich, and agents must offer it at the moment it helps, explaining in plain words what it does and why it may be needed. Its design follows a discussion of the cases where it saves the day, held after the research.** *Reason:* the user's requirements; an expansion is permanent unless Undo reaches it ([topics/transforms-and-undo.md](topics/transforms-and-undo.md)).
 
 ### 2026-11-25 and 2026-11-26: several shapes in the three edit tools (research listener 0.213–0.214, ED8–ED10 1807–1856; built listener 0.215 / server 0.94)
 

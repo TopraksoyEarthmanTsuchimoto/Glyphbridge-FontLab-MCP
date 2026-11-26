@@ -15,6 +15,7 @@ The project's short codes and terms, one line each, with a link to where each is
 
 - **P0 to P5, LAST** (`P0.9`, `P2.7`): work items in [ROADMAP.md](ROADMAP.md); LAST holds the large-glyph tests, postponed to the end.
 - **K-series** (`K1` to `K16`): the kerning live tests; **T-series** (`T1` to `T13`): the earlier live tests. Both in [LIVE-TESTS.md](LIVE-TESTS.md).
+- **XT, XT2 to XT4** (1953–1981): the research on expanding element transforms and on Edit > Undo of API edits: [topics/transforms-and-undo.md](topics/transforms-and-undo.md).
 
 ## Findings
 
@@ -26,7 +27,7 @@ The project's short codes and terms, one line each, with a link to where each is
 
 - **Legacy and modern API:** FontLab's older objects (`fgFont`, `fgGlyph`, `fl.CurrentFont()`) and its newer ones (`flPackage`, `flGlyph`, `flLayer`): [ARCHITECTURE.md](ARCHITECTURE.md) ("FontLab's two APIs and how Glyphbridge uses them"); the legacy calls in use: [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10.
 - **Names only, gated probe, `go=yes`:** the steps that prove a FontLab call: [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §10.
-- **Name gate** (`tri`, `edp`, `ocp`, `cpp`): a prefix a probe demands of its test glyph: [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §3.
+- **Name gate** (`tri`, `edp`, `ocp`, `cpp`, `xt` and a digit): a prefix a probe demands of its test glyph: [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §3.
 - **Changed mark:** the call that turns the font's changed icon blue so FontLab asks to save (S1): [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §2.
 - **Demo mode:** FontLab without saving, on the current PC: [CURRENT-STATUS.md](CURRENT-STATUS.md) (Environment).
 - **Watch point:** something seen but not yet explained: [WATCH-POINTS.md](WATCH-POINTS.md).

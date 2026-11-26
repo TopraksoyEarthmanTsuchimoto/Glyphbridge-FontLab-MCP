@@ -4,6 +4,37 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.220 (2026-11-26): research probe, where the change mark records (server unchanged, v0.97)
+
+**Built as proposed and approved** (Undo research, after XT3: the standard mark recorded a history state on the glyph only).
+
+- Listener: `/debug/tryexpand` takes `&mark=recursive` or `&mark=shape`. The sync runs as always; then, in place of the standard mark, ONE `flItems.notifyChangesApplied("Glyphbridge expand", <glyph>, True)` or ONE `notifyChangesApplied("Glyphbridge expand", <the expanded shape, taken again after the sync>, False)`, only after a confirmed expansion and a confirmed sync; `variant_mark` gives the call, its result and the glyph's `hasChanges`. Any other value is refused before the call is counted.
+- Tests: four stub harnesses PASS at 6074 + 58 + 121 + 1991 lines; the deployed listener copy is identical. New: `stub_listener_tests.py` 3040a–3048a (the refusals, each variant's object and flag, no mark without a confirmed expansion or sync, a raising mark, no change). 2331a's scan of the edit-probe source lists one more `getattr(mod, "flItems", None)`. Mutation-tested: 7 mutations, all caught; the 18 of 0.218 and 0.219 still caught.
+- Run live XT4 1971–1981 ([LIVE-TESTS.md](LIVE-TESTS.md), [topics/transforms-and-undo.md](topics/transforms-and-undo.md)): with `mark=recursive` Edit > Undo reversed an API expansion and Redo restored it; `mark=shape` let Undo restore the transform without the nodes, damaging the outline; FontLab rounds expanded nodes to whole units, in the GUI too.
+
+## Listener v0.219 (2026-11-26): research probes, FontLab's history values and an edit bracket (server unchanged, v0.97)
+
+**Built as proposed and approved** (Undo research, after XT2: Edit > Undo listed "Undo Glyphbridge Expand" and reversed nothing).
+
+- Listener: new `/debug/tryhistory?name=xt…&shape=I&go=yes` reads, on the glyph, its active layer and shape I, `hasHistoryStates`, `currentHistoryState()`, `initialHistoryState()`, `historyStates(True)` and `historyStates(False)`, each once; nothing is changed; a Power Brush shape in the glyph is refused (F1); exactly one font open, 10 per listener run. A value is reported as it is when it is plain, a real list or tuple by type, length and first three items, anything else by type only. `/debug/tryexpand` takes `&history=yes` (the same reads before, after and after the sync) and `&bracket=yes` (ONE `flItems.notifyEditActionStarted()` before the expansion, ONE `notifyEditActionFinished()` after it, Finished also when the expansion raised, nothing else after a failed Started). Never called: `restoreHistoryState`, `clearAboveHistory`, `checkInitHistoryState`, `requestCheckHistoryInitIndex`.
+- Tests: four stub harnesses PASS at 6059 + 58 + 121 + 1991 lines; the deployed listener copy is identical. New: 3020–3032 (the refusals and gates, each kind of value, the bracket's order, Finished after a raising expansion, a raising Started or Finished, no `flItems`, a static scan). 2331a lists the two new `getattr` calls. Mutation-tested: 9 mutations, all caught.
+- Run live XT3 1964–1970 ([LIVE-TESTS.md](LIVE-TESTS.md)): a GUI edit records a state on the shape, an API edit none, also inside the bracket; the standard mark records on the glyph only.
+
+## Listener v0.218 (2026-11-26): research probe, expanding an element transform (server unchanged, v0.97)
+
+**Built as proposed and approved** (the user's question of 2026-11-26: can Glyphbridge do Element > Expand Transformation?).
+
+- Listener: new `/debug/tryexpand?name=xt…&shape=I&how=noarg|own&go=yes` makes ONE `shape.applyTransform()` (`noarg`) or `shape.applyTransform(<the shape's own transform>)` (`own`) on plain shape I that carries a transform; refused with nothing touched for a Power Brush shape anywhere, a component or identity target, `autoLayer` on, or contours that cannot be located. Glyph names start with `xt` and a digit; exactly one font open; 6 per listener run, counted before anything is read. The reply classifies the outcome (`expanded`, `nodes mapped, matrix kept`, `matrix doubled, nodes kept`, `unchanged`, `other`) with deviations, and checks the drawn outline, FontLab's ink boxes and sidebearings, every other contour, the components' sources, the width, `autoLayer` and the glyph count, after the call and again after the sync; the mark only for a confirmed expansion (title "Glyphbridge expand").
+- Tests: four stub harnesses PASS at 6020 + 58 + 121 + 1991 lines; the deployed listener copy is identical. New: 3000–3016 (the refusals, each outcome, rounding, side effects, a moved ink box, the limit, a static scan). Mutation-tested: 9 mutations, all caught (an ink-box case added after one survived; writing the tests found that a change to another plain shape was not counted, fixed before the build was finished).
+- Run live XT2 1958–1962 ([LIVE-TESTS.md](LIVE-TESTS.md)): `applyTransform()` expands as FontLab's GUI does (XT 1953–1957); Edit > Undo then lists the mark's title and reverses nothing.
+
+## Server v0.97 (2026-11-26): `fonts_changed` tells same-named fonts apart (1942, 1944)
+
+**Built as proposed and approved** (the user's choice of Option 2, 2026-11-26). Designed and mostly built by Antigravity (Gemini 4 Hydrogen Medium): it wrote the server change and the tests, then hit its usage quota; Claude Code reviewed its diff, updated six expected lines that differed only in the version number, and wrote the docs.
+
+- Server: **`fonts_changed` changes shape for every reply**, from a list of names to a list of objects, one per changed font: `{"font": name}`, and for a name that two or more of the listener's font keys carry, also `same_name`, `first_change`, `last_change` and `in_front` (listener 0.217 or newer), with `fonts_changed_note`. Log groups are merged by font key and name (`_fonts_changed_rows`), so one font changed by two clients is listed once; a group without a usable key falls back to merging by name, as before. The times cover this package's part of the log, unlike `changes_by_font`, where they cover the time since the listener started; the description says so. Known limit: the times are compared as `HH:MM:SS` text, so a package that crosses midnight can give the wrong first or last time. The listener is unchanged.
+- Tests: four stub harnesses PASS at 5963 + 58 + 121 + 1991 lines. New: `create_unicode_tests.py` 51z1–51z5 (two same-named fonts, unique names as the control, one font changed by two clients, groups without a usable key, the description). The eight 51c–51o lines now show `fonts_changed` as objects; every other changed line differs only in its version number. Run live FC 1945–1951 ([LIVE-TESTS.md](LIVE-TESTS.md)): every prediction held.
+
 ## Listener v0.217 / server v0.96 (2026-11-26): the two findings of AG2 (1927, 1931)
 
 **Built as proposed and approved** (the user's decision of 2026-11-26: both fixes in one build, after a check that neither depends on the other; queued until Antigravity's first contribution).

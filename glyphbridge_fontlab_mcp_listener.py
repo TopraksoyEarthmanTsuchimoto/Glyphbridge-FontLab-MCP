@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.217)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.220)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -256,6 +256,17 @@ Routes (GET unless marked POST):
                           holding a fixed square after the glyph's shapes (components moved by an offset, plain shapes without a
                           transform), checking the others and the sources (v0.214); exactly one font open, 8 per
                           listener run (v0.151, P2.2 research)
+    /debug/tryexpand      name=xt...&shape=I&how=noarg|own: ONE shape.applyTransform() or shape.applyTransform(<its own transform>)
+                          on plain shape I that carries a transform (no Power Brush anywhere, autoLayer off); raw nodes, matrix, ink
+                          boxes and sidebearings before, after and after the sync, the outcome classified; exactly one font open,
+                          6 per listener run (v0.218, expand-transformation research); &history=yes reads FontLab's history
+                          values before, after and after the sync, &bracket=yes wraps the call in ONE
+                          flItems.notifyEditActionStarted() / notifyEditActionFinished() (v0.219, Undo research);
+                          &mark=recursive|shape replaces the standard mark by ONE notifyChangesApplied(title, <glyph>, True) or
+                          (title, <the expanded shape>, False), after a confirmed expansion and sync (v0.220, Undo research)
+    /debug/tryhistory     name=xt...&shape=I: read only, FontLab's history values (hasHistoryStates, currentHistoryState(),
+                          initialHistoryState(), historyStates(True / False)) of the glyph, its active layer and shape I; exactly
+                          one font open, 10 per listener run (v0.219, Undo research)
     /debug/trycomponent   stage=glyphcomponents|shapedata&target=cpp...&source=cpp...&dx=DX&dy=DY: ONE placement of the source glyph
                           (one plain shape) in the target (an existing layer, at most one plain shape) at offset (dx, dy), elements
                           and outlines before and after; exactly one font open, 6 per listener run (v0.155, P2.7 research);
@@ -341,7 +352,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.217"
+VERSION = "0.220"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -642,7 +653,7 @@ _MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge wid
                 "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit", "move_nodes": "Glyphbridge move nodes", "add_contours": "Glyphbridge add contours",
                 "trycomponent": "Glyphbridge component", "trycomponent_light": "Glyphbridge component", "add_component": "Glyphbridge add component",
                 "remove_component": "Glyphbridge remove component", "kerning_group": "Glyphbridge kerning group",
-                "remove_contours": "Glyphbridge remove contours"}
+                "remove_contours": "Glyphbridge remove contours", "tryexpand": "Glyphbridge expand"}
 _MARK_DELETE_MAX_TRIES = 20    # v0.133: how many surviving glyphs a delete's mark may try before it says none could be notified; v0.134: also a kerning write's mark
 _SYNCED_NOTE = ("Glyphbridge asked FontLab to sync this glyph right after the change and FontLab's legacy view now matches the modern layer, so the "
                 "change is durable against the display refresh of create_glyph, delete_glyph, set_glyph_unicode and the legacy width route. "
@@ -4995,6 +5006,559 @@ def debug_try_edit(stage, name, go, contour=None, node=None, dx=None, dy=None, r
     result["state_after_sync"], _l2 = _tryshape_modern_state(w)     # v0.209: read AFTER the sync and the mark (ED6 1707-1712)
     result["synced_before_read"] = synced_before_read
     return result
+
+
+# --------------------------------------------------------------------------
+# /debug/tryexpand (v0.218) - RESEARCH for an expand-transformation tool (the user's question of 2026-11-26). FontLab's own
+# Element > Expand Transformation, run in its GUI on a plain shape scaled 150% horizontally (live 1953-1957): the shape's matrix became
+# the identity, its raw nodes took the drawn positions, the outline, sidebearings and ink box stayed; Edit > Undo brought both back.
+# Names only (1952, /debug/classdir): flShape.applyTransform([QTransform transform]), the argument optional. ONE call per request:
+#   how=noarg   shape.applyTransform()
+#   how=own     shape.applyTransform(<the shape's own transform, as read just before the call>)
+# on shape I (&shape=I, 0-19) of a glyph whose name starts with "xt" and a digit. Gates: go=yes, the one-font gate of /debug/trysync,
+# at most _TRYEXPAND_MAX calls per listener run, counted BEFORE anything is read or touched. Refused with nothing touched unless: the
+# glyph has a modern active layer whose autoLayer reads False; every shape reads isComponent and isComposite as True or False and none
+# is a Power Brush or other composite shape (F1); every component's source is readable; shape I is plain with a readable matrix that is
+# NOT the identity; the shapes' contour counts add up to layer.getContours(), and shapes[I].getContours() equals its slice there.
+# The reply classifies what the call did to shape I (outcome), within _TRYEXPAND_TOL:
+#   "expanded"                    raw nodes = the old raw nodes mapped by the old matrix, the matrix the identity (what the GUI did)
+#   "nodes mapped, matrix kept"   raw nodes mapped, the matrix unchanged (the outline then drawn transformed twice)
+#   "matrix doubled, nodes kept"  raw nodes unchanged, the matrix = the old matrix applied twice
+#   "unchanged"                   raw nodes and matrix as before
+#   "other"                       anything else (deviations reports how far each reading is from each case)
+# and what else changed: the drawn outline computed from the nodes and matrix, FontLab's ink boxes and modern sidebearings, the other
+# shapes (kind, source, matrix), the contour counts, every contour outside shape I node by node, every component's source outline, the
+# advance width, autoLayer and the glyph count. "expanded": true needs the outcome "expanded", the drawn outline kept, no ink box moved
+# and no side effect; the sidebearings are only reported (they can lag after an API edit, 968-983).
+# The same readings are taken once more after the sync and the changed mark (after_sync, outcome_after_sync), as /debug/tryedit does
+# since v0.209. A change goes through _guard_mark (the sync, then the mark; no mark unless the outcome is "expanded" and nothing else
+# changed). Never called by this probe: font.update(), save, decomposite, eject, ejectTo, prepareTransformationData,
+# resetTransformationData, any history call, an assignment to shape.transform; no subscript or iteration of a native object.
+# --------------------------------------------------------------------------
+
+_TRYEXPAND_MAX = 6
+_TRYEXPAND = {"calls": 0}
+_TRYEXPAND_HOWS = {"noarg": "shape.applyTransform()", "own": "shape.applyTransform(<the shape's own transform>)"}
+_TRYEXPAND_TOL = 0.001
+_TRYEXPAND_NOTE = ("RESEARCH: compare with get_glyph_outline and with FontLab's own Element > Expand Transformation; nothing is saved by "
+                   "Glyphbridge; quit FontLab WITHOUT saving afterwards, or delete the xt glyphs")
+_TRYEXPAND_BOX_KEYS = ("left", "right", "top", "bottom", "width", "height")
+
+
+def _tryexpand_map(contours, m):
+    """`contours` (snapshot form) with every node mapped by the matrix m as QTransform maps a point: x' = m11 x + m21 y + dx,
+    y' = m12 x + m22 y + dy."""
+    return [dict(c, nodes=[dict(n, x=m["m11"] * n["x"] + m["m21"] * n["y"] + m["dx"], y=m["m12"] * n["x"] + m["m22"] * n["y"] + m["dy"])
+                           for n in c.get("nodes") or []]) for c in contours]
+
+
+def _tryexpand_twice(m):
+    """The matrix m applied twice (QTransform m * m)."""
+    return {"m11": m["m11"] * m["m11"] + m["m12"] * m["m21"], "m12": m["m11"] * m["m12"] + m["m12"] * m["m22"],
+            "m21": m["m21"] * m["m11"] + m["m22"] * m["m21"], "m22": m["m21"] * m["m12"] + m["m22"] * m["m22"],
+            "dx": m["dx"] * m["m11"] + m["dy"] * m["m21"] + m["dx"], "dy": m["dx"] * m["m12"] + m["dy"] * m["m22"] + m["dy"]}
+
+
+def _tryexpand_dev(got, want):
+    """The largest coordinate difference between two outlines with the same contours, nodes, kinds and closed flags, or None when
+    they differ in any of those."""
+    if not isinstance(got, list) or not isinstance(want, list) or len(got) != len(want):
+        return None
+    worst = 0.0
+    for g, e in zip(got, want):
+        gn, en = g.get("nodes") or [], e.get("nodes") or []
+        if len(gn) != len(en) or g.get("closed") is not e.get("closed"):
+            return None
+        for a, b in zip(gn, en):
+            if a.get("kind") != b.get("kind"):
+                return None
+            worst = max(worst, abs(a["x"] - b["x"]), abs(a["y"] - b["y"]))
+    return worst
+
+
+def _tryexpand_mdev(a, b):
+    """The largest difference between two matrices, or None when one is not readable."""
+    if not isinstance(a, dict) or not isinstance(b, dict) or "error" in a or "error" in b:
+        return None
+    return max(abs(a[k] - b[k]) for k in _TRYCOMP_MATRIX_KEYS)
+
+
+def _tryexpand_near(d):
+    return d is not None and d <= _TRYEXPAND_TOL
+
+
+def _tryexpand_round(d):
+    return None if d is None else round(d, 6)
+
+
+def _tryexpand_read(layer, w, tr, name, idx):
+    """The readings compared before and after the call. Read only. Never raises."""
+    r = {}
+    tel = _trycomp_elements(layer) if layer is not None else {"error": "no layer"}
+    r["elements"] = tel if isinstance(tel, list) else {"error": tel["error"]}
+    shapes, err = _tl_call(lambda: layer.shapes) if layer is not None else (None, "no layer")
+    if err is None and type(shapes) is list:
+        counts, why = _remove_contour_counts(shapes)
+    else:
+        counts, why = None, err or "layer.shapes is not a plain list"
+    r["contour_counts"] = counts if counts is not None else {"error": why}
+    outline = _tryedit_snapshot(name)
+    r["outline"] = outline
+    if counts is not None and "error" not in outline and idx < len(counts) and sum(counts) == len(outline["contours"]):
+        off = sum(counts[:idx])
+        r["shape_raw"] = outline["contours"][off:off + counts[idx]]
+    else:
+        r["shape_raw"] = {"error": f"shape {idx}'s contours could not be located in layer.getContours()"}
+    r["shape_matrix"] = (tel[idx].get("matrix") if isinstance(tel, list) and idx < len(tel)
+                         else {"error": f"shape {idx} could not be read"})
+    boxes = _trycomp_all_boxes(layer)
+    r["ink_boxes"] = boxes
+    if tr is None:
+        m, why = None, "no QTransform for the margin getters"
+    else:
+        m, why = _modern_margins_read(w, tr)
+    r["margins"] = m if m is not None else {"error": why}
+    r["advance_width"] = _trycomp_width(w)
+    r["auto"] = _trycomp_auto_state(layer) if layer is not None else {"error": "no layer"}
+    return r
+
+
+def _tryexpand_boxes_kept(b0, b1):
+    """True / False when every box of both lists is readable, else "unknown"."""
+    if not isinstance(b0, list) or not isinstance(b1, list) or len(b0) != len(b1):
+        return "unknown"
+    for a, b in zip(b0, b1):
+        if "error" in a or "error" in b or any(not isinstance(a.get(k), (int, float)) or not isinstance(b.get(k), (int, float))
+                                               for k in _TRYEXPAND_BOX_KEYS):
+            return "unknown"
+    return all(abs(a[k] - b[k]) <= _TRYEXPAND_TOL for a, b in zip(b0, b1) for k in _TRYEXPAND_BOX_KEYS)
+
+
+def _tryexpand_judge(before, after, idx, sources):
+    """What the call did, judged from two readings of _tryexpand_read. Never raises."""
+    out = {}
+    raw0, m0, raw, m = before["shape_raw"], before["shape_matrix"], after["shape_raw"], after["shape_matrix"]
+    if not isinstance(raw0, list) or not isinstance(raw, list) or _tryexpand_mdev(m0, m0) is None or _tryexpand_mdev(m, m) is None:
+        out["outcome"] = "unknown"
+        out["drawn_outline_kept"] = "unknown"
+    else:
+        dev = {"raw_vs_kept": _tryexpand_dev(raw, raw0), "raw_vs_mapped": _tryexpand_dev(raw, _tryexpand_map(raw0, m0)),
+               "matrix_vs_kept": _tryexpand_mdev(m, m0), "matrix_vs_identity": _tryexpand_mdev(m, _MOVE_IDENTITY),
+               "matrix_vs_twice": _tryexpand_mdev(m, _tryexpand_twice(m0))}
+        n = {k: _tryexpand_near(v) for k, v in dev.items()}
+        if n["raw_vs_mapped"] and n["matrix_vs_identity"]:
+            out["outcome"] = "expanded"
+        elif n["raw_vs_kept"] and n["matrix_vs_kept"]:
+            out["outcome"] = "unchanged"
+        elif n["raw_vs_mapped"] and n["matrix_vs_kept"]:
+            out["outcome"] = "nodes mapped, matrix kept"
+        elif n["raw_vs_kept"] and n["matrix_vs_twice"]:
+            out["outcome"] = "matrix doubled, nodes kept"
+        else:
+            out["outcome"] = "other"
+        out["deviations"] = {k: _tryexpand_round(v) for k, v in dev.items()}
+        d = _tryexpand_dev(_tryexpand_map(raw, m), _tryexpand_map(raw0, m0))
+        out["drawn_outline_kept"] = _tryexpand_near(d) if d is not None else False
+        out["drawn_outline_deviation"] = _tryexpand_round(d)
+    out["ink_boxes_kept"] = _tryexpand_boxes_kept(before["ink_boxes"], after["ink_boxes"])
+    mg0, mg1 = before["margins"], after["margins"]
+    out["margins_kept"] = ("unknown" if "error" in mg0 or "error" in mg1 else
+                           all(abs(mg0[k] - mg1[k]) <= _TRYEXPAND_TOL for k in ("lsb", "rsb", "advance")))
+    e0, e1 = before["elements"], after["elements"]
+    if not isinstance(e0, list) or not isinstance(e1, list):
+        out["other_shapes_unchanged"] = "unknown"
+    else:
+        out["other_shapes_unchanged"] = bool(len(e0) == len(e1) and all(_remove_key(a) == _remove_key(b)
+                                                                       for i, (a, b) in enumerate(zip(e0, e1)) if i != idx)
+                                             and (e1[idx].get("is_component"), e1[idx].get("is_composite")) == (False, False))
+    c0, c1 = before["contour_counts"], after["contour_counts"]
+    out["contour_counts_kept"] = "unknown" if not isinstance(c0, list) or not isinstance(c1, list) else c0 == c1
+    o0, o1 = before["outline"], after["outline"]
+    if out["contour_counts_kept"] is not True or "error" in o0 or "error" in o1 or idx >= len(c0):
+        out["other_contours_unchanged"] = "unknown"
+    else:     # every contour of layer.getContours() outside shape I's slice, node by node
+        lo, hi = sum(c0[:idx]), sum(c0[:idx + 1])
+        out["other_contours_unchanged"] = (o1["contours"][:lo] + o1["contours"][hi:]) == (o0["contours"][:lo] + o0["contours"][hi:])
+    src_ok = True
+    for src, snap in sources.items():
+        now = _tryedit_snapshot(src)
+        if "error" in now:
+            src_ok = "unknown" if src_ok is True else src_ok
+        elif now["contours"] != snap["contours"]:
+            src_ok = False
+    out["sources_unchanged"] = src_ok
+    out["advance_width_kept"] = after["advance_width"] == before["advance_width"]
+    out["auto_kept"] = after["auto"] == before["auto"]
+    return out
+
+
+def _tryxt_name_ok(name):
+    """v0.219 (from v0.218): True for a name that starts with "xt" and a digit, 4 to 40 characters from _TRYCREATE_NAME_CHARS."""
+    import re as _re
+    return (isinstance(name, str) and 4 <= len(name) <= 40 and _re.match(r"xt[0-9]", name) is not None
+            and all(ch in _TRYCREATE_NAME_CHARS for ch in name))
+
+
+_TRYXT_NAME_ERROR = 'name must start with "xt" and a digit and be 4 to 40 characters from A-Z a-z 0-9 . _ -'
+
+
+_TRYEXPAND_MARKS = {"recursive": "flItems.notifyChangesApplied(title, <glyph>, True)",
+                    "shape": "flItems.notifyChangesApplied(title, <the expanded shape>, False)"}     # v0.220
+
+
+def _tryexpand_variant_mark(variant, mod, w, idx, result):
+    """v0.220: ONE notifyChangesApplied in place of the standard mark, only after a confirmed expansion and a confirmed sync. The shape
+    is taken again from the layer after the sync. Never raises."""
+    if result.get("expanded") is not True:
+        return {"called": False, "reason": "the expansion was not confirmed"}
+    if result.get("synced_with_fontlab") is not True:
+        return {"called": False, "reason": "FontLab's sync of this glyph was not confirmed"}
+    if not _MARK_CHANGED:
+        return {"called": False, "reason": "the changed mark is switched off in the listener"}
+    items = getattr(mod, "flItems", None)
+    if items is None:
+        return {"called": False, "reason": "the fontlab module has no flItems"}
+    if variant == "recursive":
+        target, recursive = w, True
+    else:
+        _st, layer = _tryshape_modern_state(w)
+        target, recursive = _tryhist_shape(layer, idx), False
+        if target is None:
+            return {"called": False, "reason": f"shape {idx} could not be read after the sync"}
+    out = {"called": True, "call": _TRYEXPAND_MARKS[variant]}
+    try:
+        ret = items.notifyChangesApplied(_MARK_TITLES["tryexpand"], target, recursive)
+        out["returned"] = _tryhist_describe(ret)
+    except Exception as exc:
+        out["call_error"] = f"{type(exc).__name__}: {exc}"
+    value, err = _pkg_get(w, "hasChanges")
+    out["glyph_has_changes"] = value if err is None and type(value) is bool else "unknown"
+    return out
+
+
+def debug_try_expand(name, shape, how, go, history=None, bracket=None, mark=None):
+    """v0.218: ONE shape.applyTransform() or shape.applyTransform(<its own transform>) on shape I of an xt glyph. See the section
+    comment. v0.219: &history=yes and &bracket=yes. v0.220: &mark=recursive|shape. Never raises out of the route's try."""
+    import sys as _sys
+    if not _tryxt_name_ok(name):
+        return {"error": _TRYXT_NAME_ERROR}
+    idx, err = _tryedit_int(shape, "shape", 0, _TRYEDIT_SHAPE_MAX)
+    if err is not None:
+        return {"error": err}
+    how = str(how).strip() if how is not None else ""
+    if how not in _TRYEXPAND_HOWS:
+        return {"error": 'how must be "noarg" (shape.applyTransform()) or "own" (shape.applyTransform(<the shape\'s own transform>))'}
+    opts = {"history": False, "bracket": False}
+    for label, raw in (("history", history), ("bracket", bracket)):     # v0.219
+        v = str(raw).strip() if raw is not None and str(raw).strip() else None
+        if v is not None:
+            if v != "yes":
+                return {"error": f'{label} must be "yes", or left out'}
+            opts[label] = True
+    mark = str(mark).strip() if mark is not None and str(mark).strip() else None     # v0.220
+    if mark is not None and mark not in _TRYEXPAND_MARKS:
+        return {"error": 'mark must be "recursive" (notifyChangesApplied on the glyph, recursive) or "shape" (on the expanded shape), or left out'}
+    opts["mark"] = mark
+    if go != "yes":
+        extra = (" between ONE flItems.notifyEditActionStarted() and ONE flItems.notifyEditActionFinished()" if opts["bracket"] else "")
+        extra += (", with FontLab's history values read before, after and after the sync" if opts["history"] else "")
+        extra += (f", marked by ONE {_TRYEXPAND_MARKS[mark]} in place of the standard mark" if mark else "")
+        return {"error": f"how={how} makes ONE {_TRYEXPAND_HOWS[how]} on shape {idx} of the glyph{extra}. Add &go=yes to run it."}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"how": how, "error": why, "calls_so_far": _TRYEXPAND["calls"], "max_calls": _TRYEXPAND_MAX}
+    if _TRYEXPAND["calls"] >= _TRYEXPAND_MAX:
+        return {"how": how, "error": f"the probe already ran {_TRYEXPAND_MAX} times in this listener run; restart the listener to repeat it",
+                "calls_so_far": _TRYEXPAND["calls"], "max_calls": _TRYEXPAND_MAX}
+    items = getattr(mod, "flItems", None)
+    if opts["bracket"] and items is None:
+        return {"how": how, "error": "bracket=yes needs fontlab.flItems, which is missing: nothing was touched",
+                "calls_so_far": _TRYEXPAND["calls"], "max_calls": _TRYEXPAND_MAX}
+    _TRYEXPAND["calls"] += 1     # counted BEFORE the glyph is read or touched: whatever happens, it is on record
+    base = {"name": name, "shape": idx, "how": how, "call": _TRYEXPAND_HOWS[how], "history": opts["history"], "bracket": opts["bracket"],
+            "mark": opts["mark"] or "standard", "calls_so_far": _TRYEXPAND["calls"], "max_calls": _TRYEXPAND_MAX, "note": _TRYEXPAND_NOTE}
+    ctx, refusal = _modern_edit_target(name)
+    if ctx is None:
+        return dict(base, error="the glyph cannot be used: " + str(refusal.get("reason") or refusal), refusal=_public_refusal(refusal))
+    w, font, tr = ctx["w"], ctx["font"], ctx.get("tr")
+    state, layer = _tryshape_modern_state(w)
+    base["state_before"] = state
+    if layer is None:
+        return dict(base, error="the glyph has no modern active layer: nothing was touched")
+    auto = _trycomp_auto_state(layer)
+    if auto.get("auto_layer") is not False:
+        return dict(base, error=f"the layer's autoLayer reads {auto.get('auto_layer')!r}, not False: nothing was touched")
+    tel = _trycomp_elements(layer)
+    if isinstance(tel, dict):
+        return dict(base, error=f"the glyph's elements could not be read ({tel['error']}): nothing was touched")
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list or len(shapes) != len(tel):
+        return dict(base, error="layer.shapes is not a plain list matching the elements read: nothing was touched")
+    if idx >= len(shapes):
+        return dict(base, error=f"shape {idx} does not exist (the glyph has {len(shapes)} shape(s), numbered from 0): nothing was touched")
+    for e in tel:
+        i = e["index"]
+        if type(e.get("is_component")) is not bool or type(e.get("is_composite")) is not bool:
+            return dict(base, error=(f"shape {i}: isComponent reads {e.get('is_component')!r} and isComposite {e.get('is_composite')!r}; both must "
+                                     "read True or False: nothing was touched"))
+        if e["is_composite"] and not e["is_component"]:
+            return dict(base, error=f"shape {i} is a Power Brush or other composite shape; the probe never touches a glyph holding one (F1): nothing was touched")
+        if e["is_component"] and (not isinstance(e.get("component_glyph"), str) or e["component_glyph"].startswith("<error")):
+            return dict(base, error=f"shape {i} is a component whose source glyph could not be read ({e.get('component_glyph')!r}): nothing was touched")
+    t = tel[idx]
+    if t["is_component"] or t["is_composite"]:
+        return dict(base, error=f"shape {idx} is not a plain shape (isComponent {t['is_component']}, isComposite {t['is_composite']}): nothing was touched")
+    m0 = t.get("matrix")
+    if not isinstance(m0, dict) or "error" in m0:
+        return dict(base, error=f"shape {idx}: its transform could not be read ({(m0 or {}).get('error') if isinstance(m0, dict) else m0!r}): nothing was touched")
+    if all(abs(m0[k] - v) <= 1e-9 for k, v in _MOVE_IDENTITY.items()):
+        return dict(base, error=f"shape {idx} carries no transform (its matrix is the identity): there is nothing to expand: nothing was touched")
+    before = _tryexpand_read(layer, w, tr, name, idx)
+    if not isinstance(before["contour_counts"], list):
+        return dict(base, error=f"{before['contour_counts']['error']}: nothing was touched")
+    if "error" in before["outline"]:
+        return dict(base, error=f"the outline could not be read before the call ({before['outline']['error']}): nothing was touched")
+    if not isinstance(before["shape_raw"], list):
+        return dict(base, error=(f"the shapes' contour counts add up to {sum(before['contour_counts'])}, but layer.getContours() gives "
+                                 f"{len(before['outline']['contours'])} contour(s): nothing was touched"))
+    target = shapes[idx]
+    own, err = _tl_call(lambda: target.getContours())
+    if err is not None or type(own) not in (list, tuple):
+        return dict(base, error=f"shapes[{idx}].getContours() is not a plain list ({err or type(own).__name__}): nothing was touched")
+    rows = _contour_rows(own)
+    if isinstance(rows, dict) or rows != before["shape_raw"]:
+        return dict(base, error=(f"shapes[{idx}].getContours() disagrees with its contours in layer.getContours()"
+                                 f"{' (' + rows['error'] + ')' if isinstance(rows, dict) else ''}: nothing was touched"))
+    sources = {}
+    for e in tel:
+        src = e.get("component_glyph")
+        if e["is_component"] and src not in sources:
+            snap = _tryedit_snapshot(src)
+            if "error" in snap:
+                return dict(base, error=f"the outline of the component glyph {src!r} could not be read ({snap['error']}): nothing was touched")
+            sources[src] = snap
+    base["before"] = before
+    base["glyph_count_before"] = _tryedit_glyph_count(font)
+    if opts["history"]:     # v0.219
+        base["history_before"] = _tryhist_read(w, layer, target)
+    step, touched, started = "reading the target", False, False
+    if opts["bracket"]:     # v0.219: as a GUI edit might be bracketed; Finished follows whenever Started returned
+        base["bracket_calls"] = []
+        try:
+            ret = items.notifyEditActionStarted()
+            started = True
+            base["bracket_calls"].append({"call": "flItems.notifyEditActionStarted()", "returned": _tryhist_describe(ret)})
+        except Exception as exc:
+            base["bracket_calls"].append({"call": "flItems.notifyEditActionStarted()", "error": f"{type(exc).__name__}: {exc}"})
+            base["error"] = f"flItems.notifyEditActionStarted() failed: {type(exc).__name__}: {exc}: the expansion was not called"
+    if "error" not in base:
+        try:
+            if how == "noarg":
+                step, touched = "shape.applyTransform()", True
+                ret = target.applyTransform()
+            else:
+                step = "shape.transform"
+                own_tx = target.transform
+                step, touched = "shape.applyTransform(<the shape's own transform>)", True
+                ret = target.applyTransform(own_tx)
+            base["call_returned"] = ret if (ret is None or isinstance(ret, (bool, int, float, str))) else f"<{type(ret).__name__}>"
+        except Exception as exc:
+            base["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
+    if started:
+        try:
+            ret = items.notifyEditActionFinished()
+            base["bracket_calls"].append({"call": "flItems.notifyEditActionFinished()", "returned": _tryhist_describe(ret)})
+        except Exception as exc:
+            base["bracket_calls"].append({"call": "flItems.notifyEditActionFinished()", "error": f"{type(exc).__name__}: {exc}"})
+            if "error" not in base:
+                base["error"] = f"flItems.notifyEditActionFinished() failed: {type(exc).__name__}: {exc}"
+    result = dict(base)
+    if touched:
+        result["display_refreshed"] = _repaint_viewport()
+    after_state, layer2 = _tryshape_modern_state(w)
+    result["state_after"] = after_state
+    after = _tryexpand_read(layer2, w, tr, name, idx)
+    result["after"] = after
+    if opts["history"]:
+        result["history_after"] = _tryhist_read(w, layer2, _tryhist_shape(layer2, idx))
+    result["glyph_count_after"] = _tryedit_glyph_count(font)
+    for k, v in _tryexpand_judge(before, after, idx, sources).items():
+        result[k] = v
+    result["side_effect_detected"] = bool(result["glyph_count_after"] != result["glyph_count_before"]
+                                          or result["other_shapes_unchanged"] is not True or result["contour_counts_kept"] is not True
+                                          or result["other_contours_unchanged"] is not True
+                                          or result["sources_unchanged"] is not True or result["advance_width_kept"] is not True
+                                          or result["auto_kept"] is not True or after_state.get("shapes") != state.get("shapes"))
+    # FontLab's ink boxes are current at once after an API edit (ED2); its sidebearings may lag (968-983), so they are reported only
+    result["expanded"] = bool("error" not in result and result["outcome"] == "expanded" and result["drawn_outline_kept"] is True
+                              and result["ink_boxes_kept"] is not False and not result["side_effect_detected"])
+    if "error" in after["outline"] or _tryexpand_mdev(after["shape_matrix"], after["shape_matrix"]) is None:
+        result["changed"] = "unknown"
+    else:
+        result["changed"] = after["outline"]["contours"] != before["outline"]["contours"] or after["shape_matrix"] != m0
+    synced_before_read = False
+    if result["changed"] is not False:
+        if opts["mark"] is None:
+            _guard_mark(font, name, "tryexpand", result, no_mark=None if result["expanded"] else "the expansion was not confirmed")
+        else:     # v0.220: the sync as always, the standard mark replaced by the variant
+            _guard_mark(font, name, "tryexpand", result, no_mark=f"replaced by mark={opts['mark']} (research)")
+            result["variant_mark"] = _tryexpand_variant_mark(opts["mark"], mod, w, idx, result)
+        synced_before_read = True
+    elif opts["mark"] is not None:
+        result["variant_mark"] = {"called": False, "reason": "the glyph did not change"}
+    sync_state, layer3 = _tryshape_modern_state(w)
+    result["state_after_sync"] = sync_state
+    result["synced_before_read"] = synced_before_read
+    after_sync = _tryexpand_read(layer3, w, tr, name, idx)
+    result["after_sync"] = after_sync
+    if opts["history"]:
+        result["history_after_sync"] = _tryhist_read(w, layer3, _tryhist_shape(layer3, idx))
+    judged = _tryexpand_judge(before, after_sync, idx, sources)
+    result["outcome_after_sync"] = judged["outcome"]
+    result["after_sync_verdicts"] = {k: v for k, v in judged.items() if k != "outcome"}
+    return result
+
+
+# --------------------------------------------------------------------------
+# /debug/tryhistory and /debug/tryexpand &history= / &bracket= (v0.219) - RESEARCH: can FontLab's Edit > Undo reverse an edit made
+# through the API? Live XT2 (listener 0.218): after shape.applyTransform() and the changed mark, Edit > Undo listed "Undo Glyphbridge
+# Expand" (the mark's title) but undoing it left the expanded nodes and the identity matrix as they were (as 1023 after move_nodes);
+# the GUI's own Expand Transformation was undone (1957). Names only (1952, and flItems on 2026-11-26): flGlyph, flLayer and flShape
+# hold hasHistoryStates, currentHistoryState() ("currentHistoryIx()"), initialHistoryState() ("initialHistoryIx()") and
+# historyStates(bool accepted_state); flItems holds notifyEditActionStarted() and notifyEditActionFinished(). None was called before.
+#   /debug/tryhistory?name=xt...&shape=I&go=yes   reads, on the glyph (flGlyph), its active layer and shape I, the five values of
+#       _TRYHIST_MEMBERS, each ONE call; nothing else is called and nothing is changed, synced or marked. Refused for a glyph holding a
+#       Power Brush or other composite shape (F1). Exactly one font open; at most _TRYHIST_MAX calls per listener run, counted BEFORE
+#       anything is read.
+#   /debug/tryexpand ...&history=yes   the same reads before the call, after it and after the sync (history_before, history_after,
+#       history_after_sync); the expansion is unchanged.
+#   /debug/tryexpand ...&bracket=yes   ONE flItems.notifyEditActionStarted() before the expansion and ONE
+#       flItems.notifyEditActionFinished() after it, before the sync and the mark; Finished is called whenever Started returned, also
+#       when the expansion raised; when Started raises, nothing else is called (bracket_calls lists each call and its result).
+# A value is reported as it is when it is None, a bool, a number or text; a real list or tuple by its type, length and its first three
+# items (plain values as they are, anything else by type); anything else by its type only, never iterated, indexed or called.
+#   /debug/tryexpand ...&mark=recursive|shape   v0.220 (live XT3: the standard mark recorded a history state on the GLYPH only, Undo
+#       then stepped the glyph's history back and left the expanded shape as it was; the shape's own history still ended at its
+#       state from before the API call): the sync as always, then in place of the standard mark ONE
+#       flItems.notifyChangesApplied(title, <glyph>, True) (recursive) or ONE flItems.notifyChangesApplied(title, <shape I, taken
+#       again from the layer after the sync>, False) (shape), only when the expansion is confirmed (expanded) and the sync too;
+#       variant_mark gives the call, its result and the glyph's hasChanges read after it. Any other value is refused before the
+#       call is counted.
+# Never called: restoreHistoryState, clearAboveHistory, checkInitHistoryState, hasHistoryState, requestCheckHistoryInitIndex,
+# notifyHistoryChanged, notifyUpdateHistory.
+# --------------------------------------------------------------------------
+
+_TRYHIST_MAX = 10
+_TRYHIST = {"calls": 0}
+_TRYHIST_MEMBERS = (("hasHistoryStates", "hasHistoryStates", None), ("currentHistoryState()", "currentHistoryState", None),
+                    ("initialHistoryState()", "initialHistoryState", None), ("historyStates(True)", "historyStates", True),
+                    ("historyStates(False)", "historyStates", False))
+
+
+def _tryhist_describe(v):
+    """A value as the section comment describes. Never raises, never iterates or indexes anything but a real list or tuple."""
+    if v is None or isinstance(v, (bool, int, float)):
+        return v
+    if isinstance(v, str):
+        return v[:120]
+    if type(v) in (list, tuple):
+        first = []
+        for x in v[:3]:
+            if x is None or isinstance(x, (bool, int, float)):
+                first.append(x)
+            elif isinstance(x, str):
+                first.append(x[:60])
+            else:
+                first.append({"type": type(x).__name__})
+        return {"type": type(v).__name__, "length": len(v), "first": first}
+    return {"type": type(v).__name__}
+
+
+def _tryhist_one(obj):
+    """The five values of _TRYHIST_MEMBERS on one object, each ONE call (a plain attribute is read as it is). Never raises."""
+    if obj is None:
+        return {"error": "no object"}
+    out = {}
+    for key, attr, arg in _TRYHIST_MEMBERS:
+        fn, err = _tl_call(lambda a=attr: getattr(obj, a))
+        if err is not None:
+            out[key] = {"error": err}
+            continue
+        if arg is None:
+            v, err = _tl_call(lambda f=fn: f() if callable(f) else f)
+        elif not callable(fn):
+            out[key] = {"error": f"{attr} is not callable ({type(fn).__name__})"}
+            continue
+        else:
+            v, err = _tl_call(lambda f=fn, x=arg: f(x))
+        out[key] = {"error": err} if err is not None else _tryhist_describe(v)
+    return out
+
+
+def _tryhist_shape(layer, idx):
+    """Shape idx of layer.shapes (a real list), or None."""
+    if layer is None:
+        return None
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list or idx >= len(shapes):
+        return None
+    return shapes[idx]
+
+
+def _tryhist_read(w, layer, shape):
+    """{"glyph", "layer", "shape"}: the history values of each. Never raises."""
+    return {"glyph": _tryhist_one(w), "layer": _tryhist_one(layer), "shape": _tryhist_one(shape)}
+
+
+def debug_try_history(name, shape, go):
+    """v0.219: read FontLab's history values of an xt glyph, its active layer and shape I. See the section comment. Never raises out of
+    the route's try."""
+    import sys as _sys
+    if not _tryxt_name_ok(name):
+        return {"error": _TRYXT_NAME_ERROR}
+    idx, err = _tryedit_int(shape, "shape", 0, _TRYEDIT_SHAPE_MAX)
+    if err is not None:
+        return {"error": err}
+    if go != "yes":
+        return {"error": (f"reads FontLab's history values of the glyph, its active layer and shape {idx}: hasHistoryStates, "
+                          "currentHistoryState(), initialHistoryState(), historyStates(True) and historyStates(False), each called "
+                          "once and never called before; nothing is changed. Add &go=yes to run it.")}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"error": why, "calls_so_far": _TRYHIST["calls"], "max_calls": _TRYHIST_MAX}
+    if _TRYHIST["calls"] >= _TRYHIST_MAX:
+        return {"error": f"the probe already ran {_TRYHIST_MAX} times in this listener run; restart the listener to repeat it",
+                "calls_so_far": _TRYHIST["calls"], "max_calls": _TRYHIST_MAX}
+    _TRYHIST["calls"] += 1     # counted BEFORE the glyph is read: whatever happens, it is on record
+    base = {"name": name, "shape": idx, "calls_so_far": _TRYHIST["calls"], "max_calls": _TRYHIST_MAX,
+            "note": "RESEARCH: read only; nothing was changed, synced or marked"}
+    ctx, refusal = _modern_edit_target(name)
+    if ctx is None:
+        return dict(base, error="the glyph cannot be used: " + str(refusal.get("reason") or refusal), refusal=_public_refusal(refusal))
+    w = ctx["w"]
+    state, layer = _tryshape_modern_state(w)
+    base["state_before"] = state
+    if layer is None:
+        return dict(base, error="the glyph has no modern active layer: nothing was read")
+    tel = _trycomp_elements(layer)
+    if isinstance(tel, dict):
+        return dict(base, error=f"the glyph's elements could not be read ({tel['error']}): nothing was read")
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list or len(shapes) != len(tel):
+        return dict(base, error="layer.shapes is not a plain list matching the elements read: nothing was read")
+    if idx >= len(shapes):
+        return dict(base, error=f"shape {idx} does not exist (the glyph has {len(shapes)} shape(s), numbered from 0): nothing was read")
+    for e in tel:
+        if type(e.get("is_component")) is not bool or type(e.get("is_composite")) is not bool:
+            return dict(base, error=f"shape {e['index']}: isComponent or isComposite does not read True or False: nothing was read")
+        if e["is_composite"] and not e["is_component"]:
+            return dict(base, error=f"shape {e['index']} is a Power Brush or other composite shape; the probe never touches a glyph holding one (F1): nothing was read")
+    base["elements"] = _tryedit_elements_brief(tel)
+    base["history"] = _tryhist_read(w, layer, shapes[idx])
+    base["state_after"], _l = _tryshape_modern_state(w)
+    return base
 
 
 # --------------------------------------------------------------------------
@@ -16654,6 +17218,22 @@ def _route(method, full_path, body=b""):
                                                            (query.get("dx") or [None])[0], (query.get("dy") or [None])[0],
                                                            (query.get("refresh") or [None])[0], (query.get("kind") or [None])[0],
                                                            (query.get("mark") or [None])[0], (query.get("shape") or [None])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/tryexpand":       # v0.218: expand-transformation research
+            try:
+                return _build_response(200, debug_try_expand((query.get("name") or [""])[0], (query.get("shape") or [None])[0],
+                                                             (query.get("how") or [None])[0], (query.get("go") or [""])[0],
+                                                             (query.get("history") or [None])[0], (query.get("bracket") or [None])[0],
+                                                             (query.get("mark") or [None])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/tryhistory":      # v0.219: Undo research, read only
+            try:
+                return _build_response(200, debug_try_history((query.get("name") or [""])[0], (query.get("shape") or [None])[0],
+                                                              (query.get("go") or [""])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

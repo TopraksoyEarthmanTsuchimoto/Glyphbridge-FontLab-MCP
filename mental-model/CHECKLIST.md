@@ -30,7 +30,7 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 |---|---|---|
 | 53 | Auto sync not yet proven for: multi-layer (11), quadratic (43), big glyphs (42) | PARTLY |
 | 57 | No font open: every route answers `open: false` (`CountFonts()`, listener 0.105) | PARTLY: every read route proven, after closing the only font (227) and in a freshly started FontLab (244); writes with no font open: one create refused (227), the rest stub-only (T12) |
-| 63 | Several fonts open: which one the tools address | PARTLY: with two fonts every tool but `move_nodes` follows the font in front, and every reply names it; a new font's first glyph gets its layer beside another font since 0.150 (evidence and the list: [topics/fonts-and-sync.md](topics/fonts-and-sync.md)). Open: two unsaved fonts with the same name (322–324, 832–835); with three fonts, `draw_path`, the later tools but `create_font`, `get_kerning` and the reads other than `list_glyphs` and `get_glyph_width` (317–331); a switch during one call; `construct_named&mark=yes` beside two fonts marked only the new font (914) |
+| 63 | Several fonts open: which one the tools address | PARTLY: with two fonts every tool but `move_nodes` follows the font in front, and every reply names it; a new font's first glyph gets its layer beside another font since 0.150 (evidence and the list: [topics/fonts-and-sync.md](topics/fonts-and-sync.md)). Open: two unsaved fonts with the same name (322–324, 832–835; the change reports tell them apart since server 0.97, FC 1945–1951, but a switch between them is not noticed); with three fonts, `draw_path`, the later tools but `create_font`, `get_kerning` and the reads other than `list_glyphs` and `get_glyph_width` (317–331); a switch during one call; `construct_named&mark=yes` beside two fonts marked only the new font (914) |
 | 62 | Modern glyph creation without `font.update()` | TODO, low priority (T6) |
 | 22 | Layer-name derivation when glyphs disagree, or when none has a layer | stub-only |
 
@@ -65,6 +65,8 @@ Reading: none open, the K-series is done ([LIVE-TESTS.md](LIVE-TESTS.md)).
 | 43 | `draw_path` in a quadratic font | TODO, low (T8) |
 | 44 | `set_glyph_width` with an existing but inactive layer | stub-only: one live try did not reach the state (IL 1720–1725); the tools' sync prevents it |
 | 39 | Smooth gate leftovers: very short handles, zero-length handle on a non-smooth node | optional (P2.5) |
+| 89 | Expand an element transform (FontLab's Element > Expand Transformation) | PARTLY, by probe only (listener 0.218): `shape.applyTransform()` expands as the GUI does, plain straight shapes, one master; scale, offset, slant and rotation; nodes rounded to whole units in the API and the GUI alike (XT–XT4 1952–1981; [topics/transforms-and-undo.md](topics/transforms-and-undo.md)). Open: a tool, curves, components (decompose?), Power Brush, several shapes |
+| 90 | Edit > Undo and Redo of a tool's edit | PARTLY, by probe only: with the change mark recorded recursively (listener 0.220) Undo reversed an API expansion and Redo restored it (1973, 1974, one run); the standard mark lets Undo reverse nothing (1962, 1970); a mark on the shape alone lets Undo damage the outline (1977). Open: every other write kind, a tool |
 
 ## Last block (by the user's decision)
 

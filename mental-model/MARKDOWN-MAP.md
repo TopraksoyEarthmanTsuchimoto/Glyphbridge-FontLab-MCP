@@ -18,7 +18,7 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 1,250 |
 | [CHECKLIST.md](CHECKLIST.md) | open scenarios | 2,250 |
 
-Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 900; [WATCH-POINTS.md](WATCH-POINTS.md) 3,250; [WHAT-WORKS.md](WHAT-WORKS.md) 4,750; [GLOSSARY.md](GLOSSARY.md) 500; [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) 7,500; each file in `topics/` 6,000, `topics/fonts-and-sync.md` 7,250, `topics/reading.md` 6,500 (a file that agents read whole has a budget; a log such as LIVE-TESTS.md or CHANGELOG.md does not).
+Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 900; [WATCH-POINTS.md](WATCH-POINTS.md) 3,250; [WHAT-WORKS.md](WHAT-WORKS.md) 4,750; [GLOSSARY.md](GLOSSARY.md) 500; [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) 8,500; each file in `topics/` 6,000, `topics/fonts-and-sync.md` 7,250, `topics/reading.md` 6,500, `topics/server-and-endpoints.md` 8,000 (a file that agents read whole has a budget; a log such as LIVE-TESTS.md or CHANGELOG.md does not).
 
 **Reference totals:** 22,900 words including the root README, and 22,000 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
 
@@ -44,6 +44,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 | [topics/fonts-and-sync.md](topics/fonts-and-sync.md) | new fonts, unsynced layers, guard, auto sync, GUI refresh; research: [archive/fonts-and-sync-research.md](archive/fonts-and-sync-research.md) |
 | [topics/kerning.md](topics/kerning.md) | how kerning is read and written; the research behind it is in [archive/kerning-research.md](archive/kerning-research.md) |
 | [topics/refusals.md](topics/refusals.md) | every case a tool refuses or no tool supports yet: which tools refuse it, which handle it, what would lift it |
+| [topics/transforms-and-undo.md](topics/transforms-and-undo.md) | expanding an element transform (GUI and API, rounding), FontLab's history states, and which change mark lets Edit > Undo reverse an API edit (research only) |
 | [tests/README.md](../tests/README.md) | the test harnesses (kept in `tests/` by decision) |
 
 ## Archive

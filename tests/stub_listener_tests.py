@@ -11978,3 +11978,288 @@ ns.update(_sc_saved)
 if _sc_timer is None:
     if hasattr(ns["QtCore"], "QTimer"): delattr(ns["QtCore"], "QTimer")
 else: ns["QtCore"].QTimer = _sc_timer
+
+# ================= v0.218: /debug/tryexpand (gated research probe: ONE shape.applyTransform per call) =================
+print("\n==== v0.218 /debug/tryexpand ====")
+# The v0.213 SH fakes (spies) plus inkBox() and applyTransform(). By default applyTransform() with no argument expands (nodes mapped by
+# the shape's matrix, matrix to identity, as the GUI did live 1956); with a transform it maps the nodes by it and keeps the matrix.
+XT = {"mode": {}}
+XT_FORBIDDEN = []
+class XTRect:
+    def __init__(s, l, b, r, t): s._v = dict(left=l, right=r, top=b, bottom=t, width=r - l, height=t - b)
+    def left(s): return s._v["left"]
+    def right(s): return s._v["right"]
+    def top(s): return s._v["top"]
+    def bottom(s): return s._v["bottom"]
+    def width(s): return s._v["width"]
+    def height(s): return s._v["height"]
+def _xt_pt(m, x, y): return (m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5])
+def _xt_twice(m): return (m[0] * m[0] + m[1] * m[2], m[0] * m[1] + m[1] * m[3], m[2] * m[0] + m[3] * m[2], m[2] * m[1] + m[3] * m[3],
+                          m[4] * m[0] + m[5] * m[2] + m[4], m[4] * m[1] + m[5] * m[3] + m[5])
+class XTShape(SHShape):
+    def inkBox(s):
+        if XT["mode"].get("box_raises"): raise RuntimeError("inkBox boom")
+        pts = [_xt_pt(s._tx._m, r["x"], r["y"]) for c in s._contours for r in c.rows]
+        if not pts: return XTRect(0.0, 0.0, 0.0, 0.0)
+        k = 1.0 if s.__dict__.get("_box_off") else 0.0     # box_moves: FontLab's box off by 1 after the call, the nodes right
+        return XTRect(min(p[0] for p in pts) + k, min(p[1] for p in pts), max(p[0] for p in pts) + k, max(p[1] for p in pts))
+    def applyTransform(s, *a):
+        mode = XT["mode"]
+        TE["calls"].append(("applyTransform", len(a)))
+        if mode.get("raises"): raise RuntimeError("applyTransform boom")
+        if mode.get("ignored"): return None
+        m = a[0]._m if a else s._tx._m
+        if mode.get("compose"):
+            s._tx = SHQT(_xt_twice(m)); return None
+        rnd = (lambda v: float(round(v))) if mode.get("rounds") else (lambda v: v)
+        s._contours = [te_contour([tuple(rnd(v) for v in _xt_pt(m, r["x"], r["y"])) for r in c.rows]) for c in s._contours]
+        if not a and not mode.get("keeps_matrix"): s._tx = SHQT()
+        if mode.get("touch_other"): XT["other"]._contours[0].rows[0]["x"] += 1.0
+        if mode.get("touch_source"): XT["src"]._contours[0].rows[0]["x"] += 1.0
+        if mode.get("box_moves"): s.__dict__["_box_off"] = True
+        return True if mode.get("returns") else None
+class XTLayer(TELayer):
+    def autoLayer(s): return XT["mode"].get("auto", False)
+    def recipe(s): return ""
+XT_S = (1.5, 0, 0, 1, 0, 0)     # live 1955: 150% horizontally, from x = 0
+XT_ODD = (0.5, 0.2, -0.3, 2, 10.25, -20)     # dx 10.25: the expanded nodes hold fractions
+XT_LEGACY = {"xt1c": (3, 11)}     # the legacy view's (contours, nodes), so the stub sync can confirm a glyph of several shapes
+def xt_setup(mode=None, count=1):
+    te_setup(count=count)
+    XT["mode"] = dict(mode or {})
+    src = SHShape([te_contour([(0, 0), (50, 0), (50, 50), (0, 50)])]); XT["src"] = src
+    TS["xt9src"] = TsGlyph("xt9src", [TsLayer(1, 4)]); P72["layers"]["xt9src"] = TELayer("test_font", [src])
+    other = XTShape([te_contour(TE_TRI)]); XT["other"] = other
+    for g, shapes in (("xt1a", [XTShape([te_contour([(100, 0), (300, 0), (300, 200), (100, 200)])], m=XT_S)]),
+                      ("xt1b", [XTShape([te_contour(TE_SQ)])]),
+                      ("xt1c", [XTShape(component="xt9src", shared=src._contours, m=(1, 0, 0, 1, 200, 0)), XTShape([te_contour(TE_SQ)], m=XT_ODD), other]),
+                      ("xt1d", [XTShape([te_contour(TE_SQ)], m=XT_S), XTShape([te_contour(TE_TRI)], composite=True)]),
+                      ("xt1e", [XTShape(component="xt9src", shared=src._contours, m=XT_S)]),
+                      ("xt1f", []),
+                      ("xt1g", [XTShape([te_contour(TE_SQ), te_contour(TE_TRI)], m=XT_S)])):
+        TS[g] = TsGlyph(g, [TsLayer(*XT_LEGACY.get(g, (1, 4)))]); P72["layers"][g] = XTLayer("test_font", shapes); P72["widths"][g] = 500.0
+    ns["_TRYEXPAND"]["calls"] = 0
+XK = ("outcome", "expanded", "changed", "drawn_outline_kept", "ink_boxes_kept", "margins_kept", "other_shapes_unchanged", "contour_counts_kept",
+      "other_contours_unchanged", "sources_unchanged", "advance_width_kept", "side_effect_detected", "call_returned", "outcome_after_sync", "error", "calls_so_far")
+QX = "/debug/tryexpand?"
+def xt(tag, q, keys=("error", "calls_so_far")):
+    c, d = call(QX + q)
+    XT_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| applyTransform", [x for x in TE["calls"] if isinstance(x, tuple) and x[0] == "applyTransform"],
+          "| Update", TE["updates"], "| marks", TE["marks"])
+    return d
+def _xt_raw(r):
+    v = (r or {}).get("shape_raw")
+    return v if not isinstance(v, list) else [[(n["x"], n["y"]) for n in c["nodes"]] for c in v]
+def _xt_m(r):
+    v = (r or {}).get("shape_matrix") or {}
+    return v if "error" in v else tuple(v.get(k) for k in ("m11", "m12", "m21", "m22", "dx", "dy"))
+def xt_show(tag, d):
+    print(tag, " raw before / after / after sync:", _xt_raw(d.get("before")), "/", _xt_raw(d.get("after")), "/", _xt_raw(d.get("after_sync")))
+    print(tag, " matrix before / after:", _xt_m(d.get("before")), "/", _xt_m(d.get("after")), "| deviations", d.get("deviations"),
+          "| ink boxes after:", [(b.get("left"), b.get("right")) for b in (d.get("after") or {}).get("ink_boxes") or [] if isinstance(b, dict)])
+xt_setup()
+xt("3000a without go                    ", "name=xt1a&shape=0&how=noarg")
+xt("3000b go must be exactly yes        ", "name=xt1a&shape=0&how=noarg&go=Yes")
+xt("3000c name without the prefix       ", "name=edpa&shape=0&how=noarg&go=yes")
+xt("3000d xt without a digit            ", "name=xtA1&shape=0&how=noarg&go=yes")
+xt("3000e shape missing                 ", "name=xt1a&how=noarg&go=yes")
+xt("3000f shape 20                      ", "name=xt1a&shape=20&how=noarg&go=yes")
+xt("3000g how missing                   ", "name=xt1a&shape=0&go=yes")
+xt("3000h how=apply                     ", "name=xt1a&shape=0&how=apply&go=yes")
+print("3000i refusals counted no call      :", ns["_TRYEXPAND"]["calls"])
+for tag, over in (("3001a two fonts open                ", dict(count=2)), ("3001b no font open                  ", dict(count=0))):
+    xt_setup(**over); xt(tag, "name=xt1a&shape=0&how=noarg&go=yes")
+xt_setup()
+d = xt("3002 noarg expands (as the GUI, 1956)", "name=xt1a&shape=0&how=noarg&go=yes", keys=XK); xt_show("3002a", d)
+print("3002b  call, returned, sync     :", d.get("call"), d.get("call_returned"), "| synced_before_read", d.get("synced_before_read"),
+      "| mark", d.get("fontlab_changed_mark"), "| after sync", d.get("after_sync_verdicts", {}).get("drawn_outline_kept"))
+xt_setup()
+d = xt("3003 own: nodes mapped, matrix kept ", "name=xt1a&shape=0&how=own&go=yes", keys=XK); xt_show("3003a", d)
+for tag, q, mode in (("3004 the matrix doubles            ", "name=xt1a&shape=0&how=noarg&go=yes", {"compose": 1}),
+                     ("3005 nothing happens               ", "name=xt1a&shape=0&how=noarg&go=yes", {"ignored": 1}),
+                     ("3006 applyTransform raises         ", "name=xt1a&shape=0&how=noarg&go=yes", {"raises": 1}),
+                     ("3007 nodes mapped, matrix kept (noarg)", "name=xt1a&shape=0&how=noarg&go=yes", {"keeps_matrix": 1}),
+                     ("3008 it returns True               ", "name=xt1a&shape=0&how=noarg&go=yes", {"returns": 1}),
+                     ("3009 ink boxes unreadable          ", "name=xt1a&shape=0&how=noarg&go=yes", {"box_raises": 1}),
+                     ("3009b only FontLab's ink box moves  ", "name=xt1a&shape=0&how=noarg&go=yes", {"box_moves": 1})):
+    xt_setup(mode=mode); d = xt(tag, q, keys=XK)
+    if tag.startswith("3004"): xt_show("3004a", d)
+xt_setup()
+d = xt("3010 a skewed shape beside a component and a plain shape", "name=xt1c&shape=1&how=noarg&go=yes", keys=XK); xt_show("3010a", d)
+print("3010b  mark, sync               :", d.get("fontlab_changed_mark"), (d.get("fontlab_sync") or {}).get("verdict"))
+xt_setup(mode={"rounds": 1})
+d = xt("3011 FontLab rounds the new nodes   ", "name=xt1c&shape=1&how=noarg&go=yes", keys=XK); xt_show("3011a", d)
+xt_setup(mode={"touch_other": 1})
+xt("3012 the other plain shape moves    ", "name=xt1c&shape=1&how=noarg&go=yes", keys=XK)
+xt_setup(mode={"touch_source": 1})
+xt("3013 the component's source moves   ", "name=xt1c&shape=1&how=noarg&go=yes", keys=XK)
+for tag, q in (("3014a no transform (identity)       ", "name=xt1b&shape=0"), ("3014b a Power Brush shape beside    ", "name=xt1d&shape=0"),
+               ("3014c the shape is a component      ", "name=xt1e&shape=0"), ("3014d a component in the glyph, shape 0", "name=xt1c&shape=0"),
+               ("3014e no shape at all               ", "name=xt1f&shape=0"), ("3014f shape 3 of three              ", "name=xt1c&shape=3"),
+               ("3014g no such glyph                 ", "name=xt1z&shape=0")):
+    xt_setup(); xt(tag, q + "&how=noarg&go=yes")
+xt_setup(mode={"auto": True}); xt("3014h autoLayer on                  ", "name=xt1a&shape=0&how=noarg&go=yes")
+for tag, q, mode in (("3014i isComposite raises            ", "name=xt1c&shape=1", {"composite_raises": 1}),
+                     ("3014j contoursCount disagrees        ", "name=xt1c&shape=1", {"sh_count_wrong": 1}),
+                     ("3014k shape.getContours disagrees     ", "name=xt1g&shape=0", {"sh_gc_disagree": 1}),
+                     ("3014l layer.shapes is a tuple        ", "name=xt1c&shape=1", {"shapes_tuple": 1})):
+    xt_setup(mode=mode); TE["mode"].update(mode); xt(tag, q + "&how=noarg&go=yes")
+print("3014m no applyTransform in any refusal:", [x for x in TE["calls"] if isinstance(x, tuple) and x[0] == "applyTransform"], "| marks", TE["marks"])
+xt_setup()
+d = xt("3014n two contours in the shape     ", "name=xt1g&shape=0&how=noarg&go=yes", keys=XK); xt_show("3014o", d)
+xt_setup()
+for _i in range(6): call(QX + "name=xt1a&shape=0&how=own&go=yes")
+xt("3015 the limit: call 7 is refused   ", "name=xt1a&shape=0&how=noarg&go=yes")
+print("3016 spies over all cases: forbidden members, subscripts, iterations:", XT_FORBIDDEN)
+_src218 = "\n".join(l for l in src[src.index("# /debug/tryexpand (v0.218)"):src.index("def debug_try_expand(")].split("\n") if not l.lstrip().startswith("#"))
+_src218 += "\n".join(l for l in src[src.index("def debug_try_expand("):src.index("# /debug/tryopen (v0.125)")].split("\n") if not l.lstrip().startswith("#"))
+print("3016a applyTransform statements:", [l.strip() for l in _src218.split("\n") if "applyTransform(" in l and not l.strip().startswith(("return", "\"", "'", "_TRY", "step"))],
+      "| forbidden call syntax:", _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|decomposite|ejectTo|eject|prepareTransformationData|resetTransformationData|restoreHistoryState|clearAboveHistory|historyStates)\s*\(|font\.update|\.transform\s*=[^=]", _src218),
+      "| counter before the read:", _src218.index('_TRYEXPAND["calls"] += 1') < _src218.index("_modern_edit_target(name)"),
+      "| route documented:", "/debug/tryexpand      name=xt...&shape=I&how=noarg|own" in src, "| dispatched:", 'if path == "/debug/tryexpand":' in src,
+      "| mark title:", ns["_MARK_TITLES"].get("tryexpand"), "| version", ns["VERSION"])
+for _g in ("xt1a", "xt1b", "xt1c", "xt1d", "xt1e", "xt1f", "xt1g", "xt9src"): TS.pop(_g, None); P72["layers"].pop(_g, None); P72["widths"].pop(_g, None)
+
+# ================= v0.219: /debug/tryhistory, /debug/tryexpand &history=yes / &bracket=yes (Undo research) =================
+print("\n==== v0.219 /debug/tryhistory and the tryexpand bracket ====")
+# History members on the v0.218 fakes: the glyph answers plain values and real lists, the layer a native-like object (described by
+# type only: a spy, so iterating or indexing it would land in TE["forbidden"]), the shape a plain attribute and a raising member.
+# flItems gets notifyEditActionStarted / Finished; each logs into TE["calls"] with how many syncs and marks came before it.
+class XTNative(TESpy):
+    pass
+def _xh_glyph(s, key):
+    m = XT["mode"]
+    TE["calls"].append(("glyph." + key,))
+    if m.get("hist_raises"): raise RuntimeError("history boom")
+    return {"has": True, "cur": 2 + XT.get("hist_bump", 0), "ini": 0}[key]
+P72Mod.hasHistoryStates = lambda s: _xh_glyph(s, "has")
+P72Mod.currentHistoryState = lambda s: _xh_glyph(s, "cur")
+P72Mod.initialHistoryState = lambda s: _xh_glyph(s, "ini")
+P72Mod.historyStates = lambda s, accepted: (TE["calls"].append(("glyph.historyStates", accepted)),
+                                            [0, 1, 2] if accepted else (0, 1, 2, "x" * 70, XTNative()))[1]
+XTLayer.hasHistoryStates = lambda s: False
+XTLayer.currentHistoryState = lambda s: 0
+XTLayer.initialHistoryState = lambda s: 0
+XTLayer.historyStates = lambda s, accepted: XTNative()
+XTShape.hasHistoryStates = True                     # a plain attribute, read as it is
+def _xh_shape_cur(s): raise RuntimeError("currentHistoryState boom")
+XTShape.currentHistoryState = _xh_shape_cur
+XTShape.initialHistoryState = lambda s: 1
+XTShape.historyStates = "not callable"
+def _xh_started():
+    TE["calls"].append(("Started", len(TE["updates"]), len(TE["marks"])))
+    if XT["mode"].get("started_raises"): raise RuntimeError("Started boom")
+    return None
+def _xh_finished():
+    TE["calls"].append(("Finished", len(TE["updates"]), len(TE["marks"])))
+    if XT["mode"].get("finished_raises"): raise RuntimeError("Finished boom")
+    if XT["mode"].get("finished_bumps"): XT["hist_bump"] = 1
+    return True
+TEItems.notifyEditActionStarted = staticmethod(_xh_started)
+TEItems.notifyEditActionFinished = staticmethod(_xh_finished)
+XH_TRACE = lambda: [x for x in TE["calls"] if isinstance(x, tuple) and x[0] in ("Started", "Finished", "applyTransform")]
+QH = "/debug/tryhistory?"
+def xh(tag, q, keys=("error", "calls_so_far")):
+    c, d = call(QH + q)
+    XT_FORBIDDEN.extend(TE["forbidden"])
+    print(tag, ":", c, {k: d.get(k) for k in keys if k in d}, "| edits", XH_TRACE(), "| Update", TE["updates"], "| marks", TE["marks"])
+    return d
+def xh_reset(mode=None):
+    xt_setup(mode=mode); XT.pop("hist_bump", None); ns["_TRYHIST"]["calls"] = 0
+xh_reset()
+xh("3020a without go                    ", "name=xt1a&shape=0")
+xh("3020b name without the prefix       ", "name=edpa&shape=0&go=yes")
+xh("3020c shape missing                 ", "name=xt1a&go=yes")
+print("3020d refusals counted no call      :", ns["_TRYHIST"]["calls"])
+for tag, over in (("3021a two fonts open                ", dict(count=2)), ("3021b no font open                  ", dict(count=0))):
+    xt_setup(**over); ns["_TRYHIST"]["calls"] = 0; xh(tag, "name=xt1a&shape=0&go=yes")
+xh_reset()
+d = xh("3022 read on a scaled square        ", "name=xt1a&shape=0&go=yes")
+for part in ("glyph", "layer", "shape"): print("3022a ", part, ":", (d.get("history") or {}).get(part))
+print("3022b  nothing changed: state before == after", d.get("state_before") == d.get("state_after"), "| elements", d.get("elements"))
+xh_reset(); xh("3023a a Power Brush shape in the glyph", "name=xt1d&shape=0&go=yes")
+xh_reset(); xh("3023b shape 3 of three              ", "name=xt1c&shape=3&go=yes")
+xh_reset(); xh("3023c no such glyph                 ", "name=xt1z&shape=0&go=yes")
+xh_reset(); d = xh("3023d an identity shape is read too  ", "name=xt1b&shape=0&go=yes"); print("3023e  glyph part:", (d.get("history") or {}).get("glyph"))
+xh_reset(mode={"hist_raises": 1}); d = xh("3023f the glyph's members raise     ", "name=xt1a&shape=0&go=yes"); print("3023g  glyph part:", (d.get("history") or {}).get("glyph"))
+xh_reset()
+for _i in range(10): call(QH + "name=xt1a&shape=0&go=yes")
+xh("3024 the limit: call 11 is refused  ", "name=xt1a&shape=0&go=yes")
+# tryexpand with the new options
+XKB = ("outcome", "expanded", "changed", "history", "bracket", "bracket_calls", "fontlab_changed_mark", "error", "calls_so_far")
+xh_reset()
+xt("3025a history=no                    ", "name=xt1a&shape=0&how=noarg&history=no&go=yes")
+xt("3025b bracket=1                     ", "name=xt1a&shape=0&how=noarg&bracket=1&go=yes")
+xt("3025c both shown before go          ", "name=xt1a&shape=0&how=noarg&history=yes&bracket=yes")
+print("3025d refusals counted no call      :", ns["_TRYEXPAND"]["calls"])
+xh_reset()
+d = xt("3026 history=yes, no bracket        ", "name=xt1a&shape=0&how=noarg&history=yes&go=yes", keys=XKB)
+print("3026a  glyph before / after / after sync:", [(d.get(k) or {}).get("glyph", {}).get("currentHistoryState()") for k in ("history_before", "history_after", "history_after_sync")],
+      "| no bracket call:", XH_TRACE())
+xh_reset(mode={"finished_bumps": 1})
+d = xt("3027 bracket=yes                    ", "name=xt1a&shape=0&how=noarg&history=yes&bracket=yes&go=yes", keys=XKB)
+print("3027a  order (Started/Finished with syncs and marks before them):", XH_TRACE(), "| Update", TE["updates"], "| marks", TE["marks"])
+print("3027b  glyph current before / after:", [(d.get(k) or {}).get("glyph", {}).get("currentHistoryState()") for k in ("history_before", "history_after")])
+xh_reset(mode={"started_raises": 1})
+d = xt("3028 Started raises: nothing else   ", "name=xt1a&shape=0&how=noarg&bracket=yes&go=yes", keys=XKB); print("3028a  trace:", XH_TRACE())
+xh_reset(mode={"raises": 1})
+d = xt("3029 the expansion raises: Finished still called", "name=xt1a&shape=0&how=noarg&bracket=yes&go=yes", keys=XKB); print("3029a  trace:", XH_TRACE())
+xh_reset(mode={"finished_raises": 1})
+d = xt("3030 Finished raises                ", "name=xt1a&shape=0&how=noarg&bracket=yes&go=yes", keys=XKB); print("3030a  trace:", XH_TRACE())
+xh_reset()
+_fi = [(m, getattr(m, "flItems", None)) for m in _tf_mods]
+for _m in _tf_mods: _m.flItems = None
+xt("3031 no flItems: not counted        ", "name=xt1a&shape=0&how=noarg&bracket=yes&go=yes")
+for _m, _v in _fi: _m.flItems = _v
+print("3032 spies over all cases: forbidden members, subscripts, iterations:", XT_FORBIDDEN)
+_src219 = "\n".join(l for l in src[src.index("# /debug/tryexpand (v0.218)"):src.index("# /debug/tryopen (v0.125)")].split("\n") if not l.lstrip().startswith("#"))
+print("3032a never called:", _re83.findall(r"restoreHistoryState|clearAboveHistory|checkInitHistoryState|hasHistoryState\b|requestCheckHistoryInitIndex|notifyHistoryChanged|notifyUpdateHistory", _src219),
+      "| bracket call statements:", [l.strip() for l in _src219.split("\n") if "items.notifyEditAction" in l and "=" in l],
+      "| Finished guarded by started:", "    if started:\n        try:\n            ret = items.notifyEditActionFinished()" in _src219,
+      "| routes documented:", "/debug/tryhistory     name=xt...&shape=I" in src, "&bracket=yes wraps the call" in src,
+      "| dispatched:", 'if path == "/debug/tryhistory":' in src, '(query.get("bracket") or [None])[0]' in src, "| version", ns["VERSION"])
+for _a in ("hasHistoryStates", "currentHistoryState", "initialHistoryState", "historyStates"):
+    for _c in (P72Mod, XTLayer, XTShape):
+        if _a in _c.__dict__: delattr(_c, _a)
+for _a in ("notifyEditActionStarted", "notifyEditActionFinished"):
+    if _a in TEItems.__dict__: delattr(TEItems, _a)
+for _g in ("xt1a", "xt1b", "xt1c", "xt1d", "xt1e", "xt1f", "xt1g", "xt9src"): TS.pop(_g, None); P72["layers"].pop(_g, None); P72["widths"].pop(_g, None)
+
+# ================= v0.220: /debug/tryexpand &mark=recursive|shape (Undo research: where the change mark records) =================
+print("\n==== v0.220 /debug/tryexpand mark variants ====")
+# The v0.218 fakes again (their glyphs were removed at the end of the v0.219 section). TEItems.notifyChangesApplied logs
+# (title, type of the object, recursive flag) into TE["marks"]; XT["mode"]["mark_raises"] makes it raise.
+_xm_saved = TEItems.__dict__["notifyChangesApplied"]
+def _xm_notify(title, obj, flag):
+    TE["marks"].append((title, type(obj).__name__, flag))
+    if XT["mode"].get("mark_raises"): raise RuntimeError("notifyChangesApplied boom")
+TEItems.notifyChangesApplied = staticmethod(_xm_notify)
+XKM = ("outcome", "expanded", "mark", "variant_mark", "fontlab_changed_mark", "synced_with_fontlab", "error", "calls_so_far")
+xt_setup()
+xt("3040a mark=glyph                    ", "name=xt1a&shape=0&how=noarg&mark=glyph&go=yes")
+xt("3040b mark=shape shown before go    ", "name=xt1a&shape=0&how=noarg&mark=shape")
+xt("3040c mark=recursive shown before go", "name=xt1a&shape=0&how=noarg&mark=recursive")
+print("3040d refusals counted no call      :", ns["_TRYEXPAND"]["calls"])
+xt_setup()
+d = xt("3041 mark=recursive                 ", "name=xt1a&shape=0&how=noarg&mark=recursive&go=yes", keys=XKM)
+xt_setup()
+d = xt("3042 mark=shape                     ", "name=xt1c&shape=1&how=noarg&mark=shape&go=yes", keys=XKM)
+xt_setup()
+d = xt("3043 standard mark (no option)      ", "name=xt1a&shape=0&how=noarg&go=yes", keys=XKM)
+xt_setup(mode={"keeps_matrix": 1})
+xt("3044 expansion not confirmed: no mark", "name=xt1a&shape=0&how=noarg&mark=shape&go=yes", keys=XKM)
+xt_setup()
+xt("3045 sync not confirmed: no mark    ", "name=xt1g&shape=0&how=noarg&mark=recursive&go=yes", keys=XKM)
+xt_setup(mode={"mark_raises": 1})
+xt("3046 the variant mark raises        ", "name=xt1a&shape=0&how=noarg&mark=shape&go=yes", keys=XKM)
+xt_setup(mode={"ignored": 1})
+xt("3047 nothing changed: no mark       ", "name=xt1a&shape=0&how=noarg&mark=recursive&go=yes", keys=XKM)
+print("3048 spies over all cases: forbidden members, subscripts, iterations:", XT_FORBIDDEN)
+_src220 = "\n".join(l for l in src[src.index("# /debug/tryexpand (v0.218)"):src.index("# /debug/tryopen (v0.125)")].split("\n") if not l.lstrip().startswith("#"))
+print("3048a notifyChangesApplied call statements:", [l.strip() for l in _src220.split("\n") if "notifyChangesApplied(" in l and "=" in l and '"' not in l.split("notifyChangesApplied(")[0]],
+      "| never called:", _re83.findall(r"restoreHistoryState|clearAboveHistory|checkInitHistoryState|requestCheckHistoryInitIndex|notifyHistoryChanged|notifyUpdateHistory", _src220),
+      "| route documented:", "&mark=recursive|shape replaces the standard mark" in src, "| dispatched:", '(query.get("mark") or [None])[0]))' in src,
+      "| version", ns["VERSION"])
+TEItems.notifyChangesApplied = _xm_saved
+for _g in ("xt1a", "xt1b", "xt1c", "xt1d", "xt1e", "xt1f", "xt1g", "xt9src"): TS.pop(_g, None); P72["layers"].pop(_g, None); P72["widths"].pop(_g, None)
