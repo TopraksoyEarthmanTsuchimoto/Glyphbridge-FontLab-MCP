@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.95)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.96)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -43,7 +43,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.95"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.96"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -568,6 +568,42 @@ def check_status() -> dict:
     return result
 
 
+_SAME_NAME_NOTE = ("Several fonts with the same name have changes recorded (two unsaved fonts are both called Unnamed, for example): "
+                   "their rows carry same_name, and in_front marks the font whose window is in front now when the listener could tell "
+                   "(listener 0.217 or newer); the times of the first and last change tell the rows apart. A row that is not in front "
+                   "may belong to a font that was closed since; Glyphbridge does not check that.")
+
+
+def _font_key_text(value) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _same_names(totals) -> set:
+    """v0.96: the font names that two or more of the listener's font keys carry in its running totals (AG2 1931: a closed unsaved
+    font and a new one, both "Unnamed Regular"). A total without a key is not counted."""
+    keys: dict = {}
+    for t in totals if isinstance(totals, list) else []:
+        if isinstance(t, dict) and _font_key_text(t.get("font_key")):
+            keys.setdefault(t.get("font") or "a font without a name", set()).add(t["font_key"])
+    return {name for name, ks in keys.items() if len(ks) > 1}
+
+
+def _same_name_fields(entry: dict, shared: set, current, times: bool) -> dict:
+    """v0.96: the fields that tell a row apart from other fonts of the same name, or {} when its name is not shared. in_front only
+    when the listener named the font in front (current_font_key, 0.217); the first and last change only for totals that carry them."""
+    if (entry.get("font") or "a font without a name") not in shared:
+        return {}
+    out: dict = {"same_name": True}
+    if times:
+        for src, dst in (("first", "first_change"), ("last", "last_change")):
+            if isinstance(entry.get(src), str):
+                out[dst] = entry[src]
+    key, now = _font_key_text(entry.get("font_key")), _font_key_text(current)
+    if key and now:
+        out["in_front"] = key == now
+    return out
+
+
 def _changes_by_font_unknown(reason: str) -> dict:
     return {"changes_by_font": "unknown", "changes_by_font_note": (
         f"FontLab's listener did not give its change record ({reason}), so the changes per font are not known; this is not zero.")}
@@ -589,14 +625,20 @@ def _changes_by_font() -> dict:
         return {"changes_by_font": [], "changes_by_font_note": (
             f"No change recorded since FontLab's listener started at {started}; changes before that start are not known.")}
     rows = []
+    shared = _same_names(totals)
+    current = data.get("current_font_key")
     for t in totals:
         if isinstance(t, dict) and (type(t.get("changed")) is int or type(t.get("unknown")) is int):
-            rows.append({"font": t.get("font") or "a font without a name", "changes": t.get("changed") or 0,
-                         "uncertain": t.get("unknown") or 0})
+            row = {"font": t.get("font") or "a font without a name", "changes": t.get("changed") or 0,
+                   "uncertain": t.get("unknown") or 0}
+            row.update(_same_name_fields(t, shared, current, times=True))
+            rows.append(row)
     if not rows:
         return _changes_by_font_unknown("its reply held no readable totals")
     note = (f"Changes FontLab's listener recorded per font since it started at {started}, from every "
             "app and session. Glyphbridge cannot see whether the person saved, so these are not unsaved changes.")
+    if any(r.get("same_name") for r in rows):
+        note += " " + _SAME_NAME_NOTE
     unread = len(totals) - len(rows)
     if unread:
         note += f" {unread} {'entry' if unread == 1 else 'entries'} of the record could not be read."
@@ -3643,11 +3685,14 @@ def _change_record(sure: int, unsure: int, unsure_ids: list) -> dict:
     if resolved:
         record["uncertain_requests_checked"] = resolved
     others = []
+    shared = _same_names(log.get("totals"))
     for g in theirs:
         n, u = num(g, "changed"), num(g, "unknown")
         if n or u:
-            others.append({"by": g.get("client") or "a client that sent no name", "font": g.get("font") or "a font without a name",
-                           "changes": n, "uncertain": u, "from": g.get("first"), "until": g.get("last")})
+            row = {"by": g.get("client") or "a client that sent no name", "font": g.get("font") or "a font without a name",
+                   "changes": n, "uncertain": u, "from": g.get("first"), "until": g.get("last")}
+            row.update(_same_name_fields(g, shared, log.get("current_font_key"), times=False))   # v0.96: from / until are the times
+            others.append(row)
     fonts = list(dict.fromkeys(str(g.get("font") or "a font without a name") for g in groups if num(g, "changed") or num(g, "unknown")))
     _CHANGE_LOG.update(run=log["run"], since=log["newest"])           # rule 4: only this bookmark moves
     out.update(sure=changes, unsure=uncertain, others=others, fonts=fonts, record=record)
@@ -3679,7 +3724,9 @@ def finish_change_package() -> dict:
                 "other_changes. Show the person save_reminder now, ONCE, in bold exactly as written, with one sentence about "
                 "other_changes. Glyphbridge has not saved anything and cannot; no dialog is shown in FontLab."))
             result.pop("note", None)
-        result["other_changes_note"] = _OTHER_CHANGES_NOTE
+        result["other_changes_note"] = _OTHER_CHANGES_NOTE + (
+            " " + _SAME_NAME_NOTE + " Name the font with the time of its changes when you mention them."
+            if any(o.get("same_name") for o in rec["others"]) else "")
     if result.get("counts_note") or result.get("change_record_note"):
         result["agent_instruction"] = result.get("agent_instruction", "") + (
             " The change record has a note (counts_note / change_record_note): say it in one sentence only if the person asks about "
@@ -5171,6 +5218,8 @@ def fontlab_status(ctx: Context | None = None) -> dict[str, Any]:
     from every app and session (not unsaved changes: whether the person saved cannot be seen).
     changes_by_font is [] when the listener recorded no change since it started (changes before that start are not known),
     and "unknown" when its record could not be read (not zero); changes_by_font_note says which.
+    When several fonts have the same name, their rows carry same_name, first_change and last_change, and in_front marks the
+    font whose window is in front (listener 0.217 or newer); a row not in front may belong to a font closed since.
     """
     _note_client(ctx)
     return _with_font(check_status)
@@ -6055,7 +6104,8 @@ def finish_changes(ctx: Context | None = None) -> dict[str, Any]:
 
     With listener 0.204 or newer the count is checked against FontLab's listener, which records every change it carries out.
     other_changes lists changes NOT made through this server process (another app, or an earlier session): then a reminder
-    comes even if this package changed nothing; mention them once, saying they may already be saved. change_record says
+    comes even if this package changed nothing; mention them once, saying they may already be saved. A row whose font shares
+    its name with another font that has changes carries same_name (and in_front, listener 0.217 or newer). change_record says
     whether the listener's record of this package is 'complete', 'incomplete' (a listener restart, entries dropped) or
     'unavailable'; follow agent_instruction.
 

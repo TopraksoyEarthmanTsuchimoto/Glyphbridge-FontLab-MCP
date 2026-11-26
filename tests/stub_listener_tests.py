@@ -3378,6 +3378,7 @@ kpc("1446 malformed entries skipped   ", _KPQ + "Aacute:V,A:Wgrave.c2sc")
 kp_setup(count=2); kpc("1447 two fonts open             ", _KPQ + "A:V")
 kp_setup(count=3); kpp("1447b POST, three fonts open     ", {"pairs": [["A", "V"]]})
 kp_setup(packages=2); kpc("1448 two packages               ", _KPQ + "A:V")
+kp_setup(groups=None); kpc("1448b getAllGroups None (v0.217)", _KPQ + "Aacute:V,A:V")
 # v0.112: with several fonts open the current package is matched to the current font by path (T5)
 print("1447c one font: package path reads :", (kp_setup(), call(_KPQ + "A:V"))[1][1].get("matched_by"), KP["pkg_path_reads"])
 kp_setup(count=2); call(_KPQ + "A:V"); print("1447d two fonts: package path reads:", KP["pkg_path_reads"])
@@ -4281,6 +4282,11 @@ kr_setup(groups_len=RuntimeError("len boom")); krc("2623c a size unreadable     
 # empty, threshold
 kr_setup(items=lambda: [], getall=[], groups_len=0); krc("2624 no groups at all           ", "/kerning/groups?all=yes", keys=("group_count", "groups", "member_names", "errors"))
 kr_setup(items=lambda: [], getall=[], groups_len=0); krc("2624b no groups, a glyph         ", "/kerning/groups?glyphs=kgt1", keys=("glyphs",))
+# v0.217: FontLab's class list is None when the font has no group at all (GL 1531, AG2 1927): an empty list, so the cross-check runs
+kr_setup(items=lambda: [], getall=None, groups_len=0)
+krc("2624c no group, list None, glyph", "/kerning/groups?glyphs=kgt1", keys=("cross_check", "group_count", "glyphs", "errors", "unconfirmed"))
+kr_setup(items=lambda: [], getall=None, groups_len=0); krp("2624d no group, list None, all  ", {"all_groups": True}, keys=("mode", "cross_check", "group_count", "groups"))
+kr_setup(getall=None); krc("2624e items has groups, list None", "/kerning/groups?groups=kgtL", keys=("cross_check", "groups", "unconfirmed"))
 _kr251 = [("g%03d" % i, (["kgt1"], "KernLeft")) for i in range(251)]
 _kr251all = [(True, "g%03d" % i, i, 0, ["kgt1"]) for i in range(251)]
 kr_setup(items=lambda: list(_kr251), getall=list(_kr251all)); krc("2625 251 groups: confirmation    ", "/kerning/groups?all=yes", keys=("group_count", "needs_confirmation", "groups", "mode"))
@@ -4306,7 +4312,8 @@ for _tag, _args in (("2629 direct: all_groups 'yes'    ", (None, None, "yes", Fa
 kr_setup()
 for _p in ("/kerning/groups?all=yes", "/kerning/groups?groups=kgtL,kgtF&glyphs=kgt5"): call(_p)
 print("2630 spy over the route cases     : forbidden:", KG["forbidden"], "| members touched anywhere:", sorted(KG["all"]))
-_kr_src = src[src.index("# /kerning/groups (v0.190, P1.6)"):src.index("def _other_glyphs_with_unicode")]
+_rag_src = src[src.index("def _read_all_groups("):src.index("def _kern_group_names(")]   # v0.217: the shared getAllGroups() reader is scanned with each caller
+_kr_src = src[src.index("# /kerning/groups (v0.190, P1.6)"):src.index("def _other_glyphs_with_unicode")] + _rag_src
 _kr_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _kr_src).splitlines())
 print("2631 static scan                  : method calls:", sorted(set(_re83.findall(r"\b(\w+\.\w+)\(", _kr_code))),
       "| forbidden members:", _re83.findall(r"\.(?:keys|values|asDict|has_key|clear|remove|rename|set|save\w*|update|addGroup|deleteGroup\w*|autoKern)\b",
@@ -5778,7 +5785,7 @@ for _p in (_CWD + "&a=cwL&b=cwR&left=class&right=class", _CWD + "&a=ks1L&b=ks1R"
 print("2776 spy over the class cases     : forbidden package members:", SK["pkg_forbidden"], "| package members touched anywhere:", sorted(SK["pkg_all"]),
       "| forbidden kerning members:", SK["k_forbidden"], "| kerning members touched anywhere:", sorted(SK["k_all"]),
       "| forbidden group container members:", SK["g_forbidden"], "| group container members touched:", sorted(SK["g_all"]))
-_cw_src = src[src.index("_TRYKERN_KINDS = ("):src.index("def debug_try_set_kern(")]
+_cw_src = src[src.index("_TRYKERN_KINDS = ("):src.index("def debug_try_set_kern(")] + _rag_src
 _cw_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _cw_src).splitlines())
 print("2777 static scan of the class checks: pkg members used:", sorted(set(_re83.findall(r"\bpkg\.(\w+)", _cw_code))),
       "| kerning members used:", sorted(set(_re83.findall(r"\bkerning\.(\w+)", _cw_code))), "| container members used:", sorted(set(_re83.findall(r"\bcontainer\.(\w+)", _cw_code))),
@@ -11650,7 +11657,7 @@ for _p, _b in ((_RN, {"group": "geL", "new_name": "geL2"}), (_RN, {"group": "geL
 print("2850 spy over all cases          : forbidden package members:", GP["pkg_forbidden"], "| package members touched:", sorted(GP["pkg_all"]),
       "| forbidden kerning members:", GP["k_forbidden"], "| kerning members touched:", sorted(GP["k_all"]),
       "| forbidden group container members:", GP["g_forbidden"], "| group container members touched:", sorted(GP["g_all"]))
-_gp_src = src[src.index("def _confirm_group_removal("):src.index("def set_glyph_unicode(")]
+_gp_src = src[src.index("def _confirm_group_removal("):src.index("def set_glyph_unicode(")] + _rag_src
 _gp_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _gp_src).splitlines())
 _gp_body = _re83.sub(r'(?s)"""(.*?)"""', '', _gp_code)
 _gp_plain = "\n".join(l for l in _re83.sub(r'(?s)"""(.*?)"""', '', _gp_src).splitlines() if not l.lstrip().startswith("#"))

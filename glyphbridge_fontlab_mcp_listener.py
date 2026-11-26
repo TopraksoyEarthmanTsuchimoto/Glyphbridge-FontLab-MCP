@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.216)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.217)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -75,8 +75,9 @@ Routes (GET unless marked POST):
     POST /changes               {"run"?, "since"?, "server_run"?, "ask_ids"?} (v0.204): the change log after "since" when "run" is
                                 this run (else the whole run), grouped by font and by who sent it (this server_run or others),
                                 entries dropped past the limit, each font's running total, and a verdict for each asked
-                                request ID (changed / unchanged / unknown / not_seen / not_seen_or_dropped). Reads the log
-                                only, never FontLab
+                                request ID (changed / unchanged / unknown / not_seen / not_seen_or_dropped). Reads the log;
+                                since v0.217 each total also gives the time of its first and last change, and
+                                current_font_key names the font in front (one read of its package fgId), nothing else of FontLab
     /shutdown, POST /shutdown   stops the listener; FontLab keeps running
 
   Reading glyphs
@@ -340,7 +341,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.216"
+VERSION = "0.217"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -5167,10 +5168,10 @@ def _kern_class_id(glyph, attr):
     return value, None
 
 
-def _kern_group_names(pkg):
-    """(({id: name} of the KERNING groups, {ids listed twice}), None) or (None, error text), from ONE pkg.getAllGroups(), documented as
-    list((bool kernGroup, string groupName, int id, int mark, list(string glyphName))) (live: tests 198, 214, 218). Only a real list or
-    tuple is looked into; an entry of another shape, or not a kerning group, is skipped."""
+def _read_all_groups(pkg):
+    """v0.217 - (the answer, None) or (None, error text), from ONE getAllGroups() of the package, shared by every reader of FontLab's class list.
+    None is read as an empty list: FontLab documents ".../Nothing" and returns None when the font has no group at all (GL 1531,
+    AG2 1927). Any other answer is returned as it came; each reader checks its type itself."""
     try:
         getter = pkg.getAllGroups
         if not callable(getter):
@@ -5178,6 +5179,16 @@ def _kern_group_names(pkg):
         groups = getter()
     except Exception as exc:
         return None, f"flPackage.getAllGroups() failed ({type(exc).__name__}: {exc})"
+    return ([] if groups is None else groups), None
+
+
+def _kern_group_names(pkg):
+    """(({id: name} of the KERNING groups, {ids listed twice}), None) or (None, error text), from ONE pkg.getAllGroups(), documented as
+    list((bool kernGroup, string groupName, int id, int mark, list(string glyphName))) (live: tests 198, 214, 218). Only a real list or
+    tuple is looked into; an entry of another shape, or not a kerning group, is skipped. v0.217: no group at all (None) is an empty list."""
+    groups, err = _read_all_groups(pkg)
+    if err is not None:
+        return None, err
     if not isinstance(groups, (list, tuple)):
         return None, f"flPackage.getAllGroups() returned a {type(groups).__name__}, not a list"
     names, twice = {}, set()
@@ -5529,14 +5540,10 @@ def _kgr_from_items(container):
 
 def _kgr_from_class_list(pkg):
     """({name: {"id", "members"}} of the KERNING groups, duplicate names, {names of other classes}, None) or (None, None, None, error
-    text), from ONE getAllGroups() of the package."""
-    try:
-        getter = pkg.getAllGroups
-        if not callable(getter):
-            return None, None, None, "flPackage.getAllGroups is not callable"
-        groups = getter()
-    except Exception as exc:
-        return None, None, None, f"flPackage.getAllGroups() failed ({type(exc).__name__}: {exc})"
+    text), from ONE getAllGroups() of the package. v0.217: no group at all (None) is an empty list, so the cross-check runs."""
+    groups, err = _read_all_groups(pkg)
+    if err is not None:
+        return None, None, None, err
     if not _kgr_seq(groups):
         return None, None, None, f"flPackage.getAllGroups() returned a {type(groups).__name__}, not a list"
     found, twice, other = {}, set(), set()
@@ -6133,16 +6140,11 @@ _KGE_MEMBERS_SHOWN = 8          # members named in the removal dialog; the rest 
 
 
 def _kge_class_list(pkg):
-    """_kgr_from_class_list, except that None from getAllGroups() is an empty list (".../Nothing": the font has no group, GL 1531)."""
-    try:
-        getter = pkg.getAllGroups
-        if not callable(getter):
-            return None, None, None, "flPackage.getAllGroups is not callable"
-        groups = getter()
-    except Exception as exc:
-        return None, None, None, f"flPackage.getAllGroups() failed ({type(exc).__name__}: {exc})"
-    if groups is None:
-        return {}, set(), set(), None
+    """_kgr_from_class_list, with None from getAllGroups() as an empty list (".../Nothing": the font has no group, GL 1531); since
+    v0.217 that rule lives in _read_all_groups, shared by every reader."""
+    groups, err = _read_all_groups(pkg)
+    if err is not None:
+        return None, None, None, err
     if not _kgr_seq(groups):
         return None, None, None, f"flPackage.getAllGroups() returned a {type(groups).__name__}, not a list"
     found, twice, other = {}, set(), set()
@@ -14793,15 +14795,9 @@ def _trysetkern_group_names(pkg):
     error text), from ONE pkg.getAllGroups(). Every group counts for the name set, kerning group or not: the probes refuse a glyph name
     that any group also carries. Only a real list or tuple of 5-item entries with a str name is accepted; any other shape refuses, since
     then a collision cannot be ruled out. The kerning groups (flag True, v0.193) are what a class side is checked against."""
-    try:
-        getter = pkg.getAllGroups
-        if not callable(getter):
-            return None, None, None, "flPackage.getAllGroups is not callable"
-        groups = getter()
-    except Exception as exc:
-        return None, None, None, f"flPackage.getAllGroups() failed ({type(exc).__name__}: {exc})"
-    if groups is None:
-        return set(), {}, set(), None                # documented as ".../Nothing": a font without groups
+    groups, err = _read_all_groups(pkg)             # v0.217: None (".../Nothing", a font without groups) is an empty list there
+    if err is not None:
+        return None, None, None, err
     if not isinstance(groups, (list, tuple)):
         return None, None, None, f"flPackage.getAllGroups() returned a {type(groups).__name__}, not a list"
     for entry in groups:
@@ -16122,16 +16118,39 @@ def _change_font():
             name = " ".join(x for x in (_font_text(info, "familyName"), _font_text(info, "styleName")) if x) or None
     except Exception:
         font = None
+    return _change_key(font), name
+
+
+def _change_key(font):
+    """The change log's key for the font in front: its package fgId as text ("fgId:5"), or the path hash when the fgId cannot be
+    read, or None. Never raises."""
     key, _err = _notdef_font_key()
     if key is not None:
-        return f"fgId:{key}", name
+        return f"fgId:{key}"
     try:
         path = font.path if font is not None else None
         if isinstance(path, str) and path:
-            return "path:" + hashlib.sha1(path.encode("utf-8")).hexdigest()[:12], name
+            return "path:" + hashlib.sha1(path.encode("utf-8")).hexdigest()[:12]
     except Exception:
         pass
-    return None, name
+    return None
+
+
+def _change_current_key():
+    """v0.217 - the key of the font in front now, as _change_font gives it after a write, or None (no font open, or unreadable).
+    Reads CountFonts, the current package's fgId and, only when that cannot be read, the current font's path. Never raises."""
+    try:
+        counter = getattr(fl, "CountFonts", None)
+        count = counter() if callable(counter) else None
+        if type(count) is int and count == 0:
+            return None
+    except Exception:
+        pass
+    try:
+        font = fl.CurrentFont()
+    except Exception:
+        font = None
+    return _change_key(font)
 
 
 def _change_target(path, payload):
@@ -16178,8 +16197,10 @@ def _change_log_note(method, path, body, response, headers):
                  "font_key": key, "font": name, "time": datetime.datetime.now().strftime("%H:%M:%S")}
         _CHANGE_LOG.append(entry)
         if verdict != "no":
-            total = _CHANGE_TOTALS.setdefault(key or "unknown font", {"font": name, "changed": 0, "unknown": 0})
+            total = _CHANGE_TOTALS.setdefault(key or "unknown font", {"font": name, "changed": 0, "unknown": 0,
+                                                                     "first": entry["time"], "last": entry["time"]})
             total["changed" if verdict == "yes" else "unknown"] += 1
+            total["last"] = entry["time"]                  # v0.217: first and last change, to tell same-named fonts apart
             if name:
                 total["font"] = name
         while len(_CHANGE_LOG) > _CHANGE_LOG_MAX:
@@ -16191,7 +16212,8 @@ def _change_log_note(method, path, body, response, headers):
 
 
 def changes_report(run=None, since=None, server_run=None, ask_ids=None):
-    """POST /changes (v0.204): what the log holds after the server's bookmark. Reads the log only, never FontLab."""
+    """POST /changes (v0.204): what the log holds after the server's bookmark. Reads the log, and since v0.217 ONE read of the font in
+    front (current_font_key, the key the log gives each font: _change_current_key), so the server can mark it among same-named rows."""
     if run is not None and not isinstance(run, str):
         return {"bad_request": '"run" must be a string'}
     if since is not None and (type(since) is not int or since < 0):
@@ -16231,7 +16253,7 @@ def changes_report(run=None, since=None, server_run=None, ask_ids=None):
     return {"run": _CHANGE_RUN, "run_started": _CHANGE_STATE["started"], "same_run": same_run, "since_used": since_used,
             "newest": _CHANGE_STATE["seq"], "log_limit": _CHANGE_LOG_MAX, "entries_kept": len(_CHANGE_LOG),
             "dropped_after_since": dropped_after, "groups": list(groups.values()), "asked": asked,
-            "totals": [dict(v, font_key=k) for k, v in _CHANGE_TOTALS.items()]}
+            "totals": [dict(v, font_key=k) for k, v in _CHANGE_TOTALS.items()], "current_font_key": _change_current_key()}
 
 
 # --------------------------------------------------------------------------

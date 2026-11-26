@@ -3825,6 +3825,32 @@ class _Opener51:      # the real _do_request reads the run header (fake opener, 
 _ro51 = srv._opener; srv._opener = _Opener51(); srv._CHANGE_LOG["runs_seen"] = []
 srv._do_request("http://x", "/p", 1.0); srv._opener = _ro51
 print("51x _do_request notes the run   ->", srv._CHANGE_LOG["runs_seen"])
+print("-- v0.217 / v0.96: rows of fonts with the same name (AG2 1931)")
+_rep51 = ns["changes_report"]()
+print("51y listener: total fields      ->", sorted(_rep51["totals"][0]) if _rep51["totals"] else None,
+      "| current_font_key present:", "current_font_key" in _rep51)
+_t1 = {"font": "Unnamed Regular", "changed": 3, "unknown": 0, "font_key": "fgId:1", "first": "16:37:49", "last": "16:46:47"}
+_t2 = {"font": "Unnamed Regular", "changed": 8, "unknown": 0, "font_key": "fgId:2", "first": "17:01:02", "last": "17:05:00"}
+_t3 = {"font": "Other Bold", "changed": 1, "unknown": 0, "font_key": "fgId:3", "first": "17:06:00", "last": "17:06:00"}
+for label, fake in (
+        ("51y1 two same-named, front 2  ", {"totals": [_t1, _t2, _t3], "current_font_key": "fgId:2"}),
+        ("51y2 unique names (control)   ", {"totals": [dict(_t1, font="Unnamed1 Regular"), _t2, _t3], "current_font_key": "fgId:2"}),
+        ("51y3 font in front not known  ", {"totals": [_t1, _t2], "current_font_key": None}),
+        ("51y4 older listener           ", {"totals": [{k: v for k, v in t.items() if k not in ("first", "last")} for t in (_t1, _t2)]}),
+        ("51y5 a total without a key    ", {"totals": [dict(_t1, font_key=None), _t2], "current_font_key": "fgId:2"})):
+    srv._call_listener_post = lambda p, pl, timeout=0, _f=fake: dict({"run": "r", "run_started": "12:00:00"}, **_f)
+    s = srv.check_status()
+    print(label, "->", s.get("changes_by_font"), "| same-name note:", "same_name" in s.get("changes_by_font_note", ""))
+_g1 = {"font": "Unnamed Regular", "font_key": "fgId:1", "by_this_server": False, "client": "antigravity-client", "changed": 3, "unknown": 0,
+       "first": "16:37:49", "last": "16:46:47"}
+for label, totals in (("51y6 other_changes, same name  ", [_t1, _t2]), ("51y7 other_changes, unique name", [_t1, dict(_t2, font="Unnamed1 Regular")])):
+    srv._call_listener_post = lambda p, pl, timeout=0, _t=totals: {"run": srv._CHANGE_LOG["run"] or "r", "same_run": True, "newest": 99,
+                                                                    "groups": [_g1], "asked": {}, "totals": _t, "current_font_key": "fgId:2"}
+    r = srv.finish_change_package()
+    print(label, "->", r.get("other_changes"), "| same-name note:", "same_name" in r.get("other_changes_note", ""))
+srv._call_listener_post = wire51_post
+_fd, _sd = " ".join((srv.finish_changes.__doc__ or "").split()), " ".join((srv.fontlab_status.__doc__ or "").split())
+print("51y8 descriptions               ->", [w for w in ("same_name", "in_front") if w not in _fd], [w for w in ("same_name", "in_front", "first_change") if w not in _sd])
 srv.SERVER_RUN = _old_run; srv._CLIENT["name"] = None; srv._reset_change_tracking()
 srv._call_listener, srv._call_listener_post = _save51
 

@@ -1,6 +1,6 @@
 [glyphbridge] Connected at HH:MM:SS - first request (GET /health) from a local client.
 /health ('200', {'status': 'ok'})
-/version ('200', {'version': '0.216'})
+/version ('200', {'version': '0.217'})
 /font/current ('200', {'open': True, 'path': 'x', 'glyph_count': 3, 'family_name': 'F', 'style_name': 'R', 'postscript_font_name': '', 'postscript_full_name': '', 'units_per_em': 1000, 'ascender': 800, 'descender': -200, 'cap_height': 700, 'x_height': 500, 'weight_class': 400, 'package_names_unavailable': "the number of open fonts is unknown or not a positive number, so the font's package cannot be matched to it"})
 /font/glyphs ('200', {'open': True, 'count': 3, 'names': ['A', 'empty', 'B']})
 /glyph/width?name=A ('200', {'open': True, 'found': True, 'name': 'A', 'advance_width': None, 'legacy_width': 500.0, 'width': 500.0, 'source': 'legacy', 'modern_reason': "FontLab's modern glyph could not be reached (the fontlab module has no flGlyph class)"})
@@ -264,7 +264,7 @@ shape_count in outline: 1
 207 bad route       : unknown route 'bogus': use rou
 208 unknown tri glyph: False no glyph named 'trinope'
 209 no font open    : {'open': False}
-210 version         : {'version': '0.216'}
+210 version         : {'version': '0.217'}
 220 legacy lsb refused: True refused: the legacy setters glyph.leftMargin / glyph.rightMa | leftMargin 0.0 | calls []
 221 legacy rsb refused: True | rightMargin -500.0
 222 legacy width still allowed: glyph.width = 600.0 | width 600.0
@@ -378,7 +378,7 @@ shape_count in outline: 1
 341g unchanged      : {'set': False, 'route': 'modern', 'before': 500.0, 'after': 500.0, 'requested': 700.0, 'width_rounded': None, 'changed': None, 'reason': 'width did not change to the requested value after setting'} | mark False
 341h OUTPUT line     : ('NOT DONE width tri: width did not change to the requested value after setting', False)
 341i legacy route rounds: {'set': True, 'route': 'legacy_empty_glyph', 'before': 500.0, 'after': 641.0, 'requested': 640.5, 'width_rounded': {'requested': 640.5, 'written': 641.0}, 'changed': None, 'reason': None} | legacy width 641.0
-342 version          : {'version': '0.216'}
+342 version          : {'version': '0.217'}
 343 state            : 200 {'is_none': True} 0 | findLayer {'is_none': True} | nocreate {'is_none': True} | ref True | calls [('findLayer', 'Master'), ('getLayerByName', 'Master', False)]
 344 create without go: 200 refused: stage=create can change the fon | calls []
 345 findLayerCreate  : 200 w.findLayerCreate('Master') | returned {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | same {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | rebuilt built {'is_none': False, 'type': 'LyLayerX', 'name': 'Master'} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
@@ -395,14 +395,14 @@ shape_count in outline: 1
 356 no name          : 400
 357 unknown glyph    : {'open': True, 'found': False, 'reason': "no glyph named 'nope'", 'font_master': {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}}
 358 no font          : {'open': False}
-359 version          : {'version': '0.216'}
+359 version          : {'version': '0.217'}
 360 font_master      : 200 {'is_none': False, 'type': 'FmLayer', 'public_names': ['id', 'isBodyLayer', 'isMasterLayer', 'mutate', 'name'], 'name': 'test_font', 'id': 7, 'isMasterLayer': True, 'isBodyLayer': False}
 361 master, no glyph : False test_font
 362 create has no section: False
 363 master is None   : {'is_none': True}
 364 master raises    : {'error': 'RuntimeError: no master'}
 365 no master member : {'error': "AttributeError: 'TsFont' object has no attribute 'master'"}
-366 version          : {'version': '0.216'}
+366 version          : {'version': '0.217'}
 400 width, new glyph  : 200 {'set': True, 'route': 'modern', 'layer_created': 'test_font', 'before': 0.0, 'after': 600.0} | calls [('findLayerCreate', 'fresh', 'test_font'), ('advanceWidth', 'fresh', 600.0)]
 401 width again       : True modern | layer_created None | creates 1
 402 names disagree    : True legacy_empty_glyph | the glyphs of this font have different layer names (['Alpha' | creates [] | legacy width 600.0
@@ -439,7 +439,7 @@ shape_count in outline: 1
 434 reader, agree     : 3 | modern_check {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True}
 435 reader, modern=no : False
 436 reader, no modern : 3 | modern_check {'available': True, 'modern_layer': False}
-437 version           : {'version': '0.216'}
+437 version           : {'version': '0.217'}
 440 stage=layer       : 200 1 | getContours {'type': 'list', 'python_sequence': True, 'len': 1} | getShapes {'type': 'list', 'python_sequence': True, 'len': 1} | shapes {'type': 'R73Native', 'python_sequence': False, 'len': 2} | shapesCount 1
 441 stage=contour     : 1 True False 4 {'type': 'list', 'python_sequence': True, 'len': 4}
 442 node via getNodeAt: {'type': 'R73Node', 'x': 400, 'y': 300, 'isOn': True, 'isOff': False, 'isCurve': False, 'smooth': False, 'index': 2} | calls [('getNodeAt', 2)]
@@ -462,7 +462,7 @@ shape_count in outline: 1
 459 no modern layer    : this glyph has no modern active layer, so there is nothing to read
 460 no font            : {'open': False}
 461 read-only          : calls [] | shapes still 1
-462 version           : {'version': '0.216'}
+462 version           : {'version': '0.217'}
 470 modern_outline    : True | nodes 5 of 5 | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0} | check agree False
 471 contour 0         : {'index': 0, 'closed': True, 'clockwise': True, 'nodesCount': 5}
 472 nodes             : [(10.0, 20.0, True), (410.0, 20.0, True), (410.0, 220.0, True), (210.0, 320.0, True), (10.0, 220.0, True)]
@@ -478,7 +478,7 @@ shape_count in outline: 1
 482 count mismatch    : {'available': False, 'error': 'read 5 nodes but the layer reports 6: the outline is not trusted'}
 483 too many nodes    : {'available': False, 'error': 'the layer has 5 nodes, more than the 3 that are read'}
 484 no QTransform     : margins key False | available True
-485 version           : {'version': '0.216'}
+485 version           : {'version': '0.217'}
 490 two contours      : 200 {'drawn': True, 'points': 8, 'contours': 2, 'contour_sizes': [4, 4], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': True}, 'layer_created': 'test_font'} | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 8, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P72Layer' object has no attribute 'shapes')"}
 491 calls             : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'flContour', 'addShape']
 492 read back         : True | contours 2 [4, 4]
@@ -498,7 +498,7 @@ shape_count in outline: 1
 506 second contour dropped: False | after drawing, the layer reads 1 shape(s), 4 node(s) and 1 contour(s); expected 1, 8 and 2 | changed True | checks {'shapes_ok': True, 'nodes_ok': False, 'contours_ok': False}
 507 getContours unreadable: True | checks {'shapes_ok': True, 'nodes_ok': True, 'contours_ok': None}
 508 not empty         : False | the glyph's layer is not KNOWN to be empty (needs  | calls []
-509 version           : {'version': '0.216'}
+509 version           : {'version': '0.217'}
 510 curve probe        : 200 curve | call node(index 1).convertToCurve(False) | returned True | nodes_added 2 | may_change False
     before             : 4 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '2: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '3: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
     after              : 6 True ['0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '2: (268.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False', '3: (400.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '4: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', '5: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False']
@@ -516,7 +516,7 @@ shape_count in outline: 1
 520 bogus stage        : unknown stage 'bogus' for route=modern: use stage=names or stage=build or stage=attach or stage=refresh
 521 bogus variant      : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
 522 curve without go   : 200 refused: this probe can change the font 
-523 version           : {'version': '0.216'}
+523 version           : {'version': '0.217'}
 524 curve2 normal | may_change False | keys []
     A plan: convertToCurve(False) on node 1; setPoint(1, QPointF(100, 60 | error: None | note: None | final_as_expected: True
       step getNodeAt(1).convertToCurve(False) | returned True | error None | as_expected None | n 6
@@ -601,7 +601,7 @@ shape_count in outline: 1
 537 QPointF missing    : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 538 curve2 without go  : 200 refused: this probe can change the font 
 539 variant=curve still works: 2 1: (132.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False
-540 version           : {'version': '0.216'}
+540 version           : {'version': '0.217'}
 541 build (dry run)   : 200 curve3 | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | may_change False | layer shapes/nodes 0 0
     calls             : ['flContour([5 QPointF])', 'contour.closed = True', 'getNodeAt(2).convertToCurve(False)', 'setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))', 'flShape()', 'shape.shapeData', 'shapeData.addContour(contour)']
     notes             : ['detached nodes before attach: 0: (0.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 1: (300.0, 0.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 2: (355.0, 0.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 3: (400.0, 45.0) handle type=curve flags(on/off/curve)=False/False/True smooth=False | 4: (400.0, 100.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 5: (400.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False | 6: (0.0, 400.0) on type=on flags(on/off/curve)=True/False/False smooth=False', "after adding the contour, the detached shape reads {'contoursCount': 1, 'hasContours': True, 'isEmpty': False}"]
@@ -626,7 +626,7 @@ shape_count in outline: 1
 557 attach without go : 200 refused: this probe can change the font 
 558 second attach refused: True | layer 1 7
 559 variant=single unchanged: single {'nodesCount': 3, 'closed': True, 'clockwise': False}
-560 version           : {'version': '0.216'}
+560 version           : {'version': '0.217'}
 561 curve3 whole-number handles: None | built {'contour': {'nodesCount': 7, 'closed': True, 'clockwise': False}, 'shape': {'contoursCount': 1, 'isEmpty': False}} | calls ['setPoint(2, QPointF(355.0, 0.0))', 'setPoint(3, QPointF(400.0, 45.0))']
 562 curve3 attach     : True {'shapes': 1, 'nodes': 7} | layer 1 7
 563 curve3, FontLab rounds everything: None | layer 1 7
@@ -693,7 +693,7 @@ shape_count in outline: 1
 573 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 574 curve4 without go : 200 refused: this probe can change the font 
 575 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-576 version           : {'version': '0.216'}
+576 version           : {'version': '0.217'}
 577 curve5, everything works (stub assumptions) | may_change False | error None
      T1 closing segment: convertToCurve(False) on node 0 of a square | {'returned': True, 'handle_indices': [4, 5], 'nodesCount': 6}
      T2a convertToCurve(True) on node 1 of a square | {'returned': True, 'smooth_flags': [False, False, False, True, False, False]}
@@ -749,7 +749,7 @@ shape_count in outline: 1
 586 QPointF missing   : need QtCore.QPointF and fontlab.flContour: QPointF missing, flContour ok; nothing was called
 587 curve5 without go : 200 refused: this probe can change the font 
 588 bogus variant     : unknown variant 'bogus': use variant=single, variant=points, variant=nodes, variant=probe, variant=curve, variant=curve2, variant=curve3, variant=curve4 or variant=curve5
-589 version           : {'version': '0.216'}
+589 version           : {'version': '0.217'}
 600 one curved segment       : {'drawn': True, 'nodes_match': True, 'points': 4, 'segments_curved': 1, 'contour_sizes': [6], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 601 nodes read back       : [[(0.0, 0.0, 'on', False), (400.0, 0.0, 'on', False), (500.0, 100.0, 'h', False), (500.0, 300.0, 'h', False), (400.0, 400.0, 'on', False), (0.0, 400.0, 'on', False)]] | after {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 6, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"} | margins {'lsb': 0.0, 'rsb': 0.0, 'advance': 0.0}
 602 calls                 : [('findLayerCreate', 'fresh', 'test_font'), 'flContour', 'convertToCurve', 'addShape'] | layer_created test_font
@@ -809,7 +809,7 @@ shape_count in outline: 1
 667 second draw refused   : False | the glyph's layer is not KNOWN to be empty (needs 
 668 plain triangle via path : {'drawn': True, 'nodes_match': True, 'points': 3, 'segments_curved': 0, 'contour_sizes': [3], 'changed': True, 'checks': {'shapes_ok': True, 'nodes_ok': True, 'nodes_match': True}} | rounded 0 | reason 
 669 no convert calls      : 0
-671 version               : {'version': '0.216'}
+671 version               : {'version': '0.217'}
 672 pure helpers          : 3.0 -2.0 0.0 0.0 0.0 -3.0
 700 first draw             : True | layer_created test_font | layer (1, 6, 1) | creates 1
 701 legacy view lags       : True | wrapper activeLayer None
@@ -821,7 +821,7 @@ shape_count in outline: 1
 708 findLayer missing        : False | the glyph may already have a layer (the glyph has no findLayer to ask with), so no layer was created | creates 0 | layer None
 709 glyph without layer, nobody answers yes: True | layer_created test_font | creates 1
 710 width on a glyph with no layer still works: True modern | layer_created test_font | creates 1
-711 version                : {'version': '0.216'}
+711 version                : {'version': '0.217'}
 720 state, nothing open        : 200 {'CountFonts': 0, 'CurrentFont': None, 'packages_len': 0, 'currentPackage': None, 'hasPackage': None} | constructed False | attached False | calls []
 721 default stage is state     : 200 state
 722 construct without go       : 200 stage=construct constructs ONE native flPackage object (it is not attached to anything). Add &go=yes to run it. | calls []
@@ -845,7 +845,7 @@ shape_count in outline: 1
 738 no flPackage class         : 200 the fontlab module has no flPackage class; nothing was constructed | constructed False
 739 forbidden members called   : [] | calls ['flPackage()', 'addPackage']
 740 static scan of the probe   : forbidden call syntax found: [] | real addPackage calls: 1 | scanned chars > 3000: True
-741 version                    : {'version': '0.216'}
+741 version                    : {'version': '0.217'}
 750 first glyph of a new font, polygon    : {'drawn': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
 751 what was read             : ['cp', 'cp_fgId', 'cp_isNull', 'defaultMaster', 'glyphsCount', 'gp', 'gp_fgId', 'isNull', 'master', 'masters', 'mastersCount', 'upm'] | reads 12
 752 first glyph, width               : {'set': True, 'layer_created': 'Regular', 'layer_name_source': 'package master'} | creates ['Regular'] | why: - | forbidden []
@@ -905,7 +905,7 @@ shape_count in outline: 1
 798 forbidden members called, whole run: [] | addShape calls 1
 799 static scan of the fallback  : forbidden call syntax found: [] | scanned chars > 3000: True
 799b v0.150 no isEqual in the product: layer name False | create_font False | calls in the whole listener: 4 (4: research probes only, trynotify 1 call + 1 docstring, trypackage 2) | w.package read: True
-800 version                      : {'version': '0.216'}
+800 version                      : {'version': '0.217'}
 810 state, one font open               : 200 {'stage': 'state', 'state': {'package_isChanged': False, 'workspace_isChanged': False, 'package_glyphsCount': 1}, 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 811 default stage is state           : 200 {'stage': 'state', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 812 package_update without go        : 200 {'error': "stage=package_update calls flPackage.update() ONCE on the font's package. Add &go=yes to run it."} | calls []
@@ -936,7 +936,7 @@ shape_count in outline: 1
 842 the module has no CountFonts     : 200 {'error': 'the fontlab module has no CountFonts, so the number of open fonts is unknown', 'calls_so_far': {'package_update': 0, 'workspace_update': 0}} | calls []
 843 forbidden members called    : [] | calls ['flPackage.update()', 'flWorkspace.update()']
 844 static scan of the probe     : forbidden call syntax found: [] | real update calls: 1 | scanned chars > 3000: True
-845 version                      : {'version': '0.216'}
+845 version                      : {'version': '0.217'}
 850 no go                         : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 851 go must be exactly yes           : 200 {'error': 'how=plain calls font.createGlyph(name) ONLY and adds ONE glyph. Add &go=yes to run it.'} | names ['.notdef', 'A'] | calls []
 852 unknown how                      : 200 {'error': 'how must be "plain" (createGlyph only) or "legacy_update" (createGlyph, then font.update())'} | names ['.notdef', 'A'] | calls []
@@ -968,7 +968,7 @@ shape_count in outline: 1
 878 forbidden members called     : [] | calls ['createGlyph', 'createGlyph', 'update'] | names ['.notdef', 'A', 'P1', 'P2']
 879 static scan of the probe     : forbidden call syntax found: [] | real createGlyph calls: 1 | real font.update calls: 1 | scanned chars > 2000: True
 880 create_glyph itself unchanged: True | still calls font.update(): True
-881 version                      : {'version': '0.216'}
+881 version                      : {'version': '0.217'}
 890 nothing tracked: update runs       : 200 {'created': True} | calls ['createGlyph', 'font.update'] | layers ['ref'] | tracked []
 891 draw: reply says not synced         : 200 {'drawn': True, 'synced_with_fontlab': False} | calls [] | layers ['fresh', 'ref'] | tracked ['fresh']
 891b durability note present  : True | mentions create_glyph: True
@@ -1001,7 +1001,7 @@ shape_count in outline: 1
 913 no regression: duplicate name   : 200 {'created': False}
 914 static scan of the guard     : forbidden call syntax found: [] | scanned chars > 3000: True
 915 every legacy update is guarded: [(1, 1, 1), (1, 1, 1), (1, 1, 2), (1, 1, 2)]
-916 version                      : {'version': '0.216'}
+916 version                      : {'version': '0.217'}
 917 sidebearings change remembered: 200 {'set': True, 'changed': True, 'synced_with_fontlab': False} | tracked ['tri']
 918 same values again: not remembered: {'set': True, 'changed': False, 'synced_with_fontlab': None} | tracked []
 920 margins agree                    : 200 node_count 3 | check {'modern_nodes': 3, 'modern_shapes': 1, 'agree': True, 'margins_agree': True} | modern_outline None
@@ -1024,7 +1024,7 @@ shape_count in outline: 1
 936 margins argument not a dict  : {'available': True, 'modern_layer': True, 'modern_nodes': 3, 'modern_shapes': 1, 'agree': True}
 937 direct compare, missing key  : {'margins_agree': None, 'margins_note': 'the legacy margins are not numbers, so they could not be compared'}
 938 static scan of the compare   : forbidden call syntax found: [] | getLSB / getRSB reads in the helper: 1 | scanned chars > 1500: True
-939 version                      : {'version': '0.216'}
+939 version                      : {'version': '0.217'}
 940 state, drawn glyph                  : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"}, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
 940b                              : {'found': True, 'legacy_layers': 0, 'modern': 'present', 'modern_nodes': 4, 'updated_fg_glyphs': {'count': 0, 'ids': []}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'} | registry {'fresh': 'at_risk'} | counters {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}
 941 state, updatedFgGlyphs ids          : 200 {'stage': 'state', 'name': 'fresh', 'glyph': {'found': True, 'legacy': {'layers': 0, 'components': 0, 'body_layer': 'None'}, 'modern': {'active_layer': 'present', 'layer_name': 'test_font', 'shapes': 1, 'nodes': 4, 'fontlab_components_count': 0, 'components': "not readable: layer.shapes (AttributeError: 'P81Layer' object has no attribute 'shapes')"}, 'updated_fg_glyphs': {'count': 2, 'ids': [5, 7]}, 'legacy_width': 500.0, 'modern_advance': 0.0, 'verdict': 'at_risk'}, 'registry': {'fresh': 'at_risk'}, 'calls_so_far': {'Update_fgGlyph': 0, 'Update_flGlyph': 0, 'Update_all': 0, 'fillFgData': 0, 'prepareFontGateData': 0, 'create': 0}} | calls ['updatedFgGlyphs']
@@ -1112,7 +1112,7 @@ shape_count in outline: 1
 981 forbidden members called     : [] | pkg.update / other recorded package calls: []
 982 static scan of the probe     : forbidden call syntax found: ['.update(', '.update('] | real calls: Update 2 UpdateAll 1 fillFgData 1 prepareFontGateData 1 addGlyph 1 flGlyph() 1 | scanned chars > 6000: True
 983 no other tool changed        : True | create_glyph still calls font.update(): True
-984 version                      : {'version': '0.216'}
+984 version                      : {'version': '0.217'}
 990 polygon, Update syncs           : 200 {'drawn': True} | synced_with_fontlab True | fontlab_sync {'attempted': True, 'verdict': 'synced', 'synced': True} | note Glyphbridge asked Font | calls [('Update', 'M88Mod')] | tracked []
 990b                              : unsynced note gone: True | layer kept: True | legacy layers: 1
 991 polygon, Update has no effect     : 200 {'drawn': True} | synced_with_fontlab False | fontlab_sync {'attempted': True, 'verdict': 'at_risk', 'synced': False} | note This change exists onl | calls [('Update', 'M88Mod')] | tracked ['fresh']
@@ -1137,7 +1137,7 @@ shape_count in outline: 1
 1005 calls over all cases        : UpdateAll called: False | forbidden: [] | Update calls: 10 | all Update args are the modern wrapper: True
 1006 static scan of the sync     : forbidden call syntax found: [] | upd(w) calls: 1 | scanned chars > 900: True
 1007 constants                   : shipped default ['True'] | synced note mentions legacy view: True
-1008 version                     : {'version': '0.216'}
+1008 version                     : {'version': '0.217'}
 
 ==== v0.90 /debug/fontdir ====
 1010 dir                     : 200 {'open': True, 'count_fonts': 1, 'stage': 'dir', 'font_type': 'FDFont'} | names ['boom', 'familyName', 'flag', 'kerning', 'lenboom', 'method', 'nolen', 'nothing', 'unitsPerEm'] | doc len None | touched [] | called []
@@ -1566,6 +1566,9 @@ shape_count in outline: 1
 1447b POST, three fonts open      : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 3, 'matched_by': 'path', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 1, 'errors': 0, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
        {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
 1448 two packages                : 200 {'open': True, 'error': 'the kerning table could not be matched to the current font: the workspace holds 2 packages, not exactly 1'} | gets 0 | forbidden []
+1448b getAllGroups None (v0.217) : 200 {'open': True, 'mode': 'pairs', 'fonts_open': 1, 'matched_by': 'only font', 'family_name': 'Kern Test', 'master': 'Regular', 'master_count': 1, 'units_per_em': 2048.0, 'count': 2, 'errors': 1, 'table_size': 1370, 'side_effect_detected': False} | gets 1 | forbidden []
+       {'left': 'Aacute', 'right': 'V', 'error': "glyph 'Aacute' belongs to kerning class id 101, which FontLab's class list does not contain"}
+       {'left': 'A', 'right': 'V', 'value': -152.0, 'kerned': True, 'source': 'glyph : glyph'}
 1447c one font: package path reads : only font 0
 1447d two fonts: package path reads: 1
 1447e two fonts, paths differ      : 200 {'open': True, 'error': "2 fonts are open and the current font could not be matched to its kerning table: the current package's path differs from the current font's path (was another font window brought to the front?). Bring a saved font's window to the front, or close the other fonts (without saving them if they are test fonts), and ask again"} | gets 0 | forbidden []
@@ -1747,12 +1750,12 @@ shape_count in outline: 1
 1328 poll: health, shutdown, version : raised None | accepts 2 | left 1 | socket closed True | timer stopped True | listener running False
 1329 replies                       : 200 {"status": "ok"} | 200 {"status": "shutting down"} | (nothing sent) | closed True True
 1330 poll: one request, then none : raised None | accepts 2 | left 0 | socket closed False | timer stopped False | listener running True
-1331 reply                         : 200 {"version": "0.216"}
+1331 reply                         : 200 {"version": "0.217"}
 1332 poll after stop()             : returns quietly
 [glyphbridge] Listener stopped.
 1333 poll: shutdown as 8th request : raised None | accepts 8 | left 0 | socket closed True | timer stopped True | listener running False
 1334 start() prints:
-[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.216
+[glyphbridge] glyphbridge_fontlab_mcp_listener.py v0.217
 [glyphbridge] Listener started on http://127.0.0.1:8765 (main-thread polling)
 [glyphbridge] Try: GET /health, GET /version. All routes are listed at the top of glyphbridge_fontlab_mcp_listener.py.
 1334 start() result                : socket set True | timer started True | interval 25 | signal timeout()
@@ -2049,6 +2052,9 @@ shape_count in outline: 1
 2623c a size unreadable           : 200 {'side_effect_detected': None} | calls ['kerning', 'items', 'getAllGroups']
 2624 no groups at all            : 200 {'group_count': 0, 'groups': [], 'member_names': 0, 'errors': 0} | calls ['kerning', 'items', 'getAllGroups']
 2624b no groups, a glyph          : 200 {'glyphs': [{'name': 'kgt1', 'kerning_groups': [], 'note': 'in no kerning group on either side'}]} | calls ['kerning', 'items', 'getAllGroups']
+2624c no group, list None, glyph : 200 {'cross_check': 'done', 'group_count': 0, 'glyphs': [{'name': 'kgt1', 'kerning_groups': [], 'note': 'in no kerning group on either side'}], 'errors': 0, 'unconfirmed': None} | calls ['kerning', 'items', 'getAllGroups']
+2624d no group, list None, all   : 200 {'mode': 'all', 'cross_check': 'done', 'group_count': 0, 'groups': []} | calls ['kerning', 'items', 'getAllGroups']
+2624e items has groups, list None : 200 {'cross_check': 'done', 'groups': [{'name': 'kgtL', 'side': 'left', 'fontlab_side': 'KernLeft', 'members': ['kgt1', 'kgt2'], 'member_count': 2, 'id': None, 'confirmed': False, 'mismatch': "the master's kerning groups hold this group, but FontLab's class list does not name it as a kerning group"}], 'unconfirmed': None} | calls ['kerning', 'items', 'getAllGroups']
 2625 251 groups: confirmation     : 200 {'group_count': 251, 'needs_confirmation': True, 'groups': None, 'mode': 'all'} | calls ['kerning', 'items', 'getAllGroups']
 2625b 251 confirmed               : 200 251 251 None True
 2625c exactly 250, no flag        : 200 250 None
@@ -2519,7 +2525,7 @@ shape_count in outline: 1
 1621 forbidden members called    : [] | calls [('createGlyph', 'P1'), ('createGlyph', 'P2'), ('flGlyph', 'P2'), ('Update', ['P2']), ('flGlyph', 'A'), ('set unicode', 'A', 57346), ('Update', ['A'])] | names ['.notdef', 'A', 'P1', 'P2']
 1622 static scan of the probe     : forbidden call syntax found: [] | real calls: createGlyph 1 upd(w) 2 unicode set 1 | scanned chars > 6000: True
 1623 no product route changed    : create_glyph still calls font.update(): True | mentions of debug_try_refresh( (its def and its route): 2 | route wired: True
-1624 version                      : {'version': '0.216'}
+1624 version                      : {'version': '0.217'}
 
 ==== v0.120 F1: modern-only reads, the light sync check, the box probe ====
 1630 outline, modern nodes        : 200 {'source': 'modern', 'node_count': 3, 'contour_count': 1, 'component_count': 0, 'shape_count': 1, 'layer_route': 'body'} | legacy members touched []
@@ -2565,7 +2571,7 @@ shape_count in outline: 1
 1665 static scan light part of _guard_classify  : legacy members named: [] | scanned chars True
 1665 static scan _guard_is_light                : legacy members named: [] | scanned chars True
 1666 shipped switch              : ['True'] | full kinds ('draw_polygon', 'draw_path', 'layer_created', 'move_nodes', 'add_component', 'remove_component', 'add_contours', 'remove_contours') | light kinds ('width', 'sidebearings', 'trycomponent_light')
-1667 version                     : {'version': '0.216'}
+1667 version                     : {'version': '0.217'}
 
 ==== v0.121: fontlab_ink_box on the modern-only outline read ====
 1668 ink box, read once           : 200 | source modern | fontlab_ink_box {'type': 'SimpleNamespace', 'left': 192.466, 'right': 464.534, 'top': 0.0, 'bottom': 700.0, 'width': 272.068, 'height': 700.0} | inkBox calls [((), {})] | outline kept True | legacy members touched []
@@ -3590,7 +3596,7 @@ shape_count in outline: 1
 --- static checks
 2308a forbidden call syntax           : [] | scanned chars > 6000: True
 2308b one construction, one mark      : True True | no per-run counter: True
-2308c route registered once, documented: True True | in the activity writes: create font | version 0.216
+2308c route registered once, documented: True True | in the activity writes: create font | version 0.217
 2308d one shared family check        : True | probe uses it: True | route uses it: True | psn limit 63 | forbidden [](){}<>/%
 
 ==== v0.148 /debug/trypackage ====
@@ -3624,7 +3630,7 @@ shape_count in outline: 1
 2309ab request 21 refused           : 200 {'error': 'the probe already ran 20 times in this listener run; restart the listener to repeat it', 'runs_so_far': 20} | isEqual [('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg'), ('isEqual', 'TPPkg')] | forbidden []
 2309ac  isEqual calls in 21 requests: 20
 2309ad static scan of the probe   : forbidden call syntax: [] | fgPackage: False | subscripts of a native object: [] | one isEqual per stage: True | counter before the first read: True | scanned chars > 4000: True
-2309ae route documented, registered once: True True | version 0.216
+2309ae route documented, registered once: True True | version 0.217
 --- v0.149 stage=cached
 2310a cached without go            : 200 {'error': 'reads flGlyph.package and calls isEqual on it, which have not been called live before. Add &go=yes to run it.'} | isEqual [] | forbidden []
 2310b cached with a name           : 200 {'error': "stage=cached takes no name: it reads the wrappers already in the listener's cache"} | isEqual [] | forbidden []
@@ -5914,7 +5920,7 @@ departures from _EDIT_ACCEPTS: []
 2880 a tick at the closing   : 200 {'countdown_ticks': 10, 'countdown_last_label': 'No (1)', 'countdown_label_after': 'No (1)', 'closed_without_click': True} | labels set ['No (2)', 'No (1)']
 2881 relabels fail from tick 2: 200 {'countdown_ticks': 9, 'countdown_last_label': 'No (9)', 'countdown_error': 'relabel at tick 2: RuntimeError: setText boom 3', 'closed_without_click': True}
 2878 dialog raises, countdown: 200 {'dialog_started': True, 'error': 'the dialog failed: RuntimeError: exec boom'} | both timers stopped [1, 1]
-2879 static scan             : font names in the code: [] | _open_font calls 0 | .text() calls: 0 | countdown in the docstring: True | version 0.216
+2879 static scan             : font names in the code: [] | _open_font calls 0 | .text() calls: 0 | countdown in the docstring: True | version 0.217
 
 ==== v0.203 self-closing Yes/No dialogs ====
 2882 dialog_seconds          : [(45, None), (30, None), (10, None), (50, None), (None, '"dialog_seconds" must be a whole number of seconds'), (None, '"dialog_seconds" must be a whole number of seconds'), (None, '"dialog_seconds" must be a whole number of seconds')]
@@ -5954,4 +5960,4 @@ departures from _EDIT_ACCEPTS: []
 [Glyphbridge] 12:00:00 NOT DONE delete a: no dialog could be shown, so nothing was deleted
 [Glyphbridge] 12:00:00 kerning group remove geR: not answered within 45 s, nothing removed
 [Glyphbridge] 12:00:00 REFUSED kerning group remove geR: set-up boom; nothing was removed
-2907 static scan             : font names in the dialog: [] | exec_ calls: 1 | the closing timer is a Qt connection: True | no other QMessageBox in the listener: True | version 0.216
+2907 static scan             : font names in the dialog: [] | exec_ calls: 1 | the closing timer is a Qt connection: True | no other QMessageBox in the listener: True | version 0.217

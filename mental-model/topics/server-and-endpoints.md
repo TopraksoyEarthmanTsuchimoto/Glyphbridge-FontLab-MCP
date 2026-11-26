@@ -64,7 +64,9 @@ Tool names as Claude sees them: [CLAUDE.md](../../CLAUDE.md). After a server upd
   used) or `unavailable` (listener older than 0.204); only this server's bookmark moves; `other_changes` (another app, or an earlier
   server process) are named and bring a reminder on their own, "they may already have been saved". `fontlab_status` adds
   `changes_by_font` from the totals without moving the bookmark. Rows are kept per font but labelled by name: two unsaved fonts of
-  the same name give two rows of the same name, in `other_changes` too (AG2 1918, 1931, [LIVE-TESTS.md](../LIVE-TESTS.md)). Since server 0.86 it always answers (rule 3; `[]` run live CB 1637): `[]` when the
+  the same name give two rows of the same name, in `other_changes` too (AG2 1918, 1931, [LIVE-TESTS.md](../LIVE-TESTS.md)). Since listener 0.217 /
+  server 0.96 such rows carry `same_name`, the times of their first and last change and `in_front` (the listener names the font in
+  front, `current_font_key`); whether a font not in front is still open is not checked (stub-tested only). Since server 0.86 it always answers (rule 3; `[]` run live CB 1637): `[]` when the
   listener recorded nothing since it started (the note names that start; earlier changes are not known), `"unknown"` with the
   reason when `/changes` fails or its reply holds no readable totals, and the note counts any unreadable entries beside readable ones.
   **No save question from FontLab (live 2026-11-03, S1, tests 460–472, [LIVE-TESTS.md](../LIVE-TESTS.md)):** when a font was changed only through the tools (a create, a Unicode
