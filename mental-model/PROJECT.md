@@ -27,7 +27,7 @@ As of October 2026 there was only one MCP project for FontLab on GitHub which at
 ## Scope
 
 - FontLab 8 on Windows. macOS should work in principle but is untested; the code is kept macOS-compatible ([DECISIONS.md](DECISIONS.md)). Linux would need Wine and is not supported.
-- Claude Desktop, Claude Code and ChatGPT Desktop as MCP clients. Any stdio MCP client should work.
+- Claude Desktop, Claude Code, ChatGPT Desktop and Antigravity as MCP clients. Any stdio MCP client should work.
 - The current font: the one whose window is in front. Which tools are proven with two and three fonts: [topics/fonts-and-sync.md](topics/fonts-and-sync.md) (goal 5).
 
 ## Non-goals and hard limits

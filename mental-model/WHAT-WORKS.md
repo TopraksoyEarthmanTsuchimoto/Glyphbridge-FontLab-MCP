@@ -27,6 +27,7 @@ The areas follow the summary table in [CURRENT-STATUS.md](CURRENT-STATUS.md).
 ### MCP clients
 
 - **ChatGPT Desktop** (2026-11-18, listener 0.187 / server 0.74, one run, Demo mode, not a numbered live test): set up through `config.toml` ([RUNBOOK.md](RUNBOOK.md) step 4b), in Work mode and in Codex mode it called `fontlab_status`, `list_glyphs`, `create_glyph`, `draw_polygon`, `set_glyph_width`, `get_glyph_outline` and `finish_changes`, created six glyphs with outlines in an unsaved font and ended with the bold save reminder. A plain chat has no Glyphbridge tools and offers to continue in Work mode. Other tools, the Settings route and macOS untested.
+- **Antigravity IDE** (2026-11-26, listener 0.216 / server 0.95, one run per stage, Demo mode, not a numbered live test; Gemini 4 Hydrogen High, then Low, then Medium for the writes): set up through `mcp_config.json` ([RUNBOOK.md](RUNBOOK.md) step 4c), it listed 28 tools and called `fontlab_status` (twice), `create_glyph`, `draw_polygon`, `set_glyph_width`, `get_glyph_outline` and `finish_changes`. It created `agy1_a` with one verified four-node square at width 600, sidebearings 100 as FontLab showed, and ended with the bold save reminder. Each tool asked for approval (at least three cards in the write run, not counted). Other tools, config edits while it runs, the CLI and macOS untested.
 
 ### The save question and saving
 

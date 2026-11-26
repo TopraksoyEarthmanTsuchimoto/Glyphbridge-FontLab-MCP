@@ -251,6 +251,18 @@ Not core, but budgeted: the root [README.md](../../README.md), the end-user inst
 
 Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
 
+### 2026-11-26: root README.md budget 800 → 900
+
+The user's choice, at 776 words, before the coherence fixes of that day (a typo, the macOS heading, "Show breakdown", and how to add the entry to a config file that already holds other servers, for Antigravity and Claude Desktop). The root README is not a startup core file, so the reference totals become 22,900 and 22,000.
+
+### 2026-11-26: GEMINI.md budget 500
+
+A new startup core file at its first budget, as CODEX.md had; the file's own decision stays in [DECISIONS.md](../DECISIONS.md) ("GEMINI.md, notes for Gemini in Antigravity only"). Reference totals then 22,800 and 22,000.
+
+### 2026-11-26: DECISIONS.md budget 6,250 → 7,750
+
+The user's choice, at 6,233 words, after the Antigravity research of that day. DECISIONS.md is a startup core file, so the reference totals become 22,300 and 21,500.
+
 ### 2026-11-26: CURRENT-STATUS.md budget 4,100 → 5,000
 
 The user's choice, at 4,095 words. CURRENT-STATUS.md is a startup core file, so the reference totals become 20,800 and 20,000.

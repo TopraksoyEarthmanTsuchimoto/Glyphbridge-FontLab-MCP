@@ -3,7 +3,7 @@
 ## Two processes, one local link
 
 ```
-AI app (Claude Desktop, Claude Code, ChatGPT Desktop, …)
+AI app (Claude Desktop, Claude Code, ChatGPT Desktop, Antigravity, …)
    │ MCP over stdio
 glyphbridge_mcp_server.py      own venv, normal Python, MCP SDK v2 (mcp 2.2.0)
    │ HTTP + JSON, 127.0.0.1:8765 only
@@ -73,7 +73,7 @@ Which version brought each tool and feature: [WHAT-WORKS.md](WHAT-WORKS.md); wha
 ## Repository layout
 
 ```
-README.md, LICENSE, AGENTS.md, CLAUDE.md, CODEX.md, .mcp.json, .gitattributes, .gitignore
+README.md, LICENSE, AGENTS.md, CLAUDE.md, CODEX.md, GEMINI.md, .mcp.json, .gitattributes, .gitignore
 glyphbridge_mcp_server.py, glyphbridge_fontlab_mcp_listener.py   (root: tests read them from here)
 tests/          run_all.py, four stub harnesses, expected_*.txt, README.md
 mental-model/   all other documentation (map: MARKDOWN-MAP.md)

@@ -240,6 +240,10 @@ Condensed on 2026-11-24; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECIS
 
 ## Repository and documents
 
+### 2026-11-26: GEMINI.md, notes for Gemini in Antigravity only
+
+A root file beside CLAUDE.md and CODEX.md, named in AGENTS.md's startup line. *Reason:* Antigravity loads AGENTS.md and GEMINI.md by itself and ignores other names such as ANTIGRAVITY.md (its documentation; checked 2026-11-26), so the file needs no import, and one would load AGENTS.md twice; named after the model family, as Gemini CLI's own file is. Rules for every agent stay in AGENTS.md.
+
 ### 2026-11-24: refusals tracked in one register
 
 - **Every case a tool refuses, or no tool supports yet, is listed in [topics/refusals.md](topics/refusals.md), with what would lift it. When a case becomes possible in one tool, the agent proposes lifting it in every other tool that refuses it, or says why not ([AGENTS.md](../AGENTS.md)). A shared table in the code of what each edit tool accepts, with a stub test of every tool against every case, was built with the add-contour tool (`_EDIT_ACCEPTS`, listener 0.207).** *Reason:* the user's choice; the add-contour tool is the third edit tool to refuse the same cases, and a lifted case was remembered nowhere.

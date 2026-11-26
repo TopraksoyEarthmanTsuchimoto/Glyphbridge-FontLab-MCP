@@ -30,3 +30,4 @@ The project's short codes and terms, one line each, with a link to where each is
 - **Changed mark:** the call that turns the font's changed icon blue so FontLab asks to save (S1): [topics/server-and-endpoints.md](topics/server-and-endpoints.md) §2.
 - **Demo mode:** FontLab without saving, on the current PC: [CURRENT-STATUS.md](CURRENT-STATUS.md) (Environment).
 - **Watch point:** something seen but not yet explained: [WATCH-POINTS.md](WATCH-POINTS.md).
+- **AGY, `antigravity-client`:** how FontLab's OUTPUT panel names Antigravity's agent program (`agy.exe`) and its MCP client; AGY is also the label of the 2026-11-26 Antigravity test font: [RUNBOOK.md](RUNBOOK.md) step 4c.

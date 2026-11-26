@@ -8,12 +8,12 @@ License: [LICENSE](LICENSE).
 
 ## Requirements
 
-Make sure you have these installed on your computer:
+Make sure you have these installed on your computer. Glyphbridge needs all of these to be ready:
 - FontLab 8
 - Python 3.14 or newer (3.15 tested)
-- An AI app that can start a local (stdio) MCP server. Tested: Claude Desktop, ChatGPT Desktop
+- An AI app that can start a local (stdio) MCP server. Tested: Claude Desktop, ChatGPT Desktop, Antigravity
 
-## Install on Windows (tested)
+## Install Glyphbridge on Windows (tested)
 
 **Option 1:** open the AI agent of your choice and type *"Tell me how to install and use https://github.com/TopraksoyEarthmanTsuchimoto/Glyphbridge-FontLab-MCP on this computer"*.
 
@@ -33,7 +33,7 @@ Every app needs the same three values: `command` (the venv's `python.exe`), `arg
 
 ### Claude Desktop
 
-Open **Settings > Developer > Edit Config** and add this inside the file's top-level braces. Keep everything else that is already in the file and make sure you don't break anything:
+Open **Settings > Developer > Edit Config** and add this inside the file's top-level braces. Keep everything else that is already in the file and make sure you don't break anything. If the file already has an `"mcpServers"` block, add only the `"glyphbridge-fontlab"` entry to it:
 
 ```json
 "mcpServers": {
@@ -60,16 +60,20 @@ cwd = "C:\\path\\to\\Glyphbridge-FontLab-MCP"
 
 Use **Work** or **Codex** mode: In ChatGPT Desktop a plain chat has no Glyphbridge tools and offers to continue in Work mode. Approve each tool when asked.
 
+### Antigravity
+
+Quit Antigravity (if it is still open), then go to `%USERPROFILE%\.gemini\config\mcp_config.json` and open it in a text editor (it may be empty). The `"mcpServers"` block you need to put there is the same one shown for Claude Desktop. If it is empty, put the block inside top-level braces `{ }`; otherwise add only the `"glyphbridge-fontlab"` entry to its `"mcpServers"`. Start Antigravity and open **⋮ > Settings > Conversations**: under Customizations, **Show breakdown** lists `glyphbridge-fontlab`. Approve each tool when asked.
+
 ### Other AI apps
 
 Any app that starts a local (stdio) MCP server should work with the same three values. Not tested yet: please report what works.
 
-## Install on macOS (not tested yet)
+## Install Glyphbridge on macOS (not tested yet)
 
 The same steps should apply, with these differences:
 - Step 2: `python3 -m venv venv` and `venv/bin/python -m pip install mcp==2.2.0`.
 - Step 3: FontLab's user Scripts folder in your Documents folder.
-- Step 4: `command` is `.../venv/bin/python`. Claude Desktop's config is `~/Library/Application Support/Claude/claude_desktop_config.json`; ChatGPT Desktop's is not confirmed on macOS yet.
+- Step 4: `command` is `.../venv/bin/python`. Claude Desktop's config is `~/Library/Application Support/Claude/claude_desktop_config.json`; ChatGPT Desktop's is not confirmed on macOS yet. Antigravity's is `~/.gemini/config/mcp_config.json` according to Google's documentation.
 
 Please report what works.
 
