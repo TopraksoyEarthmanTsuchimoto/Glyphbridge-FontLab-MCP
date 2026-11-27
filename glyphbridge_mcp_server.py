@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  MCP server (v0.97)
+Glyphbridge-FontLab-MCP  -  MCP server (v0.99)
 ===============================================
 Version history: mental-model/CHANGELOG.md in the repository.
 
@@ -43,7 +43,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 LISTENER_HOST = "127.0.0.1"
 LISTENER_PORT = int(os.environ.get("GLYPHBRIDGE_PORT", "8765"))
 TIMEOUT_SECONDS = 5.0
-SERVER_VERSION = "0.97"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
+SERVER_VERSION = "0.99"   # keep identical to the header line "MCP server (vX.YY)" (a test compares them)
 MIN_LISTENER_VERSION = (0, 82)     # oldest listener this server's features fully work with
 # v0.40: the save shortcut is read from the system the server runs on, which is FontLab's (the listener answers on 127.0.0.1 only)
 SAVE_SHORTCUT = "Cmd+S" if sys.platform == "darwin" else "Ctrl+S"
@@ -2649,7 +2649,7 @@ def write_glyph_moves(name: str, moves: Any) -> dict:
     if not data.get("moved"):
         reason = data.get("reason") or "unknown reason"
         if changed is not True and changed != "unknown":
-            raise _refusal(clean, "nothing was moved", reason)
+            raise _with_expand_offer(_refusal(clean, "nothing was moved", reason), data)
         result = {"name": clean, "moved": False, "verified": False, "nodes_match": False, "changed": changed, "reason": reason,
                   "moves": done, "coordinates_rounded": rounded,
                   "mismatches": [m for m in data.get("mismatches") or [] if isinstance(m, str)][:20],
@@ -2778,7 +2778,7 @@ def write_glyph_add_contours(name: str, expected_contours: Any, contours: Any, s
     if not data.get("added"):
         reason = data.get("reason") or "unknown reason"
         if changed is not True and changed != "unknown":
-            raise _refusal(clean, "nothing was added", reason)
+            raise _with_expand_offer(_refusal(clean, "nothing was added", reason), data)
         result = {"name": clean, "added": False, "verified": False, "nodes_match": False, "changed": changed, "reason": reason,
                   "coordinates_rounded": rounded,
                   "mismatches": [m for m in data.get("mismatches") or [] if isinstance(m, str)][:20],
@@ -2943,7 +2943,7 @@ def write_glyph_remove_contours(name: str, expected_contours: Any, contours: Any
     if not data.get("removed"):
         reason = data.get("reason") or "unknown reason"
         if changed is not True and changed != "unknown":
-            raise _refusal(clean, "nothing was removed", reason)
+            raise _with_expand_offer(_refusal(clean, "nothing was removed", reason), data)
         result = {"name": clean, "removed": False, "verified": False, "nodes_match": False, "changed": changed, "reason": reason,
                   "contours_requested": sorted(indices),
                   "mismatches": [m for m in data.get("mismatches") or [] if isinstance(m, str)][:20],
@@ -3020,6 +3020,214 @@ _COMP_CHECKS_SINCE_187 = ("source_layer",)     # v0.74: listener 0.187 sends it;
 def _comp_checks_ok(checks: dict) -> bool:
     """v0.74: every single-form check True; a check a listener older than 0.187 does not send is not required."""
     return all(checks.get(k) is True for k in _COMP_CHECK_KEYS if k in checks or k not in _COMP_CHECKS_SINCE_187)
+
+
+# ---- v0.98: expand_transformation through POST /glyph/expand (listener 0.221; the user's design of 2026-11-26/27, DECISIONS.md;
+# research XT-XT4 1952-1981, mental-model/topics/transforms-and-undo.md). The listener checks, predicts, expands and verifies; the
+# server checks the request, asks for the person's approval above _EXPAND_CONFIRM_ABOVE glyphs, splits the list into the listener's
+# batches (checking every batch by preview before the first change), and words the reply.
+_EXPAND_MIN_LISTENER = (0, 221)
+_EXPAND_CONFIRM_ABOVE = 30      # the user's choice (2026-11-27): more glyphs need the person's approval in chat
+_EXPAND_BATCH = 10              # glyphs per listener request (its limit)
+_EXPAND_LIST_MAX = 2000         # a bound on one call's list, not a design limit
+_EXPAND_SHAPES_MAX = 20
+_EXPAND_KEYS = ("m11", "m12", "m21", "m22", "dx", "dy")
+# v0.99: the live result of XT5 (1990, 1991), replacing v0.98's "should ... the live check of this tool is still to come"
+_EXPAND_UNDO_NOTE = (
+    "FontLab's Edit > Undo took back an expansion by this tool, and Redo brought it back, in testing (one run). After an expansion of "
+    "several glyphs, how far one Undo goes was not tested: after an Undo, read each glyph again before saying what it reversed.")
+_EXPAND_PREVIEW_INSTRUCTION = (
+    "PREVIEW: nothing was changed. Ask the person in the chat before expanding (FontLab asks nothing). State three facts: (1) what "
+    "becomes permanent: each shape's transform (old_transform_description), which can no longer be adjusted as a transform afterwards; "
+    "(2) the largest rounding shift: largest_rounding_shift units (FontLab rounds expanded nodes to whole units; 0 means no node moves); "
+    "(3) how to take it back: Edit > Undo in FontLab (undo_note). Explain what an element transform is only to a person who seems new "
+    "to it. Only after their yes call expand_transformation with glyphs=apply_with.")
+_EXPAND_LARGE_PREVIEW = (
+    " More than 30 glyphs: show the person the list (each glyph, its transform and its rounding shift) and ask explicitly; only after "
+    "their yes call with confirmed_large_write=true as well.")
+_EXPAND_DONE_INSTRUCTION = (
+    "The transforms are expanded and verified. Tell the person in one sentence what was made permanent and the largest rounding shift. "
+    "The node coordinates changed: read a glyph again with get_glyph_outline before editing it further.")
+_EXPAND_UNCONFIRMED_INSTRUCTION = (
+    "An expansion was NOT verified (see stopped_at and that glyph's mismatches); the glyph may be partly changed, and the glyphs after it "
+    "were not attempted. Tell the person what happened, in plain words. Do NOT repeat or repair it on your own: ask the person first "
+    "(Edit > Undo in FontLab may take it back).")
+# v0.98, case 1 of the design: the edit tools' refusal of a shape that carries a transform offers the expansion
+_EXPAND_OFFER = (
+    "This shape carries an element transform (set with FontLab's Element tool). expand_transformation can make the transform permanent, "
+    "after which this edit can be made: call it with preview=true for this glyph, then offer it to the person in the chat, stating the "
+    "three facts the preview gives (what becomes permanent, the largest rounding shift, how to take it back). Only after their yes "
+    "expand it, read the glyph again with get_glyph_outline (its node coordinates change) and retry the edit.")
+
+
+def _with_expand_offer(exc: ToolError, data: dict) -> ToolError:
+    """v0.98: an edit refusal of a shape with its own transform ends with _EXPAND_OFFER. v0.99: after a full stop (live 2020: the
+    listener's reason ends without one)."""
+    if isinstance(data, dict) and data.get("edit_case") == "shape_transform":
+        text = str(exc).rstrip()
+        if not text.endswith((".", "!", "?")):
+            text += "."
+        exc.args = (f"{text} {_EXPAND_OFFER}",) + exc.args[1:]
+    return exc
+
+
+def _check_expand_matrix(value: Any, where: str) -> dict:
+    if not isinstance(value, dict) or set(value) != set(_EXPAND_KEYS):
+        raise ToolError(f"{where}: matrix must be an object with exactly {', '.join(_EXPAND_KEYS)}, as get_glyph_outline reports it.")
+    out = {}
+    for k in _EXPAND_KEYS:
+        v = value[k]
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or abs(v) > 20000:
+            raise ToolError(f"{where}: matrix {k} must be a number between -20000 and 20000.")
+        out[k] = float(v)
+    return out
+
+
+def _check_expand_glyphs(glyphs: Any, preview: bool) -> list:
+    """The glyphs as clean dicts {name, shapes?}, or a ToolError before anything is sent."""
+    if not isinstance(glyphs, (list, tuple)) or not (1 <= len(glyphs) <= _EXPAND_LIST_MAX):
+        raise ToolError(f"glyphs must be a list of 1 to {_EXPAND_LIST_MAX} glyphs.")
+    out, seen = [], set()
+    for i, g in enumerate(glyphs):
+        if isinstance(g, str):
+            g = {"name": g}
+        if not isinstance(g, dict) or "name" not in g or set(g) - {"name", "shapes"}:
+            raise ToolError(f'glyph {i} must be a glyph name or an object with "name" and, optionally, "shapes".')
+        name = g["name"].strip() if isinstance(g["name"], str) else ""
+        if not name or name in seen:
+            raise ToolError(f"glyph {i}: the name must be a non-empty string, each glyph once per call.")
+        seen.add(name)
+        shapes = g.get("shapes")
+        if shapes is None:
+            if not preview:
+                raise ToolError(f"glyph {i} ({name}): an expansion names each shape with the transform it was read with. Run "
+                                "expand_transformation with preview=true first and pass its apply_with list.")
+            out.append({"name": name})
+            continue
+        if not isinstance(shapes, (list, tuple)) or not (1 <= len(shapes) <= _EXPAND_SHAPES_MAX):
+            raise ToolError(f"glyph {i} ({name}): shapes must be a list of 1 to {_EXPAND_SHAPES_MAX} shapes.")
+        clean, idx = [], set()
+        for j, s in enumerate(shapes):
+            where = f"glyph {i} ({name}) shape {j}"
+            if not isinstance(s, dict) or set(s) != {"index", "matrix"}:
+                raise ToolError(f'{where} must be an object with exactly "index" and "matrix".')
+            k = s["index"]
+            if isinstance(k, bool) or not isinstance(k, int) or not (0 <= k <= 19) or k in idx:
+                raise ToolError(f"{where}: index must be a whole number from 0 to 19 (get_glyph_outline's elements), each once.")
+            idx.add(k)
+            clean.append({"index": k, "matrix": _check_expand_matrix(s["matrix"], where)})
+        out.append({"name": name, "shapes": clean})
+    return out
+
+
+def _expand_shape_view(s: dict) -> dict:
+    m = s.get("matrix") if isinstance(s.get("matrix"), dict) else {}
+    ok = all(isinstance(m.get(k), (int, float)) and not isinstance(m.get(k), bool) for k in _EXPAND_KEYS)
+    contours = s.get("contours") if isinstance(s.get("contours"), list) else []
+    new = _move_view(s.get("expected"))
+    if isinstance(new, list):
+        for c, number in zip(new, contours):
+            c["index"] = number
+    return {"index": s.get("index"),
+            "old_transform": {k: _tidy_number(round(float(m[k]), 6)) for k in _EXPAND_KEYS} if ok else None,
+            "old_transform_description": _describe_matrix(tuple(float(m[k]) for k in _EXPAND_KEYS)) if ok else "unreadable",
+            "largest_rounding_shift": s.get("largest_rounding_shift"),
+            "rounded_nodes": s.get("rounded_nodes") or [], "rounded_nodes_count": s.get("rounded_nodes_count"),
+            "half_cases": s.get("half_cases") or [], "new_nodes": new}
+
+
+def _expand_glyph_view(r: dict) -> dict:
+    v = {"name": r.get("name")}
+    for k in ("expanded", "verified", "changed", "reason", "error", "verified_after_sync", "synced_with_fontlab", "fontlab_changed_mark"):
+        if k in r:
+            v[k] = r[k]
+    v["shapes"] = [_expand_shape_view(s) for s in r.get("shapes") or [] if isinstance(s, dict)]
+    bad = [m for m in (r.get("mismatches") or []) + (r.get("mismatches_after_sync") or []) if isinstance(m, str)]
+    if bad:
+        v["mismatches"] = bad[:20]
+    return v
+
+
+def _expand_listener(path_data: dict, preview: bool) -> dict:
+    """One listener request; a preview is a plain POST, a write goes through _write_post (request ID, change log)."""
+    if preview:
+        return _call_listener_post("/glyph/expand", path_data)
+    return _write_post("/glyph/expand", path_data)
+
+
+def expand_glyph_transforms(glyphs: Any, preview: Any = None, confirmed_large_write: Any = None) -> dict:
+    for label, flag in (("preview", preview), ("confirmed_large_write", confirmed_large_write)):
+        if flag is not None and not isinstance(flag, bool):
+            raise ToolError(f"{label} must be true or false (or left out).")
+    preview = preview is True
+    checked = _check_expand_glyphs(glyphs, preview)
+    if not preview and len(checked) > _EXPAND_CONFIRM_ABOVE and confirmed_large_write is not True:
+        raise ToolError(
+            f"{len(checked)} glyphs would be expanded, more than {_EXPAND_CONFIRM_ABOVE}: nothing was changed. Show the person the list (each "
+            "glyph, its transform and its largest rounding shift, from a preview) and ask. Only after their yes call expand_transformation "
+            "again with the same glyphs and confirmed_large_write=true. Never set that flag without the person's approval.")
+    _require_listener(_EXPAND_MIN_LISTENER, "expand_transformation")
+    batches = [checked[i:i + _EXPAND_BATCH] for i in range(0, len(checked), _EXPAND_BATCH)]
+
+    def refused(data: dict) -> None:
+        if not data.get("open"):
+            raise ToolError(NO_FONT)
+        if data.get("refused"):     # v0.99: the phrase once (live 2015, 2016, 2018, 2022 showed it twice), as _refusal does
+            text = str(data.get("reason") or "refused").rstrip()
+            tail = ": nothing was changed"
+            if text.endswith(tail):
+                text = text[:-len(tail)]
+            raise ToolError(f"expand_transformation: nothing was changed: {text}")
+
+    if not preview and len(batches) > 1:     # every glyph checked before the first change
+        for b in batches:
+            refused(_call_listener_post("/glyph/expand", {"glyphs": b, "preview": True}))
+    views, stopped, batch_outcomes = [], None, []
+    for b in batches:
+        if stopped is not None:
+            views.extend({"name": g["name"], "changed": False, "reason": f"not attempted: the expansion of {stopped!r} was not verified",
+                          "shapes": []} for g in b)
+            continue
+        data = _expand_listener({"glyphs": b, "preview": preview}, preview)
+        if not any(v.get("changed") not in (False, None) for v in views):
+            refused(data)
+        elif not data.get("open") or data.get("refused"):
+            stopped = b[0]["name"]
+            views.extend({"name": g["name"], "changed": False, "reason": str(data.get("reason") or "refused"), "shapes": []} for g in b)
+            continue
+        start = len(views)
+        views.extend(_expand_glyph_view(r) for r in data.get("results") or [] if isinstance(r, dict))
+        if not preview:     # v0.99: one change per listener request, as its change log records it (live 2024: 23 against 25)
+            batch = views[start:]
+            batch_outcomes.append("yes" if any(v.get("changed") is True for v in batch)
+                                  else "unknown" if any(v.get("changed") == "unknown" for v in batch) else None)
+        if not preview and data.get("expanded") is not True:
+            stopped = data.get("stopped_at") or "?"
+    shifts = [s["largest_rounding_shift"] for v in views for s in v["shapes"] if isinstance(s.get("largest_rounding_shift"), (int, float))]
+    result = {"preview": preview, "glyphs": views, "largest_rounding_shift": max(shifts) if shifts else None, "undo_note": _EXPAND_UNDO_NOTE}
+    if preview:
+        result["apply_with"] = [{"name": v["name"], "shapes": [{"index": s["index"], "matrix": s["old_transform"]} for s in v["shapes"]]}
+                                for v in views]     # 6 decimals: the listener compares within 0.0001
+        result["font_modified"] = False
+        result["agent_instruction"] = _EXPAND_PREVIEW_INSTRUCTION + (_EXPAND_LARGE_PREVIEW if len(views) > _EXPAND_CONFIRM_ABOVE else "")
+        return result
+    result["expanded"] = stopped is None
+    result["stopped_at"] = stopped
+    sure, unsure = batch_outcomes.count("yes"), batch_outcomes.count("unknown")
+    marks = [v.get("fontlab_changed_mark") for v in views if v.get("changed") is True]
+    failed = [m for m in marks if not (isinstance(m, dict) and m.get("called") is True and not m.get("call_error"))]
+    if marks:
+        result["fontlab_changed_mark"] = failed[0] if failed else marks[0]
+    result["agent_instruction"] = _EXPAND_DONE_INSTRUCTION if stopped is None else _EXPAND_UNCONFIRMED_INSTRUCTION
+    if sure:
+        _mark_modified(result, True)
+        for _ in range(sure - 1):
+            _note_change()
+    for _ in range(unsure):
+        _note_change(sure=False)
+    if not sure:
+        result["font_modified"] = "unknown" if unsure else False
+    return result
 
 
 def _refusal(clean: str, phrase: str, reason: Any) -> ToolError:
@@ -4137,8 +4345,19 @@ def _describe_matrix(mx) -> str:
     elif abs(m12) < eps and abs(m11 - 1) < eps and abs(m22 - 1) < eps:
         parts.append(f"horizontal slant {math.degrees(math.atan(m21)):.2f} degrees (shear {m21:.5f})")
     else:
-        parts.append(f"general transformation: rotation about {math.degrees(math.atan2(m12, m11)):.2f} degrees, "
-                     f"matrix [{m11:.5f} {m12:.5f} {m21:.5f} {m22:.5f}]")
+        # v0.99: scale, rotation and slant as FontLab's transform panel shows them (live 1992: 130 % / 140 %, 15 and 5 degrees read
+        # back exactly); a mirrored or collapsed matrix keeps the matrix wording
+        tp = _transform_parts({"m11": m11, "m12": m12, "m21": m21, "m22": m22})
+        if tp is not None:
+            sx, sy, rot, slant = tp
+            parts.append(f"scale {sx * 100:.2f}% horizontally, {sy * 100:.2f}% vertically")
+            if abs(rot) >= 0.005:
+                parts.append(f"rotation {rot + 0.0:.2f} degrees")
+            if abs(slant) >= 0.005:
+                parts.append(f"slant {slant + 0.0:.2f} degrees")
+        else:
+            parts.append(f"general transformation: rotation about {math.degrees(math.atan2(m12, m11)):.2f} degrees, "
+                         f"matrix [{m11:.5f} {m12:.5f} {m21:.5f} {m22:.5f}]")
     if abs(dx) > eps or abs(dy) > eps:
         parts.append(f"offset ({dx + 0.0:g}, {dy + 0.0:g})")        # + 0.0: FontLab stores -0.0, which would print as -0
     return "; ".join(parts)
@@ -5342,9 +5561,94 @@ def get_glyph_outline(name: str, ctx: Context | None = None) -> dict[str, Any]:
     .notdef: this is the mandatory glyph shown when a character is missing from the font; it may legitimately be empty
     (an empty one comes back as empty: true, with notdef_check saying what to tell the person). If a glyph's layer cannot be read at all,
     the tool raises an error that says so; that is NOT the same as the glyph being empty.
+
+    SMALL TRANSFORMS (server 0.98): a plain shape whose whole element transform is small (each scale axis 80-120 %, a rotation and a
+    slant each at most 15 degrees, or an offset alone of at most 10 % of the em in each direction) is listed in transform_notes: it may be
+    a leftover the person did not mean to keep. Follow agent_instruction (mention it once, never expand unasked).
     """
     _note_client(ctx)
-    return _with_font(read_glyph_outline, name)
+    return _with_font(read_glyph_outline_with_notes, name)
+
+
+# ---- v0.98, case 3 of the expand design (the user's thresholds of 2026-11-27): small transforms are mentioned in passing ----
+_SMALL_SCALE = (0.8, 1.2)
+_SMALL_ANGLE = 15.0          # degrees, rotation and slant each
+_SMALL_OFFSET_EM = 0.10      # an offset alone: each part at most this share of the em
+_SMALL_TRANSFORM_INSTRUCTION = (
+    "transform_notes lists plain shapes of this glyph whose element transform is small (each scale axis 80-120 %, a rotation and a slant "
+    "each at most 15 degrees, or an offset alone of at most 10 % of the em): it may be a leftover the person did not mean to keep. Only "
+    "if this glyph is part of the person's task, mention it once per glyph in this conversation, in one sentence, and offer "
+    "expand_transformation as an option; never expand without their yes. Say nothing when the person has shown they keep such "
+    "transforms on purpose.")
+
+
+def _transform_parts(m: dict):
+    """(scale x, scale y, rotation degrees, slant degrees) of a matrix as QTransform maps a point, or None when it mirrors or collapses."""
+    m11, m12, m21, m22 = (float(m[k]) for k in ("m11", "m12", "m21", "m22"))
+    if m11 * m22 - m12 * m21 <= 0:
+        return None
+    theta = math.atan2(m12, m11)
+    sx = math.hypot(m11, m12)
+    c, s = math.cos(theta), math.sin(theta)
+    ux, uy = m21 * c + m22 * s, -m21 * s + m22 * c
+    if sx <= 0 or uy <= 0:
+        return None
+    return sx, uy, math.degrees(theta), math.degrees(math.atan(ux / uy))
+
+
+def _small_transform(m: dict, upm_of) -> str | None:
+    """"offset" or "scale, rotation or slant" when the whole transform lies within the thresholds, else None. upm_of() is called only
+    for an offset alone."""
+    if not isinstance(m, dict) or any(isinstance(m.get(k), bool) or not isinstance(m.get(k), (int, float)) for k in _EXPAND_KEYS):
+        return None
+    eps = 1e-6
+    linear_identity = (abs(m["m11"] - 1) < eps and abs(m["m22"] - 1) < eps and abs(m["m12"]) < eps and abs(m["m21"]) < eps)
+    if linear_identity:
+        if abs(m["dx"]) < eps and abs(m["dy"]) < eps:
+            return None
+        upm = upm_of()
+        if not isinstance(upm, (int, float)) or isinstance(upm, bool) or upm <= 0:
+            return None
+        limit = _SMALL_OFFSET_EM * upm + eps
+        return "offset" if abs(m["dx"]) <= limit and abs(m["dy"]) <= limit else None
+    parts = _transform_parts(m)
+    if parts is None:
+        return None
+    sx, sy, rot, slant = parts
+    lo, hi = _SMALL_SCALE
+    if lo - eps <= sx <= hi + eps and lo - eps <= sy <= hi + eps and abs(rot) <= _SMALL_ANGLE + eps and abs(slant) <= _SMALL_ANGLE + eps:
+        return "scale, rotation or slant"
+    return None
+
+
+def read_glyph_outline_with_notes(name: str) -> dict:
+    """v0.98: read_glyph_outline, plus transform_notes for small transforms of plain shapes (case 3)."""
+    result = read_glyph_outline(name)
+    elements = result.get("elements") if isinstance(result, dict) else None
+    if not isinstance(elements, list):
+        return result
+    cache = {}
+
+    def upm_of():
+        if "upm" not in cache:
+            try:
+                cache["upm"] = _call_listener("/font/current").get("units_per_em")
+            except Exception:
+                cache["upm"] = None
+        return cache["upm"]
+
+    notes = []
+    for e in elements:
+        if not isinstance(e, dict) or e.get("is_component") is not False or e.get("is_composite") is True:
+            continue
+        kind = _small_transform(e.get("matrix"), upm_of)
+        if kind:
+            notes.append({"shape": e.get("index"), "kind": kind, "transform": e.get("description")})
+    if notes:
+        result["transform_notes"] = notes
+        text = result.get("agent_instruction")
+        result["agent_instruction"] = f"{text} {_SMALL_TRANSFORM_INSTRUCTION}" if isinstance(text, str) and text else _SMALL_TRANSFORM_INSTRUCTION
+    return result
 
 
 @_tool()
@@ -5912,6 +6216,46 @@ def remove_contours(name: str, expected_contours: int, contours: list[dict[str, 
     """
     _note_client(ctx)
     return _with_font(write_glyph_remove_contours, name, expected_contours, contours)
+
+
+@_tool()
+def expand_transformation(glyphs: list[Any], preview: bool | None = None, confirmed_large_write: bool | None = None,
+                          ctx: Context | None = None) -> dict[str, Any]:
+    """Make the element transform of plain shapes permanent in the font open in FontLab 8, as FontLab's Element > Expand
+    Transformation does: each node takes the position FontLab draws, and the shape's transform becomes the identity.
+
+    An element transform (scale, rotation, slant, offset set with FontLab's Element tool) is non-destructive: the person can still change
+    it. Expanding gives that up, and FontLab rounds every expanded node to whole units, so the outline may move by up to half a unit.
+    Offer it only when it helps:
+      1. an edit tool (move_nodes, add_contours, remove_contours) refused a shape because it carries a transform: offer to expand first;
+      2. the person asks for it ("make the slant permanent", "bake the transforms");
+      3. get_glyph_outline listed a small transform in transform_notes: mention it once, as an option;
+      4. tidiness: only as a suggestion when the person cares about tidy, consistent glyphs, never as a warning that something breaks.
+
+    ALWAYS PREVIEW FIRST: call with preview=true and glyphs as names (["a", "b"]) or as {"name", "shapes"} objects. Nothing changes;
+    the reply gives each shape's old_transform and old_transform_description, the exact new_nodes, the largest_rounding_shift and the
+    rounded_nodes, and apply_with. Then ask the person in the chat (FontLab asks nothing), stating three facts: what becomes permanent,
+    the largest rounding shift, and how to take it back (undo_note). Explain what an element transform is only to a person who seems
+    new to it. Only after their yes call again with glyphs=apply_with (no preview). Each shape is sent with the transform it was read
+    with; if the person changed it since, that glyph is refused and nothing changes. More than 30 glyphs need the person's explicit
+    approval of the list, then confirmed_large_write=true; never set it on your own.
+
+    Refused, and nothing changes: a component (expanding it would break its link to its source glyph; not supported yet); a glyph that
+    holds a Power Brush or other composite shape; a component beside the shape that is scaled, rotated or mirrored; a shape with no
+    transform; FontLab's auto layer switched on. Every glyph of a call is checked before the first change; one refused glyph refuses the
+    whole call.
+
+    Afterwards every node is read back: expanded: true and verified: true mean each expanded shape's nodes are where the preview said,
+    its transform is the identity, and every other contour, shape, component source, the advance width and the glyph count are
+    unchanged. The call stops at the first glyph that is not verified (stopped_at); nothing is restored automatically. The node
+    coordinates change, so read a glyph again with get_glyph_outline before editing it.
+
+    Like every Glyphbridge tool this changes the font in FontLab's memory only and NEVER saves it: the person saves (File menu or
+    SAVE_KEYS). Do not remind the person after each step: call finish_changes ONCE when the whole task package is finished.
+    Needs listener 0.221.
+    """
+    _note_client(ctx)
+    return _with_font(expand_glyph_transforms, glyphs, preview, confirmed_large_write)
 
 
 @_tool()

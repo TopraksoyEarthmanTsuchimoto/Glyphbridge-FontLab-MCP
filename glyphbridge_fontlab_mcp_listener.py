@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.220)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.221)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -118,6 +118,10 @@ Routes (GET unless marked POST):
     POST /glyph/contours/add    {"name", "expected_contours", "contours", "shape"?} (v0.207): adds contours in draw_path's form to a
                                 plain shape of an existing outline, after its contours; the glyph's contour count must equal
                                 expected_contours; whole units; verified node by node, every old node unchanged
+    POST /glyph/expand          {"glyphs": [{"name", "shapes"?: [{"index", "matrix"}]}], "preview"} (v0.221): expands the element
+                                transform of plain shapes (one shape.applyTransform() each), nodes rounded to whole units as FontLab
+                                rounds them; a preview changes nothing; every glyph checked before any change; verified node by
+                                node, the rest unchanged; the recursive change mark; 10 glyphs per request
     POST /glyph/contours/remove {"name", "expected_contours", "contours": [{"index", "node_count", "start": {x, y}}], "dialog_seconds"?}
                                 (v0.210): removes contours of the glyph's plain shapes after a Yes in FontLab
                                 (default No, closing by itself); every entry must match its contour, before the question and again
@@ -352,7 +356,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.220"
+VERSION = "0.221"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -653,7 +657,12 @@ _MARK_TITLES = {"layer_created": "Glyphbridge create", "width": "Glyphbridge wid
                 "kerning": "Glyphbridge kerning", "tryedit": "Glyphbridge edit", "move_nodes": "Glyphbridge move nodes", "add_contours": "Glyphbridge add contours",
                 "trycomponent": "Glyphbridge component", "trycomponent_light": "Glyphbridge component", "add_component": "Glyphbridge add component",
                 "remove_component": "Glyphbridge remove component", "kerning_group": "Glyphbridge kerning group",
-                "remove_contours": "Glyphbridge remove contours", "tryexpand": "Glyphbridge expand"}
+                "remove_contours": "Glyphbridge remove contours", "tryexpand": "Glyphbridge expand",
+                "expand": "Glyphbridge expand transformation"}
+# v0.221: kinds whose mark is recursive, notifyChangesApplied(title, <glyph>, True): FontLab then records a history state on the glyph,
+# its layer and its shapes, so Edit > Undo can reverse the API change (an expansion: 1972-1974). Every other kind keeps the standard
+# mark (False) until its own live check.
+_MARK_RECURSIVE = ("expand",)
 _MARK_DELETE_MAX_TRIES = 20    # v0.133: how many surviving glyphs a delete's mark may try before it says none could be notified; v0.134: also a kerning write's mark
 _SYNCED_NOTE = ("Glyphbridge asked FontLab to sync this glyph right after the change and FontLab's legacy view now matches the modern layer, so the "
                 "change is durable against the display refresh of create_glyph, delete_glyph, set_glyph_unicode and the legacy width route. "
@@ -746,8 +755,13 @@ def _mark_font_changed(font, name, how):
     if layer is None:
         return {"called": False, "reason": "the glyph has no modern active layer"}
     mark = {"called": True}
+    if how in _MARK_RECURSIVE:      # v0.221
+        mark["recursive"] = True
     try:
-        items.notifyChangesApplied(_MARK_TITLES[how], w, False)
+        if how in _MARK_RECURSIVE:
+            items.notifyChangesApplied(_MARK_TITLES[how], w, True)
+        else:
+            items.notifyChangesApplied(_MARK_TITLES[how], w, False)
     except Exception as exc:
         mark["call_error"] = f"{type(exc).__name__}: {exc}"
     value, err = _pkg_get(w, "hasChanges")
@@ -882,7 +896,7 @@ def _guard_mark(font, name, how, result, no_mark=None):
 
 
 _GUARD_FULL_KINDS =("draw_polygon", "draw_path", "layer_created", "move_nodes", "add_component", "remove_component", "add_contours",
-                    "remove_contours")   # v0.153: move_nodes keeps the node count, so the full check cannot see a lost move; v0.207: add_contours; v0.210: remove_contours
+                    "remove_contours", "expand")   # v0.153: move_nodes keeps the node count, so the full check cannot see a lost move; v0.207: add_contours; v0.210: remove_contours
 _GUARD_LIGHT_KINDS = ("width", "sidebearings", "trycomponent_light")   # v0.185: the templayer probe with sync=light (Power Brush research, F1)
 
 
@@ -16579,6 +16593,314 @@ def create_font(family=None):
     return out
 
 
+# --------------------------------------------------------------------------
+# POST /glyph/expand (v0.221) - expand_transformation (the user's design of 2026-11-26/27, DECISIONS.md; research listener
+# 0.218-0.220, XT-XT4 1952-1981, mental-model/topics/transforms-and-undo.md). Body: {"glyphs": [{"name": N, "shapes": [{"index": I,
+# "matrix": {m11, m12, m21, m22, dx, dy}}]}], "preview": true|false}; 1 to _EXPAND_GLYPHS_MAX glyphs per request (the server splits
+# longer lists). A preview may leave "shapes" out: every plain shape of the glyph that carries a transform. Every glyph is checked
+# before anything changes, and one refused glyph refuses the whole request:
+#   - a modern active layer whose autoLayer reads False; every shape's isComponent and isComposite read True or False; no Power Brush
+#     or other composite shape anywhere (F1); components beside only if moved by an offset (the only kind seen live), source readable;
+#   - each named shape exists, is a plain shape (components are refused in the first build) and carries a transform, and its
+#     transform equals the one sent (_EXPAND_MATRIX_TOL, _EXPAND_OFFSET_TOL): a transform changed since the agent's read refuses;
+#   - the shapes' contour counts add up to layer.getContours(), and each named shape's getContours() equals its slice there.
+# The expected result: each node of a named shape mapped by its transform and rounded to the nearest whole unit, a half up (rule B;
+# FontLab rounded every expanded node in 1975 and 1981; a node exactly half-way may round either way, accepted either way and named
+# in half_cases). A preview returns it and changes nothing. A write checks each glyph once more right before its own change, makes
+# ONE shape.applyTransform() per named shape (the call of XT2-XT4), and stops at the first glyph that is not verified. Verified: every
+# named shape's nodes equal the expected ones within _EXPAND_NODE_TOL and its matrix reads the identity; every other contour, every
+# other shape (kind, source, matrix), the contour counts, every component's source outline, the advance width, autoLayer and the
+# glyph count unchanged. A change goes through _guard_mark with how "expand", whose mark is RECURSIVE (_MARK_RECURSIVE):
+# notifyChangesApplied(title, <glyph>, True), with which Edit > Undo reversed an API expansion and Redo restored it (1972-1974); no
+# mark when the expansion was not verified. Never called: decomposite, eject, ejectTo, a transform assignment, any history call,
+# font.update(), save.
+# --------------------------------------------------------------------------
+
+_EXPAND_GLYPHS_MAX = 10      # glyphs per request; the server splits a longer list (the time per glyph is to be measured live)
+_EXPAND_SHAPES_MAX = 20      # named shapes per glyph
+_EXPAND_ROWS_MAX = 200       # rounded nodes listed per shape
+_EXPAND_MATRIX_TOL = 1e-4    # m11 m12 m21 m22: the server reads them to 6 decimals; Undo restores them in single precision (1973)
+_EXPAND_OFFSET_TOL = 0.01    # dx dy
+_EXPAND_NODE_TOL = 0.001
+_EXPAND_LINEAR = ("m11", "m12", "m21", "m22")
+
+
+def _expand_rule_b(v):
+    import math as _math
+    return float(_math.floor(v + 0.5))
+
+
+def _expand_is_identity(m):
+    return isinstance(m, dict) and all(abs(m[k] - v) <= 1e-9 for k, v in _MOVE_IDENTITY.items())
+
+
+def _expand_matrix_same(m, want):
+    return (all(abs(m[k] - want[k]) <= _EXPAND_MATRIX_TOL for k in _EXPAND_LINEAR)
+            and all(abs(m[k] - want[k]) <= _EXPAND_OFFSET_TOL for k in ("dx", "dy")))
+
+
+def _expand_mtext(m):
+    return "(" + ", ".join(f"{k} {_mv_text(m[k])}" for k in _MOVE_IDENTITY) + ")"
+
+
+def _expand_predict(raw, m, offset):
+    """(expected contours, rounded nodes, largest shift, half cases): one shape's raw contours mapped by m as QTransform maps a point,
+    then rounded by rule B. Contour numbers in the rows are the glyph's (offset + the shape's own)."""
+    exact = _tryexpand_map(raw, m)
+    expected, rows, worst, halves = [], [], 0.0, []
+    for ci, c in enumerate(exact):
+        nodes = []
+        for ni, n in enumerate(c.get("nodes") or []):
+            rx, ry = _expand_rule_b(n["x"]), _expand_rule_b(n["y"])
+            shift = max(abs(rx - n["x"]), abs(ry - n["y"]))
+            worst = max(worst, shift)
+            if shift > _EXPAND_NODE_TOL:
+                rows.append({"contour": offset + ci, "node": ni, "exact": {"x": round(n["x"], 4), "y": round(n["y"], 4)},
+                             "stored": {"x": rx, "y": ry}})
+            for axis, v in (("x", n["x"]), ("y", n["y"])):
+                if abs((v - (_expand_rule_b(v) - 1.0)) - 0.5) <= 1e-6:
+                    halves.append({"contour": offset + ci, "node": ni, "axis": axis})
+            nodes.append(dict(n, x=rx, y=ry))
+        expected.append(dict(c, nodes=nodes))
+    return expected, rows, round(worst, 4), halves
+
+
+def _expand_nodes_match(got, want, offset, halves):
+    """Sentences for every difference between the re-read contours of one shape and the expected ones; a half-way coordinate may also
+    read one unit lower (FontLab may round it down)."""
+    half = {(h["contour"], h["node"], h["axis"]) for h in halves}
+    if len(got) != len(want):
+        return [f"the shape reads {len(got)} contour(s), {len(want)} expected"]
+    bad = []
+    for ci, (g, e) in enumerate(zip(got, want)):
+        gn, en = g.get("nodes") or [], e.get("nodes") or []
+        if g.get("closed") is not e.get("closed") or len(gn) != len(en):
+            bad.append(f"contour {offset + ci}: {len(gn)} node(s), closed {g.get('closed')!r}; {len(en)} and {e.get('closed')!r} expected")
+            continue
+        for ni, (a, b) in enumerate(zip(gn, en)):
+            for axis in ("x", "y"):
+                d = abs(a[axis] - b[axis])
+                if d > _EXPAND_NODE_TOL and not ((offset + ci, ni, axis) in half and abs(d - 1.0) <= _EXPAND_NODE_TOL):
+                    bad.append(f"contour {offset + ci} node {ni}: {axis} {a[axis]} instead of {b[axis]}")
+            if a.get("kind") != b.get("kind") or bool(a.get("smooth")) != bool(b.get("smooth")):
+                bad.append(f"contour {offset + ci} node {ni}: kind or smooth flag changed")
+    return bad
+
+
+def _expand_check(name, shapes_req):
+    """(plan, None) when the glyph can be expanded as asked, or (None, reason). Read only; nothing is touched. Never raises."""
+    ctx, refusal = _modern_edit_target(name)
+    if ctx is None:
+        if refusal.get("open") is False:
+            return None, "no font is open"
+        return None, str(refusal.get("reason") or refusal)
+    w, font = ctx["w"], ctx["font"]
+    state, layer = _tryshape_modern_state(w)
+    if layer is None:
+        return None, "the glyph has no modern active layer"
+    auto = _trycomp_auto_state(layer)
+    if auto.get("auto_layer") is not False:
+        return None, f"the layer's autoLayer reads {auto.get('auto_layer')!r}, not False"
+    tel = _trycomp_elements(layer)
+    if isinstance(tel, dict):
+        return None, f"the glyph's elements could not be read ({tel['error']})"
+    shapes, err = _tl_call(lambda: layer.shapes)
+    if err is not None or type(shapes) is not list or len(shapes) != len(tel):
+        return None, "layer.shapes is not a plain list matching the elements read"
+    named = {s["index"] for s in shapes_req} if shapes_req else set()
+    for e in tel:
+        i = e["index"]
+        if type(e.get("is_component")) is not bool or type(e.get("is_composite")) is not bool:
+            return None, f"shape {i}: isComponent or isComposite does not read True or False"
+        if e["is_composite"] and not e["is_component"]:
+            return None, f"shape {i} is a Power Brush or other composite shape; expand_transformation never touches a glyph holding one (F1)"
+        m = e.get("matrix")
+        if not isinstance(m, dict) or "error" in m:
+            return None, f"shape {i}: its transform could not be read"
+        if e["is_component"] and i in named:
+            return None, (f"shape {i} is a component of {e.get('component_glyph')!r}; expanding a component would break its link to its "
+                          "source glyph, and expand_transformation does not do it yet")
+        if e["is_component"]:
+            if not isinstance(e.get("component_glyph"), str) or e["component_glyph"].startswith("<error"):
+                return None, f"shape {i} is a component whose source glyph could not be read"
+            if any(abs(m[k] - _MOVE_IDENTITY[k]) > 1e-9 for k in _EXPAND_LINEAR):
+                return None, (f"shape {i} is a component that is scaled, rotated or mirrored; beside an expanded shape only components moved "
+                              "by an offset are accepted, the only kind seen in testing")
+    targets = []
+    if shapes_req is None:
+        targets = [e["index"] for e in tel if not e["is_component"] and not _expand_is_identity(e["matrix"])]
+        if not targets:
+            comps = [e["index"] for e in tel if e["is_component"] and not _expand_is_identity(e["matrix"])]
+            return None, ("no plain shape of the glyph carries a transform: there is nothing to expand"
+                          + (f" (shape(s) {', '.join(map(str, comps))} are components moved by an offset; components are not expanded yet)" if comps else ""))
+    else:
+        for s in shapes_req:
+            i = s["index"]
+            if i >= len(tel):
+                return None, f"shape {i} does not exist (the glyph has {len(tel)} shape(s), numbered from 0)"
+            e = tel[i]
+            if e["is_component"]:
+                return None, (f"shape {i} is a component of {e.get('component_glyph')!r}; expanding a component would break its link to its "
+                               "source glyph, and expand_transformation does not do it yet")
+            if _expand_is_identity(e["matrix"]):
+                return None, f"shape {i} carries no transform: there is nothing to expand"
+            if not _expand_matrix_same(e["matrix"], s["matrix"]):
+                return None, (f"shape {i}'s transform is now {_expand_mtext(e['matrix'])}, not {_expand_mtext(s['matrix'])} as sent: it changed "
+                              "since it was read; read the glyph again")
+            targets.append(i)
+    counts, why = _remove_contour_counts(shapes)
+    if counts is None:
+        return None, why
+    outline = _tryedit_snapshot(name)
+    if "error" in outline:
+        return None, f"the outline could not be read ({outline['error']})"
+    if sum(counts) != len(outline["contours"]):
+        return None, (f"the shapes' contour counts add up to {sum(counts)}, but layer.getContours() gives {len(outline['contours'])} "
+                      "contour(s)")
+    plan = []
+    for i in targets:
+        off = sum(counts[:i])
+        raw = outline["contours"][off:off + counts[i]]
+        own, err = _tl_call(lambda s=shapes[i]: s.getContours())
+        if err is not None or type(own) not in (list, tuple):
+            return None, f"shape {i}'s own contours could not be read ({err or type(own).__name__})"
+        rows = _contour_rows(own)
+        if isinstance(rows, dict) or rows != raw:
+            return None, f"shape {i}'s own contours disagree with its contours in layer.getContours()"
+        expected, rounding, worst, halves = _expand_predict(raw, tel[i]["matrix"], off)
+        plan.append({"index": i, "offset": off, "count": counts[i], "matrix": tel[i]["matrix"], "raw": raw, "expected": expected,
+                     "rounding": rounding, "largest_shift": worst, "halves": halves})
+    sources = {}
+    for e in tel:
+        src = e.get("component_glyph")
+        if e["is_component"] and src not in sources:
+            snap = _tryedit_snapshot(src)
+            if "error" in snap:
+                return None, f"the outline of the component glyph {src!r} could not be read ({snap['error']})"
+            sources[src] = snap
+    return {"w": w, "font": font, "layer": layer, "state": state, "tel": tel, "shapes": shapes, "counts": counts, "outline": outline,
+            "plan": plan, "sources": sources, "auto": auto, "width": _trycomp_width(w), "glyph_count": _tryedit_glyph_count(font)}, None
+
+
+def _expand_plan_view(p):
+    """What a preview (and a write) reports of one named shape."""
+    return {"index": p["index"], "matrix": p["matrix"], "largest_rounding_shift": p["largest_shift"],
+            "rounded_nodes": p["rounding"][:_EXPAND_ROWS_MAX], "rounded_nodes_count": len(p["rounding"]), "half_cases": p["halves"],
+            "contours": [p["offset"] + k for k in range(p["count"])], "expected": p["expected"]}
+
+
+def _expand_verify(name, chk, layer):
+    """{"verified", "changed", "mismatches", ...}: the glyph after the expansion, judged against the plan. Never raises."""
+    out = {"mismatches": []}
+    bad = out["mismatches"]
+    tel2 = _trycomp_elements(layer) if layer is not None else {"error": "the glyph has no modern active layer"}
+    outline2 = _tryedit_snapshot(name)
+    shapes2, err = _tl_call(lambda: layer.shapes) if layer is not None else (None, "no layer")
+    counts2, why = _remove_contour_counts(shapes2) if (err is None and type(shapes2) is list) else (None, err or "layer.shapes is not a plain list")
+    if isinstance(tel2, dict) or "error" in outline2 or counts2 is None:
+        out["verified"], out["changed"] = False, "unknown"
+        bad.append("the glyph could not be read after the expansion ("
+                   + str(tel2.get("error") if isinstance(tel2, dict) else outline2.get("error") or why) + ")")
+        return out
+    before = chk["outline"]["contours"]
+    after = outline2["contours"]
+    plan = {p["index"]: p for p in chk["plan"]}
+    if counts2 != chk["counts"] or len(tel2) != len(chk["tel"]):
+        bad.append(f"the shapes' contour counts read {counts2}, {chk['counts']} before")
+    else:
+        for i, p in plan.items():
+            bad.extend(_expand_nodes_match(after[p["offset"]:p["offset"] + p["count"]], p["expected"], p["offset"], p["halves"]))
+            e2 = tel2[i]
+            if not _expand_is_identity(e2.get("matrix")):
+                bad.append(f"shape {i}'s transform reads {e2.get('matrix')}, not the identity")
+            if (e2.get("is_component"), e2.get("is_composite")) != (False, False):
+                bad.append(f"shape {i} is no longer a plain shape")
+        inside = {p["offset"] + k for p in plan.values() for k in range(p["count"])}
+        if any(after[k] != before[k] for k in range(len(before)) if k not in inside):
+            bad.append("a contour outside the expanded shapes changed")
+        if any(_remove_key(a) != _remove_key(b) for j, (a, b) in enumerate(zip(tel2, chk["tel"])) if j not in plan):
+            bad.append("another shape's kind, source or transform changed")
+    for src, snap in chk["sources"].items():
+        now = _tryedit_snapshot(src)
+        if "error" in now or now["contours"] != snap["contours"]:
+            bad.append(f"the component glyph {src!r} changed or could not be read")
+    if _trycomp_width(chk["w"]) != chk["width"]:
+        bad.append("the advance width changed")
+    if _trycomp_auto_state(layer) != chk["auto"]:
+        bad.append("autoLayer or the recipe changed")
+    if _tryedit_glyph_count(chk["font"]) != chk["glyph_count"]:
+        bad.append("the glyph count changed")
+    targets_changed = any(i >= len(tel2) or not isinstance(tel2[i].get("matrix"), dict) or "error" in tel2[i]["matrix"]
+                          or any(abs(tel2[i]["matrix"][k] - chk["tel"][i]["matrix"][k]) > 1e-9 for k in _MOVE_IDENTITY) for i in plan)
+    out["changed"] = bool(after != before or targets_changed)
+    out["verified"] = not bad
+    return out
+
+
+def _expand_write(name, chk):
+    """ONE shape.applyTransform() per named shape of one checked glyph, then the verdict, the sync and the recursive mark."""
+    result = {"name": name, "shapes": [_expand_plan_view(p) for p in chk["plan"]]}
+    step, touched = "", False
+    try:
+        for p in chk["plan"]:
+            step, touched = f"shape {p['index']}: applyTransform()", True
+            chk["shapes"][p["index"]].applyTransform()
+    except Exception as exc:
+        result["error"] = f"{step} failed: {type(exc).__name__}: {exc}"
+    if touched:
+        result["display_refreshed"] = _repaint_viewport()
+    _st, layer2 = _tryshape_modern_state(chk["w"])
+    for k, v in _expand_verify(name, chk, layer2).items():
+        result[k] = v
+    if "error" in result:
+        result["verified"] = False
+    result["expanded"] = result["verified"] is True
+    if result["changed"] is not False:
+        _guard_mark(chk["font"], name, "expand", result, no_mark=None if result["expanded"] else "the expansion was not verified")
+        _st3, layer3 = _tryshape_modern_state(chk["w"])
+        again = _expand_verify(name, chk, layer3)
+        result["verified_after_sync"] = again["verified"]
+        if again["verified"] is not True and result["expanded"]:
+            result["mismatches_after_sync"] = again["mismatches"]
+    return result
+
+
+def expand_transformations(entries, preview):
+    """POST /glyph/expand. See the section comment. Never raises out of the route's try."""
+    if _open_font() is None:
+        return {"open": False}
+    checked, refused = [], []
+    for e in entries:
+        chk, why = _expand_check(e["name"], e.get("shapes"))
+        if chk is None:
+            refused.append({"name": e["name"], "changed": False, "reason": why})
+        else:
+            checked.append((e["name"], chk))
+    if refused:
+        rest = [{"name": n, "changed": False, "reason": "not attempted: another glyph of this request was refused"} for n, _c in checked]
+        return {"open": True, "preview": preview, "refused": True, "results": refused + rest,
+                "reason": "; ".join(f"{r['name']}: {r['reason']}" for r in refused) + ": nothing was changed"}
+    if preview:
+        return {"open": True, "preview": True,
+                "results": [{"name": n, "changed": False, "shapes": [_expand_plan_view(p) for p in c["plan"]]} for n, c in checked]}
+    results, stopped = [], None
+    for i, (n, first) in enumerate(checked):
+        if stopped is not None:
+            results.append({"name": n, "changed": False, "reason": f"not attempted: the expansion of {stopped!r} was not verified"})
+            continue
+        want = next(e.get("shapes") for e in entries if e["name"] == n)
+        chk, why = (first, None) if i == 0 else _expand_check(n, want)      # read again right before its own change
+        if chk is None:
+            results.append({"name": n, "changed": False, "reason": why})
+            stopped = n
+            continue
+        r = _expand_write(n, chk)
+        results.append(r)
+        if r.get("expanded") is not True:
+            stopped = n
+    return {"open": True, "preview": False, "results": results, "stopped_at": stopped, "expanded": stopped is None}
+
+
 # ---- v0.204: the change log (DECISIONS.md, 2026-11-24: both counts, through a change log). The listener judges each product write
 # from its own reply and keeps the last _CHANGE_LOG_MAX entries of this listener run; each font's running total is never trimmed.
 # Bookkeeping only: one read of the font in front (its package fgId and names) after a write that changed or may have changed it,
@@ -17803,6 +18125,51 @@ def _route(method, full_path, body=b""):
             except Exception as exc:
                 return _build_response(500, {"error": str(exc)})
 
+        if path == "/glyph/expand":          # v0.221: expand_transformation
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return _build_response(400, {"error": "request body was not valid JSON"})
+            if not isinstance(payload, dict) or set(payload) - {"glyphs", "preview"}:
+                return _build_response(400, {"error": 'the body is an object with "glyphs" and "preview" only'})
+            preview = payload.get("preview", False)
+            glyphs = payload.get("glyphs")
+            if not isinstance(preview, bool):
+                return _build_response(400, {"error": '"preview" must be true or false'})
+            if not isinstance(glyphs, list) or not (1 <= len(glyphs) <= _EXPAND_GLYPHS_MAX):
+                return _build_response(400, {"error": f'"glyphs" must be a list of 1 to {_EXPAND_GLYPHS_MAX} glyphs'})
+            entries, seen = [], set()
+            for gi, g in enumerate(glyphs):
+                if not isinstance(g, dict) or "name" not in g or set(g) - {"name", "shapes"}:
+                    return _build_response(400, {"error": f'glyph {gi}: an object with "name" and, optionally, "shapes"'})
+                name = g["name"].strip() if isinstance(g["name"], str) else ""
+                if not name or name in seen:
+                    return _build_response(400, {"error": f"glyph {gi}: the name must be a non-empty string, each glyph once per request"})
+                seen.add(name)
+                shapes_in = g.get("shapes")
+                if shapes_in is None:
+                    if not preview:
+                        return _build_response(400, {"error": f"glyph {gi} ({name}): a write names each shape with the transform it was read with"})
+                    entries.append({"name": name, "shapes": None})
+                    continue
+                if not isinstance(shapes_in, list) or not (1 <= len(shapes_in) <= _EXPAND_SHAPES_MAX):
+                    return _build_response(400, {"error": f"glyph {gi} ({name}): shapes must be a list of 1 to {_EXPAND_SHAPES_MAX} shapes"})
+                clean, idx_seen = [], set()
+                for s in shapes_in:
+                    ok = (isinstance(s, dict) and set(s) == {"index", "matrix"} and isinstance(s["index"], int) and not isinstance(s["index"], bool)
+                          and 0 <= s["index"] <= _TRYEDIT_SHAPE_MAX and isinstance(s["matrix"], dict) and set(s["matrix"]) == set(_MOVE_IDENTITY)
+                          and all(isinstance(v, (int, float)) and not isinstance(v, bool) and v == v and abs(v) <= 20000 for v in s["matrix"].values()))
+                    if not ok or s["index"] in idx_seen:
+                        return _build_response(400, {"error": (f"glyph {gi} ({name}): each shape is {{\"index\": 0 to {_TRYEDIT_SHAPE_MAX}, \"matrix\": "
+                                                               "{m11, m12, m21, m22, dx, dy}} with numbers, each index once")})
+                    idx_seen.add(s["index"])
+                    clean.append({"index": s["index"], "matrix": {k: float(v) for k, v in s["matrix"].items()}})
+                entries.append({"name": name, "shapes": sorted(clean, key=lambda s: s["index"])})
+            try:
+                return _build_response(200, expand_transformations(entries, preview))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
         if path == "/glyph/move":            # v0.153: move_nodes
             try:
                 payload = json.loads(body.decode("utf-8")) if body else {}
@@ -17930,7 +18297,7 @@ _ACT_WRITES = {"/glyph/create": "create", "/glyph/delete": "delete", "/glyph/wid
                "/glyph/path": "draw", "/font/notdef/warn": ".notdef", "/kerning/set": "kerning", "/kerning/remove": "kerning remove", "/font/create": "create font",
                "/kerning/group/rename": "kerning group rename", "/kerning/group/remove": "kerning group remove",
                "/glyph/move": "move", "/glyph/component": "component", "/glyph/component/remove": "remove component",
-               "/glyph/contours/add": "add contours", "/glyph/contours/remove": "remove contours"}
+               "/glyph/contours/add": "add contours", "/glyph/contours/remove": "remove contours", "/glyph/expand": "expand"}
 _ACT_READS = {"/glyph/outline": "outline", "/glyph/nodes": "nodes", "/glyph/width": "width",
               "/glyph/sidebearings": "sidebearings", "/glyph/unicode": "unicode", "/font/glyphs": "glyph list",
               "/font/current": "font info", "/font/notdef": ".notdef check", "/font/notdef/warn": ".notdef check",
@@ -18054,6 +18421,8 @@ def _act_describe_write(path, payload, code, reply):
         return _act_describe_kerning_group(kind, payload, code, reply)
     if kind == "create font":
         return _act_describe_font(payload, code, reply)
+    if kind == "expand":
+        return _act_describe_expand(payload, code, reply)
     name = payload.get("name") if isinstance(payload, dict) else None
     head = f"{kind} {_act_text(name.strip())}" if isinstance(name, str) and name.strip() else (kind if kind == ".notdef" else f"{kind} ?")
     if code != 200 or not isinstance(reply, dict):
@@ -18172,6 +18541,33 @@ def _act_describe_write(path, payload, code, reply):
         return f"{head}: {size} (verified{match}{sync})", not unsynced
     changed = "; the glyph DID change" if reply.get("changed") is True else ""
     return f"NOT DONE {head}: {why}{changed}", False
+
+
+def _act_describe_expand(payload, code, reply):
+    """(line, collapsible) for one /glyph/expand request (v0.221): the glyphs named, a preview said as such, the outcome."""
+    glyphs = payload.get("glyphs") if isinstance(payload, dict) else None
+    names = [g.get("name") for g in glyphs if isinstance(g, dict) and isinstance(g.get("name"), str)] if isinstance(glyphs, list) else []
+    shown = ", ".join(_act_text(n) for n in names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
+    preview = isinstance(payload, dict) and payload.get("preview") is True
+    head = f"expand {'preview ' if preview else ''}{shown or '?'}"
+    if code != 200 or not isinstance(reply, dict):
+        error = reply.get("error") if isinstance(reply, dict) else None
+        return f"{'REFUSED' if code == 400 else 'FAILED'} {head}: {_act_text(error or f'HTTP {code}')}", False
+    if reply.get("open") is False:
+        return f"REFUSED {head}: no font is open", False
+    results = [r for r in reply.get("results") or [] if isinstance(r, dict)]
+    if reply.get("refused") is True:
+        first = next((r for r in results if isinstance(r.get("reason"), str) and not r["reason"].startswith("not attempted")), {})
+        who = f"{first['name']}: " if isinstance(first.get("name"), str) and len(names) > 1 else ""
+        return f"REFUSED {head}: {who}{_act_text(first.get('reason') or reply.get('reason') or 'refused')}", False
+    shapes = sum(len(r.get("shapes") or []) for r in results)
+    if preview:
+        return f"{head}: {shapes} shape{'' if shapes == 1 else 's'}, nothing changed (preview)", True
+    if reply.get("expanded") is True:
+        unsynced = any(r.get("synced_with_fontlab") is False for r in results)
+        return f"{head}: {shapes} shape{'' if shapes == 1 else 's'} (verified{', NOT synced with FontLab' if unsynced else ''})", not unsynced
+    changed = "; a glyph DID change" if any(r.get("changed") not in (False, None) for r in results) else ""
+    return f"NOT DONE {head}: stopped at {_act_text(reply.get('stopped_at'))}{changed}", False
 
 
 def _act_describe_kerning(payload, code, reply):

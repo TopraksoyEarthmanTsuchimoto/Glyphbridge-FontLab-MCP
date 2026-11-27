@@ -4132,3 +4132,147 @@ print("56g docs -> add:", "The reply's shape names the shape that received them 
 _e56 = srv._refusal("ms1_a", "nothing was moved", "the request names a contour of a component, nothing was moved: move 0: contour 1 belongs to the "
                     "component of 'ms1_src' (shape 1); a component's contours belong to its source glyph: edit the source glyph 'ms1_src' instead")
 print("56h the refusal of a component's contour ->", str(_e56))
+
+# ==== 57. server 0.98: expand_transformation through POST /glyph/expand (listener 0.221; faked listener replies) ====
+print("\n==== 57. server 0.98: expand_transformation (faked listener replies) ====")
+M57 = {"m11": 1.255704, "m12": 0.336465, "m21": -0.244036, "m22": 1.383997, "dx": 10.0, "dy": 20.0}
+SH57 = {"index": 0, "matrix": dict(M57), "largest_rounding_shift": 0.446, "rounded_nodes_count": 4, "half_cases": [], "contours": [0],
+        "rounded_nodes": [{"contour": 0, "node": 0, "exact": {"x": 135.5704, "y": 53.6465}, "stored": {"x": 136.0, "y": 54.0}}],
+        "expected": [{"closed": True, "nodes": [{"x": 136.0, "y": 54.0, "kind": "On", "smooth": False}, {"x": 387.0, "y": 121.0, "kind": "On", "smooth": False},
+                                                {"x": 338.0, "y": 398.0, "kind": "On", "smooth": False}, {"x": 87.0, "y": 330.0, "kind": "On", "smooth": False}]}]}
+def PRE57(*names): return {"open": True, "preview": True, "results": [{"name": n, "changed": False, "shapes": [dict(SH57)]} for n in names]}
+def WR57(*names, ok=True):
+    res = [{"name": n, "expanded": ok, "verified": ok, "changed": True, "verified_after_sync": ok, "synced_with_fontlab": True,
+            "fontlab_changed_mark": {"called": True, "recursive": True, "glyph_has_changes": True} if ok else {"called": False, "reason": "the expansion was not verified"},
+            "shapes": [dict(SH57)], "mismatches": [] if ok else ["contour 0 node 0: x 135.57 instead of 136.0"]} for n in names]
+    return {"open": True, "preview": False, "expanded": ok, "stopped_at": None if ok else names[0], "results": res}
+REF57 = {"open": True, "preview": False, "refused": True, "results": [{"name": "c", "changed": False, "reason": "shape 0 is a component of 'b'"}],
+         "reason": "c: shape 0 is a component of 'b': nothing was changed"}
+K57 = ("preview", "expanded", "stopped_at", "largest_rounding_shift", "font_modified", "save_question_note")
+def ex57(label, reply, glyphs, preview=None, confirmed=None, version="0.221", keys=K57):
+    s9_reset(); S9["version"] = version; S9["post"]["/glyph/expand"] = reply; n = len(S9["posts"])
+    r = s9_try(lambda: srv.expand_glyph_transforms(glyphs, preview, confirmed))
+    shown = {k: r[k] for k in keys if k in r} if isinstance(r, dict) else r
+    print(label, "->", shown, "| posts", len(S9["posts"]) - n, "|", fview(srv.finish_change_package()))
+    return r
+r = ex57("57a preview by names        ", PRE57("a"), ["a"], preview=True)
+g = r["glyphs"][0]["shapes"][0]
+print("57a2 the shape view           ->", g["old_transform"], "|", g["old_transform_description"], "|", g["largest_rounding_shift"], "| new", g["new_nodes"][0]["node_list"][:2],
+      "| contour index", g["new_nodes"][0]["index"])
+print("57a3 apply_with, sent         ->", r["apply_with"], "|", [q for q in S9["posts"] if q[0] == "/glyph/expand"][-1])
+print("57a4 instruction, undo        ->", r["agent_instruction"][:120], "| three facts:", all(w in r["agent_instruction"] for w in ("what becomes permanent", "largest rounding shift", "how to take it back")),
+      "| undo:", r["undo_note"][:60])
+r = ex57("57b write with apply_with    ", WR57("a"), [{"name": "a", "shapes": [{"index": 0, "matrix": dict(M57)}]}])
+print("57b2 mark, instruction        ->", r.get("fontlab_changed_mark"), "|", r["agent_instruction"][:90])
+ex57("57c a write without shapes   ", WR57("a"), ["a"])
+ex57("57d preview 'yes'             ", PRE57("a"), ["a"], preview="yes")
+ex57("57e a matrix without dy       ", WR57("a"), [{"name": "a", "shapes": [{"index": 0, "matrix": {k: v for k, v in M57.items() if k != "dy"}}]}])
+ex57("57f index 20                  ", WR57("a"), [{"name": "a", "shapes": [{"index": 20, "matrix": dict(M57)}]}])
+ex57("57g a name twice              ", PRE57("a"), ["a", "a"], preview=True)
+ex57("57h the listener too old      ", WR57("a"), [{"name": "a", "shapes": [{"index": 0, "matrix": dict(M57)}]}], version="0.220")
+ex57("57i refused: nothing changed  ", REF57, [{"name": "c", "shapes": [{"index": 0, "matrix": dict(M57)}]}])
+r = ex57("57j not verified              ", WR57("a", ok=False), [{"name": "a", "shapes": [{"index": 0, "matrix": dict(M57)}]}])
+print("57j2 instruction, mismatches  ->", r["agent_instruction"][:80], "|", r["glyphs"][0].get("mismatches"))
+ex57("57k no font open              ", {"open": False}, ["a"], preview=True)
+# more than 30 glyphs: the approval, then batches of 10 (each checked by preview before the first write)
+B57 = [{"name": f"g{i:02d}", "shapes": [{"index": 0, "matrix": dict(M57)}]} for i in range(31)]
+ex57("57l 31 glyphs, no approval     ", WR57("x"), B57)
+def multi57(path, payload, timeout=0):
+    S9["posts"].append((path, payload))
+    names = [g["name"] for g in payload["glyphs"]]
+    return PRE57(*names) if payload["preview"] else WR57(*names)
+s9_reset(); S9["version"] = "0.221"; srv._call_listener_post = multi57
+r = s9_try(lambda: srv.expand_glyph_transforms(B57, None, True))
+print("57m 31 glyphs, approved       ->", {k: r[k] for k in ("expanded", "stopped_at", "font_modified")}, "| glyphs", len(r["glyphs"]),
+      "| requests (preview?, size):", [(p["preview"], len(p["glyphs"])) for q, p in S9["posts"] if q == "/glyph/expand"], "|", fview(srv.finish_change_package()))
+def stop57(path, payload, timeout=0):
+    S9["posts"].append((path, payload))
+    names = [g["name"] for g in payload["glyphs"]]
+    if payload["preview"]:
+        return PRE57(*names)
+    return WR57(*names, ok=not names[0].startswith("g1"))
+s9_reset(); S9["version"] = "0.221"; srv._call_listener_post = stop57
+r = s9_try(lambda: srv.expand_glyph_transforms(B57, None, True))
+print("57n the second batch fails    ->", {k: r[k] for k in ("expanded", "stopped_at", "font_modified")}, "| not attempted:",
+      sum(1 for v in r["glyphs"] if str(v.get("reason", "")).startswith("not attempted")), "| writes sent:", sum(1 for q, p in S9["posts"] if q == "/glyph/expand" and not p["preview"]),
+      "|", fview(srv.finish_change_package()))
+r = ex57("57o preview of 31 glyphs      ", PRE57(*[f"g{i:02d}" for i in range(10)]), [f"g{i:02d}" for i in range(31)], preview=True)
+print("57o2 the instruction asks for the list:", "confirmed_large_write=true" in r["agent_instruction"])
+# case 1: the edit tools' refusal of a shape with a transform offers the expansion
+_x57 = srv._with_expand_offer(srv._refusal("a", "nothing was moved", "shape 0 of the glyph carries an element transform (scale): nothing was moved"),
+                              {"edit_case": "shape_transform"})
+_y57 = srv._with_expand_offer(srv._refusal("a", "nothing was moved", "the glyph holds no shape yet"), {"edit_case": "empty"})
+print("57p case 1 -> with a transform ends with the offer:", str(_x57).endswith(srv._EXPAND_OFFER), "| another case unchanged:", srv._EXPAND_OFFER not in str(_y57))
+s9_reset(); S9["version"] = "0.215"; S9["post"]["/glyph/move"] = {"open": True, "found": True, "moved": False, "changed": False, "edit_case": "shape_transform",
+                                                                    "reason": "the glyph's shape carries an element transform (scale 150%), so its stored node positions are not the positions FontLab draws; move_nodes does not support such a glyph yet: nothing was moved"}
+r = s9_try(lambda: srv.write_glyph_moves("a", [{"contour": 0, "node": 0, "from": {"x": 0, "y": 0}, "to": {"x": 1, "y": 0}}]))
+print("57q move_nodes refusal        ->", r[:60], "... offers:", "expand_transformation" in r and "preview=true" in r)
+# case 3: small transforms
+import math
+def sm57(m, upm=1000):
+    return srv._small_transform(dict(zip(("m11", "m12", "m21", "m22", "dx", "dy"), m)), lambda: upm)
+_r = math.radians
+for label, m in (("110 %", (1.1, 0, 0, 1, 0, 0)), ("150 %", (1.5, 0, 0, 1, 0, 0)), ("80 % exactly", (0.8, 0, 0, 0.8, 0, 0)), ("120.01 %", (1.2001, 0, 0, 1, 0, 0)),
+                 ("rotation 10", (math.cos(_r(10)), math.sin(_r(10)), -math.sin(_r(10)), math.cos(_r(10)), 0, 0)),
+                 ("rotation 20", (math.cos(_r(20)), math.sin(_r(20)), -math.sin(_r(20)), math.cos(_r(20)), 0, 0)),
+                 ("slant 5 at 110 %", (1.1, 0, math.tan(_r(5)), 1, 0, 0)), ("slant 5 at 150 %", (1.5, 0, math.tan(_r(5)), 1, 0, 0)),
+                 ("slant 16", (1, 0, math.tan(_r(16)), 1, 0, 0)), ("xt6_a's transform", tuple(M57.values())), ("mirrored", (-1, 0, 0, 1, 0, 0)),
+                 ("110 % with an offset of 500", (1.1, 0, 0, 1, 500, 0)), ("offset 100", (1, 0, 0, 1, 100, 0)), ("offset 101", (1, 0, 0, 1, 101, 0)),
+                 ("offset (0, -100)", (1, 0, 0, 1, 0, -100)), ("identity", (1, 0, 0, 1, 0, 0))):
+    print("57r", label.ljust(30), "->", sm57(m))
+print("57r offset 150 at 2048 UPM      ->", sm57((1, 0, 0, 1, 150, 0), 2048), "| unreadable UPM:", sm57((1, 0, 0, 1, 10, 0), None))
+_parts = srv._transform_parts(dict(zip(("m11", "m12", "m21", "m22", "dx", "dy"), M57.values())))
+print("57s xt6_a's parts (scale x, y, rotation, slant) ->", tuple(round(v, 3) for v in _parts))
+_ro57 = srv.read_glyph_outline
+def _fake_outline57(elements):
+    srv.read_glyph_outline = lambda name: {"name": name, "elements": elements, "agent_instruction": "READ"}
+def el57(i, m, comp=False): return {"index": i, "is_component": comp, "is_composite": False, "matrix": dict(zip(("m11", "m12", "m21", "m22", "dx", "dy"), m)), "description": f"d{i}"}
+s9_reset(); S9["get"]["/font/current"] = {"open": True, "units_per_em": 1000}
+_fake_outline57([el57(0, (1.1, 0, 0, 1, 0, 0)), el57(1, (1.5, 0, 0, 1, 0, 0)), el57(2, (1.1, 0, 0, 1, 0, 0), comp=True), el57(3, (1, 0, 0, 1, 50, 0)),
+                 el57(4, (1, 0, 0, 1, 60, 0))])
+r = srv.read_glyph_outline_with_notes("a")
+print("57t notes                       ->", r.get("transform_notes"), "| /font/current reads:", S9["gets"].count("/font/current"),
+      "| instruction kept and added:", r["agent_instruction"].startswith("READ ") and srv._SMALL_TRANSFORM_INSTRUCTION in r["agent_instruction"])
+s9_reset(); _fake_outline57([el57(0, (1.5, 0, 0, 1, 0, 0)), el57(1, (1, 0, 0, 1, 0, 0))])
+r = srv.read_glyph_outline_with_notes("a")
+print("57u nothing small               ->", "transform_notes" in r, r["agent_instruction"], "| no UPM read:", S9["gets"].count("/font/current"))
+srv.read_glyph_outline = _ro57
+_ex = " ".join((srv.expand_transformation.__doc__ or "").split())
+_go = " ".join((srv.get_glyph_outline.__doc__ or "").split())
+print("57v docs -> tool listed:", callable(getattr(srv, "expand_transformation", None)), "| signature:", _inspect.signature(srv.expand_transformation),
+      "| missing phrases:", [w for w in ("ALWAYS PREVIEW FIRST", "three facts", "confirmed_large_write=true", "never set it on your own", "Needs listener 0.221",
+                                         "a component (expanding it would break its link", "Power Brush", "rounds every expanded node to whole units") if w not in _ex],
+      "| outline names transform_notes:", "transform_notes" in _go, "| versions:", srv.SERVER_VERSION)
+
+# ==== 58. server 0.99: the five findings of XT5 (live 1982-2024) ====
+print("\n==== 58. server 0.99: the findings of XT5 ====")
+# 1. one change per listener request (live 2024: the listener logged 23, the server counted 25)
+ex57("58a three glyphs, one request ", WR57("a", "b", "c"), [{"name": n, "shapes": [{"index": 0, "matrix": dict(M57)}]} for n in ("a", "b", "c")])
+s9_reset(); S9["version"] = "0.221"; srv._call_listener_post = multi57
+r = s9_try(lambda: srv.expand_glyph_transforms(B57[:12], None, None))
+print("58b 12 glyphs, two requests    ->", {k: r[k] for k in ("expanded", "stopped_at", "font_modified")}, "| writes sent:",
+      sum(1 for q, p in S9["posts"] if q == "/glyph/expand" and not p["preview"]), "|", fview(srv.finish_change_package()))
+# 2. undo_note from the live result
+print("58c undo_note                  ->", srv._EXPAND_UNDO_NOTE)
+print("58c2 no 'still to come':", "still to come" not in srv._EXPAND_UNDO_NOTE and "should" not in srv._EXPAND_UNDO_NOTE)
+# 3. a general transform described by its scale, rotation and slant
+_c30, _s30 = math.cos(_r(30)), math.sin(_r(30))
+for label, m in (("xt6_a's transform (1975, 1992)", tuple(M57.values())), ("rotation 30", (_c30, _s30, -_s30, _c30, 0, 0)),
+                 ("slant 5 at 130 / 140 % (1979)", (1.3, 0, 0.122484, 1.4, 10, 20)), ("rotation 30, mirrored", (-_c30, -_s30, -_s30, _c30, 0, 0)),
+                 ("collapsed", (1, 1, 1, 1, 0, 0)), ("scale only", (1.5, 0, 0, 1.5, 0, 0)), ("slant only", (1, 0, 0.1, 1, 0, 0))):
+    print("58d", label.ljust(32), "->", srv._describe_matrix(m))
+# 4. the phrase once in a refusal
+r = ex57("58e refused, the phrase once  ", REF57, [{"name": "c", "shapes": [{"index": 0, "matrix": dict(M57)}]}])
+print("58e2 'nothing was changed' times:", str(r).count("nothing was changed"))
+_REF58 = dict(REF57, reason="x5_d: no plain shape of the glyph carries a transform: there is nothing to expand: nothing was changed")
+r = ex57("58f a preview refused         ", _REF58, ["x5_d"], preview=True)
+print("58f2 'nothing was changed' times:", str(r).count("nothing was changed"))
+# 5. the offer after a full stop
+print("58g offer after a full stop    ->", "yet. This shape carries" in str(_x57) or "transform (scale). This shape carries" in str(_x57), "|",
+      str(_x57)[:110])
+_z58 = srv._with_expand_offer(ToolError("Glyph 'a': nothing was moved: it ends with a full stop."), {"edit_case": "shape_transform"})
+print("58h an existing full stop kept, not doubled:", ".." not in str(_z58), "|", str(_z58)[:80])
+s9_reset(); S9["version"] = "0.215"; S9["post"]["/glyph/move"] = {"open": True, "found": True, "moved": False, "changed": False, "edit_case": "shape_transform",
+                                                                    "reason": "the glyph's shape carries an element transform (scale 150%), so its stored node positions are not the positions FontLab draws; move_nodes does not support such a glyph yet: nothing was moved"}
+r = s9_try(lambda: srv.write_glyph_moves("a", [{"contour": 0, "node": 0, "from": {"x": 0, "y": 0}, "to": {"x": 1, "y": 0}}]))
+print("58i move_nodes refusal (live 2020) ->", "such a glyph yet. This shape carries" in r)

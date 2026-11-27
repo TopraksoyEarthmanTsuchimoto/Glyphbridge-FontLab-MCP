@@ -35,11 +35,11 @@ Scope and non-goals: [PROJECT.md](PROJECT.md).
 
 ## Status at a glance
 
-Current releases: **listener 0.217 and server 0.97**, on Windows 11 with FontLab 8.9.5, tested on fonts with one master.
+Current releases: **listener 0.221 and server 0.99**, on Windows 11 with FontLab 8.9.5, tested on fonts with one master.
 
-- **Proven in FontLab:** reading outlines and element transforms; writing widths, sidebearings and new contours (open ones included) into an empty glyph; moving nodes in an existing outline, and adding contours to it; making a new font; reading kerning and kerning groups, and writing and removing kerning between two glyphs and for kerning classes; renaming and removing kerning groups; placing components, also beside what a glyph already holds, and removing them; a change count that survives a restart of the AI app.
+- **Proven in FontLab:** reading outlines and element transforms; writing widths, sidebearings and new contours (open ones included) into an empty glyph; moving nodes in an existing outline, and adding and removing contours; expanding element transforms; making a new font; reading kerning and kerning groups, and writing and removing kerning between two glyphs and for kerning classes; renaming and removing kerning groups; placing components, also beside what a glyph already holds, and removing them; a change count that survives a restart of the AI app.
 - **Partly proven:** components (other transforms are open) and work with several fonts open.
 - **Not covered yet:** fonts with several masters, editing kerning-group members.
-- **Known limit:** FontLab's Edit > Undo does not take back a tool's edit.
+- **Known limit:** FontLab's Edit > Undo does not take back a tool's edit, except an expansion by `expand_transformation`.
 
 What each release changed: [CHANGELOG.md](CHANGELOG.md). The evidence and limits of each feature: [WHAT-WORKS.md](WHAT-WORKS.md). Where the work stands: [CURRENT-STATUS.md](CURRENT-STATUS.md).

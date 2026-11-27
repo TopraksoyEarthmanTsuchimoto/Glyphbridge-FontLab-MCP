@@ -110,6 +110,7 @@ Merged on 2026-11-24; each entry in full: [archive/DECISIONS-ARCHIVE.md](archive
   4. Bookmarks, no reset.
   5. Another client's changes are named, not hidden.
 - **The user's choices (2026-11-24), one question at a time:** the log keeps the last **1,000 entries** per listener run (about 1 MB, estimated, to be measured), each font's running total always kept, older entries reported as dropped; **one sequence number per listener run**, so the server keeps one bookmark; a server process without a bookmark **reminds once about earlier changes still in the log**, saying they may already be saved. *Reason:* a new session and a replaced server process look the same to the server, and staying silent would bring back TO 1582.
+- **A write counts one change per listener request, as the log records it** (server 0.99, after XT5 2024, where an expansion of three glyphs gave 23 against 25). *Reason:* rule 1, the listener's record decides; the kerning writes and `add_component`'s list already counted so.
 
 ### 2026-11-21: dialogs and AI apps' time limits (research TO, TO2, SC, CD 1577–1598; built, listener 0.203 / server 0.83)
 
@@ -149,9 +150,15 @@ Condensed on 2026-11-13; full text: [archive/DECISIONS-ARCHIVE.md](archive/DECIS
 
 ## Glyphs
 
-### 2026-11-26: a tool that expands element transforms (research listener 0.218–0.220, XT–XT4 1952–1981; not built)
+### 2026-11-26 and 2026-11-27: a tool that expands element transforms (research listener 0.218–0.220, XT–XT4 1952–1981; built listener 0.221 / server 0.98, run live XT5 1982–2024)
 
 - **Glyphbridge is to offer FontLab's Expand Transformation as a tool. It must be feature rich, and agents must offer it at the moment it helps, explaining in plain words what it does and why it may be needed. Its design follows a discussion of the cases where it saves the day, held after the research.** *Reason:* the user's requirements; an expansion is permanent unless Undo reaches it ([topics/transforms-and-undo.md](topics/transforms-and-undo.md)).
+- **When the agent offers it:** (1) an edit tool meets a shape with a transform: the agent offers to expand first (choice A); editing through the transform is a later research item (B); (2) the person asks for it; (3) in passing, once per glyph per conversation, for a glyph the task touches: a scale of 80–120 % on either axis (100 % excluded), a rotation or slant up to 15°, or a pure offset (no scale, rotation or slant) whose horizontal and vertical parts are each at most 10 % of the em; components are not mentioned; (4) tidiness: optional, as a suggestion, never as a warning.
+- **Components are refused in the first build; their expansion is researched later.**
+- **The first build:** a preview; scope one shape, a glyph's transformed plain shapes, or a list of glyphs; the old transform in every reply; Undo through the recursive mark; a rounding report. **Scheduled enhancements:** restoring a returned transform; a font-wide finder.
+- **Approval in chat only, no FontLab dialog; a list of more than 30 glyphs needs explicit approval. If the build's Undo check fails, this choice returns to the user.** **The Undo check passed** (XT5 1990, 1991): the chat-only approval stands.
+- **Every offer states three facts:** what becomes permanent, the largest rounding shift, how to take it back; the background adapts as for `.notdef` (2026-11-21).
+- *Reason:* the user's answers, one question at a time (2026-11-27).
 
 ### 2026-11-25 and 2026-11-26: several shapes in the three edit tools (research listener 0.213–0.214, ED8–ED10 1807–1856; built listener 0.215 / server 0.94)
 

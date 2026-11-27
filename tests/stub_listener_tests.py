@@ -12016,6 +12016,7 @@ class XTShape(SHShape):
         if not a and not mode.get("keeps_matrix"): s._tx = SHQT()
         if mode.get("touch_other"): XT["other"]._contours[0].rows[0]["x"] += 1.0
         if mode.get("touch_source"): XT["src"]._contours[0].rows[0]["x"] += 1.0
+        if mode.get("change_next") and "xt1g" in P72["layers"]: P72["layers"]["xt1g"]._shapes[0]._tx = SHQT((1.4, 0, 0, 1, 0, 0))     # v0.221 tests
         if mode.get("box_moves"): s.__dict__["_box_off"] = True
         return True if mode.get("returns") else None
 class XTLayer(TELayer):
@@ -12263,3 +12264,105 @@ print("3048a notifyChangesApplied call statements:", [l.strip() for l in _src220
       "| version", ns["VERSION"])
 TEItems.notifyChangesApplied = _xm_saved
 for _g in ("xt1a", "xt1b", "xt1c", "xt1d", "xt1e", "xt1f", "xt1g", "xt9src"): TS.pop(_g, None); P72["layers"].pop(_g, None); P72["widths"].pop(_g, None)
+
+# ================= v0.221: POST /glyph/expand (expand_transformation, the user's design of 2026-11-26/27) =================
+print("\n==== v0.221 POST /glyph/expand ====")
+# The v0.218 fakes (XTShape, XTLayer, xt_setup). By default XTShape.applyTransform() keeps fractions; mode "rounds" rounds as FontLab
+# did live (1975, 1981; the stub uses Python's round, so a half may go down, as FontLab might). xt1h: a square whose expansion by
+# 150 % lands on half units (103 -> 154.5, 301 -> 451.5).
+XT_LEGACY["xt1h"] = (1, 4)
+def xe_setup(mode=None):
+    xt_setup(mode=mode)
+    TS["xt1h"] = TsGlyph("xt1h", [TsLayer(1, 4)])
+    P72["layers"]["xt1h"] = XTLayer("test_font", [XTShape([te_contour([(103, 0), (301, 0), (301, 200), (103, 200)])], m=XT_S)])
+    P72["widths"]["xt1h"] = 500.0
+    TS["xt1i"] = TsGlyph("xt1i", [TsLayer(2, 8)])
+    P72["layers"]["xt1i"] = XTLayer("test_font", [XTShape([te_contour(TE_SQ)], m=XT_S), XTShape(component="xt9src", shared=XT["src"]._contours, m=XT_S)])
+def xm(m): return {k: float(v) for k, v in zip(("m11", "m12", "m21", "m22", "dx", "dy"), m)}
+def xpost(payload):
+    return sbpost("/glyph/expand", payload)
+def xraw(body):
+    r = ns["_route"]("POST", "/glyph/expand", body); h, _, b = r.partition(b"\r\n\r\n")
+    return h.split(b"\r\n")[0].decode()[9:12], json.loads(b)
+XEK = ("expanded", "verified", "changed", "reason", "error", "stopped_at", "refused", "preview", "verified_after_sync")
+def xe(tag, payload, keys=XEK, mode=None, setup=True):
+    if setup:
+        xe_setup(mode=mode)
+    c, d = xpost(payload)
+    XT_FORBIDDEN.extend(TE["forbidden"])
+    res = d.get("results") if isinstance(d, dict) else None
+    top = {k: d.get(k) for k in keys if isinstance(d, dict) and k in d}
+    per = [{k: r.get(k) for k in keys if k in r} for r in res] if isinstance(res, list) else None
+    print(tag, ":", c, top, "| per glyph", per, "| applyTransform", [x for x in TE["calls"] if isinstance(x, tuple) and x[0] == "applyTransform"],
+          "| Update", len(TE["updates"]), "| marks", TE["marks"])
+    return d
+def xe_shapes(tag, d):
+    for r in (d.get("results") or []):
+        for s in r.get("shapes") or []:
+            print(tag, r.get("name"), "shape", s["index"], "| shift", s["largest_rounding_shift"], "| rounded", s["rounded_nodes_count"],
+                  s["rounded_nodes"][:2], "| halves", s["half_cases"], "| contours", s["contours"],
+                  "| expected", [[(n["x"], n["y"]) for n in c["nodes"]] for c in s["expected"]])
+G = lambda name, *shapes: {"name": name, "shapes": [{"index": i, "matrix": xm(m)} for i, m in shapes]} if shapes else {"name": name}
+# the request's form
+for tag, body in (("3060a not JSON                     ", None), ("3060b glyphs missing                ", {"preview": True}),
+                  ("3060c an unknown key                ", {"glyphs": [G("xt1a")], "preview": True, "go": 1}),
+                  ("3060d preview not a bool            ", {"glyphs": [G("xt1a")], "preview": "yes"}),
+                  ("3060e 11 glyphs                     ", {"glyphs": [G(f"g{i}") for i in range(11)], "preview": True}),
+                  ("3060f a name twice                  ", {"glyphs": [G("xt1a"), G("xt1a")], "preview": True}),
+                  ("3060g a write without shapes        ", {"glyphs": [G("xt1a")]}),
+                  ("3060h a matrix without dy           ", {"glyphs": [{"name": "xt1a", "shapes": [{"index": 0, "matrix": {"m11": 1.5, "m12": 0, "m21": 0, "m22": 1, "dx": 0}}]}]}),
+                  ("3060i index 20                      ", {"glyphs": [G("xt1a", (20, XT_S))]}),
+                  ("3060j an index twice                ", {"glyphs": [G("xt1a", (0, XT_S), (0, XT_S))]})):
+    xe_setup()
+    c, d = xpost(body) if body is not None else xraw(b"{oops")
+    print(tag, ":", c, d.get("error") if isinstance(d, dict) else d)
+print("3060k nothing touched by the form refusals:", [x for x in TE["calls"] if isinstance(x, tuple) and x[0] == "applyTransform"], TE["marks"])
+# previews
+d = xe("3061 preview, the scaled square (150 %)", {"glyphs": [G("xt1a")], "preview": True}); xe_shapes("3061a", d)
+d = xe("3062 preview, xt1c: shapes found by themselves", {"glyphs": [G("xt1c")], "preview": True}); xe_shapes("3062a", d)
+d = xe("3062b preview, the half-unit square        ", {"glyphs": [G("xt1h")], "preview": True}); xe_shapes("3062c", d)
+d = xe("3062d preview, a glyph with no transform     ", {"glyphs": [G("xt1b")], "preview": True})
+# writes
+d = xe("3063 write xt1a                     ", {"glyphs": [G("xt1a", (0, XT_S))]})
+print("3063a  mark, sync                 :", d["results"][0].get("fontlab_changed_mark"), (d["results"][0].get("fontlab_sync") or {}).get("verdict"),
+      "| outline now", [[(r["x"], r["y"]) for r in c.rows] for c in P72["layers"]["xt1a"]._shapes[0]._contours], "| matrix", P72["layers"]["xt1a"]._shapes[0]._tx._m)
+xe("3064 a transform changed since the read", {"glyphs": [G("xt1a", (0, (1.4, 0, 0, 1, 0, 0)))]})
+xe("3065 a component as the target      ", {"glyphs": [G("xt1e", (0, XT_S))]})
+xe("3065b a scaled component beside      ", {"glyphs": [G("xt1i", (0, XT_S))]})
+xe("3066 a Power Brush shape in the glyph", {"glyphs": [G("xt1d", (0, XT_S))]})
+xe("3067 autoLayer on                   ", {"glyphs": [G("xt1a", (0, XT_S))]}, mode={"auto": True})
+xe("3067b a shape with no transform     ", {"glyphs": [G("xt1c", (2, (1, 0, 0, 1, 0, 0)))]})
+xe("3067c shape 5 does not exist        ", {"glyphs": [G("xt1c", (5, XT_ODD))]})
+xe("3067d no such glyph                 ", {"glyphs": [G("xt1z", (0, XT_S))]})
+d = xe("3068 xt1c shape 1, FontLab rounds  ", {"glyphs": [G("xt1c", (1, XT_ODD))]}, mode={"rounds": 1}); xe_shapes("3068a", d)
+d = xe("3069 xt1c shape 1, fractions kept (not as FontLab)", {"glyphs": [G("xt1c", (1, XT_ODD))]})
+print("3069a  mismatches, mark           :", (d["results"][0].get("mismatches") or [])[:2], d["results"][0].get("fontlab_changed_mark"))
+d = xe("3070 the half-unit square, rounds (one half down)", {"glyphs": [G("xt1h", (0, XT_S))]}, mode={"rounds": 1}); xe_shapes("3070a", d)
+d = xe("3071 two glyphs, both verified      ", {"glyphs": [G("xt1a", (0, XT_S)), G("xt1g", (0, XT_S))]})
+d = xe("3072 the second glyph is refused: nothing", {"glyphs": [G("xt1a", (0, XT_S)), G("xt1e", (0, XT_S))]})
+d = xe("3073 another plain shape moves       ", {"glyphs": [G("xt1c", (1, XT_ODD)), G("xt1a", (0, XT_S))]}, mode={"rounds": 1, "touch_other": 1})
+d = xe("3074 the component's source moves    ", {"glyphs": [G("xt1c", (1, XT_ODD))]}, mode={"rounds": 1, "touch_source": 1})
+d = xe("3075 applyTransform raises            ", {"glyphs": [G("xt1a", (0, XT_S)), G("xt1g", (0, XT_S))]}, mode={"raises": 1})
+d = xe("3076 applyTransform does nothing      ", {"glyphs": [G("xt1a", (0, XT_S))]}, mode={"ignored": 1})
+d = xe("3077 the matrix doubles               ", {"glyphs": [G("xt1a", (0, XT_S))]}, mode={"compose": 1})
+d = xe("3077b nodes mapped, the transform kept ", {"glyphs": [G("xt1a", (0, XT_S))]}, mode={"keeps_matrix": 1})
+print("3077c  mismatches                 :", (d["results"][0].get("mismatches") or [])[:2])
+d = xe("3077d the next glyph changes meanwhile", {"glyphs": [G("xt1a", (0, XT_S)), G("xt1g", (0, XT_S))]}, mode={"change_next": 1})
+# the activity line and the change log's verdict
+_xp = {"glyphs": [G("xt1a")], "preview": True}
+xe_setup(); _c, _d = xpost(_xp)
+print("3078 OUTPUT line, preview      :", ns["_act_describe_write"]("/glyph/expand", _xp, 200, _d), "| change verdict:", ns["_change_verdict"]("/glyph/expand", 200, _d))
+_xw = {"glyphs": [G("xt1a", (0, XT_S))]}
+xe_setup(); _c, _d = xpost(_xw)
+print("3078a OUTPUT line, write       :", ns["_act_describe_write"]("/glyph/expand", _xw, 200, _d), "| change verdict:", ns["_change_verdict"]("/glyph/expand", 200, _d))
+_xr = {"glyphs": [G("xt1e", (0, XT_S))]}
+xe_setup(); _c, _d = xpost(_xr)
+print("3078b OUTPUT line, refused     :", ns["_act_describe_write"]("/glyph/expand", _xr, 200, _d)[0][:110], "| change verdict:", ns["_change_verdict"]("/glyph/expand", 200, _d))
+print("3079 spies over all cases: forbidden members, subscripts, iterations:", XT_FORBIDDEN)
+_src221 = "\n".join(l for l in src[src.index("# POST /glyph/expand (v0.221)"):src.index("# ---- v0.204: the change log")].split("\n") if not l.lstrip().startswith("#"))
+print("3079a applyTransform statements:", [l.strip() for l in _src221.split("\n") if "applyTransform(" in l],
+      "| forbidden call syntax:", _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeGlyph|decomposite|ejectTo|eject|prepareTransformationData|resetTransformationData|restoreHistoryState|clearAboveHistory|historyStates|checkInitHistoryState)\s*\(|font\.update|\.transform\s*=[^=]", _src221),
+      "| recursive mark:", ns["_MARK_RECURSIVE"], src.count("items.notifyChangesApplied(_MARK_TITLES[how], w, True)"), "| title:", ns["_MARK_TITLES"].get("expand"),
+      "| guard full:", "expand" in ns["_GUARD_FULL_KINDS"], "| activity:", ns["_ACT_WRITES"].get("/glyph/expand"),
+      "| route documented:", 'POST /glyph/expand          {"glyphs"' in src, "| dispatched:", 'if path == "/glyph/expand":' in src, "| version", ns["VERSION"])
+for _g in ("xt1a", "xt1b", "xt1c", "xt1d", "xt1e", "xt1f", "xt1g", "xt1h", "xt1i", "xt9src"): TS.pop(_g, None); P72["layers"].pop(_g, None); P72["widths"].pop(_g, None)

@@ -1,6 +1,6 @@
 # Expanding element transforms, and FontLab's Undo
 
-What FontLab does when an element transform is expanded, through its GUI and through the API, and how its Edit > Undo relates to edits made through the API. Everything here comes from research probes (listener 0.218–0.220) and FontLab's GUI, one run each, on plain straight shapes in a font with one master, FontLab 8.9.5 in Demo mode; no tool is built on it yet. The runs: XT, XT2, XT3 and XT4, 1952–1981 in [LIVE-TESTS.md](../LIVE-TESTS.md); the probes: [server-and-endpoints.md](server-and-endpoints.md) §3; the calls' review state: [FONTLAB-API-RULES.md](../FONTLAB-API-RULES.md); what is still open: [WATCH-POINTS.md](../WATCH-POINTS.md).
+What FontLab does when an element transform is expanded, through its GUI and through the API, and how its Edit > Undo relates to edits made through the API. Everything here comes from research probes (listener 0.218–0.220) and FontLab's GUI, one run each, on plain straight shapes in a font with one master, FontLab 8.9.5 in Demo mode. The tool built on it, `expand_transformation` (listener 0.221 / server 0.98), is in §4. The runs: XT, XT2, XT3 and XT4, 1952–1981 in [LIVE-TESTS.md](../LIVE-TESTS.md); the probes: [server-and-endpoints.md](server-and-endpoints.md) §3; the calls' review state: [FONTLAB-API-RULES.md](../FONTLAB-API-RULES.md); what is still open: [WATCH-POINTS.md](../WATCH-POINTS.md).
 
 ## 1. Expanding a transform
 
@@ -29,3 +29,11 @@ Glyphbridge's change mark, `flItems.notifyChangesApplied(title, …)`, is what m
 
 - **Undo restores values in single precision:** m11 1.4700000286 for 1.47, x 170.0000029 for 170 (1973), the same after an accidental GUI Undo (1979). The panel then showed a right sidebearing of −465 for 464.0000086.
 - **Why the recursive mark works,** as read from the history values: before the API edit, the shape's current state is the one its last GUI edit recorded (1968, 1969); the recursive mark records the state after the edit on top of it, so Undo has the earlier state to return to. Whether this holds after other writes (widths, drawing, node moves, components, kerning) is untested.
+
+## 4. The tool, `expand_transformation`, live (XT5 1982–2024)
+
+One run each, one master, Demo mode; the design: [DECISIONS.md](../DECISIONS.md) (2026-11-26 and 2026-11-27); every step: [LIVE-TESTS.md](../LIVE-TESTS.md).
+- **The preview predicts FontLab's rounding exactly:** the tool maps each node by the transform and rounds it to the nearest whole unit; FontLab stored the same numbers on a rotated and slanted square (1994) and on a cubic curve.
+- **Control points are rounded too** (1999): (618.69, 101.79) became (619, 102). Research had seen only on-curve nodes rounded.
+- **Edit > Undo takes the tool's expansion back, and Redo brings it again** (1990, 1991): the Edit menu names it "Glyphbridge Expand Transformation", the mark's title. After a list of three glyphs, what one Undo reverses was not tried.
+- **What it leaves alone:** a component beside the expanded shape and its source glyph stay unchanged (2004, 2005).

@@ -55,4 +55,4 @@ testglyph3 verified | FontLab view (raw coordinates agree with FontLab's own geo
 7 scale 95.15% horizontally, 96.86% vertically; offset (15, 24)
 7 horizontal slant 10.00 degrees (shear 0.17633)
 7 scale -100.00% horizontally, 100.00% vertically; MIRRORED horizontally; offset (466, 0)
-7 general transformation: rotation about 28.65 degrees, matrix [0.87758 0.47943 -0.47943 0.87758]
+7 scale 100.00% horizontally, 100.00% vertically; rotation 28.65 degrees

@@ -15,7 +15,7 @@ The project's short codes and terms, one line each, with a link to where each is
 
 - **P0 to P5, LAST** (`P0.9`, `P2.7`): work items in [ROADMAP.md](ROADMAP.md); LAST holds the large-glyph tests, postponed to the end.
 - **K-series** (`K1` to `K16`): the kerning live tests; **T-series** (`T1` to `T13`): the earlier live tests. Both in [LIVE-TESTS.md](LIVE-TESTS.md).
-- **XT, XT2 to XT4** (1953–1981): the research on expanding element transforms and on Edit > Undo of API edits: [topics/transforms-and-undo.md](topics/transforms-and-undo.md).
+- **XT, XT2 to XT4** (1953–1981): the research on expanding element transforms and on Edit > Undo of API edits: [topics/transforms-and-undo.md](topics/transforms-and-undo.md). **XT5** (1982–2024): the live checks of `expand_transformation`, in [LIVE-TESTS.md](LIVE-TESTS.md).
 
 ## Findings
 
