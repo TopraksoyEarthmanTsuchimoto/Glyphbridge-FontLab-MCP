@@ -6,7 +6,7 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 
 | File | Role | Word budget |
 |---|---:|---:|
-| [AGENTS.md](../AGENTS.md) | rules and working agreements for every agent | 1,250 |
+| [AGENTS.md](../AGENTS.md) | rules and working agreements for every agent | 1,500 |
 | [CLAUDE.md](../CLAUDE.md) | imports AGENTS.md, plus Claude-only notes | 200 |
 | [CODEX.md](../CODEX.md) | Codex-only notes; Codex loads AGENTS.md by itself and reads this file because AGENTS.md says so | 500 |
 | [GEMINI.md](../GEMINI.md) | Antigravity-only notes; Antigravity loads AGENTS.md and this file by itself | 500 |
@@ -18,9 +18,9 @@ Every Markdown file in the repository, its role and, for core files, its word bu
 | [MARKDOWN-MAP.md](MARKDOWN-MAP.md) | this map | 1,250 |
 | [CHECKLIST.md](CHECKLIST.md) | open scenarios | 2,250 |
 
-Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 900; [WATCH-POINTS.md](WATCH-POINTS.md) 3,250; [WHAT-WORKS.md](WHAT-WORKS.md) 4,750; [GLOSSARY.md](GLOSSARY.md) 500; [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) 8,500; each file in `topics/` 6,000, `topics/fonts-and-sync.md` 7,250, `topics/reading.md` 6,500, `topics/server-and-endpoints.md` 8,000 (a file that agents read whole has a budget; a log such as LIVE-TESTS.md or CHANGELOG.md does not).
+Not core, but budgeted: the root [README.md](../README.md), the end-user install guide, 900; [WATCH-POINTS.md](WATCH-POINTS.md) 3,250; [WHAT-WORKS.md](WHAT-WORKS.md) 4,750; [GLOSSARY.md](GLOSSARY.md) 500; [MAC-SESSION-PLAN.md](MAC-SESSION-PLAN.md) 3,000; [FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) 8,500; each file in `topics/` 6,000, `topics/fonts-and-sync.md` 7,250, `topics/reading.md` 6,500, `topics/server-and-endpoints.md` 8,000 (a file that agents read whole has a budget; a log such as LIVE-TESTS.md or CHANGELOG.md does not).
 
-**Reference totals:** 22,900 words including the root README, and 22,000 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
+**Reference totals:** 23,150 words including the root README, and 22,250 for the startup core files. These are reference figures, not caps. The guide's starting budgets totalled 8,500 and 8,000. Every budget change, with its date and reason: [archive/DECISIONS-ARCHIVE.md](archive/DECISIONS-ARCHIVE.md) ("Budget history", which also holds this map's earlier history text, and "Budget changes since 2026-11-13", moved there from DECISIONS.md on 2026-11-20).
 
 ## Linked files (read when the task needs them; no budget unless noted)
 
@@ -34,6 +34,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 | [RUNBOOK.md](RUNBOOK.md) | machine setup, restart rules, PowerShell conventions, re-verify steps, ready commands |
 | [LIVE-TESTS.md](LIVE-TESTS.md) | the K-series and T-series live tests in full |
 | [ROADMAP.md](ROADMAP.md) | work items P0–P5 and LAST; known limits |
+| [MAC-SESSION-PLAN.md](MAC-SESSION-PLAN.md) | the step-by-step plan for the macOS visit (series MC, 3000–3099); archived after the visit |
 | [CHANGELOG.md](CHANGELOG.md) | one entry per release of the two scripts |
 | [LESSONS.md](LESSONS.md) | incidents and method lessons |
 | [topics/server-and-endpoints.md](topics/server-and-endpoints.md) | every server tool and listener route, switches, save policy mechanics; finished research probes: [archive/server-and-endpoints-research.md](archive/server-and-endpoints-research.md) |

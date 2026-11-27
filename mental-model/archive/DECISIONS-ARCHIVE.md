@@ -251,6 +251,14 @@ Not core, but budgeted: the root [README.md](../../README.md), the end-user inst
 
 Moved from [DECISIONS.md](../DECISIONS.md) on 2026-11-20 (the user's choice), unchanged except for the link paths; new budget changes are added here, newest first. Rows above that say "condensed … into" a DECISIONS.md entry on word budgets now point here. Current values: [MARKDOWN-MAP.md](../MARKDOWN-MAP.md).
 
+### 2026-11-27: MAC-SESSION-PLAN.md created with a budget of 3,000
+
+The user's choice, at 2,732 words, over 2,500 with cuts. Not a startup core file, so the reference totals stay 23,150 and 22,250.
+
+### 2026-11-27: AGENTS.md budget 1,250 → 1,500
+
+The user's choice, at 1,248 words, found by the session-start check of that day; nothing was moved. AGENTS.md is a startup core file, so the reference totals become 23,150 and 22,250.
+
 ### 2026-11-26: FONTLAB-API-RULES.md budget 7,500 → 8,500
 
 The user's choice, at 7,464 words, after the records of XT–XT4 1952–1981 added four research rows and a dead end. Not a startup core file, so the reference totals are unchanged.
