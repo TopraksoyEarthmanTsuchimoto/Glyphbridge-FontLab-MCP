@@ -12366,3 +12366,193 @@ print("3079a applyTransform statements:", [l.strip() for l in _src221.split("\n"
       "| guard full:", "expand" in ns["_GUARD_FULL_KINDS"], "| activity:", ns["_ACT_WRITES"].get("/glyph/expand"),
       "| route documented:", 'POST /glyph/expand          {"glyphs"' in src, "| dispatched:", 'if path == "/glyph/expand":' in src, "| version", ns["VERSION"])
 for _g in ("xt1a", "xt1b", "xt1c", "xt1d", "xt1e", "xt1f", "xt1g", "xt1h", "xt1i", "xt9src"): TS.pop(_g, None); P72["layers"].pop(_g, None); P72["widths"].pop(_g, None)
+
+# ================= v0.222: /debug/trymaster (gated research probe: masters addressed by name, design d) =================
+print("\n==== v0.222 /debug/trymaster ====")
+MR = {"calls": [], "forbidden": [], "glyphs": {}, "cfg": {}}
+_MR_FORBIDDEN = ("removeLayer", "setActive", "updateActiveLayer", "boundingBox", "update", "save", "removeMaster", "addMaster", "renameMaster",
+                 "clearMasters", "release", "remove", "notifyChangesApplied", "setLayers", "addLayer", "addLayers")
+class MRSpy:
+    def __getattribute__(self, n):
+        if not n.startswith("_") and n in _MR_FORBIDDEN:
+            MR["forbidden"].append(type(self).__name__ + "." + n)
+            raise SystemExit("FORBIDDEN member touched: " + n)
+        return object.__getattribute__(self, n)
+class MRRect:
+    def __init__(self, l, r, t, b): self._v = (l, r, t, b)
+    def left(self): return self._v[0]
+    def right(self): return self._v[1]
+    def top(self): return self._v[2]
+    def bottom(self): return self._v[3]
+    def width(self): return self._v[1] - self._v[0]
+    def height(self): return self._v[3] - self._v[2]
+class MRLayer(MRSpy):
+    def __init__(self, gname, name, nodes, width, box):
+        self._g, self._name, self._nodes, self._w, self._box = gname, name, nodes, width, box
+    @property
+    def name(self): return self._name
+    def isMasterLayer(self): return True
+    def isActive(self): return MR["glyphs"][self._g]["active"] == self._name
+    def shapesCount(self): return 1 if self._nodes else 0
+    def nodesCount(self): return self._nodes
+    @property
+    def advanceWidth(self):
+        if MR["cfg"].get("adv_read_raises"): raise RuntimeError("advanceWidth read boom")
+        return self._w
+    @advanceWidth.setter
+    def advanceWidth(self, v):
+        MR["calls"].append(("advanceWidth=", self._g, self._name, v))
+        if MR["cfg"].get("adv_set_raises"): raise RuntimeError("advanceWidth set boom")
+        self._w = v
+    def inkBox(self):
+        MR["calls"].append(("inkBox", self._g, self._name))
+        return MRRect(*self._box)
+class MRGlyph(MRSpy):
+    def __init__(self, legacy, font): self._n = str(legacy.name); self._id = legacy.id
+    @property
+    def name(self): return self._n
+    def fgGlyphId(self): return self._id
+    def isValid(self): return True
+    @property
+    def layers(self): return list(MR["glyphs"][self._n]["layers"].values())
+    @property
+    def activeLayer(self):
+        d = MR["glyphs"][self._n]
+        return d["layers"].get(d["active"]) if d["active"] else None
+    def findLayer(self, name):
+        MR["calls"].append(("findLayer", self._n, name))
+        return MR["glyphs"][self._n]["layers"].get(name)
+    def findLayerCreate(self, name):
+        MR["calls"].append(("findLayerCreate", self._n, name))
+        if MR["cfg"].get("create_raises"): raise RuntimeError("findLayerCreate boom")
+        d = MR["glyphs"][self._n]
+        lay = d["layers"].setdefault(name, MRLayer(self._n, name, 0, 0.0, (0, 0, 0, 0)))
+        if not d["active"]: d["active"] = name
+        return lay
+class MRKern(MRSpy):
+    def __init__(self, m): self._m = m
+    def __len__(self): return len(MR["kern"][self._m])
+    def get(self, pair):
+        MR["calls"].append(("get", self._m, tuple(pair)))
+        return MR["kern"][self._m].get(tuple(pair))
+    def set(self, pair, value):
+        MR["calls"].append(("set", self._m, tuple(pair), value))
+        if MR["cfg"].get("kset_raises"): raise RuntimeError("set boom")
+        MR["kern"][self._m][tuple(pair)] = value
+class MRPackage(MRSpy):
+    def isNull(self): return False
+    @property
+    def masters(self): return MR["cfg"].get("masters", ["Regular", "Bold"])
+    @property
+    def master(self): return MR["master"]
+    @property
+    def defaultMaster(self): return "Regular"
+    @property
+    def upm(self): return 1000
+    def kerning(self, m=None):
+        MR["calls"].append(("kerning", m))
+        return MRKern(m)
+    def setMaster(self, name, notify=False):
+        MR["calls"].append(("setMaster", name, notify))
+        if MR["cfg"].get("setmaster_raises"): raise RuntimeError("setMaster boom")
+        MR["master"] = name
+        if MR["cfg"].get("setmaster_moves_glyphs"):
+            for d in MR["glyphs"].values():
+                if name in d["layers"]: d["active"] = name
+class MRWorkspace:
+    @staticmethod
+    def instance(): return MR_WS
+    def packages(self): return [MR_PKG] * MR["cfg"].get("packages", 1)
+    @property
+    def currentPackage(self): return MR_PKG
+MR_PKG = MRPackage(); MR_WS = MRWorkspace()
+class MRLegacy:
+    def __init__(self, n, i): self.name, self.id = n, i
+class MRFont:
+    path = "mr-stub-font"
+    @property
+    def glyphs(self): return [MRLegacy(n, i) for i, n in enumerate(MR["glyphs"], start=900)]
+_mr_saved = [(m, a, getattr(m, a, None)) for m in _tf_mods for a in ("CountFonts", "CurrentFont", "flWorkspace", "flGlyph", "Update")]
+def mr_setup(calls=0, **cfg):
+    MR["cfg"] = dict(cfg); MR["calls"].clear(); MR["master"] = cfg.get("master", "Regular")
+    MR["glyphs"] = {
+        "mr_a": {"active": "Regular", "layers": {"Regular": MRLayer("mr_a", "Regular", 4, 500.0, (100, 400, -300, 0)),
+                                                "Bold": MRLayer("mr_a", "Bold", 4, 500.0, (100, 300, -200, 0))}},
+        "mr_b": {"active": "Regular", "layers": {"Regular": MRLayer("mr_b", "Regular", 4, 500.0, (100, 400, -300, 0)),
+                                                "Bold": MRLayer("mr_b", "Bold", 0, 500.0, (0, 0, 0, 0))}},
+        "mr_c": {"active": "Regular", "layers": {"Regular": MRLayer("mr_c", "Regular", 0, 0.0, (0, 0, 0, 0))}},
+        "mr_d": {"active": None, "layers": {}},
+        "zz_x": {"active": "Regular", "layers": {"Regular": MRLayer("zz_x", "Regular", 0, 0.0, (0, 0, 0, 0))}}}
+    MR["kern"] = {"Regular": {("mr_a", "mr_b"): -50.0}, "Bold": {("mr_a", "mr_b"): -80.0}}
+    for s in ns["_TRYMASTER"]: ns["_TRYMASTER"][s] = calls
+    ns["_MODERN_CACHE"].clear()
+    count = cfg.get("count", 1)
+    for _m in _tf_mods:
+        _m.flWorkspace = MRWorkspace
+        _m.CountFonts = lambda: count
+        _m.CurrentFont = (lambda: None) if cfg.get("cur") == "none" else (lambda: MRFont())
+        _m.flGlyph = MRGlyph
+        _m.Update = (lambda w: MR["calls"].append(("Update", str(w.name))))
+def mrc(tag, path, keys=None):
+    c, d = call(path)
+    shown = {k: v for k, v in d.items() if k not in ("note", "calls_so_far", "max_calls")} if keys is None else {k: d.get(k) for k in keys}
+    print(tag, ":", c, shown, "| calls", MR["calls"])
+    return c, d
+_MRQ = "/debug/trymaster?"
+for _st, _q in (("state", "name=mr_a"), ("width", "name=mr_a&master=Bold&value=650"), ("kern", "a=mr_a&b=mr_b&master=Regular&value=-40"),
+                ("addlayer", "name=mr_c&master=Bold"), ("setmaster", "master=Bold&notify=0")):
+    mr_setup(); mrc(f"3080 {_st:9} no go: nothing runs", _MRQ + f"stage={_st}&{_q}")
+mr_setup(); mrc("3081 unknown stage              ", _MRQ + "stage=zap&name=mr_a&go=yes")
+mr_setup(); mrc("3082 name without mr            ", _MRQ + "stage=state&name=zz_x&go=yes")
+mr_setup(); mrc("3082b kern side without mr      ", _MRQ + "stage=kern&a=mr_a&b=zz_x&master=Regular&value=-40&go=yes")
+mr_setup(); mrc("3083 master not one of masters  ", _MRQ + "stage=width&name=mr_a&master=Black&value=600&go=yes")
+mr_setup(); mrc("3084 master with control char   ", _MRQ + "stage=width&name=mr_a&master=Re%01g&value=600&go=yes")
+mr_setup(); mrc("3085 setmaster without notify   ", _MRQ + "stage=setmaster&master=Bold&go=yes")
+mr_setup(); mrc("3086 width negative             ", _MRQ + "stage=width&name=mr_a&master=Bold&value=-5&go=yes")
+mr_setup(); mrc("3087 width 4001 (upm 1000)      ", _MRQ + "stage=width&name=mr_a&master=Bold&value=4001&go=yes")
+mr_setup(); mrc("3088 kern 1001                  ", _MRQ + "stage=kern&a=mr_a&b=mr_b&master=Regular&value=-1001&go=yes")
+mr_setup(); mrc("3089 kern unknown glyph         ", _MRQ + "stage=kern&a=mr_a&b=mr_q&master=Regular&value=-40&go=yes")
+mr_setup(); mrc("3089b state unknown glyph       ", _MRQ + "stage=state&name=mr_q&go=yes")
+mr_setup(); mrc("3090 state mr_a                 ", _MRQ + "stage=state&name=mr_a&go=yes", keys=("masters", "current_master", "default_master", "state"))
+mr_setup(); mrc("3090b state mr_d (no layer)     ", _MRQ + "stage=state&name=mr_d&go=yes", keys=("state",))
+mr_setup(adv_read_raises=True); mrc("3090c advanceWidth read raises  ", _MRQ + "stage=state&name=mr_a&go=yes", keys=("state",))
+mr_setup(); mrc("3091 width Bold 650             ", _MRQ + "stage=width&name=mr_a&master=Bold&value=650&go=yes",
+                keys=("master_used", "value_asked", "set_error", "update", "state_after"))
+mr_setup(); mrc("3091b width on a glyph lacking Bold", _MRQ + "stage=width&name=mr_c&master=Bold&value=650&go=yes", keys=("error",))
+mr_setup(adv_set_raises=True); mrc("3091c width set raises         ", _MRQ + "stage=width&name=mr_a&master=Bold&value=650&go=yes", keys=("set_error", "update"))
+mr_setup(); mrc("3093 kern Regular -40           ", _MRQ + "stage=kern&a=mr_a&b=mr_b&master=Regular&value=-40&go=yes",
+                keys=("master_used", "before", "set_error", "after"))
+mr_setup(kset_raises=True); mrc("3093b kern set raises          ", _MRQ + "stage=kern&a=mr_a&b=mr_b&master=Bold&value=-40&go=yes", keys=("set_error", "after"))
+mr_setup(); mrc("3094 addlayer Bold on mr_c      ", _MRQ + "stage=addlayer&name=mr_c&master=Bold&go=yes",
+                keys=("returned", "call_error", "state_after", "rebuilt_wrapper"))
+mr_setup(); mrc("3094b addlayer Regular on mr_d  ", _MRQ + "stage=addlayer&name=mr_d&master=Regular&go=yes", keys=("returned", "state_after"))
+mr_setup(); mrc("3095 addlayer, layer present    ", _MRQ + "stage=addlayer&name=mr_a&master=Bold&go=yes", keys=("error",))
+mr_setup(create_raises=True); mrc("3095b findLayerCreate raises   ", _MRQ + "stage=addlayer&name=mr_c&master=Bold&go=yes", keys=("call_error", "returned"))
+mr_setup(); mrc("3096 setmaster Bold notify 0    ", _MRQ + "stage=setmaster&master=Bold&notify=0&go=yes",
+                keys=("call", "set_error", "current_master_after", "active_layers_before", "active_layers_after"))
+mr_setup(setmaster_moves_glyphs=True); mrc("3096b setmaster Bold notify 1, glyphs follow", _MRQ + "stage=setmaster&master=Bold&notify=1&go=yes",
+                keys=("call", "current_master_after", "active_layers_after"))
+mr_setup(setmaster_raises=True); mrc("3097 setMaster raises           ", _MRQ + "stage=setmaster&master=Bold&notify=0&go=yes", keys=("set_error", "current_master_after"))
+for _tag, _over in (("3098 no font open     ", dict(count=0)), ("3098b two fonts open  ", dict(count=2)), ("3098c two packages    ", dict(packages=2)),
+                    ("3098d CurrentFont None ", dict(cur="none"))):
+    mr_setup(**_over); mrc(_tag, _MRQ + "stage=state&name=mr_a&go=yes", keys=("error", "open"))
+mr_setup(calls=9); mrc("3098e request 10 allowed       ", _MRQ + "stage=state&name=mr_a&go=yes", keys=("calls_so_far",))
+MR["calls"].clear(); mrc("3098f request 11 refused       ", _MRQ + "stage=state&name=mr_a&go=yes", keys=("error",))
+mr_setup(); _mr_real = ns["debug_try_master"]
+def _mr_boom(*a): raise RuntimeError("probe boom")
+ns["debug_try_master"] = _mr_boom; mrc("3098g probe raises: HTTP 500    ", _MRQ + "stage=state&name=mr_a&go=yes"); ns["debug_try_master"] = _mr_real
+print("3099 spies over all cases: forbidden members touched:", MR["forbidden"])
+_mr_src = src[src.index("_TRYMASTER_MAX = 10"):src.index("# /debug/tryopen (v0.125)")]
+_mr_code = "\n".join(l.split("#")[0] for l in _re83.sub(r'"(?:[^"\\\n]|\\.)*"', '""', _mr_src).splitlines())
+print("3099a static scan: forbidden call syntax:", _re83.findall(r"\.(?:update|save\w*|export\w*|close|release|removeLayer|removeMaster|addMaster|renameMaster|boundingBox|setActive|updateActiveLayer|notify\w*|addLayers?|setLayers)\b", _mr_code),
+      "| one write per stage:", len(_re83.findall(r'setattr\(layer, "advanceWidth"', _mr_src)), len(_re83.findall(r"kt\.set\(", _mr_code)),
+      len(_re83.findall(r"w\.findLayerCreate\(", _mr_code)), len(_re83.findall(r"setter\(master", _mr_code)),
+      "| counter before the stage's calls:", _mr_src.index('_TRYMASTER[stage] += 1') < _mr_src.index('setattr(layer, "advanceWidth"'),
+      "| route registered once:", src.count('path == "/debug/trymaster"') == 1, "| in the module docstring:", "/debug/trymaster" in src[:src.index('"""', 3)],
+      "| max", ns["_TRYMASTER_MAX"], "| version", ns["VERSION"])
+for _m, _a, _v in _mr_saved:
+    if _v is None:
+        if hasattr(_m, _a): delattr(_m, _a)
+    else: setattr(_m, _a, _v)
+for s in ns["_TRYMASTER"]: ns["_TRYMASTER"][s] = 0
+ns["_MODERN_CACHE"].clear()

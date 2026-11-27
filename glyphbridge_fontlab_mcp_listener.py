@@ -1,5 +1,5 @@
 """
-Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.221)
+Glyphbridge-FontLab-MCP  -  FontLab-side listener (v0.222)
 =========================================================
 Runs inside FontLab 8 and gives the Glyphbridge MCP server (glyphbridge_mcp_server.py, a separate
 process) raw facts about the font open in FontLab over local HTTP (127.0.0.1:8765, never exposed).
@@ -271,6 +271,10 @@ Routes (GET unless marked POST):
     /debug/tryhistory     name=xt...&shape=I: read only, FontLab's history values (hasHistoryStates, currentHistoryState(),
                           initialHistoryState(), historyStates(True / False)) of the glyph, its active layer and shape I; exactly
                           one font open, 10 per listener run (v0.219, Undo research)
+    /debug/trymaster      stage=state|width|kern|addlayer|setmaster&go=yes: masters addressed by name (design d research):
+                          a layer by w.findLayer(master), ONE layer.advanceWidth = N then fontlab.Update, ONE
+                          pkg.kerning(master).set((a, b), N), ONE w.findLayerCreate(master), ONE pkg.setMaster(master,
+                          notify); glyph names mr... only; exactly one font open; 10 per stage and listener run (v0.222)
     /debug/trycomponent   stage=glyphcomponents|shapedata&target=cpp...&source=cpp...&dx=DX&dy=DY: ONE placement of the source glyph
                           (one plain shape) in the target (an existing layer, at most one plain shape) at offset (dx, dy), elements
                           and outlines before and after; exactly one font open, 6 per listener run (v0.155, P2.7 research);
@@ -356,7 +360,7 @@ except ImportError:
 HOST = "127.0.0.1"
 PORT = 8765
 POLL_MS = 25
-VERSION = "0.221"
+VERSION = "0.222"
 ENTRY_NAME = "glyphbridge-fontlab"  # the MCP config entry name: the apps put it into the client name they send (v0.106)
 
 _REASONS = {200: "OK", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
@@ -5573,6 +5577,272 @@ def debug_try_history(name, shape, go):
     base["history"] = _tryhist_read(w, layer, shapes[idx])
     base["state_after"], _l = _tryshape_modern_state(w)
     return base
+
+
+# --------------------------------------------------------------------------
+# /debug/trymaster (v0.222) - RESEARCH for masters addressed by name (design d, DECISIONS.md 2026-11-27): can a layer, a width and a
+# kerning table be read and written by MASTER NAME, not through activeLayer, and can the current master be set? Live MM 2046-2062 and
+# MR-MR3 2070-2088: every tool used activeLayer; selecting a glyph without the current master's layer split FontLab's current master
+# from the glyphs' active layers (2085-2088). Names only (MR4 2089-2092): flLayer.advanceWidth ("double"), isMasterLayer(),
+# isActive(), inkBox(); flGlyph.findLayer, findLayerCreate (live 2083); flPackage.master, masters, kerning(master) (read live 2093,
+# 2094), setMaster(string name[, bool notify = false]). flLayer.boundingBox is NOT used (a property: calling it raised, test 519).
+# Every stage needs go=yes (state reads members never called live before), the one-font gate of /debug/trysync, glyph names starting
+# with "mr", and a master that is one of the package's masters; at most _TRYMASTER_MAX requests per stage and listener run, counted
+# BEFORE the first call of the stage's own:
+#   stage=state&name=G                                   reads only: pkg.masters, pkg.master, pkg.defaultMaster, and for each master M
+#       w.findLayer(M): its name, isMasterLayer(), isActive(), shapesCount(), nodesCount(), advanceWidth, inkBox() (only on a layer
+#       holding nodes) and the sidebearings computed from them; the glyph's activeLayer and len(layers)
+#   stage=width&name=G&master=M&value=N                  ONE layer.advanceWidth = N on w.findLayer(M), then ONE fontlab.Update(w);
+#       the state of every master before and after
+#   stage=kern&a=A&b=B&master=M&value=N                  ONE pkg.kerning(M).set((A, B), N), the tuple form; (A, B) read with get on
+#       every master's table before and after (each pkg.kerning(...) a read, as in /debug/trypkgkern)
+#   stage=addlayer&name=G&master=M                       ONE w.findLayerCreate(M) on a glyph that has no layer named M (other layers
+#       allowed); the state before and after, also through a rebuilt wrapper
+#   stage=setmaster&master=M&notify=0|1                  ONE pkg.setMaster(M, False|True); pkg.master and the active layer of the
+#       first 5 glyphs named mr... before and after
+# Never called: font.update(), save, removeLayer, removeMaster, addMaster, renameMaster, a changed mark or a panel refresh,
+# flLayer.boundingBox, setActive, updateActiveLayer. No native object is indexed or iterated (font.glyphs is the legacy list).
+# --------------------------------------------------------------------------
+
+_TRYMASTER_MAX = 10
+_TRYMASTER_STAGES = ("state", "width", "kern", "addlayer", "setmaster")
+_TRYMASTER = {s: 0 for s in _TRYMASTER_STAGES}
+_TRYMASTER_GLYPHS_MAX = 5
+
+
+def _trymaster_name_ok(name):
+    return (isinstance(name, str) and 3 <= len(name) <= 63 and name.startswith("mr")
+            and all(ch in _TRYCREATE_NAME_CHARS for ch in name))
+
+
+def _trymaster_master_ok(master):
+    return (isinstance(master, str) and 1 <= len(master) <= 63
+            and not any(ord(ch) < 32 or 127 <= ord(ch) <= 159 for ch in master))
+
+
+def _trymaster_layer(layer):
+    """Read-only snapshot of ONE layer found by name. Every read guarded; inkBox() only on a layer holding nodes."""
+    out = {}
+    v, err = _tl_call(lambda: _call0(layer, "name"))
+    out["name"] = str(v) if err is None else {"error": err}
+    for label, attr in (("is_master_layer", "isMasterLayer"), ("is_active", "isActive")):
+        v, err = _tl_call(lambda a=attr: getattr(layer, a)())
+        out[label] = v if (err is None and type(v) is bool) else ({"error": err} if err is not None else f"not a bool: {type(v).__name__}")
+    for label, attr in (("shapes", "shapesCount"), ("nodes", "nodesCount")):
+        v, err = _tl_call(lambda a=attr: _call0(layer, a))
+        out[label] = int(v) if (err is None and isinstance(v, (int, float)) and not isinstance(v, bool)) else (
+            {"error": err} if err is not None else f"not a plain number: {type(v).__name__}")
+    v, err = _tl_call(lambda: layer.advanceWidth)
+    adv = _num(v) if err is None else None
+    out["advance_width"] = adv if adv is not None else ({"error": err} if err is not None else f"not a number: {type(v).__name__}")
+    if type(out.get("nodes")) is int and out["nodes"] > 0:
+        rect, err = _tl_call(lambda: layer.inkBox())
+        ink = _rect_plain(rect) if err is None else {"error": err}
+        out["ink_box"] = ink
+        if adv is not None and "error" not in ink:
+            out["sidebearings_computed"] = {"lsb": round(ink["left"], 3), "rsb": round(adv - ink["right"], 3)}
+    return out
+
+
+def _trymaster_state(w, masters):
+    """{"active_layer", "layers_len", "masters": {M: snapshot or {"present": False}}} of one glyph. Read only. Never raises."""
+    st = {}
+    v, err = _tl_call(lambda: w.activeLayer)
+    st["active_layer"] = ({"error": err} if err is not None else (None if v is None else str(_tl_call(lambda: _call0(v, "name"))[0])))
+    v, err = _tl_call(lambda: len(w.layers))
+    st["layers_len"] = v if err is None else {"error": err}
+    per = {}
+    for m in masters:
+        layer, err = _tl_call(lambda mm=m: w.findLayer(mm))
+        if err is not None:
+            per[m] = {"error": err}
+        elif layer is None:
+            per[m] = {"present": False}
+        else:
+            per[m] = dict(_trymaster_layer(layer), present=True)
+    st["masters"] = per
+    return st
+
+
+def _trymaster_glyph(font, name):
+    """(legacy glyph, wrapper, None) or (None, None, reason)."""
+    glyph = _find_glyph(font, name)
+    if glyph is None:
+        return None, None, f"no glyph named {name!r}"
+    try:
+        w, _how = _modern_wrapper(glyph, font)
+    except Exception as exc:
+        return None, None, f"the modern glyph could not be reached: {exc}"
+    return glyph, w, None
+
+
+def debug_try_master(stage, name, master, value, a, b, notify, go):
+    """v0.222: masters addressed by name. See the section comment. Never raises out of the route's try."""
+    import sys as _sys
+    if stage not in _TRYMASTER_STAGES:
+        return {"error": "stage must be one of " + ", ".join(_TRYMASTER_STAGES)}
+    if stage in ("state", "width", "addlayer") and not _trymaster_name_ok(name):
+        return {"error": "name must be a glyph name of 3 to 63 characters from A-Z a-z 0-9 . _ - starting with mr"}
+    if stage == "kern" and not (_trymaster_name_ok(a) and _trymaster_name_ok(b)):
+        return {"error": "a and b must be glyph names of 3 to 63 characters from A-Z a-z 0-9 . _ - starting with mr"}
+    if stage != "state" and not _trymaster_master_ok(master):
+        return {"error": "master must be 1 to 63 characters without control characters"}
+    number = None
+    if stage in ("width", "kern"):
+        number, err = _trysetkern_value(value)
+        if err is not None:
+            return {"error": err}
+        if stage == "width" and number < 0:
+            return {"error": "value must not be negative for a width"}
+    if stage == "setmaster" and notify not in ("0", "1"):
+        return {"error": "notify must be 0 or 1"}
+    if go != "yes":
+        what = {"state": "reads, for every master by name, the glyph's layer: isMasterLayer(), isActive(), advanceWidth and inkBox(), never called live before; nothing is changed",
+                "width": "sets ONE layer.advanceWidth on the named master's layer, then ONE fontlab.Update(glyph)",
+                "kern": "sets ONE pair in the named master's kerning table (pkg.kerning(master).set)",
+                "addlayer": "adds ONE layer named after the master (findLayerCreate)",
+                "setmaster": "calls ONE pkg.setMaster(master, notify)"}[stage]
+        return {"error": f"stage={stage} {what}. Add &go=yes to run it.", "calls_so_far": dict(_TRYMASTER), "max_calls": _TRYMASTER_MAX}
+    mod = _sys.modules.get("fontlab") or fl
+    ws, pkg, why = _trysync_target(mod)
+    if ws is None:
+        return {"error": why, "calls_so_far": dict(_TRYMASTER)}
+    font = fl.CurrentFont()
+    if font is None:
+        return {"open": False}
+    masters, err = _pkg_get(pkg, "masters")
+    if err is not None:
+        return {"open": True, "error": err, "calls_so_far": dict(_TRYMASTER)}
+    if not isinstance(masters, (list, tuple)) or not all(isinstance(m, str) for m in masters):
+        return {"open": True, "error": f"the package's masters are not a plain list of names ({type(masters).__name__}); nothing was called",
+                "calls_so_far": dict(_TRYMASTER)}
+    masters = list(masters)
+    current, err = _pkg_get(pkg, "master")
+    current = current if isinstance(current, str) else {"error": err or f"not a name: {type(current).__name__}"}
+    if stage != "state" and master not in masters:
+        return {"open": True, "error": f"master {master!r} is not one of the package's masters; nothing was called", "masters": masters,
+                "calls_so_far": dict(_TRYMASTER)}
+    glyph = w = None
+    if stage in ("state", "width", "addlayer"):
+        glyph, w, why = _trymaster_glyph(font, name)
+        if w is None:
+            return {"open": True, "error": why, "calls_so_far": dict(_TRYMASTER)}
+    upm = None
+    if stage in ("width", "kern"):
+        upm, err = _pkg_get(pkg, "upm")
+        if err is not None or type(upm) not in (int, float) or not upm > 0:
+            return {"open": True, "error": "the package's upm could not be read as a positive number; nothing was called", "calls_so_far": dict(_TRYMASTER)}
+        limit = 4 * upm if stage == "width" else upm
+        if abs(number) > limit:
+            return {"open": True, "error": f"value {number} is out of range (at most {limit} either way for this stage); nothing was called",
+                    "calls_so_far": dict(_TRYMASTER)}
+    if stage == "kern":
+        names = set(str(g.name) for g in font.glyphs)
+        missing = [nm for nm in (a, b) if nm not in names]
+        if missing:
+            return {"open": True, "error": "no glyph with this name in the current font: " + ", ".join(repr(m) for m in missing),
+                    "calls_so_far": dict(_TRYMASTER)}
+    if _TRYMASTER[stage] >= _TRYMASTER_MAX:
+        return {"open": True, "error": f"stage={stage} already ran {_TRYMASTER_MAX} times in this listener run; restart the listener to repeat it",
+                "calls_so_far": dict(_TRYMASTER), "max_calls": _TRYMASTER_MAX}
+    _TRYMASTER[stage] += 1      # counted BEFORE the stage's own calls: whatever happens, it is on record
+    base = {"open": True, "stage": stage, "masters": masters, "current_master": current, "calls_so_far": dict(_TRYMASTER),
+            "max_calls": _TRYMASTER_MAX, "note": "RESEARCH: compare with FontLab on every master; nothing is saved, marked or refreshed by Glyphbridge"}
+    if stage == "state":
+        dm, err = _pkg_get(pkg, "defaultMaster")
+        base["default_master"] = dm if isinstance(dm, str) else {"error": err or f"not a name: {type(dm).__name__}"}
+        return dict(base, name=name, state=_trymaster_state(w, masters))
+    if stage == "width":
+        before = _trymaster_state(w, masters)
+        layer, err = _tl_call(lambda: w.findLayer(master))
+        if err is not None or layer is None:
+            return dict(base, name=name, master_used=master, state_before=before,
+                        error=f"the glyph has no layer named {master!r}" + (f" ({err})" if err else "") + "; nothing was set")
+        out = dict(base, name=name, master_used=master, value_asked=number, state_before=before,
+                   call=f"findLayer({master!r}).advanceWidth = value")
+        _v, set_err = _tl_call(lambda: setattr(layer, "advanceWidth", float(number)))
+        out["set_error"] = set_err
+        upd = getattr(mod, "Update", None)
+        if callable(upd):
+            _v, uerr = _tl_call(lambda: upd(w))
+            out["update"] = {"called": True, "call_error": uerr}
+        else:
+            out["update"] = {"called": False, "reason": "the fontlab module has no Update function"}
+        out["state_after"] = _trymaster_state(w, masters)
+        return out
+    if stage == "kern":
+        kerning_of = getattr(pkg, "kerning", None)
+        if not callable(kerning_of):
+            return dict(base, error="flPackage.kerning is not callable; nothing was set")
+        def _read_all():
+            res = {}
+            for m in masters:
+                kt, kerr = _tl_call(lambda mm=m: kerning_of(mm))
+                res[m] = {"error": kerr} if kerr is not None else (
+                    {"error": "kerning(master) returned None"} if kt is None else _trypkgkern_get(kt, (a, b)))
+            return res
+        before = _read_all()
+        out = dict(base, a=a, b=b, master_used=master, value_asked=number, before=before,
+                   call=f"flPackage.kerning({master!r}).set((a, b), value)")
+        kt, kerr = _tl_call(lambda: kerning_of(master))
+        if kerr is not None or kt is None:
+            out["set_error"] = "not called: " + (kerr or "kerning(master) returned None")
+        else:
+            returned, set_err = _tl_call(lambda: kt.set((a, b), float(number)))
+            out["set_error"] = set_err
+            out["set_returned"] = _tryfont_plain(returned)
+        out["after"] = _read_all()
+        return out
+    if stage == "addlayer":
+        before = _trymaster_state(w, masters)
+        if (before["masters"].get(master) or {}).get("present") is not False:
+            return dict(base, name=name, master_used=master, state_before=before,
+                        error=f"the glyph already has a layer named {master!r}, or it could not be read; nothing was called")
+        out = dict(base, name=name, master_used=master, state_before=before, call=f"w.findLayerCreate({master!r})")
+        ret, cerr = _tl_call(lambda: w.findLayerCreate(master))
+        out["call_error"] = cerr
+        out["returned"] = _tl_describe(ret) if cerr is None else None
+        out["state_after"] = _trymaster_state(w, masters)
+        try:
+            _MODERN_CACHE.pop(int(_call0(glyph, "id")), None)
+            w2, how2 = _modern_wrapper(glyph, font)
+            out["state_after_rebuilt_wrapper"] = _trymaster_state(w2, masters)
+            out["rebuilt_wrapper"] = how2
+        except Exception as exc:
+            out["rebuilt_wrapper_error"] = f"{type(exc).__name__}: {exc}"
+        return out
+    # stage == setmaster
+    picked = []
+    for g in font.glyphs:
+        if len(picked) >= _TRYMASTER_GLYPHS_MAX:
+            break
+        nm = str(g.name)
+        if nm.startswith("mr"):
+            picked.append(nm)
+    def _actives():
+        res = {}
+        for nm in picked:
+            _g, wg, why2 = _trymaster_glyph(font, nm)
+            if wg is None:
+                res[nm] = {"error": why2}
+                continue
+            lay, lerr = _tl_call(lambda: wg.activeLayer)
+            res[nm] = {"error": lerr} if lerr is not None else (None if lay is None else str(_tl_call(lambda: _call0(lay, "name"))[0]))
+        return res
+    before = _actives()
+    setter = getattr(pkg, "setMaster", None)
+    out = dict(base, master_used=master, notify=(notify == "1"), active_layers_before=before,
+               call=f"flPackage.setMaster({master!r}, {notify == '1'})")
+    if not callable(setter):
+        out["set_error"] = "not called: flPackage.setMaster is not callable"
+    else:
+        returned, set_err = _tl_call(lambda: setter(master, notify == "1"))
+        out["set_error"] = set_err
+        out["set_returned"] = _tryfont_plain(returned)
+    after_master, err = _pkg_get(pkg, "master")
+    out["current_master_after"] = after_master if isinstance(after_master, str) else {"error": err or f"not a name: {type(after_master).__name__}"}
+    out["active_layers_after"] = _actives()
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -17556,6 +17826,15 @@ def _route(method, full_path, body=b""):
             try:
                 return _build_response(200, debug_try_history((query.get("name") or [""])[0], (query.get("shape") or [None])[0],
                                                               (query.get("go") or [""])[0]))
+            except Exception as exc:
+                return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        if path == "/debug/trymaster":       # v0.222: masters addressed by name, research
+            try:
+                return _build_response(200, debug_try_master((query.get("stage") or [""])[0], (query.get("name") or [""])[0],
+                                                             (query.get("master") or [None])[0], (query.get("value") or [None])[0],
+                                                             (query.get("a") or [""])[0], (query.get("b") or [""])[0],
+                                                             (query.get("notify") or [None])[0], (query.get("go") or [""])[0]))
             except Exception as exc:
                 return _build_response(500, {"error": f"{type(exc).__name__}: {exc}"})
 

@@ -129,3 +129,15 @@ Incidents and method lessons from the chat-era sessions up to v11, plus the migr
 ## Change-log session (2026-11-24, CL 1618–1629)
 
 - **A restart request names each part.** 1628 needed only Claude Desktop restarted, with the listener still running so its change log kept `clg3`. The step said "after Claude Desktop is fully quit and reopened" but not to leave the listener alone. After "restarted everything", `changes_by_font` was missing and `other_changes` was empty, most likely because the listener was restarted too. That voided the test. Rule: [AGENTS.md](../AGENTS.md).
+
+## W2 session (2026-11-27, 2040–2045)
+
+- **Say how soon a command returns before a timed GUI step.** In 2043 the person was to run the listener "right after" a stop command returned. It returned within a second, which the request had not said, so the run was void.
+  *Lesson:* a request that times a GUI step after a command says when the command returns and what shows it, and the person prepares the click first (the mouse on the button).
+- **A timing run needs a lead time and a still screen.** In 2040 the person switched windows during the run, so "FontLab in front" was void.
+  *Lesson:* a timing command waits before its first call, and the request says: no switching, no screenshot, until it ends.
+
+## MM session (2026-11-27, 2046–2062)
+
+- **Check a plan's calls against each tool's preconditions.** The MM plan drew into glyphs it never created and gave a width that drawing does not set; 2046 was refused, and four steps (2046a, 2046b, 2047a, 2047b) were added during the run.
+  *Lesson:* before a run, read the description of each tool in the plan and list the state it needs.

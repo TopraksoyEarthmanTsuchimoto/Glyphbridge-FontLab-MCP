@@ -44,6 +44,7 @@ Not core, but budgeted: the root [README.md](../README.md), the end-user install
 | [topics/geometry.md](topics/geometry.md) | width, sidebearings, polygons, curves, layer guard, v8 live record; research: [archive/geometry-research.md](archive/geometry-research.md) |
 | [topics/fonts-and-sync.md](topics/fonts-and-sync.md) | new fonts, unsynced layers, guard, auto sync, GUI refresh; research: [archive/fonts-and-sync-research.md](archive/fonts-and-sync-research.md) |
 | [topics/kerning.md](topics/kerning.md) | how kerning is read and written; the research behind it is in [archive/kerning-research.md](archive/kerning-research.md) |
+| [topics/masters.md](topics/masters.md) | fonts with several masters: which layer the tools use, what a write changes, and where replies and checks fall short (MM, live) |
 | [topics/refusals.md](topics/refusals.md) | every case a tool refuses or no tool supports yet: which tools refuse it, which handle it, what would lift it |
 | [topics/transforms-and-undo.md](topics/transforms-and-undo.md) | expanding an element transform (GUI and API, rounding), FontLab's history states, and which change mark lets Edit > Undo reverse an API edit (research only) |
 | [tests/README.md](../tests/README.md) | the test harnesses (kept in `tests/` by decision) |

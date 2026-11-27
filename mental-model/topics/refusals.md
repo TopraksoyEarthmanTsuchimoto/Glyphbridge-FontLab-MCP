@@ -17,5 +17,6 @@ Every case a tool refuses, or that no tool supports yet, in one table: which too
 | A target with several layers, or another layer active | `add_component` (NB 1353) | none | not chosen | [reading.md](reading.md) |
 | An auto layer switched on | `remove_component` | none | not chosen | [reading.md](reading.md) |
 | An underscore name in a `components` list | `add_component` (0.175) | the single form | none known: FontLab's build reads it as a ligature (AC2u 1216–1235) | [reading.md](reading.md) |
-| Other masters | every tool (not built) | none | a design decision first | [ROADMAP.md](../ROADMAP.md) |
+| Other masters | not refused: every tool uses the current master's active layer (MM 2046–2062) | all tools, on the current master only | the design of 2026-11-27 ([DECISIONS.md](../DECISIONS.md)): masters by name, the interim guard, refusals for tools not yet run on two masters | [masters.md](masters.md) |
+| A glyph with no layer in a font with several masters | `draw_polygon` (MM 2062: the glyphs' layer names differ); `draw_path` uses the same layer helper (code, not run) | none | a design decision: a layer for the current master, or one per master | [masters.md](masters.md) §3 |
 | Several fonts, kerning | `get_kerning` unless the font's path is not empty and matches | the other tools follow the font in front | [ROADMAP.md](../ROADMAP.md) P0.5 | [fonts-and-sync.md](fonts-and-sync.md) |

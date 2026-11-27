@@ -19,12 +19,12 @@
 ## 2. Before the trip (on Windows)
 
 - **W1. Commit and push** the current state (the user, with GitHub Desktop). The Mac clones it.
-- **W2. Windows controls** for the comparisons in section 6 (FontLab running with a new font open, listener 0.221 running; numbers from the normal sequence in [CURRENT-STATUS.md](CURRENT-STATUS.md)). The agent states the predictions first.
-  - **W2a, reply times with FontLab in front** (curl is the same instrument as on the Mac):
-    `1..12 | ForEach-Object { curl.exe -s -o NUL -w "%{time_total}`n" http://127.0.0.1:8765/health; Start-Sleep 5 } | Out-File $HOME\NNNN_win_front.txt`
-  - **W2b, the same with FontLab minimized** (minimize it first, touch nothing until the command ends): the same line, file `NNNN_win_minimized.txt`.
-  - **W2c, listener restart at once:** run W2a's line once more, then `curl.exe -s http://127.0.0.1:8765/shutdown`, then at once run the listener again from the Scripting panel. Report the OUTPUT lines. Expected on Windows: it starts.
-  - **W2d, FontLab's own Python:** in the Scripting panel, run `import sys, platform; print(sys.version, sys.platform, platform.machine())`. This also settles an open item of [CURRENT-STATUS.md](CURRENT-STATUS.md).
+- **W2. Windows controls: done** (2026-11-27, tests 2040–2045, [LIVE-TESTS.md](LIVE-TESTS.md); listener 0.221, FontLab 8.9.5, `curl.exe`, the instrument of section 7). The values the Mac is compared with:
+  - **W2a, FontLab in front (2041):** 12 replies, 0.0089–0.0324 s, at two levels, about 0.010 s and about 0.025 s.
+  - **W2b, FontLab minimized (2042):** 0.0092–0.0273 s, the same two levels. Windows does not slow the listener down.
+  - **W2c, restart at once (2044):** 12 quick calls, `/shutdown`, the listener run again at once: it started, no "Could not bind".
+  - **W2d, FontLab's own Python (2045):** `3.11.3 … 64 bit (AMD64)`, `win32`, `AMD64`; the listener kept running.
+  - Lessons for section 7: the person needs a wait before the first call to reach FontLab, and must not switch windows or take a screenshot during a run (2040 void); a stop command returns within about a second (2043 void).
 - **W3. Ask the Mac's owner** (if it is not the user's): may we install Python 3.15.2, an AI app if missing, and Glyphbridge; edit the AI app's config; allow Terminal into the Documents folder; and remove it all afterwards (section 9)?
 - **W4. Bring nothing else.** The Mac needs internet access for `git`, Python and `pip`.
 
@@ -54,7 +54,7 @@ The person starts FontLab and makes a new font (File > New Font). One GUI action
 
 **M8. Start the listener:** Scripting panel, open the copied file, run it. *Predicted:* OUTPUT shows `glyphbridge_fontlab_mcp_listener.py v0.221` and `Listener started on http://127.0.0.1:8765 (main-thread polling)`; **no firewall question**, because the listener binds to 127.0.0.1 only. If macOS asks whether FontLab may accept incoming connections: click **Deny** and record it; local calls should still work.
 
-**M9. FontLab's own Python** (the Mac side of W2d): the same line in the Scripting panel. *Predicted:* `sys.platform` `darwin`; `platform.machine()` `arm64` on an Apple chip unless FontLab runs under Rosetta (compare M0).
+**M9. FontLab's own Python** (the Mac side of W2d): in a **new, empty** script of the Scripting panel (not in the listener's), run `import sys, platform; print(sys.version, sys.platform, platform.machine())`. *Predicted:* `sys.platform` `darwin`; `platform.machine()` `arm64` on an Apple chip unless FontLab runs under Rosetta (compare M0); Python 3.11.3 if the FontLab version is 8.9.5, as on Windows. Then `curl -s http://127.0.0.1:8765/version`: *predicted* the listener still answers.
 
 **M10. First calls from Terminal.** `curl -s http://127.0.0.1:8765/version`. *Predicted:* listener version `0.221`. Then `venv/bin/python glyphbridge_mcp_server.py --check`. *Predicted:* four `[OK]` lines, and FontLab's OUTPUT shows the connection from `"glyphbridge --check"` with the launcher **`ZSH`**. This is the first real run of the macOS launcher code (`_mac_process_info`, libproc); Terminal's shell is the known control. No launcher at all means libproc failed: record it.
 
@@ -105,13 +105,13 @@ Same steps as on Windows, so that a difference is a macOS difference. All writes
 
 ## 7. What only a Mac can show
 
-**M24. FontLab in the background (App Nap).** macOS may slow down an app that is hidden or covered, and the listener depends on a 25 ms timer. One state per run; touch nothing while a run lasts (one minute):
-- in front: `for i in $(seq 1 12); do curl -s -o /dev/null -w "%{time_total}\n" http://127.0.0.1:8765/health; sleep 5; done | tee ~/30NN_mac_front.txt`
-- hidden (FontLab in front, then Cmd+H): the same line, file `30NN_mac_hidden.txt`;
-- minimized (Cmd+M): file `30NN_mac_minimized.txt`.
-*Predicted:* in front, every reply under 0.05 s. Hidden and minimized: **open**. Under the App Nap hypothesis the first replies are fast and later ones slower (0.1 s or more). Compare W2a and W2b. If slowed: one write (`set_glyph_width mc1_a 530`) with FontLab hidden, to see whether a slow reply reaches the 5 s limit. Changing App Nap settings is the owner's decision and not part of this visit.
+**M24. FontLab in the background (App Nap).** macOS may slow down an app that is hidden or covered, and the listener depends on a 25 ms timer. One state per run. Each line waits 15 s first: press Return, put FontLab into the state within those 15 s, then **touch nothing, no switching, no screenshot**, for about 80 s:
+- in front (click FontLab once): `sleep 15; for i in $(seq 1 12); do curl -s -o /dev/null -w "%{time_total}\n" http://127.0.0.1:8765/health; sleep 5; done | tee ~/30NN_mac_front.txt`
+- hidden (click FontLab, then Cmd+H): the same line, file `30NN_mac_hidden.txt`;
+- minimized (click FontLab, then Cmd+M): file `30NN_mac_minimized.txt`.
+*Predicted:* in front, every reply under 0.05 s, as on Windows (W2a: 0.0089–0.0324 s, two levels). Hidden and minimized: **open**. Under the App Nap hypothesis the first replies are fast and later ones slower (0.1 s or more); on Windows minimizing changed nothing (W2b). If slowed: one write (`set_glyph_width mc1_a 530`) with FontLab hidden, to see whether a slow reply reaches the 5 s limit. Changing App Nap settings is the owner's decision and not part of this visit.
 
-**M25. Restarting the listener at once.** The listener does not set `SO_REUSEADDR`; on macOS a port with recent connections can stay busy for about 30 s. Run M24's front line, then `curl -s http://127.0.0.1:8765/shutdown`, then **at once** run the listener again. *Predicted:* `Could not bind 127.0.0.1:8765 -> [Errno 48] Address already in use` and the advice to reopen FontLab. Then wait 60 s and run it again: *predicted* it starts. Compare W2c. If confirmed, the advice "close and reopen FontLab" is wrong on a Mac: a finding for after the trip.
+**M25. Restarting the listener at once.** The listener does not set `SO_REUSEADDR`; on macOS a port with recent connections can stay busy for about 30 s. The same form as W2c. Prepare first: the Scripting panel showing the listener, Terminal beside it with this line pasted but Return not pressed, **the mouse on FontLab's Run button**: `for i in $(seq 1 12); do curl -s -o /dev/null http://127.0.0.1:8765/health; done; curl -s http://127.0.0.1:8765/shutdown`. Press Return: **it returns within about a second** (`{"status": "shutting down"}`, and `Listener stopped.` in OUTPUT). Click Run at once. *Predicted:* `Could not bind 127.0.0.1:8765 -> [Errno 48] Address already in use` and the advice to reopen FontLab. Then wait 60 s and run it again: *predicted* it starts. Compare W2c. If confirmed, the advice "close and reopen FontLab" is wrong on a Mac: a finding for after the trip.
 
 **M26. Running the listener a second time** while it runs (Scripting panel, run again). *Predicted:* "Listener already running", as the code says when the panel keeps the script's state. If it reports a bind error instead, the panel starts the script afresh: record which.
 

@@ -4,6 +4,13 @@ One entry per release of the two scripts, newest first. The listener's `VERSION`
 
 Earlier history, in full: [archive/listener-history-to-v0.95.md](archive/listener-history-to-v0.95.md) and [archive/server-history-to-v0.31.md](archive/server-history-to-v0.31.md). What was proven live, and when, is recorded in the topic files and [CHECKLIST.md](CHECKLIST.md).
 
+## Listener v0.222 (2026-11-27): research probe, masters addressed by name (server unchanged, v0.99)
+
+**Built as proposed and approved** (design d, [DECISIONS.md](DECISIONS.md), 2026-11-27; names only MR4 2089–2092, [LIVE-TESTS.md](LIVE-TESTS.md)), with two changes the user approved or was told of during the build: `flLayer.inkBox()` in place of `boundingBox()` (a property; calling it raised, test 519), and `stage=state` behind `go=yes` as well, since it reads `flLayer.advanceWidth`, `isMasterLayer()` and `isActive()`, never called live before. Not yet running in FontLab nor run live.
+
+- New gated probe `/debug/trymaster`: `stage=state` reads, for each master, the glyph's layer by `findLayer(name)` (shapes, nodes, `advanceWidth`, `inkBox()` on a layer with nodes, sidebearings computed); `width` makes ONE `layer.advanceWidth = N` on a named master's layer, then ONE `fontlab.Update`; `kern` ONE `pkg.kerning(master).set((a, b), N)` with the pair read from every master's table before and after; `addlayer` ONE `findLayerCreate(master)` on a glyph lacking that layer, also when it has others; `setmaster` ONE `pkg.setMaster(master, notify)` with the current master and up to five glyphs' active layers before and after. Glyph names starting with `mr` only, exactly one font open, 10 requests per stage and listener run, counted before the stage's own calls; never `font.update()`, a save, `removeLayer`, a master edit, a mark or a panel refresh.
+- Tests: four stub harnesses PASS at 6167 + 58 + 121 + 2057 lines; the deployed listener copy is identical. New: `stub_listener_tests.py` 3080–3099a (every stage, every refusal, the gates and the cap, spies and a static scan). Changed as intended: the version lines; 1675 and 2331a, two static inventories that now list the new `inkBox()` and `getattr` calls (their forbidden-call checks still empty). Mutation-tested: 7 mutations of the guards (the go gate, the master check, the cap, the layer-present check, the `mr` prefix, the one-font gate, the value range), all caught.
+
 ## Server v0.99 (2026-11-27): the five findings of XT5 (listener unchanged, v0.221)
 
 **Built as proposed and approved** (after XT5 1982–2024, the live checks of v0.221 / v0.98, [LIVE-TESTS.md](LIVE-TESTS.md)). Run live XT6 2025–2039 ([LIVE-TESTS.md](LIVE-TESTS.md)): each of the five fixes held.

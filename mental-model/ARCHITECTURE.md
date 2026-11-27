@@ -7,7 +7,7 @@ AI app (Claude Desktop, Claude Code, ChatGPT Desktop, Antigravity, …)
    │ MCP over stdio
 glyphbridge_mcp_server.py      own venv, normal Python, MCP SDK v2 (mcp 2.2.0)
    │ HTTP + JSON, 127.0.0.1:8765 only
-glyphbridge_fontlab_mcp_listener.py   inside FontLab 8 (embedded Python)
+glyphbridge_fontlab_mcp_listener.py   inside FontLab 8 (embedded Python 3.11.3 in 8.9.5 on Windows, test 2045)
    │ FontLab Python API (legacy fgFont/fgGlyph + modern flGlyph/flLayer)
 FontLab 8
 ```

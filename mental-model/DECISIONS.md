@@ -133,6 +133,17 @@ Merged on 2026-11-24; each entry in full: [archive/DECISIONS-ARCHIVE.md](archive
 
 ## Fonts
 
+### 2026-11-27: fonts with several masters (research MM 2046–2062, MR 2070–2076a, MR2 2077–2079a, MR3 2080–2088; not built)
+
+Facts: [topics/masters.md](topics/masters.md).
+- **B as the base: a write goes to the current master, and the reply names it. A tool not yet seen on a font with two masters refuses on such a font until a run like MM has shown what it does.** *Reason:* MM saw five write tools change only the current master; FontLab stays the oracle for the rest.
+- **Goal: writes to chosen masters, structural edits (contours, components) on every master at once; researched first.** *Reason:* a contour added to one master breaks interpolation (2059).
+- **The agent tells the person once per conversation per font which master it works on, again when the current master changes between calls, and always when FontLab carries a write to another master; the facts stay in every reply (choice b).** *Reason:* speak when it matters (2026-11-21); FontLab carried a width to an empty master layer (2056, 2056c).
+- **Sync check (choice ii): on a font with several masters the legacy node comparison is skipped, the font is marked after a verified edit, the reply says the legacy check does not apply, and the sync advice ("open the glyph, then any request") is corrected. A new `mm2_` run after the build repeats a node move and a `font.update()` as the control.** *Reason:* the legacy view showed another master (MR 2074, 2076a), and `font.update()` lost nothing (MR2 2078, 2079).
+- **A new glyph gets a layer for every master, as FontLab's Font > New Glyph does (choice a); research first.** *Reason:* FontLab's New Glyph made both layers (2081); a missing layer refuses drawing (2062), risks the Add Component crash ([FONTLAB-API-RULES.md](FONTLAB-API-RULES.md) §9) and can split the current master (2085–2087).
+- **Masters by name (choice d): every tool addresses a master by name, by default FontLab's current master; glyph layers are looked up by that name, not `activeLayer`, and kerning uses that master's own table. Until d is built, a write refuses when the glyph's active layer differs from FontLab's current master (the interim guard). A research probe comes first (a listener build).** *Reason:* selecting a glyph without the current master's layer moved FontLab's current master while the other glyphs kept theirs, so glyph and kerning tools would have written different masters (2085–2088); one mechanism also serves the goal above.
+- *Reason for all:* the user's answers, one question at a time.
+
 ### 2026-11-13: a package is told apart by its fgId (listener 0.150 / server 0.62)
 
 - **The first glyph of a new font takes its layer name from the glyph's own package (`flGlyph.package`), with any number of fonts open, only when that package's `fgId` equals the current package's. No product code uses `flPackage.isEqual`; `create_font` compares `fgId` as well.** *Reason:* `w.package` named the glyph's own font, and `isEqual` called two different packages equal (930, 931); the user approved the design as proposed.

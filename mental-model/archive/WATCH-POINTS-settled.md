@@ -2,6 +2,7 @@
 
 Watch points that were settled or dropped, one line each, in the order they were recorded. Moved from [WATCH-POINTS.md](../WATCH-POINTS.md) on 2026-11-10 and still added to. A settled fact lives in the file its line names.
 
+- 2026-11-27: "The legacy view after a master switch" (MM 2054, 2060b) settled: on a font with two masters the legacy view kept showing `Bold`, after a master switch, with the glyph open in an editor and after `font.update()` (MR 2074, 2076a; MR2 2079a; [topics/masters.md](../topics/masters.md) §1); still open there: whether it shows the master added last or a layer by position.
 - 2026-11-26: "`fonts_changed` names a shared font name once" (1942, 1944) settled by design: server 0.97 lists each changed font as an object, same-named fonts apart with `same_name`, times and `in_front` (the user's choice of Option 2), run live FC 1945–1951 ([topics/server-and-endpoints.md](../topics/server-and-endpoints.md) §2, [LIVE-TESTS.md](../LIVE-TESTS.md)); in that run the agent named both fonts with their times.
 
 - 2026-11-24: "The client gives up while a FontLab dialog waits" (GT 1566–1576, TO 1577–1582, TO2 1583–1587) settled: both parts of the chosen fix are built and run live, self-closing dialogs (listener 0.203 / server 0.83, SD 1599–1617) and the change count in the listener (listener 0.204 / server 0.85, CL 1618–1634) ([topics/server-and-endpoints.md](../topics/server-and-endpoints.md) §2, [DECISIONS.md](../DECISIONS.md) 2026-11-21 and 2026-11-24); the user's choice.
